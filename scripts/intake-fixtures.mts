@@ -31,6 +31,8 @@ export type MovOptions = {
   height?: number;
   codec?: string;
   mdatBytes?: number;
+  /** 정해진 바이트로 채운다(R04 원본 보존 증거 — 매번 같은 해시). 없으면 무작위 */
+  mdatSeed?: number;
   /** 아이폰 촬영 시각 글 */
   appleDate?: string;
   /** 아이폰 기종 글 — 제어 글자가 든 값을 넣어 본다 */
@@ -129,7 +131,11 @@ export function buildMov(o: MovOptions): Buffer {
   const moovBody = Buffer.concat([mvhd, trak, ...(meta ? [meta] : [])]);
   const moov = o.largeMoov ? Buffer.concat([u32(1), Buffer.from('moov', 'latin1'), u64(BigInt(moovBody.length + 16)), moovBody]) : box('moov', moovBody);
   const ftyp = box('ftyp', Buffer.from((o.brand ?? 'qt  ').padEnd(4), 'latin1'), zeros(4), Buffer.from('qt  ', 'latin1'));
-  const mdat = box('mdat', randomBytes(o.mdatBytes ?? 1024));
+  const mdatBody =
+    o.mdatSeed == null
+      ? randomBytes(o.mdatBytes ?? 1024)
+      : Buffer.from(Array.from({ length: o.mdatBytes ?? 1024 }, (_, i) => (i * 131 + o.mdatSeed! * 17 + (i >> 8)) & 255));
+  const mdat = box('mdat', mdatBody);
   /* 아이폰처럼 moov 를 뒤에 둔다 — 서버가 범위 읽기로 찾아야 한다 */
   const filler = Array.from({ length: o.fillerBoxes ?? 0 }, () => box('free', zeros(8)));
   return Buffer.concat([ftyp, mdat, ...filler, moov]);

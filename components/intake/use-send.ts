@@ -39,7 +39,7 @@ export type SendOptions = {
 };
 
 /** 멈췄을 때 화면에 보이는 글 — 실패가 아니라 이어서 보낼 수 있다는 뜻이다 */
-export const SEND_CANCELLED_TEXT = '보내기를 멈췄어요. 이어서 보낼 수 있어요.';
+export const SEND_CANCELLED_TEXT = '보내기를 멈췄습니다. 이어서 보낼 수 있습니다.';
 
 const randomKey = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
 
@@ -180,7 +180,7 @@ export function createSendController(input: () => SendControllerInput, env: Send
         ? new RunStop('cancelled', SEND_CANCELLED_TEXT, e instanceof RunStop ? e.view : null)
         : e instanceof RunStop
           ? e
-          : new RunStop('unknown', '영상을 보내지 못했어요. 다시 시도해 주세요.');
+          : new RunStop('unknown', '영상을 보내지 못했습니다. 다시 시도하십시오.');
       set({ ...(current as SendState), stop, running: false }, true);
       return;
     } finally {

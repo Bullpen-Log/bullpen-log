@@ -17,7 +17,7 @@ import { watchBody3dReady } from './body3d-ready';
  */
 const Body3D = dynamic(() => import('@/app/(app)/videos/lab/[id]/body-3d').then((m) => m.Body3D), {
   ssr: false,
-  loading: () => <p className="grid aspect-[4/5] max-h-[60vh] w-full place-items-center text-sm text-[#c7cfdd]">3D 화면을 준비하고 있어요.</p>,
+  loading: () => <p className="grid aspect-[4/5] max-h-[60vh] w-full place-items-center text-sm text-[#c7cfdd]">3D 화면을 준비하는 중입니다.</p>,
 });
 
 type Phase =
@@ -69,7 +69,7 @@ async function askResult(token: string, accessCode: string | null, signal: Abort
   return {
     ok: false,
     code: body?.error?.code ?? 'internal',
-    message: body?.error?.message ?? '잠시 뒤에 다시 시도해 주세요.',
+    message: body?.error?.message ?? '잠시 뒤 다시 시도하십시오.',
     retryAfterSec: body?.error?.detail?.retryAfterSec ?? null,
   };
 }
@@ -107,8 +107,8 @@ export function ResultView({
     else if (a.code === 'access_code_required') setPhase({ kind: 'code', error: null, busy: false });
     else if (a.code === 'access_code_wrong') setPhase({ kind: 'code', error: a.message, busy: false });
     else if (a.code === 'rate_limited') {
-      const wait = a.retryAfterSec != null ? `${waitText(a.retryAfterSec)} 뒤에 다시 시도해 주세요.` : a.message;
-      setPhase(accessCode != null ? { kind: 'code', error: `시도가 너무 많아요. ${wait}`, busy: false } : { kind: 'blocked', text: `요청이 너무 많아요. ${wait}`, retry: true });
+      const wait = a.retryAfterSec != null ? `${waitText(a.retryAfterSec)} 뒤 다시 시도하십시오.` : a.message;
+      setPhase(accessCode != null ? { kind: 'code', error: `시도가 너무 많습니다. ${wait}`, busy: false } : { kind: 'blocked', text: `요청이 너무 많습니다. ${wait}`, retry: true });
     } else setPhase({ kind: 'blocked', text: a.message, retry: lost(a.code) });
   }, []);
 
@@ -160,7 +160,7 @@ function ResultPhase({
   if (phase.kind === 'loading') {
     return (
       <p role="status" className="mx-auto w-full max-w-[32.5rem] px-5 py-16 text-center text-sm text-muted">
-        결과를 불러오고 있어요.
+        결과를 불러오는 중입니다.
       </p>
     );
   }
@@ -190,7 +190,7 @@ function ResultPhase({
     e.preventDefault();
     const value = code.trim();
     if (!value) {
-      setPhase({ kind: 'code', error: '접근 코드를 입력해 주세요.', busy: false });
+      setPhase({ kind: 'code', error: '접근 코드를 입력하십시오.', busy: false });
       return;
     }
     setPhase({ kind: 'code', error: null, busy: true });
@@ -199,8 +199,8 @@ function ResultPhase({
   return (
     <form onSubmit={submit} noValidate className="mx-auto w-full max-w-[32.5rem] space-y-5 px-5 py-12">
       <div className="space-y-2">
-        <h2 className="text-2xl font-bold text-ink">접근 코드를 입력해 주세요</h2>
-        <p className="text-sm text-muted break-keep">이 결과는 코드를 아는 사람만 볼 수 있어요. 링크를 보내 준 분에게 코드를 받아 주세요.</p>
+        <h2 className="text-2xl font-bold text-ink">접근 코드는 무엇인가요?</h2>
+        <p className="text-sm text-muted break-keep">이 결과는 접근 코드를 아는 사람만 볼 수 있습니다. 링크를 보내 준 담당자에게 코드를 받으십시오.</p>
       </div>
       <div className="space-y-2">
         <label htmlFor="intake-access-code" className="block text-sm font-medium text-ink">
@@ -226,7 +226,7 @@ function ResultPhase({
         )}
       </div>
       <Button type="submit" size="lg" disabled={phase.busy} className="w-full">
-        {phase.busy ? '확인하고 있어요' : '결과 보기'}
+        {phase.busy ? '확인하는 중' : '결과 보기'}
       </Button>
     </form>
   );
@@ -265,7 +265,7 @@ export function ResultBody({ result, preview = false, onReadyChange }: { result:
     <article className="mx-auto w-full max-w-6xl px-5 py-6 lg:px-8">
       {preview && (
         <p role="status" className="mb-4 rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-sm text-warn break-keep">
-          아직 공개 전이에요. 공개하면 받는 사람에게 이 모양 그대로 보여요.
+          아직 공개 전입니다. 공개하면 받는 사람에게 이 모양 그대로 보입니다.
         </p>
       )}
       <header className="mb-5 space-y-1">
@@ -290,10 +290,10 @@ export function ResultBody({ result, preview = false, onReadyChange }: { result:
           <section className="space-y-2">
             <h2 className="text-base font-semibold text-ink">보는 방법</h2>
             <p className="text-sm leading-6 text-muted break-keep">
-              화면을 끌면 돌아가요. 두 손가락으로 벌리거나 Ctrl 을 누른 채 휠을 굴리면 크게 볼 수 있어요. 니업, 착지, 릴리스를 누르면 그 순간으로 가요.
+              화면을 끌면 돌아갑니다. 두 손가락으로 벌리거나 Ctrl 을 누른 채 휠을 굴리면 크게 볼 수 있습니다. 니업, 착지, 릴리스를 누르면 그 순간으로 이동합니다.
             </p>
           </section>
-          <p className="text-xs leading-5 text-muted break-keep">이 화면은 이 링크와 처음에 정한 이름 · PIN 이 함께 있어야 열려요. 링크와 PIN 은 믿을 수 있는 사람에게만 전해 주세요.</p>
+          <p className="text-xs leading-5 text-muted break-keep">이 화면은 이 링크와 처음에 정한 이름 · PIN 이 함께 있어야 열립니다. 링크와 PIN 은 믿을 수 있는 사람에게만 전달하십시오.</p>
         </aside>
       </div>
     </article>

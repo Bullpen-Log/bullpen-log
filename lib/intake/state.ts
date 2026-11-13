@@ -164,10 +164,10 @@ export type ReceiptRetentionRow = { label: string; date: string } | { label: str
  */
 export function receiptRetentionRows(s: { originalDeleting: PurgingScope | null; originalDeletedDate: string | null; originalDeleteDate: string | null }): ReceiptRetentionRow[] {
   const rows: ReceiptRetentionRow[] = [];
-  if (s.originalDeleting === 'current') rows.push({ label: '원본', text: '지우고 있어요' });
+  if (s.originalDeleting === 'current') rows.push({ label: '원본', text: '지우는 중입니다' });
   else if (s.originalDeletedDate) rows.push({ label: '원본 지운 날', date: s.originalDeletedDate });
   else if (s.originalDeleteDate) rows.push({ label: '원본 삭제 예정일', date: s.originalDeleteDate });
-  if (s.originalDeleting === 'older') rows.push({ label: '옛 영상', text: '지우고 있어요' });
+  if (s.originalDeleting === 'older') rows.push({ label: '옛 영상', text: '지우는 중입니다' });
   return rows;
 }
 
@@ -318,27 +318,27 @@ export type StatusTextOptions = {
   originalsGone?: OriginalsGone | null;
 };
 
-const CONTACT_FOR_ANALYSIS = '분석이 필요하면 링크를 보내 준 분에게 문의해 주세요';
-const goneVerb = (g: OriginalsGone) => (g === 'deleted' ? '지웠어요' : '지우고 있어요');
+const CONTACT_FOR_ANALYSIS = '분석이 필요하면 링크를 보내 준 담당자에게 문의하십시오';
+const goneVerb = (g: OriginalsGone) => (g === 'deleted' ? '지웠습니다' : '지우는 중입니다');
 
 /** 공개 화면의 지금 상태 한 줄 — 알림을 약속하지 않고 사실만 말한다 */
 export function publicStatusText(submissionStatus: string, analysisStatus: string, published: boolean, opts: StatusTextOptions = {}): string {
   if (submissionStatus === 'correction_requested') {
-    return opts.uploadExpired ? '고칠 수 있는 기간이 끝났어요. 링크를 보내 준 분에게 문의해 주세요' : '고쳐 주셔야 할 내용이 있어요';
+    return opts.uploadExpired ? '고칠 수 있는 기간이 끝났습니다. 링크를 보내 준 담당자에게 문의하십시오' : '고쳐야 할 내용이 있습니다';
   }
-  if (published) return '결과가 공개됐어요';
-  if (submissionStatus === 'withdrawn') return '접수가 철회됐어요';
-  if (opts.needsReconsent) return '동의 내용이 바뀌었어요. 다시 확인해 주시면 이어서 진행해요';
+  if (published) return '결과가 공개됐습니다';
+  if (submissionStatus === 'withdrawn') return '접수가 철회됐습니다';
+  if (opts.needsReconsent) return '동의 내용이 바뀌었습니다. 다시 확인하면 이어서 진행됩니다';
   /* 끝난 분석의 결과는 원본 없이 남아 공개할 수 있다 — 그때만 '검토'가 참이다. 볼 영상이 없으니 아래의 '확인하고 있어요'는 다 거짓이다 */
-  if (opts.originalsGone) return analysisStatus === 'succeeded' ? '담당자가 결과를 검토하고 있어요' : `보유 기간이 끝나 원본을 ${goneVerb(opts.originalsGone)}. ${CONTACT_FOR_ANALYSIS}`;
-  if (submissionStatus === 'needs_attention') return '영상을 확인하고 있어요. 담당자가 살펴볼 예정이에요';
-  if (submissionStatus === 'submitted') return '파일이 잘 도착했는지 확인하고 있어요';
-  if (analysisStatus === 'queued' || analysisStatus === 'running') return '분석하고 있어요';
-  if (analysisStatus === 'succeeded') return '담당자가 결과를 검토하고 있어요';
+  if (opts.originalsGone) return analysisStatus === 'succeeded' ? '담당자가 결과를 검토하고 있습니다' : `보유 기간이 끝나 원본을 ${goneVerb(opts.originalsGone)}. ${CONTACT_FOR_ANALYSIS}`;
+  if (submissionStatus === 'needs_attention') return '영상을 확인하고 있습니다. 담당자가 살펴볼 예정입니다';
+  if (submissionStatus === 'submitted') return '파일이 그대로 도착했는지 확인하고 있습니다';
+  if (analysisStatus === 'queued' || analysisStatus === 'running') return '분석하고 있습니다';
+  if (analysisStatus === 'succeeded') return '담당자가 결과를 검토하고 있습니다';
   /* 재시도는 사람이 누른다 — 저절로 다시 준비한다고 말하지 않는다 */
-  if (analysisStatus === 'failed') return '담당자가 영상을 다시 확인하고 있어요';
-  if (submissionStatus === 'verified') return '파일을 확인했어요. 분석을 기다리고 있어요';
-  return '아직 보내지 않았어요';
+  if (analysisStatus === 'failed') return '담당자가 영상을 다시 확인하고 있습니다';
+  if (submissionStatus === 'verified') return '파일을 확인했습니다. 결과 준비를 기다리고 있습니다';
+  return '아직 보내지 않았습니다';
 }
 
 /**
@@ -347,26 +347,26 @@ export function publicStatusText(submissionStatus: string, analysisStatus: strin
  */
 export function correctionReceiptLine(input: { submissionStatus: string; revision: number | null; publishedCurrent: boolean; originalsGone?: OriginalsGone | null }): string | null {
   if (input.revision == null || input.revision < 2 || input.publishedCurrent || input.originalsGone) return null;
-  if (input.submissionStatus === 'submitted') return '고친 내용이 접수됐어요. 파일을 확인하고 있어요';
-  if (input.submissionStatus === 'verified' || input.submissionStatus === 'needs_attention') return '고친 내용이 접수됐어요. 담당자가 확인하고 있어요';
+  if (input.submissionStatus === 'submitted') return '고친 내용이 접수됐습니다. 파일을 확인하고 있습니다';
+  if (input.submissionStatus === 'verified' || input.submissionStatus === 'needs_attention') return '고친 내용이 접수됐습니다. 담당자가 확인하고 있습니다';
   return null;
 }
 
 /** 영수증 머리 글 — 지금 상태 줄(publicStatusText)과 같은 사실을 말해야 한다 */
 const RECEIPT_HEADS: Record<string, { title: string; desc: string }> = {
-  receipt: { title: '영상이 잘 도착했어요', desc: '분석 결과가 준비되고 공개되면 이 링크에서 같은 이름과 PIN 으로 볼 수 있어요.' },
-  needs_attention: { title: '영상을 확인하고 있어요', desc: '담당자가 살펴본 뒤 필요하면 이 링크에서 다시 안내해 드려요.' },
-  analysis_running: { title: '영상을 분석하고 있어요', desc: '분석 결과가 준비되고 공개되면 이 링크에서 같은 이름과 PIN 으로 볼 수 있어요.' },
-  admin_review: { title: '담당자가 결과를 검토하고 있어요', desc: '공개되면 이 링크에서 같은 이름과 PIN 으로 볼 수 있어요.' },
+  receipt: { title: '영상이 도착했습니다', desc: '결과가 준비되어 공개되면 이 링크에서 같은 이름과 PIN 으로 볼 수 있습니다.' },
+  needs_attention: { title: '영상을 확인하고 있습니다', desc: '담당자가 살펴본 뒤 필요하면 이 링크에서 다시 안내합니다.' },
+  analysis_running: { title: '영상을 분석하고 있습니다', desc: '결과가 준비되어 공개되면 이 링크에서 같은 이름과 PIN 으로 볼 수 있습니다.' },
+  admin_review: { title: '담당자가 결과를 검토하고 있습니다', desc: '공개되면 이 링크에서 같은 이름과 PIN 으로 볼 수 있습니다.' },
   /* 고침 요청이 열린 채 올리기 기간이 끝났다 — 고칠 수는 없어도 접수 내용은 그대로 보인다 */
-  correction_closed: { title: '고칠 수 있는 기간이 끝났어요', desc: '접수된 내용은 그대로 있어요. 링크를 보내 준 분에게 문의해 주세요.' },
+  correction_closed: { title: '고칠 수 있는 기간이 끝났습니다', desc: '접수된 내용은 그대로 있습니다. 링크를 보내 준 담당자에게 문의하십시오.' },
 };
 
 export function receiptHead(s: { screen: string; submissionStatus: string; analysisStatus: string; originalsGone: OriginalsGone | null }): { title: string; desc: string } {
   if (s.submissionStatus === 'correction_requested') {
-    return s.originalsGone ? { title: RECEIPT_HEADS.correction_closed.title, desc: `보유 기간이 끝나 원본을 ${goneVerb(s.originalsGone)}. 링크를 보내 준 분에게 문의해 주세요.` } : RECEIPT_HEADS.correction_closed;
+    return s.originalsGone ? { title: RECEIPT_HEADS.correction_closed.title, desc: `보유 기간이 끝나 원본을 ${goneVerb(s.originalsGone)}. 링크를 보내 준 담당자에게 문의하십시오.` } : RECEIPT_HEADS.correction_closed;
   }
   /* 결과가 '안 나온다'고 단정하지 않는다 — 재분석이 실패해도 앞선 성공 실행은 원본 없이 남아 공개할 수 있다. 할 수 없는 일만 말한다 */
-  if (s.originalsGone) return s.analysisStatus === 'succeeded' ? RECEIPT_HEADS.admin_review : { title: `보유 기간이 끝나 원본을 ${goneVerb(s.originalsGone)}`, desc: `이 영상으로는 새 분석을 할 수 없어요. ${CONTACT_FOR_ANALYSIS}.` };
+  if (s.originalsGone) return s.analysisStatus === 'succeeded' ? RECEIPT_HEADS.admin_review : { title: `보유 기간이 끝나 원본을 ${goneVerb(s.originalsGone)}`, desc: `이 영상으로는 새 분석을 할 수 없습니다. ${CONTACT_FOR_ANALYSIS}.` };
   return RECEIPT_HEADS[s.submissionStatus === 'needs_attention' ? 'needs_attention' : s.screen] ?? RECEIPT_HEADS.receipt;
 }

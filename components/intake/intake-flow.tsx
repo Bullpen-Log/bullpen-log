@@ -3,18 +3,20 @@
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { CaptureGuide, OriginalGuide } from '@/components/intake/guides';
-import { NameStep, ReviewStep, VideoStep, WelcomeStep } from '@/components/intake/guided-steps';
+import { NameStep, VideoStep, WelcomeStep } from '@/components/intake/guided-steps';
+import { ReviewStep } from '@/components/intake/review-wizard';
 import { EnrollStep, LeaveDevice, UnlockStep, inviteeErrorsOf, type InviteeErrors, type UnlockReason } from '@/components/intake/invitee-steps';
 import { consentAnswers } from '@/components/intake/consent-block';
 import { ModelConsentPart } from '@/components/intake/model-consent';
 import { hashOnce, inspectPick, type Picked } from '@/components/intake/pick';
-import { REPICK_VIEW_TEXT, SAME_AS_SENT_TEXT, correctionConsentDocs, correctionStopViews, reviewProblems, sentAssetOf, staleRequiredDocs, type ReviewErrors, type ReviewForm } from '@/components/intake/review-rules';
+import { REPICK_VIEW_TEXT, SAME_AS_SENT_TEXT, correctionConsentDocs, correctionStopViews, problemPanel, reviewProblems, sentAssetOf, staleRequiredDocs, type ReviewErrors, type ReviewForm, type ReviewPanel } from '@/components/intake/review-rules';
 import { SendStep } from '@/components/intake/send-step';
 import { LoadingScreen, NoteBox } from '@/components/intake/shell';
 import { BLOCK_TEXT, CorrectionStep, FinishStep, NoticeScreen, ReceiptStep, ReconsentStep, RecoveryStep, type CorrectionSubmit } from '@/components/intake/status-steps';
 import { LINK_BUTTON, VIEW_LABEL } from '@/components/intake/slots';
 import { useSend } from '@/components/intake/use-send';
 import { useWakeLock } from '@/components/use-wake-lock';
+import { depthOf, historyEntry } from '@/components/intake/history-position';
 import { agreedAfterDocs, changedConsentKinds, isAgeBand, isSubmitterRelation } from '@/lib/intake/consent';
 import { INTAKE_ERROR_TEXT } from '@/lib/intake/errors';
 import {
@@ -30,13 +32,13 @@ import {
   type PublicConsentDoc,
   type PublicStateResponse,
 } from '@/lib/intake/public-client';
-import { assetGone, assetInTransit, type IntakeScreen, type IntakeView } from '@/lib/intake/state';
+import { assetGone, assetInTransit, isIntakeView, type IntakeScreen, type IntakeView } from '@/lib/intake/state';
 import { refreshQuietly, stateAfterReceipt, type RunItem, type RunStop } from '@/lib/intake/upload-run';
 
 /** 결과 화면은 3D 를 끌고 와서 공개된 뒤에만 받는다 */
 const ResultView = dynamic(() => import('@/components/intake/result-view').then((m) => m.ResultView), {
   ssr: false,
-  loading: () => <LoadingScreen label="결과를 불러오고 있어요" />,
+  loading: () => <LoadingScreen label="결과를 불러오는 중입니다" />,
 });
 
 const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
@@ -81,7 +83,7 @@ type Boot = { kind: 'loading' } | { kind: 'ready' } | { kind: 'blocked'; code: s
 type Gate = { kind: 'checking' } | { kind: 'enroll' } | { kind: 'unlock'; reason: UnlockReason } | { kind: 'locked' } | { kind: 'open' };
 
 /** 세션이 끊겨 다시 들어온 뒤 — 하던 일을 한 번 더 눌러 달라고 그 자리에 말한다 */
-const RESUME_TEXT = '다시 들어왔어요. 한 번 더 눌러 주세요.';
+const RESUME_TEXT = '다시 들어왔습니다. 한 번 더 누르십시오.';
 
 const sessionReason = (code: string): UnlockReason => (code === 'session_expired' ? 'session_expired' : 'session_required');
 
@@ -89,7 +91,7 @@ const NO_PICK: Record<IntakeView, Picked | null> = { side: null, rear: null };
 const otherOf = (v: IntakeView): IntakeView => (v === 'side' ? 'rear' : 'side');
 
 /* 이 코드들은 지금 고른 파일을 다시 골라야 풀린다 */
-const REPICK = new Set(['same_file', 'same_as_sent', 'file_too_large', 'total_too_large', 'file_empty', 'file_unreadable', 'asset_rejected', 'upload_size_mismatch']);
+const REPICK = new Set(['capture_rate_required', 'same_file', 'same_as_sent', 'file_too_large', 'total_too_large', 'file_empty', 'file_unreadable', 'asset_rejected', 'upload_size_mismatch']);
 /* 이 코드들은 서버의 지금 상태를 다시 봐야 다음 행동을 안다 */
 const RELOAD = new Set([
   'stale_selection',
@@ -120,7 +122,8 @@ function stopLabel(stop: RunStop): string {
   const plan = stopPlan(stop);
   if (plan === 'retry') return '이어서 보내기';
   if (plan === 'reload') return '최신 내용 확인';
-  return stop.view ? `${VIEW_LABEL[stop.view]} 다시 고르기` : '영상 다시 고르기';
+  const view = stop.view ?? (isIntakeView(stop.detail?.view) ? stop.detail.view : null);
+  return view ? `${VIEW_LABEL[view]} 다시 선택` : '영상 다시 선택';
 }
 
 function Flow({ token }: { token: string }) {
@@ -136,6 +139,8 @@ function Flow({ token }: { token: string }) {
   const resumeRef = useRef<'move' | 'stay' | null>(null);
   const [data, setData] = useState<PublicStateResponse | null>(null);
   const [step, setStep] = useState<Step>('welcome');
+  /* 보내기 전 확인의 지금 결정 화면(R04) — 앞뒤 단추 기록에도 남긴다 */
+  const [panel, setPanel] = useState<string>('files');
   const [picked, setPicked] = useState(NO_PICK);
   const [inspecting, setInspecting] = useState<IntakeView | null>(null);
   const [pickError, setPickError] = useState<{ view: IntakeView; message: string } | null>(null);
@@ -151,7 +156,8 @@ function Flow({ token }: { token: string }) {
   const [viewResult, setViewResult] = useState(false);
   /* 동의 체크를 버릴 때마다 오른다 — 화면 안의 체크(고침)도 같이 비운다 */
   const [consentEpoch, setConsentEpoch] = useState(0);
-  const pushed = useRef(0);
+  /* 이 화면이 쌓은 기록 가운데 지금 서 있는 깊이 — popstate 가 올 때 그 항목에 적힌 값을 그대로 읽는다(앞으로 가기에도 맞다) */
+  const depth = useRef(0);
   const shownDocs = useRef<readonly PublicConsentDoc[] | null>(null);
   const pickedRef = useRef(picked);
   useEffect(() => {
@@ -294,13 +300,17 @@ function Flow({ token }: { token: string }) {
   /* 앞뒤 단추 — 안내 단계 사이만 오간다. 보내는 중이거나 접수 뒤에는 화면을 그대로 둔다 */
   useEffect(() => {
     const onPop = (e: PopStateEvent) => {
-      const target = (e.state as { intakeStep?: LocalStep } | null)?.intakeStep;
+      const st = e.state as { intakeStep?: LocalStep; reviewPanel?: string } | null;
+      const target = st?.intakeStep;
       if (!isLocal(step) || step === 'send') {
-        window.history.pushState({ intakeStep: step }, '');
+        /* 화면을 그대로 둔다 — 지금 깊이의 항목을 다시 쌓는다 */
+        window.history.pushState(historyEntry(depth.current - 1, step), '');
         return;
       }
-      pushed.current = Math.max(0, pushed.current - 1);
-      setStep(target ?? PREVIOUS[step] ?? 'welcome');
+      depth.current = depthOf(e.state);
+      const to = target ?? PREVIOUS[step] ?? 'welcome';
+      if (to === 'review') setPanel(st?.reviewPanel ?? 'files');
+      setStep(to);
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
@@ -338,16 +348,24 @@ function Flow({ token }: { token: string }) {
   }, [followServer, data?.state.submissionStatus, load, lockAgain]);
 
   const go = (next: LocalStep) => {
-    window.history.pushState({ intakeStep: next }, '');
-    pushed.current += 1;
+    window.history.pushState(historyEntry(depth.current, next, next === 'review' ? 'files' : undefined), '');
+    depth.current += 1;
     setStepError(null);
     setPickError(null);
+    if (next === 'review') setPanel('files');
     setStep(next);
+  };
+  /** 보내기 전 확인의 다음 결정 화면 — 앞뒤 단추로 돌아올 수 있게 기록을 남긴다 */
+  const goPanel = (next: ReviewPanel) => {
+    window.history.pushState(historyEntry(depth.current, 'review', next), '');
+    depth.current += 1;
+    setErrors({});
+    setPanel(next);
   };
   const back = (from: LocalStep) => {
     setStepError(null);
     setPickError(null);
-    if (pushed.current > 0) window.history.back();
+    if (depth.current > 0) window.history.back();
     else setStep(PREVIOUS[from] ?? 'welcome');
   };
 
@@ -364,7 +382,7 @@ function Flow({ token }: { token: string }) {
 
   /** 서버가 거절했을 때 — 폐기 · 만료면 화면을 옮기고, 낡은 판이면 최신을 읽어 둔다. 동의 글이 바뀌었으면 새 글을 받고 체크를 비운다 */
   const failure = async (e: unknown): Promise<string> => {
-    const r = e instanceof IntakeRequestError ? e : new IntakeRequestError('unknown', '다시 시도해 주세요.');
+    const r = e instanceof IntakeRequestError ? e : new IntakeRequestError('unknown', '다시 시도하십시오.');
     /* 세션이 끝났다 — 이름 · PIN 을 다시 받고 이 화면으로 돌아와 한 번 더 누르게 한다(적은 내용은 그대로다) */
     if (SESSION_CODES.has(r.code)) {
       lockAgain(r.code, 'stay');
@@ -420,8 +438,8 @@ function Flow({ token }: { token: string }) {
         [view]: !assetInTransit(checkAgainst.status)
           ? undefined
           : same
-            ? '같은 파일이에요. 전송 기록이 살아 있으면 끊긴 곳부터 이어서 보내요.'
-            : '처음 고른 파일과 달라요. 이대로 보내면 이 파일을 처음부터 보내요. 같은 파일을 고르면 이어서 보내요.',
+            ? '같은 파일입니다. 전송 기록이 남아 있으면 끊긴 곳부터 이어서 보냅니다.'
+            : '처음 선택한 파일과 다릅니다. 이대로 보내면 이 파일을 처음부터 보냅니다. 같은 파일을 선택하면 이어서 보냅니다.',
       }));
     } else {
       setNotes((n) => ({ ...n, [view]: undefined }));
@@ -452,6 +470,9 @@ function Flow({ token }: { token: string }) {
     if (!data || !form) return;
     const problems = reviewProblems(form, data.consentDocs);
     if (Object.keys(problems).length) {
+      /* 막힌 결정 화면으로 돌아가 그 칸 곁에 말한다 */
+      const at = problemPanel(problems, form, data.consentDocs);
+      if (at) setPanel(at);
       setErrors(problems);
       return;
     }
@@ -477,7 +498,8 @@ function Flow({ token }: { token: string }) {
       setData((d) => (d ? { ...d, state: { ...d.state, version } } : d));
       /* 바이트보다 동의가 먼저다 */
       await client.recordConsents(consentAnswers(data.consentDocs, form.agreed));
-      window.history.pushState({ intakeStep: 'send' }, '');
+      window.history.pushState(historyEntry(depth.current, 'send'), '');
+      depth.current += 1;
       beginSend(['side', 'rear'], true, version);
     } catch (e) {
       setErrors({ form: await failure(e) });
@@ -546,7 +568,8 @@ function Flow({ token }: { token: string }) {
   const resolveStop = (stop: RunStop) => {
     const plan = stopPlan(stop);
     if (plan === 'retry') return void send.retry();
-    const view = stop.view;
+    /* 완료 단계의 막힘(120fps 규칙 등)은 칸을 detail 로 말한다 */
+    const view = stop.view ?? (isIntakeView(stop.detail?.view) ? stop.detail.view : null);
     if (plan === 'repick' && view) {
       setPicked((p) => {
         const old = p[view];
@@ -596,7 +619,7 @@ function Flow({ token }: { token: string }) {
 
   /** 관문 요청의 실패 — 잠김 · 폐기는 화면을 옮기고, 그 밖은 칸 곁에 말한다 */
   const gateFailure = (e: unknown, onEnroll: boolean) => {
-    const r = e instanceof IntakeRequestError ? e : new IntakeRequestError('unknown', '다시 시도해 주세요.');
+    const r = e instanceof IntakeRequestError ? e : new IntakeRequestError('unknown', '다시 시도하십시오.');
     if (r.code === 'cancelled') return;
     if (r.code === 'invitee_locked') return setGate({ kind: 'locked' });
     if (r.code === 'invitation_invalid' || r.code === 'invitation_revoked') return setBoot({ kind: 'blocked', code: r.code });
@@ -665,10 +688,10 @@ function Flow({ token }: { token: string }) {
       setBoot({ kind: 'loading' });
       void (gate.kind === 'checking' ? checkGate() : refresh());
     };
-    return <NoticeScreen screenKey="offline" tone="stop" title="접수 내용을 불러오지 못했어요" desc={boot.message} action={{ label: '다시 시도', run: retry }} />;
+    return <NoticeScreen screenKey="offline" tone="stop" title="접수 내용을 불러오지 못했습니다" desc={boot.message} action={{ label: '다시 시도', run: retry }} />;
   }
   if (gate.kind === 'checking') return <LoadingScreen />;
-  if (gate.kind === 'locked') return <NoticeScreen screenKey="invitee-locked" tone="stop" title="이 링크를 잠갔어요" desc={INTAKE_ERROR_TEXT.invitee_locked} />;
+  if (gate.kind === 'locked') return <NoticeScreen screenKey="invitee-locked" tone="stop" title="이 링크가 잠겼습니다" desc={INTAKE_ERROR_TEXT.invitee_locked} />;
   if (gate.kind === 'enroll') return <EnrollStep busy={gateBusy} errors={gateErrors} onSubmit={enroll} />;
   /*
    * 다시 묻기 — 단계 화면을 떼지 않고 가린 채 위에 띄운다. 떼면 쓰던 이름 · 고침 글 같은 화면 안 값이 사라지고,
@@ -716,8 +739,8 @@ function Flow({ token }: { token: string }) {
       </NoteBox>
     );
     const resultNotice = (() => {
-      if (shown === 'correction') return backLink('고쳐 주셔야 할 내용이 있어요.', '고침 화면으로');
-      if (state.needsReconsent) return backLink('동의 내용이 바뀌었어요. 다시 확인해 주시면 이어서 진행해요.', '다시 동의하기');
+      if (shown === 'correction') return backLink('고쳐야 할 내용이 있습니다.', '고침 화면으로');
+      if (state.needsReconsent) return backLink('동의 내용이 바뀌었습니다. 다시 확인하면 이어서 진행됩니다.', '다시 동의하기');
       if (state.submissionStatus === 'correction_requested') return <NoteBox>{state.statusText}</NoteBox>;
       return state.correctionStatusLine ? <NoteBox>{state.correctionStatusLine}</NoteBox> : null;
     })();
@@ -802,6 +825,8 @@ function Flow({ token }: { token: string }) {
       case 'review':
         return (
           <ReviewStep
+            panel={panel}
+            onPanel={goPanel}
             form={form}
             setForm={setForm}
             docs={docs}
@@ -877,17 +902,17 @@ function Flow({ token }: { token: string }) {
         return (
           <NoticeScreen
             screenKey="under-14"
-            title="만 14세 미만 선수의 영상은 아직 받을 수 없어요"
+            title="만 14세 미만 선수의 영상은 아직 받지 않습니다"
             desc={
               state.assetsOnFile
-                ? '법정대리인 동의 절차를 준비하고 있어요. 이 접수로 이미 올라온 영상이 있어요. 링크를 보내 준 분에게 문의해 주세요.'
-                : '법정대리인 동의 절차를 준비하고 있어요. 보낸 영상은 없어요.'
+                ? '법정대리인 동의 절차를 준비하고 있습니다. 이 접수로 이미 올라온 영상이 있습니다. 링크를 보내 준 담당자에게 문의하십시오.'
+                : '법정대리인 동의 절차를 준비하고 있습니다. 보낸 영상은 없습니다.'
             }
             action={
               state.uploadExpired
                 ? undefined
                 : {
-                    label: '나이를 잘못 골랐어요',
+                    label: '나이를 잘못 선택했습니다',
                     run: () => {
                       void client.saveDraft({ expectedVersion: state.version, athleteAgeBand: '14_or_over' }).then(
                         () => {

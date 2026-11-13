@@ -24,6 +24,7 @@ export function Screen({
   children,
   actions,
   focusTitle = true,
+  dense = false,
 }: {
   screenKey: string;
   title: string;
@@ -35,6 +36,8 @@ export function Screen({
   actions?: ReactNode;
   /** 입력칸이 초점을 가져가는 화면은 끈다 */
   focusTitle?: boolean;
+  /** 보내기 전 확인(요약 · 동의)처럼 한 화면에 다 들어와야 하는 화면 — 제목 · 간격을 조금 줄인다 */
+  dense?: boolean;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
 
@@ -74,11 +77,11 @@ export function Screen({
       </header>
 
       <main key={screenKey} className="flex-1 pt-3 pb-6 motion-safe:animate-fade-in">
-        <h1 ref={heading} tabIndex={-1} className="text-heading text-[1.625rem] leading-[1.3] text-ink outline-none">
+        <h1 ref={heading} tabIndex={-1} className={`text-heading ${dense ? 'text-[1.375rem]' : 'text-[1.625rem]'} leading-[1.3] text-ink outline-none`}>
           {title}
         </h1>
-        {desc && <p className="mt-2 text-subhead leading-relaxed break-keep whitespace-pre-line text-muted">{desc}</p>}
-        {children && <div className="mt-6 space-y-5">{children}</div>}
+        {desc && <p className={`${dense ? 'mt-1' : 'mt-2'} text-subhead leading-relaxed break-keep whitespace-pre-line text-muted`}>{desc}</p>}
+        {children && <div className={dense ? 'mt-4 space-y-3' : 'mt-6 space-y-5'}>{children}</div>}
       </main>
 
       {actions && (
@@ -140,7 +143,7 @@ export function NoteBox({ children, tone = 'plain' }: { children: ReactNode; ton
 }
 
 /** 불러오는 동안 — 토큰을 읽기 전 서버가 그리는 화면이기도 하다 */
-export function LoadingScreen({ label = '접수 내용을 불러오고 있어요' }: { label?: string }) {
+export function LoadingScreen({ label = '접수 내용을 불러오는 중입니다' }: { label?: string }) {
   return (
     <div role="status" className="flex min-h-[var(--vvh,100dvh)] flex-col items-center justify-center gap-3 px-5 text-muted">
       <Loader2 aria-hidden className="h-6 w-6 motion-safe:animate-spin" />

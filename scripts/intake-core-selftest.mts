@@ -2,6 +2,7 @@
  * 외부 접수의 순수 규칙 시험 — 상태 전이 · 화면 고르기 · 토큰 · 경로 · 동의 · 한도 · 파일 머리. `npm run intake:test`
  * DB · 저장소 · 네트워크에 닿지 않는다.
  */
+import { ANALYSIS_CONSENT } from '@/lib/analysis-consent';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { analysisRunGate, consentDocOf, consentIsCurrent, hasRequiredConsents, INTAKE_CONSENT_DOCS, latestConsents, modelUseAllowed, overseasTransferAllowed, REQUIRED_CONSENT_KINDS } from '@/lib/intake/consent';
@@ -10,7 +11,7 @@ import { backoffMs } from '@/lib/intake/jobs';
 import { DEFAULT_MAX_FILE_BYTES, DEFAULT_MAX_TOTAL_BYTES, GIB, INTAKE_BUCKET_MAX_BYTES, TUS_CHUNK_BYTES, intakeLimits } from '@/lib/intake/limits';
 import { inspectPick } from '@/components/intake/pick';
 import { REJECT_CODE_TEXT } from '@/lib/intake/admin-labels';
-import { MEDIA_REJECT_TEXT, captureMs, cleanFileText, fpsLabel, integrityLabel, mediaRejectCode, mediaUnconfirmed, nominalFpsOf, notAVideo, readIntakeMediaFacts, sniffContainer, timingNote } from '@/lib/intake/media';
+import { CAPTURE_FPS_FLOOR, MEDIA_REJECT_TEXT, captureMs, captureRateCode, cleanFileText, fpsLabel, integrityLabel, mediaRejectCode, mediaUnconfirmed, nominalFpsOf, notAVideo, readIntakeMediaFacts, sniffContainer, timingNote } from '@/lib/intake/media';
 import { assetObjectPath, downloadFileName, isPurgeablePath, isSubmissionPath, originalExtension, runObjectPrefix, safeNamePart, seoulDateKey } from '@/lib/intake/paths';
 import { cleanAuditDetail } from '@/lib/intake/audit';
 import { INTAKE_CORRECTION_HOLD_DAYS, INTAKE_ORIGINAL_RETENTION_DAYS, INTAKE_WITHDRAWN_DRAFT_GRACE_DAYS } from '@/lib/intake/limits';
@@ -112,10 +113,10 @@ eq(screen({ uploadExpired: true, hasAthleteName: true, consented: false, side: '
 eq(screen({ hasAthleteName: true, consented: true, side: 'unconfirmed', rear: 'verified' }), 'upload', '영상 확인 못 한 자산도 도착한 것이다');
 eq(screen({ submissionStatus: 'withdrawn', published: true }), 'withdrawn', '철회');
 ok(!publicStatusText('verified', 'ready', false).includes('알림'), '알림을 약속하지 않는다');
-eq(publicStatusText('verified', 'failed', false), '담당자가 영상을 다시 확인하고 있어요', '분석 실패는 사람이 본다는 사실만 말한다');
+eq(publicStatusText('verified', 'failed', false), '담당자가 영상을 다시 확인하고 있습니다', '분석 실패는 사람이 본다는 사실만 말한다');
 ok(!publicStatusText('verified', 'failed', false).includes('준비'), '저절로 다시 준비한다고 말하지 않는다');
-eq(publicStatusText('correction_requested', 'ready', true), '고쳐 주셔야 할 내용이 있어요', '공개 중이어도 고침 요청을 말한다');
-ok(publicStatusText('correction_requested', 'ready', false, { uploadExpired: true }).includes('기간이 끝났어요'), '기간이 끝난 고침은 그렇게 말한다');
+eq(publicStatusText('correction_requested', 'ready', true), '고쳐야 할 내용이 있습니다', '공개 중이어도 고침 요청을 말한다');
+ok(publicStatusText('correction_requested', 'ready', false, { uploadExpired: true }).includes('기간이 끝났습니다'), '기간이 끝난 고침은 그렇게 말한다');
 ok(publicStatusText('verified', 'ready', false, { needsReconsent: true }).includes('동의'), '다시 동의가 필요하면 말한다');
 eq(correctionReceiptLine({ submissionStatus: 'verified', revision: 1, publishedCurrent: false }), null, '첫 판에는 고침 줄이 없다');
 ok(correctionReceiptLine({ submissionStatus: 'submitted', revision: 2, publishedCurrent: false })?.includes('고친 내용'), '다시 낸 뒤 고침 줄');
@@ -190,13 +191,21 @@ eq(REQUIRED_CONSENT_KINDS, ['submission'], '필수는 제출 · 처리 하나 �
 ok(consentDocOf('overseas').required === false && consentDocOf('overseas').defaultGranted === false, '국외 이전은 선택 · 기본 꺼짐');
 ok(/내려받아/.test(consentDocOf('submission').body) && /검토하고 승인한 결과만/.test(consentDocOf('submission').body), '제출 글이 팀 내려받기 · 직접 결과 만들기 · 승인한 결과 전달을 말한다');
 ok(/선택 항목에 동의했을 때만/.test(consentDocOf('submission').body), '자동 분석 서버로는 선택 동의가 있을 때만 보낸다고 말한다');
-ok(!/영상을 접수할 수 없어요/.test(consentDocOf('overseas').body), '국외 이전 거부가 접수를 막는다고 말하지 않는다');
+ok(!/영상을 접수할 수 없/.test(consentDocOf('overseas').body), '국외 이전 거부가 접수를 막는다고 말하지 않는다');
 ok(consentDocOf('model').required === false && consentDocOf('model').defaultGranted === false, '모델 이용은 선택 · 기본 꺼짐');
 ok(consentDocOf('overseas').body.includes('확인 중'), '빈 칸은 확인 중으로 쓴다');
 ok(consentDocOf('overseas').body.includes('Modal Labs'), '받는 곳은 문서의 사실');
 ok(!consentDocOf('overseas').body.includes('null'), '빈 값이 그대로 안 나간다');
-ok(consentDocOf('submission').body.includes('분석 결과의 보유 기간: 확인 중이에요'), '정하지 않은 분석 결과 보유 기간을 지어내지 않는다');
+ok(consentDocOf('submission').body.includes('분석 결과의 보유 기간: 확인 중입니다'), '정하지 않은 분석 결과 보유 기간을 지어내지 않는다');
 for (const d of INTAKE_CONSENT_DOCS) ok(!d.body.includes('—'), `${d.kind} 글에 줄표 없음`);
+/* R04: 약관 본문의 접수 쪽 글은 '합니다' 체 — 국외 이전 글에 끼는 ANALYSIS_CONSENT 값(다른 화면과 같이 쓰는 문서)은 빼고 본다 */
+{
+  const shared = [ANALYSIS_CONSENT.recipient, ANALYSIS_CONSENT.items, ANALYSIS_CONSENT.when, ANALYSIS_CONSENT.purpose, ANALYSIS_CONSENT.retention ?? '', ANALYSIS_CONSENT.contact ?? ''];
+  for (const d of INTAKE_CONSENT_DOCS) {
+    const own = d.body.split('\n').filter((line) => !shared.some((v) => v && line.includes(v)));
+    ok(own.every((line) => !/(해요|돼요|이에요|예요|어요|아요|워요|봐요|줘요|세요)([.\s)]|$)/.test(line)), `R04: ${d.kind} 약관 글이 '합니다' 체`);
+  }
+}
 const row = (kind: string, p: object = {}) => {
   const d = consentDocOf(kind as never);
   return { kind, docVersion: d.version, textHash: d.textHash, granted: true, agreedAt: T0, withdrawnAt: null, ...p };
@@ -492,9 +501,9 @@ ok(MEDIA_REJECT_TEXT.unsupported_container.includes('MOV'), '고르는 사람 �
   eq(receipt({}), [], '시계가 없으면 줄이 없다');
   eq(receipt({ originalDeleteDate: '2027-02-04' }), [{ label: '원본 삭제 예정일', date: '2027-02-04' }], '지울 날을 말한다');
   eq(receipt({ originalDeleteDate: '2027-02-04', originalDeletedDate: '2027-02-05' }), [{ label: '원본 지운 날', date: '2027-02-05' }], '지운 뒤에는 지운 날이다');
-  eq(receipt({ originalDeleteDate: '2027-05-07', originalDeleting: 'current' }), [{ label: '원본', text: '지우고 있어요' }], '철회로 밀린 날을 예정일이라고 안 말한다');
-  eq(receipt({ originalDeleteDate: '2027-05-07', originalDeleting: 'older' }), [{ label: '원본 삭제 예정일', date: '2027-05-07' }, { label: '옛 영상', text: '지우고 있어요' }], '옛 영상을 따로 말한다');
-  eq(receipt({ originalDeleteDate: '2027-02-04', originalDeletedDate: '2027-02-05', originalDeleting: 'older' }), [{ label: '원본 지운 날', date: '2027-02-05' }, { label: '옛 영상', text: '지우고 있어요' }], '지운 날과 옛 영상을 같이 말한다');
+  eq(receipt({ originalDeleteDate: '2027-05-07', originalDeleting: 'current' }), [{ label: '원본', text: '지우는 중입니다' }], '철회로 밀린 날을 예정일이라고 안 말한다');
+  eq(receipt({ originalDeleteDate: '2027-05-07', originalDeleting: 'older' }), [{ label: '원본 삭제 예정일', date: '2027-05-07' }, { label: '옛 영상', text: '지우는 중입니다' }], '옛 영상을 따로 말한다');
+  eq(receipt({ originalDeleteDate: '2027-02-04', originalDeletedDate: '2027-02-05', originalDeleting: 'older' }), [{ label: '원본 지운 날', date: '2027-02-05' }, { label: '옛 영상', text: '지우는 중입니다' }], '지운 날과 옛 영상을 같이 말한다');
 
   /* 'purged' 비교가 새로 생기면 지우는 파일을 있음으로 본다 — 도우미를 쓰게 소스를 훑는다. 예외: 상태 정의, 두 삭제의 끝 쓰기 */
   const PURGED_ALLOWED: [string, RegExp][] = [
@@ -517,20 +526,20 @@ ok(MEDIA_REJECT_TEXT.unsupported_container.includes('MOV'), '고르는 사람 �
 
   /* 동의 글 — 정한 규칙을 그대로 말한다 */
   const body = consentDocOf('submission').body;
-  ok(body.includes('공개한 날, 공개하지 않은 접수는 접수한 날, 철회한 접수는 철회한 날부터 90일 뒤 원본을 지워요'), '보유 규칙');
-  ok(body.includes('모델 개발에 동의해도 같아요'), '모델 동의는 예외가 아니다');
+  ok(body.includes('공개한 날, 공개하지 않은 접수는 접수한 날, 철회한 접수는 철회한 날부터 90일 뒤 원본을 지웁니다'), '보유 규칙');
+  ok(body.includes('모델 개발에 동의해도 같습니다'), '모델 동의는 예외가 아니다');
   ok(!body.includes('자동으로 지우지 않아요'), '옛 약속이 안 남는다');
   const model = consentDocOf('model').body;
-  ok(model.includes('필수 동의를 철회해도 이 동의는 함께 철회되지 않아요'), '필수 철회와 따로다');
-  ok(model.includes('따로 철회할 수 있어요') && model.includes('담당자에게 알려'), '철회 길을 말한다');
-  ok(model.includes('지운 뒤에는 원본을 모델 작업에 쓰지 않아요'), '지운 뒤에는 안 쓴다');
+  ok(model.includes('필수 동의를 철회해도 이 동의는 함께 철회되지 않습니다'), '필수 철회와 따로다');
+  ok(model.includes('따로 철회할 수 있습니다') && model.includes('담당자에게 알리면'), '철회 길을 말한다');
+  ok(model.includes('지운 뒤에는 원본을 모델 작업에 쓰지 않습니다'), '지운 뒤에는 안 쓴다');
   ok(!consentDocOf('submission').version.endsWith('.2') && consentDocOf('model').version !== 'intake-model-2026-11-06', '두 문서의 판이 오른다');
-  eq(integrityLabel('purged'), '보유 기간이 지나 원본을 지웠어요', '지운 파일을 그대로 전송됨이라고 안 말한다');
-  eq(integrityLabel('purging'), '보유 기간이 지나 원본을 지우고 있어요', '지우는 파일도 사실대로 말한다');
-  eq([integrityLabel('purged', false), integrityLabel('purging', false)], ['접수에 쓰이지 않은 임시 파일이라 지웠어요', '접수에 쓰이지 않은 임시 파일이라 지우고 있어요'], '판에 오른 적 없는 파일은 보유 기간이 까닭이라고 안 한다');
+  eq(integrityLabel('purged'), '보유 기간이 지나 원본을 지웠습니다', '지운 파일을 그대로 전송됨이라고 안 말한다');
+  eq(integrityLabel('purging'), '보유 기간이 지나 원본을 지우는 중입니다', '지우는 파일도 사실대로 말한다');
+  eq([integrityLabel('purged', false), integrityLabel('purging', false)], ['접수에 쓰이지 않은 임시 파일이라 지웠습니다', '접수에 쓰이지 않은 임시 파일이라 지우는 중입니다'], '판에 오른 적 없는 파일은 보유 기간이 까닭이라고 안 한다');
   /* 검증 지적: 철회 유예가 끝나 지운 받은 영상을 '쓰이지 않은 임시 파일'이라고 했다 — 까닭은 철회다 */
-  eq([integrityLabel('purged', false, true), integrityLabel('purging', false, true)], ['접수를 철회해서 지웠어요', '접수를 철회해서 지우고 있어요'], '철회해서 지운 받은 영상은 철회를 까닭으로 말한다');
-  eq(integrityLabel('purged', true, true), '보유 기간이 지나 원본을 지웠어요', '판에 얼린 원본은 보유 기간이 까닭이다');
+  eq([integrityLabel('purged', false, true), integrityLabel('purging', false, true)], ['접수를 철회해서 지웠습니다', '접수를 철회해서 지우는 중입니다'], '철회해서 지운 받은 영상은 철회를 까닭으로 말한다');
+  eq(integrityLabel('purged', true, true), '보유 기간이 지나 원본을 지웠습니다', '판에 얼린 원본은 보유 기간이 까닭이다');
   eq(new IntakeError('purge_in_progress').httpStatus, 409, '지우는 중 공개는 충돌로 답한다');
 }
 
@@ -559,11 +568,11 @@ ok(MEDIA_REJECT_TEXT.unsupported_container.includes('MOV'), '고르는 사람 �
         for (const uploadExpired of [false, true]) {
           const text = publicStatusText(status, analysis, false, { uploadExpired, originalsGone: gone });
           if (PROMISE.test(text)) bad.push(`글 ${gone} ${status} ${analysis}: ${text}`);
-          if (status !== 'correction_requested' && analysis !== 'succeeded' && !text.includes(gone === 'deleted' ? '지웠어요' : '지우고 있어요')) bad.push(`사실 ${gone} ${status} ${analysis}: ${text}`);
+          if (status !== 'correction_requested' && analysis !== 'succeeded' && !text.includes(gone === 'deleted' ? '지웠습니다' : '지우는 중입니다')) bad.push(`사실 ${gone} ${status} ${analysis}: ${text}`);
           for (const screen of ['receipt', 'analysis_running', 'admin_review']) {
             const head = receiptHead({ screen, submissionStatus: status, analysisStatus: analysis, originalsGone: gone });
             if (analysis !== 'succeeded' && HEAD_PROMISE.test(head.title + head.desc)) bad.push(`머리 ${gone} ${status} ${analysis} ${screen}: ${head.title} / ${head.desc}`);
-            if (status === 'correction_requested' && head.desc.includes('그대로 있어요')) bad.push(`고침 머리 ${gone} ${analysis}: ${head.desc}`);
+            if (status === 'correction_requested' && head.desc.includes('그대로 있습니다')) bad.push(`고침 머리 ${gone} ${analysis}: ${head.desc}`);
           }
         }
       }
@@ -571,16 +580,16 @@ ok(MEDIA_REJECT_TEXT.unsupported_container.includes('MOV'), '고르는 사람 �
   }
   eq(bad, [], '지운 뒤 글 격자');
 
-  eq(publicStatusText('verified', 'succeeded', false, { originalsGone: 'deleted' }), '담당자가 결과를 검토하고 있어요', '끝난 분석의 결과는 남는다');
-  eq(receiptHead({ screen: 'admin_review', submissionStatus: 'verified', analysisStatus: 'succeeded', originalsGone: 'deleted' }).title, '담당자가 결과를 검토하고 있어요', '머리도 같은 말이다');
-  eq(publicStatusText('verified', 'ready', true, { originalsGone: 'deleted' }), '결과가 공개됐어요', '공개 중이면 결과를 말한다');
-  eq(publicStatusText('withdrawn', 'ready', false, { originalsGone: 'deleted' }), '접수가 철회됐어요', '철회는 철회를 말한다');
+  eq(publicStatusText('verified', 'succeeded', false, { originalsGone: 'deleted' }), '담당자가 결과를 검토하고 있습니다', '끝난 분석의 결과는 남는다');
+  eq(receiptHead({ screen: 'admin_review', submissionStatus: 'verified', analysisStatus: 'succeeded', originalsGone: 'deleted' }).title, '담당자가 결과를 검토하고 있습니다', '머리도 같은 말이다');
+  eq(publicStatusText('verified', 'ready', true, { originalsGone: 'deleted' }), '결과가 공개됐습니다', '공개 중이면 결과를 말한다');
+  eq(publicStatusText('withdrawn', 'ready', false, { originalsGone: 'deleted' }), '접수가 철회됐습니다', '철회는 철회를 말한다');
   ok(publicStatusText('correction_requested', 'ready', false, { uploadExpired: true, originalsGone: 'deleted' }).includes('문의'), '기간이 끝난 고침은 문의를 말한다');
-  eq(publicStatusText('correction_requested', 'ready', false, { originalsGone: 'deleted' }), '고쳐 주셔야 할 내용이 있어요', '고칠 수 있으면 고침을 말한다');
-  eq(publicStatusText('verified', 'ready', false), '파일을 확인했어요. 분석을 기다리고 있어요', '살아 있으면 글이 그대로다');
-  eq(receiptHead({ screen: 'receipt', submissionStatus: 'verified', analysisStatus: 'ready', originalsGone: null }).title, '영상이 잘 도착했어요', '살아 있으면 머리가 그대로다');
-  eq(receiptHead({ screen: 'receipt', submissionStatus: 'correction_requested', analysisStatus: 'ready', originalsGone: null }).desc, '접수된 내용은 그대로 있어요. 링크를 보내 준 분에게 문의해 주세요.', '안 지웠으면 그대로 있다고 말한다');
-  eq(receiptHead({ screen: 'receipt', submissionStatus: 'needs_attention', analysisStatus: 'none', originalsGone: null }).title, '영상을 확인하고 있어요', '확인 중 머리가 그대로다');
+  eq(publicStatusText('correction_requested', 'ready', false, { originalsGone: 'deleted' }), '고쳐야 할 내용이 있습니다', '고칠 수 있으면 고침을 말한다');
+  eq(publicStatusText('verified', 'ready', false), '파일을 확인했습니다. 결과 준비를 기다리고 있습니다', '살아 있으면 글이 그대로다');
+  eq(receiptHead({ screen: 'receipt', submissionStatus: 'verified', analysisStatus: 'ready', originalsGone: null }).title, '영상이 도착했습니다', '살아 있으면 머리가 그대로다');
+  eq(receiptHead({ screen: 'receipt', submissionStatus: 'correction_requested', analysisStatus: 'ready', originalsGone: null }).desc, '접수된 내용은 그대로 있습니다. 링크를 보내 준 담당자에게 문의하십시오.', '안 지웠으면 그대로 있다고 말한다');
+  eq(receiptHead({ screen: 'receipt', submissionStatus: 'needs_attention', analysisStatus: 'none', originalsGone: null }).title, '영상을 확인하고 있습니다', '확인 중 머리가 그대로다');
 
   /* 검증 지적: 재분석이 실패한 뒤 지운 접수 — 앞선 성공 실행은 공개할 수 있어 '결과가 안 나온다'고 단정하지 않는다. 할 수 없는 일(새 분석)만 말한다 */
   for (const gone of ['deleting', 'deleted'] as const) {
@@ -589,6 +598,47 @@ ok(MEDIA_REJECT_TEXT.unsupported_container.includes('MOV'), '고르는 사람 �
       ok(!head.desc.includes('나오지 않아요') && head.desc.includes('새 분석'), `지운 뒤 머리가 결과를 단정하지 않는다: ${gone} ${analysis}`);
     }
   }
+}
+
+/* ── R04: 120fps 필수 규칙 — 표본 시간으로 재고, 허용 폭은 119.82 까지(119.88 = 120 × 1000/1001) ── */
+{
+  const rate = async (o: Parameters<typeof buildMov>[0]) => captureRateCode(await readIntakeMediaFacts(reader(buildMov(o))));
+  eq(await rate({ timescale: 120000, stts: [[600, 1001]] }), null, '119.88fps(NTSC 120) 받는다');
+  eq(await rate({ timescale: 600, stts: [[600, 5]] }), null, '120fps 받는다');
+  eq(await rate({ timescale: 240000, stts: [[1200, 1001]] }), null, '239.76fps 받는다');
+  eq(await rate({ timescale: 600, stts: [[1200, 2]] }), null, '300fps 받는다');
+  eq(await rate({ timescale: 119700, stts: [[600, 1000]] }), 'capture_rate_low', '119.7fps 는 이름표로는 120 이지만 막는다(좁은 폭)');
+  eq(nominalFpsOf(119.7), 120, '이름표 반올림은 판단과 다르다');
+  eq(await rate({ timescale: 600, stts: [[600, 10]] }), 'capture_rate_low', '60fps 막는다');
+  eq(await rate({ timescale: 30000, stts: [[300, 1001]] }), 'capture_rate_low', '29.97fps 막는다');
+  /* 아이폰 슬로 모션 원본: 240 표본 + 늘린 편집 목록 → 받는다. 펴서 30 으로 내보낸 파일 → 막는다 */
+  eq(await rate({ timescale: 240, stts: [[480, 1]], edits: [[600, 0], [3000, 120], [1200, 360]] }), null, '늘려 재생하는 240fps 원본은 받는다');
+  eq(await rate({ timescale: 600, stts: [[300, 20]], edits: [[2400, 0, 0.5]] }), 'capture_rate_low', '재생 속도만 바꾼 30fps 는 막는다');
+  /* 몇 장면 빠진 진짜 120 — 평균은 하한 밑이어도 가장 많은 간격이 120 이면 받는다 */
+  const dropped = await readIntakeMediaFacts(reader(buildMov({ timescale: 120000, stts: [[598, 1001], [2, 2002]] })));
+  ok(dropped.frameTiming === 'constant' && (dropped.averageFps ?? 0) < CAPTURE_FPS_FLOOR && captureRateCode(dropped) === null, '몇 장면 빠진 120 원본은 받는다');
+  /* 간격이 고르지 않은 파일 — 평균도 넘어야 한다 */
+  eq(await rate({ timescale: 240000, stts: [[100, 1000], [60, 8000]] }), 'capture_rate_low', '240 간격이 많아도 평균이 66 이면 막는다');
+  eq(await rate({ timescale: 240000, stts: [[200, 1000], [10, 1500]] }), null, '간격이 조금 고르지 않아도 평균 · 간격이 120 넘으면 받는다');
+  /* 모름 */
+  eq(await rate({ timescale: 600, stts: [] }), 'capture_rate_unknown', '표본 시간표가 없으면 모름');
+  eq(captureRateCode(null), 'capture_rate_unknown', '사실이 없으면 모름');
+  eq(captureRateCode({ averageFps: 240, frameTiming: 'variable', stepFps: undefined }), null, '옛 사실(stepFps 없음)은 평균으로 본다');
+}
+
+/* R04: 약관 판이 오르면 R03b 판으로 남은 동의는 지금 동의가 아니다 — 줄은 그대로 두고, 옮기지 않는다 */
+{
+  const at = new Date('2026-11-13T09:00:00Z');
+  const old = [
+    { kind: 'submission', docVersion: 'intake-submission-2026-11-13.4', textHash: 'r03b', granted: true, agreedAt: at, withdrawnAt: null, relation: 'self' },
+    { kind: 'overseas', docVersion: 'intake-overseas-2026-11-13.3+x', textHash: 'r03b', granted: true, agreedAt: at, withdrawnAt: null, relation: 'self' },
+    { kind: 'model', docVersion: 'intake-model-2026-11-13.3', textHash: 'r03b', granted: true, agreedAt: at, withdrawnAt: null, relation: 'self' },
+  ];
+  ok(!hasRequiredConsents(old, 'self'), 'R04: R03b 판 필수 동의는 다시 받아야 한다');
+  ok(!overseasTransferAllowed(old, 'self') && !modelUseAllowed(old, 'self'), 'R04: R03b 판 선택 동의도 지금 동의가 아니다(자동 분석 · 모델 개발 안 됨)');
+  const fresh = [...old, ...INTAKE_CONSENT_DOCS.filter((d) => d.required).map((d) => ({ kind: d.kind, docVersion: d.version, textHash: d.textHash, granted: true, agreedAt: new Date(at.getTime() + 1), withdrawnAt: null, relation: 'self' }))];
+  ok(hasRequiredConsents(fresh, 'self') && !overseasTransferAllowed(fresh, 'self'), 'R04: 필수만 다시 받으면 선택 동의는 옛 판 그대로 지금 동의가 아니다');
+  eq(fresh.length, 4, 'R04: 옛 줄은 지우지 않고 새 줄을 더한다');
 }
 
 console.log(`intake core selftest: ${passed} 통과`);

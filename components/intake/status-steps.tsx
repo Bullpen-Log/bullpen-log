@@ -90,7 +90,7 @@ function AssetLine({ view, asset }: { view: IntakeView; asset: PublicAsset | nul
       </p>
       <p className="mt-0.5 flex items-start gap-1.5 text-footnote leading-5 break-keep text-muted">
         {asset.status === 'verified' ? <CircleCheck aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-ok" /> : <Clock3 aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />}
-        {asset.integrity ?? '파일이 잘 도착했는지 확인하고 있어요'}
+        {asset.integrity ?? '파일이 그대로 도착했는지 확인하고 있습니다'}
       </p>
       {facts && <p className="mt-0.5 text-footnote text-muted">{facts}</p>}
     </li>
@@ -135,9 +135,9 @@ export function ReceiptStep({ state, extra }: { state: PublicIntakeState; extra?
       </ul>
 
       <p aria-live="polite" className="text-footnote leading-5 break-keep text-muted">
-        {copied === 'ok' ? '링크를 복사했어요.' : copied === 'fail' ? '복사하지 못했어요. 주소창의 링크를 길게 눌러 복사해 주세요.' : ''}
+        {copied === 'ok' ? '링크를 복사했습니다.' : copied === 'fail' ? '복사하지 못했습니다. 주소창의 링크를 길게 눌러 복사하십시오.' : ''}
       </p>
-      <NoteBox>접수 상태와 공개된 결과는 이 링크에서 처음에 정한 이름과 PIN 을 넣어야 볼 수 있어요. 링크는 필요한 분에게만 보내 주세요.</NoteBox>
+      <NoteBox>접수 상태와 공개된 결과는 이 링크에서 처음에 정한 이름과 PIN 을 입력해야 볼 수 있습니다. 링크는 필요한 사람에게만 전달하십시오.</NoteBox>
 
       {extra}
     </Screen>
@@ -171,8 +171,8 @@ export function ReconsentStep({
   return (
     <Screen
       screenKey="reconsent"
-      title="동의 내용이 바뀌었어요"
-      desc="아래 글을 다시 읽고 동의해 주시면 이어서 진행해요. 동의하지 않으려면 링크를 보내 준 분에게 알려 주세요."
+      title="바뀐 동의 내용에 동의하시나요?"
+      desc="동의 내용이 바뀌었습니다. 약관 보기에서 바뀐 내용을 확인하고 동의하면 이어서 진행됩니다. 동의하지 않으려면 링크를 보내 준 담당자에게 알리십시오."
       actions={
         <>
           {error && <FieldError>{error}</FieldError>}
@@ -248,11 +248,11 @@ export function RecoveryStep({
   return (
     <Screen
       screenKey="recovery"
-      title="보내던 영상을 이어서 보낼게요"
-      desc="화면을 닫으면 브라우저가 파일을 놓아요. 같은 파일을 다시 고르면 이어서 보낼 수 있어요."
+      title="보내던 영상을 이어서 보낼까요?"
+      desc="화면을 닫으면 브라우저가 선택한 파일을 놓습니다. 같은 파일을 다시 선택하면 이어서 보낼 수 있습니다."
       actions={
         <>
-          {tried && !hasFile && <FieldError>먼저 보낼 영상을 골라 주세요.</FieldError>}
+          {tried && !hasFile && <FieldError>먼저 보낼 영상을 선택하십시오.</FieldError>}
           <PrimaryButton
             disabled={inspecting != null}
             onClick={() => {
@@ -279,13 +279,13 @@ export function RecoveryStep({
       ))}
       {askSame && (
         <div className="space-y-1">
-          <CheckRow checked={same} onChange={setSame} label="두 영상은 같은 투구를 동시에 찍은 영상이에요" invalid={sameMissing} describedBy={sameMissing ? 'recovery-same' : undefined} />
+          <CheckRow checked={same} onChange={setSame} label="두 영상은 같은 투구를 동시에 촬영한 영상입니다" invalid={sameMissing} describedBy={sameMissing ? 'recovery-same' : undefined} />
           {sameMissing && <FieldError id="recovery-same">{INTAKE_ERROR_TEXT.same_pitch_required}</FieldError>}
         </div>
       )}
-      <NoteBox>다른 기기에서 보내는 중이라면 그 기기에서 끝낸 뒤 이 화면을 다시 열어 주세요.</NoteBox>
+      <NoteBox>다른 기기에서 보내는 중이라면 그 기기에서 끝낸 뒤 이 화면을 다시 여십시오.</NoteBox>
       <button type="button" onClick={onOriginal} className="min-h-11 text-sm font-semibold text-sky-strong">
-        원본 영상을 고르는 방법
+        원본 영상 선택 방법
       </button>
       {extra}
     </Screen>
@@ -301,8 +301,8 @@ export function FinishStep({ state, onFinish, extra }: { state: PublicIntakeStat
   return (
     <Screen
       screenKey="finish"
-      title="두 영상이 모두 도착했어요"
-      desc="접수를 마치면 접수 번호를 드려요."
+      title="두 영상이 모두 도착했습니다"
+      desc="접수를 마치면 접수 번호가 발급됩니다."
       actions={
         <PrimaryButton
           onClick={() => {
@@ -324,7 +324,7 @@ export function FinishStep({ state, onFinish, extra }: { state: PublicIntakeStat
       </ul>
       {ask && (
         <div className="space-y-1">
-          <CheckRow checked={same} onChange={setSame} label="두 영상은 같은 투구를 동시에 찍은 영상이에요" invalid={tried && !same} describedBy={tried && !same ? 'finish-same' : undefined} />
+          <CheckRow checked={same} onChange={setSame} label="두 영상은 같은 투구를 동시에 촬영한 영상입니다" invalid={tried && !same} describedBy={tried && !same ? 'finish-same' : undefined} />
           {tried && !same && <FieldError id="finish-same">{INTAKE_ERROR_TEXT.same_pitch_required}</FieldError>}
         </div>
       )}
@@ -414,8 +414,8 @@ export function CorrectionStep({
   return (
     <Screen
       screenKey="correction"
-      title="이 내용만 고쳐 주세요"
-      desc="요청받은 칸만 바꿀 수 있어요. 나머지는 그대로 둘게요."
+      title="요청받은 내용을 고치시겠어요?"
+      desc="요청받은 칸만 바꿀 수 있습니다. 나머지는 그대로 유지됩니다."
       actions={
         <>
           {error && <FieldError>{error}</FieldError>}
@@ -492,7 +492,7 @@ export function CorrectionStep({
 
       {views.length > 0 && (
         <div className="space-y-1">
-          <CheckRow id="fix-same-pitch" checked={same} onChange={setSame} label="두 영상은 같은 투구를 동시에 찍은 영상이에요" invalid={problem === 'same'} describedBy={problem === 'same' ? 'fix-same' : undefined} />
+          <CheckRow id="fix-same-pitch" checked={same} onChange={setSame} label="두 영상은 같은 투구를 동시에 촬영한 영상입니다" invalid={problem === 'same'} describedBy={problem === 'same' ? 'fix-same' : undefined} />
           {problem === 'same' && <FieldError id="fix-same">{INTAKE_ERROR_TEXT.same_pitch_required}</FieldError>}
         </div>
       )}
@@ -511,9 +511,9 @@ export function CorrectionStep({
 
 /* ── 접근 코드 없는 결과 등 막힌 상태 글 ── */
 export const BLOCK_TEXT: Record<string, { title: string; desc: string }> = {
-  invitation_invalid: { title: '이 링크는 쓸 수 없어요', desc: '링크를 보내 준 분에게 다시 받아 주세요.' },
-  invitation_revoked: { title: '이 링크는 더 쓸 수 없어요', desc: '링크를 보내 준 분에게 문의해 주세요.' },
-  upload_expired: { title: '영상을 보낼 수 있는 기간이 끝났어요', desc: '링크를 보내 준 분에게 문의해 주세요.' },
-  result_expired: { title: '결과를 볼 수 있는 기간이 끝났어요', desc: '링크를 보내 준 분에게 문의해 주세요.' },
-  withdrawn: { title: '접수가 철회됐어요', desc: '더 이어서 보낼 수 없어요. 궁금한 점은 링크를 보내 준 분에게 문의해 주세요.' },
+  invitation_invalid: { title: '이 링크는 사용할 수 없습니다', desc: '링크를 보내 준 담당자에게 다시 받으십시오.' },
+  invitation_revoked: { title: '이 링크는 더 이상 사용할 수 없습니다', desc: '링크를 보내 준 담당자에게 문의하십시오.' },
+  upload_expired: { title: '영상을 보낼 수 있는 기간이 끝났습니다', desc: '링크를 보내 준 담당자에게 문의하십시오.' },
+  result_expired: { title: '결과를 볼 수 있는 기간이 끝났습니다', desc: '링크를 보내 준 담당자에게 문의하십시오.' },
+  withdrawn: { title: '접수가 철회됐습니다', desc: '더 이상 보낼 수 없습니다. 궁금한 점은 링크를 보내 준 담당자에게 문의하십시오.' },
 };

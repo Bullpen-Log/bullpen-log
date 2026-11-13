@@ -24,6 +24,10 @@ import {
   correctionStopViews,
   firstProblemTarget,
   goneViewsToPick,
+  panelProblem,
+  problemPanel,
+  reviewPanels,
+  validPanel,
   pickViewText,
   reviewProblems,
   sentAssetOf,
@@ -31,6 +35,7 @@ import {
   staleRequiredDocs,
   type ReviewForm,
 } from '@/components/intake/review-rules';
+import { depthOf, historyEntry } from '@/components/intake/history-position';
 import { INTAKE_CONSENT_DOCS, PROXY_CONSENT_NOTE, agreedAfterDocs, changedConsentKinds, consentCheckLabel, consentDocOf, isProxyRelation, optionalCheckLabel } from '@/lib/intake/consent';
 import { INTAKE_ERROR_TEXT, IntakeError } from '@/lib/intake/errors';
 import { TUS_CHUNK_BYTES, TUS_URL_TTL_MS } from '@/lib/intake/limits';
@@ -52,7 +57,7 @@ import {
   type UploadGrantView,
 } from '@/lib/intake/upload-client';
 import { RunStop, finishRun, refreshQuietly, stateAfterReceipt } from '@/lib/intake/upload-run';
-import { mov240 } from './intake-fixtures.mts';
+import { buildMov, mov240 } from './intake-fixtures.mts';
 
 let passed = 0;
 const ok = (cond: unknown, label: string) => {
@@ -854,7 +859,7 @@ const stale = () => new IntakeRequestError('stale_version', '낡았어요', 409,
 {
   const before = {
     screen: 'upload',
-    statusText: '아직 보내지 않았어요',
+    statusText: '아직 보내지 않았습니다',
     version: 3,
     submissionStatus: 'draft',
     analysisStatus: 'none',
@@ -865,22 +870,22 @@ const stale = () => new IntakeRequestError('stale_version', '낡았어요', 409,
   const after = stateAfterReceipt(before, RECEIPT);
   ok(after.screen === 'receipt' && after.receipt?.code === 'IN-1', '다시 읽지 못해도 영수증 화면을 그릴 수 있다');
   ok(after.submissionStatus === 'submitted' && after.version === 9 && after.correction === null, '영수증의 상태로 맞춘다');
-  ok(after.statusText === '파일이 잘 도착했는지 확인하고 있어요', '지금 상태 글도 맞춘다');
+  ok(after.statusText === '파일이 그대로 도착했는지 확인하고 있습니다', '지금 상태 글도 맞춘다');
   ok(after.draft.athleteName === '금윤호' && after.draft.samePitchConfirmed, '이름 · 확인을 영수증에서 채운다');
 
   /* 검증 지적: 지운 접수를 고쳐 다시 냈다 — 새 판이 얼었으니 지금 판의 원본은 살아 있다. 옛 판의 '지웠어요'를 머리 · 줄에 남기지 않는다 */
   const goneBefore = { ...before, screen: 'correction', submissionStatus: 'correction_requested', originalsGone: 'deleted', originalDeletedDate: '2026-04-01', originalDeleting: null, originalDeleteDate: '2026-04-01' } as unknown as PublicIntakeState;
   const refrozen = stateAfterReceipt(goneBefore, RECEIPT);
   ok(refrozen.originalsGone === null && refrozen.originalDeletedDate === null && refrozen.originalDeleting === null && refrozen.originalDeleteDate === null, '다시 낸 영수증은 옛 판의 지운 사실을 안 쥔다');
-  ok(receiptHead(refrozen).title === '영상이 잘 도착했어요' && !receiptHead(refrozen).desc.includes('나오지 않아요'), '머리가 방금 보낸 영상을 지웠다고 말하지 않는다');
+  ok(receiptHead(refrozen).title === '영상이 도착했습니다' && !receiptHead(refrozen).desc.includes('나오지 않아요'), '머리가 방금 보낸 영상을 지웠다고 말하지 않는다');
   ok(receiptRetentionRows(refrozen).length === 0, '옛 판의 지운 날 줄이 없다');
   const deletingBefore = { ...goneBefore, originalsGone: 'deleting', originalDeletedDate: null, originalDeleting: 'current' } as unknown as PublicIntakeState;
   const refrozen2 = stateAfterReceipt(deletingBefore, RECEIPT);
-  ok(receiptHead(refrozen2).title === '영상이 잘 도착했어요' && receiptRetentionRows(refrozen2).length === 0, '지우는 중에 다시 내도 같다');
+  ok(receiptHead(refrozen2).title === '영상이 도착했습니다' && receiptRetentionRows(refrozen2).length === 0, '지우는 중에 다시 내도 같다');
   /* 같은 키 재시도(created false)가 화면이 알던 그 판이면 서버가 아는 사실을 그대로 두고, 지금 상태 글도 그 사실과 맞춘다 */
   const knownReceipt = { code: 'IN-1', receivedAt: RECEIPT.receivedAt, receiptDate: RECEIPT.receiptDate, revision: 1 };
   const retry = stateAfterReceipt({ ...goneBefore, receipt: knownReceipt, submissionStatus: 'verified', analysisStatus: 'ready' } as PublicIntakeState, { ...RECEIPT, created: false, submissionStatus: 'verified' });
-  ok(retry.originalsGone === 'deleted' && retry.statusText.includes('원본을 지웠어요'), '같은 판의 같은 키 재시도는 지운 사실과 그 글을 지킨다');
+  ok(retry.originalsGone === 'deleted' && retry.statusText.includes('원본을 지웠습니다'), '같은 판의 같은 키 재시도는 지운 사실과 그 글을 지킨다');
   /*
    * 검증 지적: 고쳐 다시 낸 뒤 완료 응답을 잃어 같은 키로 받은 영수증(created false)이다. 다른 기기가 먼저 낸 경우도 같다.
    * 영수증의 판(2)이 화면이 알던 판(1)과 다르니 새로 얼린 판이다 — 옛 판의 '지웠어요 · 지우는 중'과 분석 상태를 들고 있으면 방금 보낸 영상을 지웠다고 말한다.
@@ -893,12 +898,12 @@ const stale = () => new IntakeRequestError('stale_version', '낡았어요', 409,
     const shown = stateAfterReceipt(fixBefore as unknown as PublicIntakeState, lostAnswer);
     ok(shown.originalsGone === null && shown.originalDeleting === null && shown.originalDeletedDate === null && shown.originalDeleteDate === null, `응답을 잃은 재시도도 새 판이면 옛 판의 원본 사실을 안 쥔다: ${gone}`);
     ok(shown.analysisStatus === 'none' && shown.receipt?.revision === 2, `새 판의 분석은 아직 없다: ${gone}`);
-    assert.deepEqual([receiptHead(shown).title, receiptRetentionRows(shown), shown.statusText], ['영상이 잘 도착했어요', [], '파일이 잘 도착했는지 확인하고 있어요'], `머리 · 보유 줄 · 상태 글이 방금 보낸 영상을 지웠다고 안 한다: ${gone}`);
+    assert.deepEqual([receiptHead(shown).title, receiptRetentionRows(shown), shown.statusText], ['영상이 도착했습니다', [], '파일이 그대로 도착했는지 확인하고 있습니다'], `머리 · 보유 줄 · 상태 글이 방금 보낸 영상을 지웠다고 안 한다: ${gone}`);
     passed++;
   }
 
   let tries = 0;
-  const net = new IntakeRequestError('network', '끊겼어요');
+  const net = new IntakeRequestError('network', '끊겼습니다');
   const flaky = await refreshQuietly(async () => {
     if (++tries < 3) throw net;
   }, noWait);
@@ -915,6 +920,42 @@ const stale = () => new IntakeRequestError('stale_version', '낡았어요', 409,
     throw new IntakeRequestError('invitation_revoked', '폐기');
   }, noWait);
   ok(gone?.code === 'invitation_revoked' && tries === 1, '서버 거절은 다시 묻지 않고 돌려준다');
+}
+
+const eqH = (a: unknown, b: unknown, label: string) => {
+  assert.deepEqual(a, b, label);
+  passed++;
+};
+/* R04: 앞으로 가기 뒤의 기록 위치 — popstate 는 그 항목에 적힌 깊이를 읽는다(뒤로든 앞으로든). 화면의 '이전'은 깊이가 있으면 기록을 한 칸 뒤로 */
+{
+  /* 브라우저 기록 흉내: 항목 목록 · 지금 칸. 화면 쪽은 intake-flow 와 같은 규칙(go/goPanel 이 historyEntry 를 쌓고, popstate 가 depthOf 를 읽는다) */
+  const stack: unknown[] = [null];
+  let at = 0;
+  let depth = 0;
+  const push = (step: string, panel?: string) => {
+    stack.splice(at + 1);
+    stack.push(historyEntry(depth, step, panel));
+    at++;
+    depth++;
+  };
+  const pop = (to: number) => {
+    at = to;
+    depth = depthOf(stack[at]);
+  };
+  const browserBack = () => pop(at - 1);
+  const browserForward = () => pop(at + 1);
+  const uiBack = () => (depth > 0 ? (browserBack(), 'history') : 'fallback');
+  const panelAt = () => (stack[at] as { reviewPanel?: string } | null)?.reviewPanel ?? null;
+  push('name'); push('side'); push('rear'); push('review', 'files');
+  push('review', 'same'); push('review', 'age');
+  browserBack(); browserBack();
+  eqH(panelAt(), 'files', 'R04: 뒤로 두 번이면 영상 확인 화면');
+  browserForward();
+  eqH(panelAt(), 'same', 'R04: 앞으로 한 번이면 같은 투구 화면');
+  eqH(uiBack(), 'history', "R04: 앞으로 간 뒤의 '이전'도 기록을 쓴다(옆 · 뒤 영상 단계로 빠지지 않는다)");
+  eqH(panelAt(), 'files', "R04: '이전'은 영상 확인 화면으로 돌아간다");
+  eqH(depthOf(null), 0, '이 화면이 쌓지 않은 항목은 깊이 0');
+  eqH(depthOf({ intakeDepth: -2 }), 0, '말이 안 되는 깊이는 0');
 }
 
 /* ────────────────────────── 13 검토 화면 규칙 ────────────────────────── */
@@ -943,6 +984,24 @@ const stale = () => new IntakeRequestError('stale_version', '낡았어요', 409,
   ok(target({ ...full, agreed: { submission: true } }) === null, '국외 이전(선택)을 안 눌러도 보낼 수 있다');
   ok(firstProblemTarget({ form: '서버 오류' }, full, docs) === null, '칸이 없는 오류는 옮기지 않는다');
 
+  /* R04: 한 화면에 결정 하나 — 차례 · 막힘 · 되돌아갈 화면 */
+  const eq = (a: unknown, b: unknown, label: string) => {
+    assert.deepEqual(a, b, label);
+    passed++;
+  };
+  eq(reviewPanels(full, docs), ['files', 'same', 'age', 'relation', 'hand', 'consent:submission', 'consent:overseas', 'consent:model', 'summary'], 'R04: 결정 화면 차례(필수 동의 먼저, 선택 동의 둘, 요약)');
+  eq(reviewPanels({ ageBand: 'under_14' }, docs), ['files', 'same', 'age'], 'R04: 만 14세 미만이면 나이 뒤를 묻지 않는다');
+  eq(validPanel('consent:gone', reviewPanels(full, docs)), 'files', 'R04: 없는 화면 이름은 첫 화면');
+  eq(panelProblem('same', { ...full, samePitch: false }, docs).samePitch != null, true, 'R04: 같은 투구를 확인해야 다음');
+  eq(panelProblem('consent:submission', { ...full, agreed: {} }, docs).consent != null, true, 'R04: 필수 동의 없이 다음 못 감');
+  eq(panelProblem('consent:overseas', { ...full, agreed: { submission: true } }, docs), {}, 'R04: 국외 이전(선택)은 안 눌러도 다음');
+  eq(panelProblem('consent:model', { ...full, agreed: { submission: true } }, docs), {}, 'R04: 모델 개발(선택)은 안 눌러도 다음');
+  eq(panelProblem('hand', { ...full, hand: null }, docs), {}, 'R04: 던지는 손(선택)은 안 골라도 다음');
+  eq(problemPanel(reviewProblems({ ...full, agreed: {}, relation: null }, docs), { ...full, agreed: {}, relation: null }, docs), 'relation', 'R04: 막힌 첫 화면은 화면 차례대로');
+  eq(problemPanel(reviewProblems({ ...full, name: '' }, docs), { ...full, name: '' }, docs), 'summary', 'R04: 이름 오류는 요약(이름 고치는 곳)');
+  /* 동의 체크는 화면이 바꿀 때만 — 약관 창을 여는 것은 form 을 바꾸지 않는다(창은 ReviewStep 안의 상태다). 기본은 꺼짐 */
+  ok(INTAKE_CONSENT_DOCS.filter((d) => !d.required).every((d) => d.defaultGranted === false), 'R04: 선택 동의는 기본 꺼짐');
+
   /* 이미 지금 판인 글은 다시 묻지 않는다. 선택 동의도 안 묻는다 */
   const left = staleRequiredDocs({ consent: { requiredOk: false, granted: { submission: false, overseas: false, model: false } } }, docs);
   ok(left.length === 1 && left[0].kind === 'submission', '바뀐 필수 글만 다시 묻는다 — 선택인 국외 이전은 안 묻는다');
@@ -963,7 +1022,7 @@ const stale = () => new IntakeRequestError('stale_version', '낡았어요', 409,
   ok(goneViewsToPick({ assets: { side: null, rear: null }, correction: null, frozenAssetIds: { side: null, rear: null } } as never, nothing).length === 0, '고침이 없으면 말이 없다');
   /*
    * 검증 지적: 요청받은 칸을 새로 안 고르고 보내면 서버가 막는데 화면은 몰랐다. 막힌 파일('rejected')과 얼린 그 파일 그대로인 칸이다.
-   * 막힌 칸은 서버가 '전송이 아직 끝나지 않았어요'라고 해서 거짓이었다. 둘 다 서버와 같은 판단으로 보내기 전에 말한다.
+   * 막힌 칸은 서버가 '전송이 아직 끝나지 않았습니다'라고 해서 거짓이었다. 둘 다 서버와 같은 판단으로 보내기 전에 말한다.
    */
   ok(goneViewsToPick(fix('rejected', 'verified', ['side']), nothing).join() === 'side', '막힌 칸은 다시 골라야 한다');
   ok(goneViewsToPick(fix('verified', 'verified', ['side'], { side: 'side-old' }), nothing).join() === 'side', '얼린 파일 그대로인 칸도 다시 골라야 한다');
@@ -1010,7 +1069,7 @@ const stale = () => new IntakeRequestError('stale_version', '낡았어요', 409,
   ok(goneViewsToPick(fix(null, 'verified', ['rear']), nothing).length === 0, '요청받지 않은 빈 칸은 안 본다');
   ok(pickViewText(null) !== GONE_VIEW_TEXT && pickViewText({ status: 'purged' } as never) === GONE_VIEW_TEXT, '빈 칸은 지웠다고 안 하고 골라 달라고 한다');
   /* 검증 지적: 지우고 있는 칸도 '지웠어요'라고 했다 */
-  ok(pickViewText({ status: 'purging' } as never) === '이 칸의 원본을 지우고 있어요. 영상을 다시 골라 주세요.', '지우고 있는 칸은 지우고 있다고 말한다');
+  ok(pickViewText({ status: 'purging' } as never) === '이 칸의 원본을 지우는 중입니다. 영상을 다시 선택하십시오.', '지우고 있는 칸은 지우고 있다고 말한다');
 
   /* 검증 지적: 고침 화면의 막힘은 화면 차례(이름 → 영상 → 같은 투구 → 동의)로 고르고, 그 칸으로 초점을 옮긴다 */
   const fixCheck = { nameAsked: false, name: '', missing: [] as ('side' | 'rear')[], viewsAsked: true, same: false, needsConsent: true, docs, agreed: {} as Record<string, boolean> };
@@ -1037,12 +1096,12 @@ const stale = () => new IntakeRequestError('stale_version', '낡았어요', 409,
 {
   const body = consentDocOf('submission').body;
   for (const word of ['나이대', '던지는 손', '보내는 분 이름', '영상 파일 이름', '촬영 시각', '기기', '위치', '그 관계']) ok(body.includes(word), `제출 글이 '${word}'을 말한다`);
-  ok(/동의하지 않으면 영상을 접수할 수 없어요/.test(body), '거부의 효과를 말한다');
+  ok(/동의하지 않으면 영상을 접수할 수 없습니다/.test(body), '거부의 효과를 말한다');
   ok(body.includes(consentDocOf('overseas').title.replace(/\(선택\)$/, '')) && !body.includes('관리자만'), '보는 사람 줄이 분석 서버 글을 가리킨다');
   ok(consentDocOf('overseas').body.includes('촬영 시각'), '국외 이전 글도 원본 안의 정보를 말한다');
   ok(consentDocOf('submission').version !== 'intake-submission-2026-11-06', '글을 고치면 판이 오른다');
-  ok(consentDocOf('overseas').version.startsWith('intake-overseas-2026-11-13.3+'), '국외 이전 판도 오른다(선택으로 바뀐 글, R03 Q-R03-2)');
-  ok(consentDocOf('submission').version === 'intake-submission-2026-11-13.4' && consentDocOf('model').version === 'intake-model-2026-11-13.3', '고친 글의 판이 모두 올랐다');
+  ok(consentDocOf('overseas').version.startsWith('intake-overseas-2026-11-13.4+'), '국외 이전 판도 오른다(R04 합니다 체)');
+  ok(consentDocOf('submission').version === 'intake-submission-2026-11-13.5' && consentDocOf('model').version === 'intake-model-2026-11-13.4', 'R04: 고친 약관 셋의 판이 모두 올랐다');
   ok(optionalCheckLabel('overseas', false).includes('분석 서버') && optionalCheckLabel('model', false).includes('모델') && optionalCheckLabel('overseas', true).includes('대신'), '선택 동의마다 체크 글이 다르다');
 
   /* 대리는 다른 글로 동의한다 */
@@ -1061,6 +1120,96 @@ const stale = () => new IntakeRequestError('stale_version', '낡았어요', 409,
   assert.deepEqual(changedConsentKinds(a, b), ['overseas']);
   passed++;
   ok(changedConsentKinds(null, b).length === 0, '처음 받을 때는 바뀐 것이 없다');
+}
+
+/*
+ * ────────────────────────── R04 원본 보존 증거 ──────────────────────────
+ * 고른 파일 → 이어 올리기(한 번 끊김) → 저장된 객체 → 관리자 내려받기(서명 주소 전체 GET)가 같은 바이트인지 본다.
+ * 실제 코드 길: 브라우저 업로드 모듈(startIntakeUpload, tus) · 저장소 모듈(createIntakeStorage: hash · readUrl). 저장소는 이 시험의 가짜 Supabase 다 —
+ * 운영 저장소 · 실제 아이폰 사진 선택 창의 증거가 아니다. 해시가 같다는 것은 '고른 파일부터 바뀌지 않았다'는 뜻이지 카메라 원본이라는 뜻이 아니다.
+ * 재료는 정해진 바이트의 아이폰 슬로 모션 모양 MOV(240 표본 + 늘린 편집 목록) — 매번 같은 해시가 나온다.
+ */
+{
+  resetLog();
+  const PROOF = buildMov({
+    timescale: 240,
+    stts: [[480, 1]],
+    edits: [[600, 0], [3000, 120], [1200, 360]],
+    rotation: 90,
+    width: 1920,
+    height: 1080,
+    codec: 'hvc1',
+    appleDate: '2026-11-13T10:00:00+0900',
+    appleModel: 'iPhone 15 Pro',
+    mdatBytes: 3 * TUS_CHUNK_BYTES + 54_321,
+    mdatSeed: 4,
+  });
+  const proofPath = path.join(dir, 'r04-proof.mov');
+  writeFileSync(proofPath, PROOF);
+  const selected = await openAsBlob(proofPath, { type: 'video/quicktime' });
+  const selectedSha = await hashFileSha256(selected);
+  const objectPath = newPath();
+  let cuts = 0;
+  const h = startIntakeUpload({
+    file: selected,
+    fileName: 'IMG_0001.MOV',
+    sha256: selectedSha,
+    grant: await grantFor(objectPath),
+    refreshGrant: refreshFor(objectPath),
+    store: memoryStore(),
+    storeKey: recoveryKey(SUB, 'r04'),
+    retryDelays: fast,
+    onProgress: (sent) => {
+      if (cuts === 0 && sent > TUS_CHUNK_BYTES) {
+        cuts++;
+        server.cutPatchAfter = 700_000;
+      }
+    },
+  });
+  await h.done;
+  ok(cuts === 1 && server.log.heads >= 1 && server.log.posts === 1, 'R04: 한 번 끊겼다가 같은 업로드로 이어 갔다');
+  ok(server.log.patchBytes === PROOF.length, 'R04: 받아 둔 바이트는 다시 안 보냈다');
+
+  const storedSha = await hashOf(server.objects.get(objectPath)!);
+  const measured = await storage.hash(objectPath);
+  const url = await storage.readUrl(objectPath, { download: 'r04-side_original.mov', ttlSec: 120 });
+  const downloaded = Buffer.from(await (await fetch(url)).arrayBuffer());
+  const downloadedSha = createHash('sha256').update(downloaded).digest('hex');
+  ok(selectedSha === createHash('sha256').update(PROOF).digest('hex'), 'R04: 고른 파일 해시 = 원본 바이트 해시');
+  ok(storedSha === selectedSha && measured.sha256 === selectedSha && measured.size === PROOF.length, 'R04: 저장된 객체 해시 · 길이 = 고른 파일');
+  ok(downloadedSha === selectedSha && downloaded.length === PROOF.length && downloaded.equals(PROOF), 'R04: 관리자 내려받기 바이트 = 고른 파일(한 바이트도 같음)');
+
+  const factsOf = (b: Buffer) => readIntakeMediaFacts({ size: b.length, read: async (s, e) => new Uint8Array(b.subarray(s, e)) });
+  const before = await factsOf(PROOF);
+  const after = await factsOf(downloaded);
+  const pick = (f: typeof before) => ({ codec: f.codec, width: f.width, height: f.height, rotation: f.rotation, frameCount: f.frameCount, averageFps: f.averageFps, stepFps: f.stepFps, sampleDurationSec: f.sampleDurationSec, playbackDurationSec: f.playbackDurationSec, editList: f.editList, frameTiming: f.frameTiming, captureAtMs: f.captureAtMs, model: f.model });
+  assert.deepEqual(pick(after), pick(before));
+  passed++;
+  ok(before.stepFps === 240 && before.editList.retimed && before.frameCount === 480, 'R04: 표본 240fps · 늘린 재생 · 480 장면이 그대로 남는다');
+
+  /* 바이트 하나가 달라지면 같은 대조가 잡는다(서버 검증의 hash_mismatch 거절은 intake-db-selftest '바이트가 다르면 막는다') */
+  const tampered = Buffer.from(downloaded);
+  tampered[tampered.length - 1] ^= 1;
+  ok(createHash('sha256').update(tampered).digest('hex') !== selectedSha, 'R04: 한 바이트 바뀐 파일은 해시가 다르다');
+
+  if (process.env.R04_EVIDENCE) {
+    writeFileSync(
+      process.env.R04_EVIDENCE,
+      JSON.stringify(
+        {
+          fixture: 'r04-proof (synthetic iPhone-shaped slow-motion MOV, deterministic bytes, seed 4)',
+          path: 'browser upload module (tus, one forced cut + resume) -> fake Supabase storage over HTTP -> storage-core hash -> signed URL full GET',
+          bytes: { selected: PROOF.length, stored: measured.size, downloaded: downloaded.length },
+          sha256: { selected: selectedSha, stored: storedSha, storageHash: measured.sha256, downloaded: downloadedSha },
+          facts: { before: pick(before), after: pick(after) },
+          resume: { cuts, posts: server.log.posts, heads: server.log.heads, patchBytes: server.log.patchBytes },
+          limits: 'Not production storage; not a real iPhone Photos selection. Byte identity from the selected file onward only.',
+        },
+        null,
+        2,
+      ),
+    );
+  }
 }
 
 http.closeAllConnections();

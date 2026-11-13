@@ -1,10 +1,10 @@
 /**
  * 고른 파일 살피기 — 브라우저에서만 돈다. 파일 머리만 읽어 사실을 보이고, 큰 파일을 통째로 쥐지 않는다.
- * 재생이 안 되는 것(HEVC · MOV)은 막을 까닭이 아니다. 막는 것은 빈 파일 · 한도 초과 · 바이트로 봐도 영상이 아닌 것 · 같은 파일뿐이다.
+ * 재생이 안 되는 것(HEVC · MOV)은 막을 까닭이 아니다. 막는 것은 빈 파일 · 한도 초과 · 바이트로 봐도 영상이 아닌 것 · 120fps 미만 · 촬영 속도를 모르는 것 · 같은 파일이다.
  */
 import { INTAKE_ERROR_TEXT } from '@/lib/intake/errors';
 import { formatBytes, type IntakeLimits } from '@/lib/intake/limits';
-import { MEDIA_REJECT_TEXT, mediaRejectCode, readIntakeMediaFacts, type IntakeMediaFacts } from '@/lib/intake/media';
+import { CAPTURE_RATE_TEXT, MEDIA_REJECT_TEXT, captureRateCode, mediaRejectCode, readIntakeMediaFacts, type IntakeMediaFacts } from '@/lib/intake/media';
 import type { PublicAsset } from '@/lib/intake/public-client';
 import { IntakeUploadError, hashFileSha256 } from '@/lib/intake/upload-client';
 
@@ -12,7 +12,7 @@ export type Picked = {
   file: File;
   /** 미리보기 주소 — 파일을 복사하지 않는다 */
   url: string;
-  /** 머리를 못 읽으면 null — 그래도 서버 확인까지 간다 */
+  /** 머리를 못 읽으면 null — R04 부터는 촬영 속도를 확인할 수 없어 고를 때 막힌다(inspectPick) */
   facts: IntakeMediaFacts | null;
 };
 
@@ -39,16 +39,16 @@ export async function hashOnce(file: Blob, onProgress?: (done: number, total: nu
  * 한도를 넘은 영상 — 원본을 줄이거나 다시 만들라고 하지 않는다(분석에 쓸 수 없게 된다). 받는 쪽이 따로 받아 준다.
  * 고르기 전 안내(guided-steps)와 같은 말을 쓴다.
  */
-export const SIZE_HELP_TEXT = '원본을 줄이거나 다시 만들지 마세요. 링크를 보내 준 분에게 알려 주시면 따로 받는 방법을 안내해 드려요.';
-export const overFileText = (limits: IntakeLimits) => `영상 하나는 ${formatBytes(limits.maxFileBytes)}까지 보낼 수 있어요. ${SIZE_HELP_TEXT}`;
-export const overTotalText = (limits: IntakeLimits) => `두 영상을 합쳐 ${formatBytes(limits.maxTotalBytes)}까지 보낼 수 있어요. ${SIZE_HELP_TEXT}`;
+export const SIZE_HELP_TEXT = '원본을 줄이거나 다시 만들지 마십시오. 링크를 보내 준 담당자에게 알리면 따로 받는 방법을 안내합니다.';
+export const overFileText = (limits: IntakeLimits) => `영상 하나는 ${formatBytes(limits.maxFileBytes)}까지 보낼 수 있습니다. ${SIZE_HELP_TEXT}`;
+export const overTotalText = (limits: IntakeLimits) => `두 영상을 합쳐 ${formatBytes(limits.maxTotalBytes)}까지 보낼 수 있습니다. ${SIZE_HELP_TEXT}`;
 
-const UNREADABLE = '파일을 읽지 못했어요. iCloud에 있는 영상이면 내려받기가 끝난 뒤 다시 골라 주세요.';
+const UNREADABLE = '파일을 읽지 못했습니다. iCloud에 있는 영상이면 내려받기가 끝난 뒤 다시 선택하십시오.';
 
 /** 다른 칸의 파일 — 이 기기가 쥔 파일 또는 서버가 아는 자산 */
 export type OtherSlot = { picked: Picked | null; asset: PublicAsset | null };
 
-export type InspectResult = { ok: true; picked: Picked } | { ok: false; message: string };
+export type InspectResult = { ok: true; picked: Picked } | { ok: false; message: string; code?: string };
 
 /** 고른 파일을 살핀다. 실패해도 다른 칸의 선택은 건드리지 않는다 */
 export async function inspectPick(file: File, limits: IntakeLimits, other: OtherSlot): Promise<InspectResult> {
@@ -79,6 +79,12 @@ export async function inspectPick(file: File, limits: IntakeLimits, other: Other
   }
   const reject = facts ? mediaRejectCode(facts) : null;
   if (reject) return { ok: false, message: MEDIA_REJECT_TEXT[reject] };
+  /*
+   * 120fps 규칙(R04) — 서버와 같은 함수로 먼저 알린다. 막는 것은 서버다(이 결과를 서버로 보내지 않는다).
+   * 머리를 못 읽은 파일(facts 없음 · 영상인지 모름)도 촬영 속도를 확인할 수 없으니 여기서 멈추고 원본을 다시 고르게 한다.
+   */
+  const rate = captureRateCode(facts?.hasVideo === true ? facts : null);
+  if (rate) return { ok: false, message: CAPTURE_RATE_TEXT[rate], code: rate };
 
   /* 크기가 같을 때만 전체를 잰다 — 다른 파일은 크기가 다르다 */
   if (otherSize === file.size) {

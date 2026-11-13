@@ -566,7 +566,7 @@ const auditCount = () => db.intakeAudit.count();
   ok(!json.includes(inv.token), '토큰 원문이 안 나간다');
   const a = d.assets.find((x) => x.id === side)!;
   eq([a.fps, a.integrity, a.hashMatched, a.available, a.captureAtSource], ['240fps 감지', '선택한 파일 그대로 전송됨', true, true, 'apple'], '파일 사실');
-  ok(a.timing?.startsWith('재생 속도를 바꾼 구간이 있어요'), '슬로 모션 안내');
+  ok(a.timing?.startsWith('재생 속도가 바뀐 구간이 있습니다'), '슬로 모션 안내');
   eq([d.invitation.hasAccessCode, d.notes[0].body, d.notes[0].mine, d.notes[0].author], [true, '내부에서만 볼 메모', false, '대표B'], '코드 유무 · 메모');
   eq(a.durationLabel, '표본 시간', '재생 속도를 바꾼 파일의 표본 시간을 촬영 길이라고 안 부른다');
   const steady = { frameTiming: 'constant', nominalFps: 240, editList: { present: false, segments: 0, retimed: false, trimmed: false, shiftSec: 0 } } as const;
@@ -1148,7 +1148,7 @@ const auditCount = () => db.intakeAudit.count();
   eq(during.retention?.purging, { since: since.toISOString(), files: 2, scope: 'current' }, '언제부터 몇 개를 어느 판에서 지우는지 준다');
   eq(during.retention?.purgedAt, null, '끝나기 전에는 지운 시각이 없다');
   ok(during.assets.every((a) => !a.available && a.purgedAt === null), '바이트가 있다고 보이지 않는다');
-  eq(during.assets.map((a) => a.integrity), ['보유 기간이 지나 원본을 지우고 있어요', '보유 기간이 지나 원본을 지우고 있어요'], '자산 칸이 사실대로 말한다');
+  eq(during.assets.map((a) => a.integrity), ['보유 기간이 지나 원본을 지우는 중입니다', '보유 기간이 지나 원본을 지우는 중입니다'], '자산 칸이 사실대로 말한다');
   eq((await rowOf()).originalsPurging, 'current', '목록도 지금 판을 지우는 중이라고 준다');
   await fails(issueOriginalLinks(db, storage, A, { submissionId: id, purpose: 'preview', assetId: side }, later), 'original_purged', '지우는 파일의 주소를 안 준다');
   await fails(issueOriginalLinks(db, storage, A, { submissionId: id, purpose: 'download' }, later), 'original_purged', '짝 내려받기도 막는다');
@@ -1279,7 +1279,7 @@ const auditCount = () => db.intakeAudit.count();
     ok(d.filesPurgedAt != null, `지운 날이 있다: ${kind}`);
     eq(emptyVideosText(d.assets), '받은 영상을 지웠어요.', `받은 적 없는 접수처럼 안 읽힌다: ${kind}`);
     /* 검증 지적: 철회 유예가 끝나 지운 파일을 '쓰이지 않은 임시 파일'이라고 했다. 철회 뒤에 지웠으면 까닭은 철회다 */
-    const why = kind === 'withdrawn' ? '접수를 철회해서 지웠어요' : '접수에 쓰이지 않은 임시 파일이라 지웠어요';
+    const why = kind === 'withdrawn' ? '접수를 철회해서 지웠습니다' : '접수에 쓰이지 않은 임시 파일이라 지웠습니다';
     eq(d.assets.map((a) => a.integrity), [why, why], `정리가 지운 파일의 까닭을 사실대로 말하고 보유 기간 때문이라고 안 한다: ${kind}`);
     /* 검증 지적: 판에 오른 적 없는 파일을 칩이 '원본 지워짐'이라고 했다 */
     eq([row.analysisBlock, analysisChipText(row.analysisStatus, row.analysisBlock)], ['received_deleted', '영상 지워짐'], `판이 없는 접수의 칩은 원본이라고 안 한다: ${kind}`);
@@ -1295,7 +1295,7 @@ const auditCount = () => db.intakeAudit.count();
     await mkAsset(early.submissionId, 'rear', 'purged', { purgedAt: NOW });
     await db.intakeSubmission.update({ where: { id: early.submissionId }, data: { sideAssetId: null, rearAssetId: null } });
     const ed = await loadIntakeDetail(db, A, early.submissionId, NOW);
-    eq(Object.fromEntries(ed.assets.map((a) => [a.view, a.integrity])), { side: '접수에 쓰이지 않은 임시 파일이라 지웠어요', rear: '접수를 철회해서 지웠어요' }, '철회 전에 지운 파일 · 철회 뒤에 지운 파일을 가른다');
+    eq(Object.fromEntries(ed.assets.map((a) => [a.view, a.integrity])), { side: '접수에 쓰이지 않은 임시 파일이라 지웠습니다', rear: '접수를 철회해서 지웠습니다' }, '철회 전에 지운 파일 · 철회 뒤에 지운 파일을 가른다');
     eq(ed.retention?.basis, 'withdrawn_draft', '판에 안 오른 철회 초안이다');
   }
 
@@ -1340,8 +1340,8 @@ const auditCount = () => db.intakeAudit.count();
     eq([row.side, row.rear], frozenStatus === 'purged' && newStatus === 'purged' ? ['deleted', 'deleted'] : ['empty', 'empty'], `목록 칸과 같은 판단이다: ${kind}`);
     /* 판에 오른 적 없는 파일을 정리가 지웠으면 보유 기간 때문이 아니다 */
     const fresh = d.assets.find((a) => a.id === newSide)!;
-    if (newStatus === 'purged') eq(fresh.integrity, '접수에 쓰이지 않은 임시 파일이라 지웠어요', `판에 안 오른 지운 파일은 보유 기간이 까닭이 아니다: ${kind}`);
-    if (frozenStatus === 'purged') eq(d.assets.find((a) => a.id === fx.side)!.integrity, '보유 기간이 지나 원본을 지웠어요', `판에 얼린 원본은 보유 기간이 까닭이다: ${kind}`);
+    if (newStatus === 'purged') eq(fresh.integrity, '접수에 쓰이지 않은 임시 파일이라 지웠습니다', `판에 안 오른 지운 파일은 보유 기간이 까닭이 아니다: ${kind}`);
+    if (frozenStatus === 'purged') eq(d.assets.find((a) => a.id === fx.side)!.integrity, '보유 기간이 지나 원본을 지웠습니다', `판에 얼린 원본은 보유 기간이 까닭이다: ${kind}`);
   }
 
   /* 철회 유예가 지났는데 저장소가 안 지운 임시 파일 — 정리 일감은 접수에 안 묶여 있어도 상세가 멈춘 일감으로 보인다 */

@@ -77,14 +77,14 @@ export function SendStep({
 
   /* 화면 읽기에는 10% 마다만 알린다 */
   const spoken = after
-    ? '전송이 끝났어요. 파일이 잘 도착했는지 확인하고 있어요.'
-    : `${preparing ? '파일을 준비하고 있어요' : '보내고 있어요'} ${Math.floor(pct / 10) * 10}%`;
+    ? '전송이 끝났습니다. 파일이 그대로 도착했는지 확인하고 있습니다.'
+    : `${preparing ? '파일을 준비하는 중' : '보내는 중'} ${Math.floor(pct / 10) * 10}%`;
 
   return (
     <Screen
       screenKey="send"
-      title="영상을 원본 그대로 보내고 있어요"
-      desc="완료될 때까지 이 화면을 열어두세요."
+      title="선택한 영상 파일을 그대로 보내는 중입니다"
+      desc="완료될 때까지 이 화면을 닫지 마십시오."
       step={5}
       actions={
         run.stop && actionLabel ? (
@@ -121,12 +121,12 @@ export function SendStep({
           <p className="flex items-start gap-2 text-sm leading-relaxed break-keep text-ink">
             {!run.stop && <Loader2 aria-hidden className="mt-0.5 h-5 w-5 shrink-0 motion-safe:animate-spin" />}
             {/* 멈춘 뒤에는 '확인하고 있어요'라고 하지 않는다 — 다음 행동은 아래 단추가 말한다 */}
-            {run.stop ? '영상은 모두 도착했어요.' : '전송이 끝났어요. 파일이 잘 도착했는지 확인하고 있어요.'}
+            {run.stop ? '영상은 모두 도착했습니다.' : '전송이 끝났습니다. 파일이 그대로 도착했는지 확인하고 있습니다.'}
           </p>
         ) : (
           <>
             <div className="flex items-baseline justify-between gap-3">
-              <p className="text-sm font-semibold text-ink">{preparing ? '파일을 준비하고 있어요' : '보내고 있어요'}</p>
+              <p className="text-sm font-semibold text-ink">{preparing ? '파일을 준비하는 중' : '보내는 중'}</p>
               <p className="text-numeric text-lg text-ink">{pct}%</p>
             </div>
             <div
@@ -163,7 +163,7 @@ export function SendStep({
 
       {run.stop && <FieldError>{run.stop.message}</FieldError>}
       {stalled && onCancel && (
-        <NoteBox>서버 응답이 늦어지고 있어요. 멈춘 뒤 이어서 보내면 받은 만큼 이어 가요.</NoteBox>
+        <NoteBox>서버 응답이 늦어지고 있습니다. 멈춘 뒤 이어서 보내면 이미 도착한 부분부터 이어집니다.</NoteBox>
       )}
     </Screen>
   );

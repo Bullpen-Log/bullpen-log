@@ -13,7 +13,7 @@ export function ModelConsentPart({ granted, onWithdraw }: { granted: boolean; on
   if (phase === 'done') {
     return (
       <p role="status" className="text-footnote leading-5 break-keep text-muted">
-        모델 개발 이용 동의를 거뒀어요. 앞으로 모델 개발에 쓰지 않아요.
+        모델 개발 이용 동의를 거뒀습니다. 앞으로 모델 개발에 쓰지 않습니다.
       </p>
     );
   }
@@ -21,8 +21,8 @@ export function ModelConsentPart({ granted, onWithdraw }: { granted: boolean; on
   return (
     <details className="rounded-2xl bg-surface px-(--block-pad) py-1 text-sm">
       <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-ink">모델 개발 이용 동의</summary>
-      <p className="pb-2 text-footnote leading-5 break-keep text-muted">동의를 거두면 앞으로 모델 개발에 쓰지 않아요. 이 동의만 거두고 다른 내용은 바뀌지 않아요.</p>
-      {phase === 'failed' && <FieldError>거두지 못했어요. 다시 시도해 주세요.</FieldError>}
+      <p className="pb-2 text-footnote leading-5 break-keep text-muted">동의를 거두면 앞으로 모델 개발에 쓰지 않습니다. 이 동의만 거두며 다른 내용은 바뀌지 않습니다.</p>
+      {phase === 'failed' && <FieldError>거두지 못했습니다. 다시 시도하십시오.</FieldError>}
       <div className="pb-2">
         <SecondaryButton
           disabled={phase === 'busy'}
@@ -35,7 +35,7 @@ export function ModelConsentPart({ granted, onWithdraw }: { granted: boolean; on
             );
           }}
         >
-          {phase === 'ask' ? '한 번 더 누르면 동의를 거둬요' : '동의 거두기'}
+          {phase === 'ask' ? '한 번 더 누르면 동의를 거둡니다' : '동의 거두기'}
         </SecondaryButton>
       </div>
     </details>

@@ -27,7 +27,7 @@ export function inviteeErrorsOf(code: string, message: string, retryAfterSec: nu
   if (code === 'pin_invalid') return { pin: message };
   if (code === 'pin_mismatch') return { pinConfirm: message };
   if (code === 'invitee_name_invalid' || code === 'athlete_name_chars') return { name: message };
-  if (code === 'rate_limited') return { form: retryAfterSec != null ? `시도가 너무 많아요. ${waitText(retryAfterSec)} 뒤에 다시 시도해 주세요.` : INTAKE_ERROR_TEXT.rate_limited };
+  if (code === 'rate_limited') return { form: retryAfterSec != null ? `시도가 너무 많습니다. ${waitText(retryAfterSec)} 뒤 다시 시도하십시오.` : INTAKE_ERROR_TEXT.rate_limited };
   return { form: message };
 }
 
@@ -177,8 +177,8 @@ export function EnrollStep({
     >
       <Screen
         screenKey="invitee-enroll"
-        title="이름과 PIN 을 정해 주세요"
-        desc={'다음에 이 링크를 열 때 같은 이름과 PIN 을 입력해요.\nPIN 은 직접 정하는 숫자 네 자리예요.'}
+        title="이 링크에 쓸 이름과 PIN 은 무엇인가요?"
+        desc={'이 이름과 PIN 은 이 링크에 다시 들어올 때 본인 확인에 쓰입니다. 다음에 이 링크를 열 때 같은 이름과 PIN 을 입력합니다.\nPIN 은 직접 정하는 숫자 네 자리입니다.'}
         focusTitle={false}
         actions={
           <>
@@ -193,7 +193,7 @@ export function EnrollStep({
         <PinField id="invitee-pin" label="PIN 숫자 네 자리" value={pin} onChange={setPin} error={shown.pin} autoComplete="new-password" show={show} />
         <PinField id="invitee-pin-confirm" label="PIN 한 번 더" value={pinConfirm} onChange={setPinConfirm} error={shown.pinConfirm} autoComplete="new-password" show={show} />
         <ShowPin show={show} onToggle={() => setShow((v) => !v)} />
-        <NoteBox>PIN 은 다른 사람에게 알려 주지 마세요. 잊으면 링크를 보내 준 분에게 문의해 주세요.</NoteBox>
+        <NoteBox>PIN 은 다른 사람에게 알리지 마십시오. 잊으면 링크를 보내 준 담당자에게 문의하십시오.</NoteBox>
       </Screen>
     </form>
   );
@@ -203,10 +203,10 @@ export function EnrollStep({
 export type UnlockReason = 'session_required' | 'session_expired' | 'ended' | 'enrolled_elsewhere';
 
 const UNLOCK_DESC: Record<UnlockReason, string> = {
-  session_required: '처음에 정한 이름과 PIN 을 입력하면 이어서 볼 수 있어요.',
+  session_required: '처음에 정한 이름과 PIN 을 입력하면 이어서 볼 수 있습니다.',
   session_expired: INTAKE_ERROR_TEXT.session_expired,
-  ended: '이 기기에서 나갔어요. 다시 보려면 이름과 PIN 을 입력해 주세요.',
-  enrolled_elsewhere: '방금 다른 곳에서 이름과 PIN 을 먼저 정했어요. 정한 이름과 PIN 을 입력해 주세요.',
+  ended: '이 기기에서 나갔습니다. 다시 보려면 이름과 PIN 을 입력하십시오.',
+  enrolled_elsewhere: '방금 다른 곳에서 이름과 PIN 을 먼저 정했습니다. 정한 이름과 PIN 을 입력하십시오.',
 };
 
 /* ── 다시 들어오기 ── */
@@ -259,7 +259,7 @@ export function UnlockStep({
     >
       <Screen
         screenKey={`invitee-unlock-${reason}`}
-        title="이름과 PIN 을 입력해 주세요"
+        title="처음에 정한 이름과 PIN 은 무엇인가요?"
         desc={UNLOCK_DESC[reason]}
         focusTitle={false}
         actions={
@@ -274,7 +274,7 @@ export function UnlockStep({
         <NameField id="unlock-name" label="이름" value={name} onChange={setName} error={shown.name} />
         <PinField id="unlock-pin" label="PIN 숫자 네 자리" value={pin} onChange={setPin} error={shown.pin} autoComplete="off" show={show} />
         <ShowPin show={show} onToggle={() => setShow((v) => !v)} />
-        <NoteBox>고른 영상과 보내던 내용은 그대로 있어요. PIN 을 잊었으면 링크를 보내 준 분에게 문의해 주세요.</NoteBox>
+        <NoteBox>선택한 영상과 보내던 내용은 그대로 있습니다. PIN 을 잊었으면 링크를 보내 준 담당자에게 문의하십시오.</NoteBox>
       </Screen>
     </form>
   );
@@ -298,9 +298,9 @@ export function LeaveDevice({ onLeave }: { onLeave: () => Promise<void> }) {
           );
         }}
       >
-        {phase === 'busy' ? '나가는 중이에요' : '이 기기에서 나가기'}
+        {phase === 'busy' ? '나가는 중' : '이 기기에서 나가기'}
       </HelpButton>
-      {phase === 'failed' && <FieldError>나가지 못했어요. 신호를 확인한 뒤 다시 시도해 주세요.</FieldError>}
+      {phase === 'failed' && <FieldError>나가지 못했습니다. 신호를 확인한 뒤 다시 시도하십시오.</FieldError>}
     </div>
   );
 }

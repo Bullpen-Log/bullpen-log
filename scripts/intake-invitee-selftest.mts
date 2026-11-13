@@ -110,7 +110,8 @@ async function fails(p: Promise<unknown>, code: string, label: string): Promise<
 }
 
 /* ── DB ── */
-const MIGRATION_ROOT = readdirSync('prisma').includes('pending-migrations') ? 'prisma/pending-migrations' : 'prisma/migrations';
+/* 운영에 적용한 뒤(2026-11-13 df3306e0)에는 prisma/migrations 로 옮겨졌다 — 접수 마이그레이션이 든 쪽을 쓴다 */
+const MIGRATION_ROOT = readdirSync('prisma/pending-migrations').some((d) => d.endsWith('_external_intake')) ? 'prisma/pending-migrations' : 'prisma/migrations';
 const dirs = readdirSync(MIGRATION_ROOT).filter((d) => d.endsWith('_external_intake')).sort();
 const pg = await PGlite.create();
 await pg.exec(readFileSync(`${MIGRATION_ROOT}/${dirs[0]}/migration.sql`, 'utf8'));

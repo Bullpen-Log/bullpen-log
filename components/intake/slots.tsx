@@ -6,7 +6,7 @@ import { FieldError } from '@/components/intake/shell';
 import { FileFacts } from '@/components/intake/file-summary';
 import type { Picked } from '@/components/intake/pick';
 import { formatBytes } from '@/lib/intake/limits';
-import { MEDIA_REJECT_TEXT } from '@/lib/intake/media';
+import { CAPTURE_RATE_TEXT, MEDIA_REJECT_TEXT } from '@/lib/intake/media';
 import type { PublicAsset } from '@/lib/intake/public-client';
 import { assetArrived, assetGone, assetInTransit, type IntakeView } from '@/lib/intake/state';
 
@@ -32,7 +32,7 @@ export function useFocusOnPick(picked: Picked | null, target: RefObject<HTMLElem
 export function PickStatus({ picked }: { picked: Picked | null }) {
   return (
     <p role="status" className="sr-only">
-      {picked ? `고른 영상: ${picked.file.name}` : ''}
+      {picked ? `선택한 영상: ${picked.file.name}` : ''}
     </p>
   );
 }
@@ -82,13 +82,15 @@ export const FILL_BUTTON =
   'inline-flex h-14 w-full items-center justify-center rounded-full bg-sky px-5 text-base font-semibold text-white transition-colors hover:bg-sky-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky disabled:cursor-not-allowed disabled:opacity-50 desk:rounded-xl';
 
 const REJECT_TEXT: Record<string, string> = {
-  not_video: '영상 파일이 아니에요. 찍은 영상을 다시 골라 주세요.',
+  not_video: '영상 파일이 아닙니다. 촬영한 영상을 다시 선택하십시오.',
+  capture_rate_low: CAPTURE_RATE_TEXT.capture_rate_low,
+  capture_rate_unknown: CAPTURE_RATE_TEXT.capture_rate_unknown,
   unsupported_container: MEDIA_REJECT_TEXT.unsupported_container,
-  size_mismatch: '도착한 파일 크기가 고른 파일과 달라요. 다시 골라 주세요.',
-  hash_mismatch: '도착한 파일이 고른 파일과 달라요. 다시 골라 주세요.',
+  size_mismatch: '도착한 파일 크기가 선택한 파일과 다릅니다. 다시 선택하십시오.',
+  hash_mismatch: '도착한 파일이 선택한 파일과 다릅니다. 다시 선택하십시오.',
 };
 
-export const rejectText = (code: string | null) => (code && REJECT_TEXT[code]) ?? '이 영상은 보낼 수 없어요. 다른 영상을 골라 주세요.';
+export const rejectText = (code: string | null) => (code && REJECT_TEXT[code]) ?? '이 영상은 보낼 수 없습니다. 다른 영상을 선택하십시오.';
 
 /** 칸 하나의 지금 모습 — 서버가 아는 자산과 이 기기가 쥔 파일을 함께 보인다 */
 export function SlotCard({
@@ -142,15 +144,15 @@ export function SlotCard({
         <p className="mt-2 text-footnote leading-5 break-keep text-muted">
           {requested
             ? asset && assetGone(asset.status)
-              ? '이 영상을 다시 골라 주세요.'
-              : '새 영상을 골라 주세요.'
+              ? '이 영상을 다시 선택하십시오.'
+              : '새 영상을 선택하십시오.'
             : arrived
-              ? (asset?.integrity ?? '도착했어요. 파일을 확인하고 있어요.')
+              ? (asset?.integrity ?? '도착했습니다. 파일을 확인하고 있습니다.')
               : transit
-                ? '전송이 끊겼어요. 같은 파일을 다시 고르면 이어서 보내요.'
+                ? '전송이 끊겼습니다. 같은 파일을 다시 선택하면 이어서 보냅니다.'
                 : rejected
                   ? rejectText(asset?.rejectCode ?? null)
-                  : '아직 고르지 않았어요.'}
+                  : '아직 선택하지 않았습니다.'}
         </p>
       )}
       {note && <p className="mt-2 text-footnote leading-5 break-keep text-muted">{note}</p>}
@@ -163,7 +165,7 @@ export function SlotCard({
         {inspecting ? (
           <p role="status" className="flex min-h-11 items-center gap-2 text-footnote text-muted">
             <Loader2 aria-hidden className="h-4 w-4 motion-safe:animate-spin" />
-            영상을 살펴보고 있어요
+            영상을 살펴보는 중
           </p>
         ) : (
           <FileButton

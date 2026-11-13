@@ -11,7 +11,9 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { hashOnce } from '@/components/intake/pick';
+import { hashOnce, inspectPick } from '@/components/intake/pick';
+import { CAPTURE_RATE_TEXT } from '@/lib/intake/media';
+import { buildMov, hugeMoovHeader, mov120, mov240 } from './intake-fixtures.mts';
 import { SEND_CANCELLED_TEXT, createSendController, type SendControllerInput, type SendState } from '@/components/intake/use-send';
 import {
   CONTROL_TIMEOUT_MS,
@@ -1254,6 +1256,24 @@ eq(unhandled, 0, '처리되지 않은 거절이 없다');
   const src = readFileSync('app/(app)/videos/lab/[id]/body-3d.tsx', 'utf8');
   ok(/disabled=\{status !== 'ready'\}\s*aria-label=\{playing \? '멈춤' : '재생'\}/.test(src), "Body3D 재생 단추는 status 가 'ready' 일 때만 켜지고 이름이 재생/멈춤이다");
   ok(/renderer\.domElement/.test(src), 'Body3D 는 그림판(canvas)을 칸에 붙인다');
+}
+
+/* ── R04: 고를 때 120fps 규칙을 먼저 알린다(서버와 같은 함수 — 막는 것은 서버다) ── */
+{
+  const limits = { maxFileBytes: 2 ** 30, maxTotalBytes: 2 ** 31, maxAssets: 12 };
+  const none = { picked: null, asset: null };
+  const asFile = (b: Buffer, name: string) => new File([new Uint8Array(b)], name, { type: 'video/quicktime' });
+  const sixty = await inspectPick(asFile(buildMov({ timescale: 600, stts: [[600, 10]] }), 'IMG_240fps.MOV'), limits, none);
+  ok(!sixty.ok && sixty.message === CAPTURE_RATE_TEXT.capture_rate_low, 'R04: 60fps 는 고를 때 막고 까닭을 말한다(파일 이름은 안 본다)');
+  const blind = await inspectPick(asFile(buildMov({ timescale: 600, stts: [] }), 'a.MOV'), limits, none);
+  ok(!blind.ok && blind.message === CAPTURE_RATE_TEXT.capture_rate_unknown, 'R04: fps 를 모르면 막는다');
+  const unread = await inspectPick(asFile(hugeMoovHeader(64 * 1024 * 1024), 'big.MOV'), limits, none);
+  ok(!unread.ok && unread.message === CAPTURE_RATE_TEXT.capture_rate_unknown, 'R04: 머리를 못 읽어 영상인지 모르는 파일도 고를 때 멈춘다');
+  const fine = await inspectPick(asFile(mov240(4096), 'side.MOV'), limits, none);
+  ok(fine.ok && fine.picked.facts?.stepFps != null, 'R04: 240fps 는 고를 수 있다');
+  const ntsc = await inspectPick(asFile(mov120(4096), 'rear.MOV'), limits, none);
+  ok(ntsc.ok, 'R04: 119.88fps 는 고를 수 있다');
+  ok(!CAPTURE_RATE_TEXT.capture_rate_low.includes('압축') && !/변환하|줄여/.test(CAPTURE_RATE_TEXT.capture_rate_low), 'R04: 막힘 글이 변환 · 압축을 해결책으로 권하지 않는다');
 }
 
 console.log(`intake client selftest: ${passed} 통과`);

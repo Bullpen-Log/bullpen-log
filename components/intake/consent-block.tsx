@@ -1,6 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import { Check } from '@/components/icon';
+import { Modal } from '@/components/modal';
+import { HelpButton, SecondaryButton } from '@/components/intake/shell';
 import { consentCheckLabel } from '@/lib/intake/consent';
 import type { PublicConsentDoc } from '@/lib/intake/public-client';
 
@@ -44,7 +47,48 @@ export function ConsentText({ body }: { body: string }) {
   return <p className="text-footnote leading-5 break-keep whitespace-pre-line text-muted">{body}</p>;
 }
 
-/** 필수 동의 — 접지 않고 글을 그대로 보인다. 대리인이 보내면 체크 글이 달라진다(proxy) */
+/**
+ * 동의마다 짧은 요약 — 전문(해시를 맞추는 글)은 바꾸지 않고 '약관 보기' 창에서 그대로 보인다. 요약은 전문보다 넓게 말하지 않는다.
+ * 보내기 전 결정 화면(review-wizard)과 고침 · 다시 동의 화면(RequiredConsents)이 같은 글을 쓴다.
+ */
+const CONSENT_SUMMARY: Record<string, { question: string; summary: string }> = {
+  submission: {
+    question: '영상 제출과 처리에 동의하시나요?',
+    summary:
+      '옆 · 뒤 원본 영상과 선수 정보를 접수합니다. 불펜로그 팀이 원본을 내려받아 이 투구의 3D 동작 결과를 만들고, 검토 · 승인한 결과만 이 링크에서 볼 수 있습니다. 동의해야 영상을 보낼 수 있습니다.',
+  },
+  overseas: {
+    question: '자동 분석 서버(국외)로 보내는 것에 동의하시나요?',
+    summary: '원본을 국외의 자동 분석 서버로 보내 분석하는 것에 대한 선택 항목입니다. 동의하지 않아도 접수와 팀이 직접 만드는 결과는 그대로 진행됩니다.',
+  },
+  model: {
+    question: '모델 개발에 쓰는 것에 동의하시나요?',
+    summary: '접수한 영상과 결과를 투구 분석 모델을 만들고 고치는 데 쓰는 것에 대한 선택 항목입니다. 동의하지 않아도 접수와 결과 만들기는 그대로 진행됩니다.',
+  },
+};
+export const consentCopyOf = (d: Pick<PublicConsentDoc, 'kind' | 'title'>) => CONSENT_SUMMARY[d.kind] ?? { question: `${d.title}에 동의하시나요?`, summary: '' };
+
+/**
+ * 약관 전문 창 — 열기만 해서는 동의가 기록되지 않는다(체크 칸은 창 밖에 있다). 닫으면 브라우저가 초점을 연 단추로 돌려준다(<dialog>).
+ */
+export function TermsDialog({ doc, onClose }: { doc: PublicConsentDoc | null; onClose: () => void }) {
+  return (
+    <Modal open={doc != null} onClose={onClose} title={doc?.title ?? '약관'}>
+      {doc && (
+        <div className="space-y-4 pb-2">
+          <ConsentText body={doc.body} />
+          <p className="text-footnote leading-5 break-keep text-muted">약관을 읽기만 해서는 동의가 기록되지 않습니다. 창을 닫은 뒤 체크 칸에서 직접 고르십시오.</p>
+          <SecondaryButton onClick={onClose}>닫기</SecondaryButton>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+/**
+ * 필수 동의(고침 · 다시 동의 화면, R04) — 짧은 요약 · 필수 표시 · '약관 보기' · 꺼진 체크 칸. 전문은 창에서만 보인다.
+ * 체크 값은 부르는 쪽이 쥐고(처음에 꺼짐), 판 · 해시 검사는 서버가 그대로 한다. 대리인이 보내면 체크 글이 달라진다(proxy).
+ */
 export function RequiredConsents({
   docs,
   agreed,
@@ -60,17 +104,24 @@ export function RequiredConsents({
   describedBy?: string;
   proxy?: boolean;
 }) {
+  const [terms, setTerms] = useState<PublicConsentDoc | null>(null);
   return (
     <>
       {docs
         .filter((d) => d.required)
-        .map((d) => (
-          <section key={d.kind} aria-label={d.title} className="rounded-2xl bg-surface p-(--block-pad)">
-            <h2 className="text-sm font-bold text-ink">{d.title}</h2>
-            <div className="mt-2">
-              <ConsentText body={d.body} />
-            </div>
-            <div className="mt-2">
+        .map((d) => {
+          const summary = consentCopyOf(d).summary;
+          return (
+            <section key={d.kind} aria-label={d.title} className="space-y-1.5 rounded-2xl bg-surface p-(--block-pad)">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-sm font-bold text-ink">
+                  {d.title} <span className="text-footnote font-semibold text-muted">(필수)</span>
+                </h2>
+                <HelpButton onClick={() => setTerms(d)} aria-haspopup="dialog" className="-mr-1 shrink-0">
+                  약관 보기
+                </HelpButton>
+              </div>
+              {summary && <p className="text-footnote leading-5 break-keep text-muted">{summary}</p>}
               <CheckRow
                 id={`consent-${d.kind}`}
                 checked={agreed[d.kind] === true}
@@ -79,9 +130,10 @@ export function RequiredConsents({
                 invalid={invalid && agreed[d.kind] !== true}
                 describedBy={describedBy}
               />
-            </div>
-          </section>
-        ))}
+            </section>
+          );
+        })}
+      <TermsDialog doc={terms} onClose={() => setTerms(null)} />
     </>
   );
 }

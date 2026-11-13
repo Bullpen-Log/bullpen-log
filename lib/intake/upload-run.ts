@@ -63,15 +63,15 @@ export class RunStop extends Error {
 }
 
 const UPLOAD_TEXT: Record<string, string> = {
-  network: '연결이 끊겼어요. 신호가 돌아오면 이어서 보낼 수 있어요.',
-  file_unreadable: '파일을 더 읽을 수 없어요. 같은 파일을 다시 골라 주세요.',
-  token_refused: '전송 권한을 다시 확인해야 해요. 다시 시도해 주세요.',
-  conflict: '다른 곳에서 이 영상을 보내고 있을 수 있어요. 잠시 뒤에 다시 시도해 주세요.',
-  unknown: '영상을 보내지 못했어요. 다시 시도해 주세요.',
+  network: '연결이 끊겼습니다. 신호가 돌아오면 이어서 보낼 수 있습니다.',
+  file_unreadable: '파일을 더 읽을 수 없습니다. 같은 파일을 다시 선택하십시오.',
+  token_refused: '전송 권한을 다시 확인해야 합니다. 다시 시도하십시오.',
+  conflict: '다른 곳에서 이 영상을 보내고 있을 수 있습니다. 잠시 뒤 다시 시도하십시오.',
+  unknown: '영상을 보내지 못했습니다. 다시 시도하십시오.',
 };
 
 /** 완료를 보낸 뒤 결과를 모를 때 — 서버의 지금 상태를 다시 봐야 한다(화면은 '최신 내용 확인') */
-export const FINALIZE_UNKNOWN_TEXT = '접수가 끝났는지 확인하지 못했어요. 최신 내용을 확인해 주세요.';
+export const FINALIZE_UNKNOWN_TEXT = '접수가 끝났는지 확인하지 못했습니다. 최신 내용을 확인하십시오.';
 
 const defaultSleep: Sleep = (ms) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -232,7 +232,7 @@ export async function runUpload(
       emit({ type: 'file', view, status: 'confirming' });
       const arrived = await confirmArrival(deps, asset.id, sleep, signal);
       throwIfAborted(signal, view);
-      if (arrived.status === 'rejected') throw new RunStop('asset_rejected', '이 영상은 보낼 수 없어요. 다른 영상을 골라 주세요.', view);
+      if (arrived.status === 'rejected') throw new RunStop('asset_rejected', '이 영상은 보낼 수 없습니다. 다른 영상을 선택하십시오.', view);
       emit({ type: 'file', view, status: 'arrived' });
     } catch (e) {
       throw asStop(e, view);
@@ -411,7 +411,7 @@ export async function finishRun(
       for (const view of ['side', 'rear'] as const) {
         const want = input.expected[view];
         if (want && state.assets[view]?.id !== want) {
-          throw new RunStop('stale_selection', '다른 기기에서 영상을 바꿨어요. 최신 내용을 확인해 주세요.', view);
+          throw new RunStop('stale_selection', '다른 기기에서 영상을 바꿨습니다. 최신 내용을 확인하십시오.', view);
         }
       }
       throwIfAborted(signal);
@@ -487,7 +487,7 @@ export async function refreshQuietly(load: () => Promise<unknown>, sleep: Sleep 
       await load();
       return null;
     } catch (e) {
-      const r = e instanceof IntakeRequestError ? e : new IntakeRequestError('unknown', '다시 시도해 주세요.');
+      const r = e instanceof IntakeRequestError ? e : new IntakeRequestError('unknown', '다시 시도하십시오.');
       if ((r.code !== 'network' && r.code !== 'timeout' && r.code !== 'internal') || i >= waits.length) return r;
       await sleep(waits[i]);
     }

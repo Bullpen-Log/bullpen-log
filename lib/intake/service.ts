@@ -52,7 +52,7 @@ import {
 import { IntakeError } from '@/lib/intake/errors';
 import { enqueueJob, requeueJob, type JobHandlers } from '@/lib/intake/jobs';
 import { DEFAULT_UPLOAD_DAYS, TUS_CHUNK_BYTES, TUS_URL_TTL_MS, intakeLimits, type IntakeLimits } from '@/lib/intake/limits';
-import { fpsLabel, integrityLabel, mediaRejectCode, mediaUnconfirmed, readIntakeMediaFacts, timingNote, type IntakeMediaFacts } from '@/lib/intake/media';
+import { captureRateCode, fpsLabel, integrityLabel, mediaRejectCode, mediaUnconfirmed, readIntakeMediaFacts, timingNote, type IntakeMediaFacts } from '@/lib/intake/media';
 import { assetObjectPath, isIntakeId, isPurgeablePath, seoulDateKey } from '@/lib/intake/paths';
 import { pruneInviteeSessions } from '@/lib/intake/invitee';
 import { pruneRateLimits } from '@/lib/intake/rate-limit';
@@ -1145,6 +1145,17 @@ export async function finalizeSubmission(db: Db, scope: IntakeScope, input: Fina
     }
     if (!assetArrived(side.status) || !assetArrived(rear.status)) throw new IntakeError('assets_incomplete', { side: side.status, rear: rear.status });
     if (side.clientSha256 === rear.clientSha256 || (side.serverSha256 && side.serverSha256 === rear.serverSha256)) throw new IntakeError('same_file');
+    /*
+     * 120fps 규칙(R04) — R04 전에 검증을 마친 파일이 초안에 남아 있으면 그 판정으로 끝낼 수 없다. 새로 보내는 칸만 본다:
+     * 첫 접수(초안)는 두 칸, 고침은 요청받은 칸. 고침에서 요청받지 않은 칸은 이미 받은 접수의 파일이라 그대로 둔다(옛 기록을 다시 가르지 않는다).
+     * 아직 검증 전인 파일은 일꾼이 verifyAsset 에서 같은 규칙으로 본다.
+     */
+    const fresh = correction ? correction.views : (['side', 'rear'] as const);
+    const slow = fresh.filter((v) => {
+      const a = v === 'side' ? side : rear;
+      return a.status === 'verified' && captureRateCode(a.mediaFacts as IntakeMediaFacts | null) != null;
+    });
+    if (slow.length) throw new IntakeError('capture_rate_required', { view: slow[0], views: slow });
 
     /* 판에는 지금 보내는 사람의 답만 얼린다 — 옛 관계의 답을 얼리면 판의 기록이 앱의 판단과 어긋난다 */
     const latest = latestConsents(consentRows, sub.submitterRelation);
@@ -1595,6 +1606,13 @@ export async function verifyAsset(
 
   const headReject = mediaRejectCode(facts);
   if (headReject) return closeVerify(db, asset, { status: 'rejected', rejectCode: headReject, verifiedAt: null }, now);
+  /*
+   * 120fps 규칙(R04) — 서버가 읽은 파일 사실로만 정한다. 화면이 보낸 체크 · 종류 · 확장자 · fps 값은 보지 않는다.
+   * 영상임을 확인한 파일만 여기서 막는다(머리를 못 읽은 파일은 아래에서 'unconfirmed' 로 끝나 분석 가능으로 가지 않는다).
+   * 해시보다 먼저 막는다 — 쓸 수 없는 파일이 전체 읽기를 쓰지 않게. 'rejected' 는 고침을 열어 받는 사람이 다시 고를 수 있다.
+   */
+  const rateReject = facts.hasVideo === true ? captureRateCode(facts) : null;
+  if (rateReject) return closeVerify(db, asset, { status: 'rejected', rejectCode: rateReject, verifiedAt: null }, now);
 
   const measured = await storage.hash(asset.objectPath, { signal: opts.signal, onBytes: opts.onHashBytes });
   const rejectCode = measured.size !== Number(asset.declaredSize) ? 'size_mismatch' : measured.sha256 !== asset.clientSha256 ? 'hash_mismatch' : null;

@@ -31,9 +31,9 @@ export class IntakeRequestError extends Error {
   }
 }
 
-export const NETWORK_TEXT = '연결이 끊겼어요. 신호를 확인한 뒤 다시 시도해 주세요.';
-export const TIMEOUT_TEXT = '서버 응답이 늦어지고 있어요. 신호를 확인한 뒤 다시 시도해 주세요.';
-export const CANCELLED_TEXT = '요청을 멈췄어요.';
+export const NETWORK_TEXT = '연결이 끊겼습니다. 신호를 확인한 뒤 다시 시도하십시오.';
+export const TIMEOUT_TEXT = '서버 응답이 늦어지고 있습니다. 신호를 확인한 뒤 다시 시도하십시오.';
+export const CANCELLED_TEXT = '요청을 멈췄습니다.';
 
 /**
  * 상태 · 초안 · 동의 · 칸 잡기 · 토큰 · 업로드 주소 · 도착 확인의 시한. 모두 DB 몇 줄 + 저장소 한두 번이라 보통 1초 안이다.
@@ -204,7 +204,7 @@ export function createIntakeClient(token: string, doFetch: typeof fetch = (...a)
     const data = r.data as { error?: { code: string; message: string; detail: Record<string, unknown> | null } } | null;
     if (r.ok && data && typeof data === 'object' && !data.error) return data as T;
     const e = data && typeof data === 'object' ? data.error : undefined;
-    throw new IntakeRequestError(e?.code ?? 'internal', e?.message ?? '잠시 뒤에 다시 시도해 주세요.', r.status, e?.detail ?? null);
+    throw new IntakeRequestError(e?.code ?? 'internal', e?.message ?? '잠시 뒤 다시 시도하십시오.', r.status, e?.detail ?? null);
   }
 
   return {

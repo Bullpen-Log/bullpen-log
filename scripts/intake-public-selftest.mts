@@ -37,7 +37,8 @@ const eq = (a: unknown, b: unknown, label: string) => {
 };
 
 /* 공유 DB 에 적용하기 전에는 prisma/pending-migrations 에 둔다(그 폴더 README) */
-const MIGRATION_ROOT = readdirSync('prisma').includes('pending-migrations') ? 'prisma/pending-migrations' : 'prisma/migrations';
+/* 운영에 적용한 뒤(2026-11-13 df3306e0)에는 prisma/migrations 로 옮겨졌다 — 접수 마이그레이션이 든 쪽을 쓴다 */
+const MIGRATION_ROOT = readdirSync('prisma/pending-migrations').some((d) => d.endsWith('_external_intake')) ? 'prisma/pending-migrations' : 'prisma/migrations';
 const dirs = readdirSync(MIGRATION_ROOT).filter((d) => d.endsWith('_external_intake'));
 const pg = await PGlite.create();
 await pg.exec(readFileSync(`${MIGRATION_ROOT}/${dirs[0]}/migration.sql`, 'utf8'));

@@ -27,7 +27,7 @@ export function VideoPreview({ url }: { url: string }) {
     return (
       <div className="flex items-center gap-3 rounded-2xl bg-ink/5 px-4 py-5 text-footnote leading-5 text-muted">
         <FileVideo aria-hidden className="h-6 w-6 shrink-0" />
-        <p className="break-keep">이 브라우저에서는 미리 볼 수 없어요. 영상은 그대로 보낼 수 있어요.</p>
+        <p className="break-keep">이 브라우저에서는 미리 볼 수 없습니다. 영상은 그대로 보낼 수 있습니다.</p>
       </div>
     );
   }

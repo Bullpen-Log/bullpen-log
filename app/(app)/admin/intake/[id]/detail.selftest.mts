@@ -112,7 +112,8 @@ export function Screen({ title, desc, actions, children }) { return h('main', nu
 export function PrimaryButton({ children, onClick, disabled }) { b.clicks[words(children).trim()] = onClick; return h('button', { disabled }, children); }
 export function SecondaryButton({ children, onClick }) { b.clicks[words(children).trim()] = onClick; return h('button', null, children); }
 export function FieldError({ id, children }) { return h('p', { id, 'data-field-error': '' }, children); }
-export function NoteBox({ children }) { return h('aside', null, children); }`,
+export function NoteBox({ children }) { return h('aside', null, children); }
+export function HelpButton({ children, onClick }) { b.clicks[words(children).trim()] = onClick; return h('button', { type: 'button' }, children); }`,
   /* 체크 칸 — 처리기를 id 로 쥔다. 진짜 부품이 같은 id 를 그리는지는 시험이 따로 본다 */
   '@/components/intake/consent-block': `const b = globalThis.__detailTest; const h = b.React.createElement;
 export function CheckRow({ id, checked, onChange, label, invalid, describedBy }) {
@@ -923,7 +924,7 @@ const panel = (over: Record<string, unknown>) =>
   const slotAssets = state.assets as unknown as Record<string, unknown>;
   slotAssets.side = asset('purging');
   render(none);
-  ok(between('slot-side', 'slot-rear', '이 칸의 원본을 지우고 있어요. 영상을 다시 골라 주세요.') && !between('slot-side', 'slot-rear', GONE_VIEW_TEXT), '지우고 있는 옆 칸은 지우고 있다고 말한다');
+  ok(between('slot-side', 'slot-rear', '이 칸의 원본을 지우는 중입니다. 영상을 다시 선택하십시오.') && !between('slot-side', 'slot-rear', GONE_VIEW_TEXT), '지우고 있는 옆 칸은 지우고 있다고 말한다');
   slotAssets.side = asset('purged');
   render(none);
   ok(!markup.includes(INTAKE_ERROR_TEXT.athlete_name_required), '고친 칸의 글은 걷힌다');
@@ -957,11 +958,23 @@ const panel = (over: Record<string, unknown>) =>
   /* 쥔 처리기는 가짜 부품의 것이다 — 진짜 부품도 같은 id 를 그리는지 본다 */
   const realConsents = renderToStaticMarkup(h(real.RequiredConsents, { docs, agreed: {}, onChange: () => {}, invalid: false }));
   ok(realConsents.includes('id="consent-submission"') && realConsents.includes('id="consent-overseas"'), '진짜 동의 칸이 초점 대상 id 를 그린다');
+  /* R04: 고침 · 다시 동의 화면도 전문은 '약관 보기' 창에만 — 요약 · 꺼진 체크 칸 · 단추가 보이고, 전문 글은 마크업에 없다 */
+  {
+    const realDocs = (await import('@/lib/intake/consent')).INTAKE_CONSENT_DOCS.map((d) => ({ kind: d.kind, version: d.version, title: d.title, required: d.required, body: d.body, textHash: d.textHash }));
+    const sub = realDocs.find((d) => d.kind === 'submission')!;
+    const html = renderToStaticMarkup(h(real.RequiredConsents, { docs: realDocs, agreed: {}, onChange: () => {}, invalid: false }));
+    const bodyLine = sub.body.split('\n')[0];
+    ok(!html.includes(bodyLine) && !html.includes('원본 보유 기간'), 'R04: 고침 · 다시 동의 화면에 약관 전문이 펼쳐지지 않는다');
+    ok(html.includes(real.consentCopyOf(sub).summary) && html.includes('약관 보기') && html.includes('(필수)'), 'R04: 짧은 요약 · 필수 표시 · 약관 보기 단추');
+    const box = /<input[^>]*id="consent-submission"[^>]*>/.exec(html)?.[0] ?? '';
+    ok(box !== '' && !/ checked(=""|\s|>)/.test(box), 'R04: 체크 칸은 꺼진 채로 시작한다');
+    ok(!html.includes('consent-model') && !html.includes('consent-overseas'), 'R04: 필수 동의만 다시 묻는다(선택 동의는 그대로)');
+  }
   ok(renderToStaticMarkup(h(real.CheckRow, { id: 'fix-same-pitch', checked: false, onChange: () => {}, label: '같은 투구' })).includes('id="fix-same-pitch"'), '진짜 체크 칸이 초점 대상 id 를 그린다');
 
   /*
    * 검증 지적: 요청받은 칸을 새로 안 고른 경우를 화면이 못 잡았다 — 얼린 파일이 살아 있는 칸, 해시가 달라 막힌 칸.
-   * 화면은 막지 않고 보냈고, 서버는 막힌 칸에 '전송이 아직 끝나지 않았어요'라고 했다. 보내기 전에 그 칸으로 초점을 옮기고 새 영상을 골라 달라고 한다.
+   * 화면은 막지 않고 보냈고, 서버는 막힌 칸에 '전송이 아직 끝나지 않았습니다'라고 했다. 보내기 전에 그 칸으로 초점을 옮기고 새 영상을 골라 달라고 한다.
    */
   const { REPICK_VIEW_TEXT } = await import('@/components/intake/review-rules');
   for (const [kind, status] of [
@@ -1003,7 +1016,7 @@ const panel = (over: Record<string, unknown>) =>
   }
 
   /*
-   * 검증 지적: 고침 중에 새 파일이 이미 도착한 칸(얼린 파일은 A1, 칸은 A3)에도 '이 영상을 다시 골라 주세요'라고 했다. 막힘 판단은 다시 고를 필요가 없다고 보는데 칸 글만 달랐다.
+   * 검증 지적: 고침 중에 새 파일이 이미 도착한 칸(얼린 파일은 A1, 칸은 A3)에도 '이 영상을 다시 선택하십시오'라고 했다. 막힘 판단은 다시 고를 필요가 없다고 보는데 칸 글만 달랐다.
    * 그 칸은 도착 글을 보이고, 얼린 그 파일 그대로인 칸만 새 영상을 골라 달라고 한다. 같은 영상을 다시 고르라는 말로 읽히지 않게 '새 영상'이라고 한다.
    */
   const slotFor = (sideId: string, status: string) => {
@@ -1022,11 +1035,11 @@ const panel = (over: Record<string, unknown>) =>
     );
   };
   slotFor('A3', 'uploaded');
-  ok(!between('slot-side', 'fix-same-pitch', '골라 주세요') && between('slot-side', 'fix-same-pitch', '도착했어요'), '새 파일이 도착한 칸은 다시 고르라고 하지 않고 도착 글을 보인다');
+  ok(!between('slot-side', 'fix-same-pitch', '선택하십시오') && between('slot-side', 'fix-same-pitch', '도착했습니다'), '새 파일이 도착한 칸은 다시 고르라고 하지 않고 도착 글을 보인다');
   slotFor('A1', 'verified');
-  ok(between('slot-side', 'fix-same-pitch', '새 영상을 골라 주세요.') && !between('slot-side', 'fix-same-pitch', '이 영상을 다시 골라 주세요'), '얼린 그 파일 그대로인 칸은 새 영상을 골라 달라고 한다');
+  ok(between('slot-side', 'fix-same-pitch', '새 영상을 선택하십시오.') && !between('slot-side', 'fix-same-pitch', '이 영상을 다시 선택하십시오'), '얼린 그 파일 그대로인 칸은 새 영상을 골라 달라고 한다');
   slotFor('A1', 'purged');
-  ok(between('slot-side', 'fix-same-pitch', '이 영상을 다시 골라 주세요.'), '지운 칸은 그 영상을 다시 보내 달라고 한다');
+  ok(between('slot-side', 'fix-same-pitch', '이 영상을 다시 선택하십시오.'), '지운 칸은 그 영상을 다시 보내 달라고 한다');
 
   if (hadDocument) g.document = oldDocument;
   else delete g.document;

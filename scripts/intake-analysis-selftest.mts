@@ -91,7 +91,8 @@ async function fails(p: Promise<unknown>, code: IntakeErrorCode | AnalysisErrorC
 
 /* ── DB ── */
 /* 공유 DB 에 적용하기 전에는 prisma/pending-migrations 에 둔다(그 폴더 README) */
-const MIGRATION_ROOT = readdirSync('prisma').includes('pending-migrations') ? 'prisma/pending-migrations' : 'prisma/migrations';
+/* 운영에 적용한 뒤(2026-11-13 df3306e0)에는 prisma/migrations 로 옮겨졌다 — 접수 마이그레이션이 든 쪽을 쓴다 */
+const MIGRATION_ROOT = readdirSync('prisma/pending-migrations').some((d) => d.endsWith('_external_intake')) ? 'prisma/pending-migrations' : 'prisma/migrations';
 const dirs = readdirSync(MIGRATION_ROOT).filter((d) => d.endsWith('_external_intake')).sort();
 const pg = await PGlite.create();
 await pg.exec(readFileSync(`${MIGRATION_ROOT}/${dirs[0]}/migration.sql`, 'utf8'));
@@ -1483,7 +1484,7 @@ const originalsOf = async (id: string) => (await db.intakeAsset.findMany({ where
   await reopen(g, ['throwingHand']);
   await draft(g, { throwingHand: 'L' });
   await finish(g);
-  eq((await stateOf(g)).correctionStatusLine, '고친 내용이 접수됐어요. 담당자가 확인하고 있어요', '손을 고친 판은 공개가 옛 입력이라 안내한다');
+  eq((await stateOf(g)).correctionStatusLine, '고친 내용이 접수됐습니다. 담당자가 확인하고 있습니다', '손을 고친 판은 공개가 옛 입력이라 안내한다');
 
   /* 고침을 거두면 관계가 돌아간다 — 그 관계의 동의는 살아 있다. 다시 동의하라고 하면 사실이 아니다 */
   const h = await makeVerified();
@@ -1494,7 +1495,7 @@ const originalsOf = async (id: string) => (await db.intakeAsset.findMany({ where
   await cancel(h);
   const hState = await stateOf(h);
   eq([hState.draft.submitterRelation, hState.consent.requiredOk, hState.needsReconsent], ['parent', true, false], '앞서 낸 동의가 그대로다');
-  ok(!hState.statusText.includes('동의 내용이 바뀌었어요'), '다시 동의하라고 안 한다');
+  ok(!hState.statusText.includes('동의 내용이 바뀌었습니다'), '다시 동의하라고 안 한다');
   eq((await analysisReadiness(h.submissionId, rt)).blockers.filter((x) => x.code === 'analysis_consent_missing'), [], '분석이 막히지 않는다');
 
   /* 요청에서 관계 칸을 빼도 같다 — 끝낼 수 있다 */
@@ -1650,7 +1651,7 @@ const originalsOf = async (id: string) => (await db.intakeAsset.findMany({ where
   await fails(start(b.submissionId), 'original_purged', '틈에 새 분석을 안 건다');
   eq((await listRuns(b.submissionId, rt))[0].previewPaths, null, '지우는 미리보기는 없는 것으로 보인다');
   const gap = await loadPublicState(db, b.scope, { now: at() });
-  eq([gap.originalDeletedDate, gap.originalDeleting, gap.assets.side?.integrity], [null, 'current', '보유 기간이 지나 원본을 지우고 있어요'], '공개 상태가 지우는 중이라고 말한다');
+  eq([gap.originalDeletedDate, gap.originalDeleting, gap.assets.side?.integrity], [null, 'current', '보유 기간이 지나 원본을 지우는 중입니다'], '공개 상태가 지우는 중이라고 말한다');
   nowMs += 3_600_000;
   eq((await runPurgeJobs()).done, 1, '다음 크론이 끝까지 지운다');
   ok((await db.intakeAsset.findMany({ where: { submissionId: b.submissionId } })).every((x) => x.status === 'purged' && !objects.has(x.objectPath)), 'not_due 로 끝나지 않고 둘 다 지웠다');

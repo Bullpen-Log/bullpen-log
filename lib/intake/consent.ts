@@ -41,12 +41,12 @@ export const isProxyRelation = (relation: string | null | undefined) => relation
  * 대리 동의의 체크 글 · 안내. 사실만 말한다 — 대리 권한을 어떻게 볼지(누가 대신 동의할 수 있나)는 아직 사람이 정하지 않았다.
  * 문서 본문은 kind 마다 한 판이라 대리용 글을 따로 해시하지 못한다. 그래서 본문에 대리 줄을 넣고, 체크 글은 화면이 관계를 보고 바꾼다.
  */
-export const consentCheckLabel = (proxy: boolean) => (proxy ? '선수를 대신해 내용을 읽었고 동의해요' : '내용을 읽었고 동의해요');
-export const modelCheckLabel = (proxy: boolean) => (proxy ? '선수를 대신해 모델 개발에 쓰는 것에 동의해요' : '모델 개발에 쓰는 것에 동의해요');
-export const overseasCheckLabel = (proxy: boolean) => (proxy ? '선수를 대신해 분석 서버로 보내는 것에 동의해요' : '분석 서버로 보내는 것에 동의해요');
+export const consentCheckLabel = (proxy: boolean) => (proxy ? '선수를 대신해 내용을 읽었고 동의합니다' : '내용을 읽었고 동의합니다');
+export const modelCheckLabel = (proxy: boolean) => (proxy ? '선수를 대신해 모델 개발에 쓰는 것에 동의합니다' : '모델 개발에 쓰는 것에 동의합니다');
+export const overseasCheckLabel = (proxy: boolean) => (proxy ? '선수를 대신해 분석 서버로 보내는 것에 동의합니다' : '분석 서버로 보내는 것에 동의합니다');
 /** 선택 동의의 체크 글 — 종류마다 다르다. 필수 동의는 consentCheckLabel */
 export const optionalCheckLabel = (kind: string, proxy: boolean) => (kind === 'overseas' ? overseasCheckLabel(proxy) : modelCheckLabel(proxy));
-export const PROXY_CONSENT_NOTE = '선수를 대신해 보내고 있어요. 아래 동의는 보내는 분이 대신한 것으로, 선수와의 관계와 함께 기록돼요.';
+export const PROXY_CONSENT_NOTE = '보내는 분이 선수를 대신해 동의하며, 선수와의 관계가 함께 기록됩니다.';
 
 export type IntakeConsentDoc = {
   kind: IntakeConsentKind;
@@ -60,27 +60,32 @@ export type IntakeConsentDoc = {
   textHash: string;
 };
 
-const PENDING = '확인 중이에요';
+const PENDING = '확인 중입니다';
 const pendingHas = (word: string) => ANALYSIS_CONSENT_PENDING.some((p) => p.includes(word));
 
+/*
+ * 약관 본문(R04, 2026-11-13 GPT05 결정) — 뜻 · 범위 · 아직 정하지 않은 사실(확인 중)은 그대로 두고 '합니다' 체로만 바꿨다. 글이 바뀌어 판을 올렸다.
+ * 국외 이전 글 가운데 ANALYSIS_CONSENT(lib/analysis-consent.ts) 에서 가져오는 값은 다른 화면과 같이 쓰는 문서라 바꾸지 않는다.
+ * 옛 판 동의 줄은 지우지 않는다 — 그 판으로 남은 동의는 지금 판이 아니므로 다시 받는다(consentIsCurrent). 옛 답을 새 판의 동의로 옮기지 않는다.
+ */
 const submissionBody = [
-  '보내는 것: 옆 · 뒤 투구 영상 원본 2개, 선수 이름, 선수 나이대(만 14세 이상인지), 보내는 사람이 선수 본인인지 대리인인지와 그 관계, 영상 파일 이름이에요. 적었을 때는 던지는 손과 보내는 분 이름도 남겨요.',
-  '영상은 줄이거나 고치지 않고 원본 그대로 보내요. 원본 안에 든 촬영 시각, 기기, 위치 같은 정보도 함께 가요.',
-  '쓰는 곳: 접수 확인과 영상 파일 검증, 이 투구의 3D 동작 결과 만들기, 결과 전달이에요.',
-  '처리 방법: 불펜로그 팀이 서버에 보관한 원본을 팀 컴퓨터로 내려받아 이 투구의 3D 동작 결과를 직접 만들어요. 팀이 검토하고 승인한 결과만 이 링크에서 같은 이름과 PIN 으로 볼 수 있어요.',
-  '투구 분석 모델을 만들고 고치는 데 쓰는 것은 아래 선택 항목에서 따로 물어요. 동의하지 않으면 그 일에는 쓰지 않아요.',
-  `보는 사람: 불펜로그의 접수 담당 관리자와 결과를 만드는 팀이 봐요. 자동 분석 서버(국외)로는 '${ANALYSIS_CONSENT.title}' 선택 항목에 동의했을 때만 보내요.`,
-  '영상에는 얼굴과 체형이 담길 수 있어요.',
-  `원본 보유 기간: 공개한 날, 공개하지 않은 접수는 접수한 날, 철회한 접수는 철회한 날부터 ${INTAKE_ORIGINAL_RETENTION_DAYS}일 뒤 원본을 지워요. 모델 개발에 동의해도 같아요.`,
-  '공개한 적이 있는 접수는 철회해도 공개한 날부터 세요. 고쳐서 다시 내거나 다시 공개하면 그날부터 다시 세요.',
-  `고쳐 달라는 요청이 열려 있으면 고칠 수 있는 동안 기다렸다가 지워요. 기다려도 지울 날에서 ${INTAKE_CORRECTION_HOLD_DAYS}일을 넘기지 않아요.`,
-  `철회한 접수에서 접수를 끝내지 못한 파일은 철회한 날부터 ${INTAKE_WITHDRAWN_DRAFT_GRACE_DAYS}일 뒤 지워요.`,
-  '원본을 지울 때 분석 서버가 만든 미리보기 영상도 같이 지워요.',
-  '팀 컴퓨터로 내려받은 사본도 이 글과 아래 선택 항목에서 동의한 범위 안에서만 써요.',
+  '보내는 것: 옆 · 뒤 투구 영상 원본 2개, 선수 이름, 선수 나이대(만 14세 이상인지), 보내는 사람이 선수 본인인지 대리인인지와 그 관계, 영상 파일 이름입니다. 입력한 경우 던지는 손과 보내는 분 이름도 남깁니다.',
+  '영상은 줄이거나 고치지 않고 원본 그대로 보냅니다. 원본 안에 든 촬영 시각, 기기, 위치 같은 정보도 함께 전달됩니다.',
+  '쓰는 곳: 접수 확인과 영상 파일 검증, 이 투구의 3D 동작 결과 만들기, 결과 전달입니다.',
+  '처리 방법: 불펜로그 팀이 서버에 보관한 원본을 팀 컴퓨터로 내려받아 이 투구의 3D 동작 결과를 직접 만듭니다. 팀이 검토하고 승인한 결과만 이 링크에서 같은 이름과 PIN 으로 볼 수 있습니다.',
+  '투구 분석 모델을 만들고 고치는 데 쓰는 것은 아래 선택 항목에서 따로 묻습니다. 동의하지 않으면 그 일에는 쓰지 않습니다.',
+  `보는 사람: 불펜로그의 접수 담당 관리자와 결과를 만드는 팀이 봅니다. 자동 분석 서버(국외)로는 '${ANALYSIS_CONSENT.title}' 선택 항목에 동의했을 때만 보냅니다.`,
+  '영상에는 얼굴과 체형이 담길 수 있습니다.',
+  `원본 보유 기간: 공개한 날, 공개하지 않은 접수는 접수한 날, 철회한 접수는 철회한 날부터 ${INTAKE_ORIGINAL_RETENTION_DAYS}일 뒤 원본을 지웁니다. 모델 개발에 동의해도 같습니다.`,
+  '공개한 적이 있는 접수는 철회해도 공개한 날부터 셉니다. 고쳐서 다시 내거나 다시 공개하면 그날부터 다시 셉니다.',
+  `고쳐 달라는 요청이 열려 있으면 고칠 수 있는 동안 기다렸다가 지웁니다. 기다리더라도 지울 날에서 ${INTAKE_CORRECTION_HOLD_DAYS}일을 넘기지 않습니다.`,
+  `철회한 접수에서 접수를 끝내지 못한 파일은 철회한 날부터 ${INTAKE_WITHDRAWN_DRAFT_GRACE_DAYS}일 뒤 지웁니다.`,
+  '원본을 지울 때 분석 서버가 만든 미리보기 영상도 함께 지웁니다.',
+  '팀 컴퓨터로 내려받은 사본도 이 글과 아래 선택 항목에서 동의한 범위 안에서만 씁니다.',
   `분석 결과의 보유 기간: ${PENDING}.`,
-  '철회: 링크를 보내 준 담당자에게 알려 주시면 처리해요.',
-  '대신 보내는 경우: 보내는 분과 선수의 관계가 이 동의와 함께 기록돼요.',
-  '거부: 동의하지 않을 수 있어요. 동의하지 않으면 영상을 접수할 수 없어요.',
+  '철회: 링크를 보내 준 담당자에게 알리면 처리합니다.',
+  '대신 보내는 경우: 보내는 분과 선수의 관계가 이 동의와 함께 기록됩니다.',
+  '거부: 동의하지 않을 수 있습니다. 동의하지 않으면 영상을 접수할 수 없습니다.',
 ].join('\n');
 
 const overseasBody = [
@@ -88,21 +93,21 @@ const overseasBody = [
   `받는 곳 연락처: ${ANALYSIS_CONSENT.contact ?? PENDING}`,
   `처리 나라: ${ANALYSIS_CONSENT.country}${pendingHas('처리 나라') ? `(${PENDING})` : ''}`,
   `보내는 것: ${ANALYSIS_CONSENT.items}`,
-  '영상은 원본 그대로라 그 안에 든 촬영 시각, 기기, 위치 같은 정보도 함께 가요.',
+  '영상은 원본 그대로이므로 그 안에 든 촬영 시각, 기기, 위치 같은 정보도 함께 전달됩니다.',
   `보내는 때: ${ANALYSIS_CONSENT.when}`,
   `목적: ${ANALYSIS_CONSENT.purpose}`,
   `받는 곳의 보유 기간: ${ANALYSIS_CONSENT.retention ?? PENDING}`,
-  '선택 항목이에요. 동의하지 않아도 접수와 팀이 직접 만드는 결과는 그대로 진행돼요. 동의하지 않으면 영상을 자동 분석 서버로 보내지 않아요.',
-  '동의를 거두려면 링크를 보내 준 담당자에게 알려 주시면 처리해요.',
+  '선택 항목입니다. 동의하지 않아도 접수와 팀이 직접 만드는 결과는 그대로 진행됩니다. 동의하지 않으면 영상을 자동 분석 서버로 보내지 않습니다.',
+  '동의를 거두려면 링크를 보내 준 담당자에게 알리면 처리합니다.',
 ].join('\n');
 
 const modelBody = [
-  '접수한 영상과 분석 결과를 투구 분석 모델을 만들고 고치는 데 써도 되는지 묻는 선택 항목이에요.',
-  '동의하지 않아도 접수와 결과 만들기는 그대로 진행돼요.',
-  '언제든 철회할 수 있어요.',
-  '필수 동의를 철회해도 이 동의는 함께 철회되지 않아요. 이 동의는 따로 철회할 수 있어요.',
-  '링크가 닫힌 뒤에는 링크를 보내 준 담당자에게 알려 주시면 처리해요.',
-  '이 동의를 해도 원본은 같은 보유 기간에 맞춰 지워요. 지운 뒤에는 원본을 모델 작업에 쓰지 않아요.',
+  '접수한 영상과 분석 결과를 투구 분석 모델을 만들고 고치는 데 써도 되는지 묻는 선택 항목입니다.',
+  '동의하지 않아도 접수와 결과 만들기는 그대로 진행됩니다.',
+  '언제든 철회할 수 있습니다.',
+  '필수 동의를 철회해도 이 동의는 함께 철회되지 않습니다. 이 동의는 따로 철회할 수 있습니다.',
+  '링크가 닫힌 뒤에는 링크를 보내 준 담당자에게 알리면 처리합니다.',
+  '이 동의를 해도 원본은 같은 보유 기간에 맞춰 지웁니다. 지운 뒤에는 원본을 모델 작업에 쓰지 않습니다.',
 ].join('\n');
 
 const hashText = (text: string) => bytesToHex(sha256(utf8ToBytes(text)));
@@ -111,16 +116,16 @@ const doc = (d: Omit<IntakeConsentDoc, 'textHash'>): IntakeConsentDoc => ({ ...d
 
 /** 지금 판의 문서 셋 — 차례대로 보인다. 국외 이전 판에는 기대는 ANALYSIS_CONSENT 판을 같이 적는다 */
 export const INTAKE_CONSENT_DOCS: readonly IntakeConsentDoc[] = [
-  doc({ kind: 'submission', version: 'intake-submission-2026-11-13.4', title: '영상 제출과 처리', required: true, defaultGranted: false, body: submissionBody }),
+  doc({ kind: 'submission', version: 'intake-submission-2026-11-13.5', title: '영상 제출과 처리', required: true, defaultGranted: false, body: submissionBody }),
   doc({
     kind: 'overseas',
-    version: `intake-overseas-2026-11-13.3+${ANALYSIS_CONSENT.version}`,
+    version: `intake-overseas-2026-11-13.4+${ANALYSIS_CONSENT.version}`,
     title: `${ANALYSIS_CONSENT.title}(선택)`,
     required: false,
     defaultGranted: false,
     body: overseasBody,
   }),
-  doc({ kind: 'model', version: 'intake-model-2026-11-13.3', title: '모델 개발 이용(선택)', required: false, defaultGranted: false, body: modelBody }),
+  doc({ kind: 'model', version: 'intake-model-2026-11-13.4', title: '모델 개발 이용(선택)', required: false, defaultGranted: false, body: modelBody }),
 ];
 
 export const consentDocOf = (kind: IntakeConsentKind) => INTAKE_CONSENT_DOCS.find((d) => d.kind === kind)!;

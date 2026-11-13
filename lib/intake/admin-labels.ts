@@ -76,6 +76,8 @@ export const REJECT_CODE_TEXT: Record<string, string> = {
   not_video: '파일 머리를 읽어 보니 영상이 아니에요',
   unsupported_container: 'MOV · MP4 가 아닌 그릇이라 받지 않았어요',
   facts_unreadable: '파일 머리를 읽지 못했어요',
+  capture_rate_low: '표본 시간으로 잰 촬영 속도가 120fps 미만이에요(R04 필수 기준)',
+  capture_rate_unknown: '촬영 속도(fps)를 읽지 못해 120fps 기준을 확인할 수 없어요',
 };
 
 export const FAILURE_CODE_TEXT: Record<string, string> = {

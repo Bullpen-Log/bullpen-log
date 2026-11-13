@@ -60,6 +60,7 @@ import {
 } from '@/lib/intake/service';
 import type { IntakeStorage } from '@/lib/intake/storage-core';
 import { buildMov, mov120, mov240 } from './intake-fixtures.mts';
+import { readIntakeMediaFacts } from '@/lib/intake/media';
 
 let passed = 0;
 const ok = (cond: unknown, label: string) => {
@@ -84,7 +85,8 @@ async function fails(p: Promise<unknown>, code: IntakeErrorCode, label: string) 
 
 /* ── 마이그레이션 파일을 그대로 깐다. 새 표는 기존 표에 기대지 않아 이 파일만으로 된다 ── */
 /* 공유 DB 에 적용하기 전에는 prisma/pending-migrations 에 둔다(그 폴더 README) */
-const MIGRATION_ROOT = readdirSync('prisma').includes('pending-migrations') ? 'prisma/pending-migrations' : 'prisma/migrations';
+/* 운영에 적용한 뒤(2026-11-13 df3306e0)에는 prisma/migrations 로 옮겨졌다 — 접수 마이그레이션이 든 쪽을 쓴다 */
+const MIGRATION_ROOT = readdirSync('prisma/pending-migrations').some((d) => d.endsWith('_external_intake')) ? 'prisma/pending-migrations' : 'prisma/migrations';
 const dirs = readdirSync(MIGRATION_ROOT).filter((d) => d.endsWith('_external_intake')).sort();
 ok(dirs.length === 1, '마이그레이션 파일이 있다');
 const migration = readFileSync(`${MIGRATION_ROOT}/${dirs[0]}/migration.sql`, 'utf8');
@@ -682,7 +684,7 @@ const finalize = (scope: IntakeScope, version: number, idempotencyKey = key(), e
 {
   /*
    * 검증 지적: 고침 화면이 '요청받은 칸을 새로 안 고른 경우'를 못 잡았다. 화면은 막지 않고 보냈다.
-   * (가) 얼린 파일이 살아 있는 칸 — 서버는 'correction_incomplete' 로 막는다. (나) 해시가 달라 막힌 칸 — 서버가 '전송이 아직 끝나지 않았어요'라고 했다.
+   * (가) 얼린 파일이 살아 있는 칸 — 서버는 'correction_incomplete' 로 막는다. (나) 해시가 달라 막힌 칸 — 서버가 '전송이 아직 끝나지 않았습니다'라고 했다.
    * 전송은 끝났고 파일이 막혔을 뿐이라 그 글은 거짓이다. 공개 상태로 화면이 같은 칸을 보내기 전에 막는다.
    */
   const none = { side: null, rear: null };
@@ -725,7 +727,7 @@ const finalize = (scope: IntakeScope, version: number, idempotencyKey = key(), e
 }
 {
   /*
-   * 검증 지적: 요청받지 않은 칸의 판 파일이 막혀 있으면 받는 사람이 그 칸을 고칠 수 없었다. 내면 '두 영상의 전송이 아직 끝나지 않았어요'가 나왔다(거짓이다).
+   * 검증 지적: 요청받지 않은 칸의 판 파일이 막혀 있으면 받는 사람이 그 칸을 고칠 수 없었다. 내면 '두 영상의 전송이 아직 끝나지 않았습니다'가 나왔다(거짓이다).
    * 막힌 파일로는 판을 얼릴 수 없다 — 지운 칸처럼 막힌 칸도 요청에 늘 넣는다. 요청한 뒤에 막혀도 넣는다.
    */
   const none = { side: null, rear: null };
@@ -802,7 +804,7 @@ const finalize = (scope: IntakeScope, version: number, idempotencyKey = key(), e
 }
 {
   /*
-   * 검증 지적: 요청받은 칸에 얼린 파일과 같은 영상을 다시 고르면 서버가 얼린 자산을 그대로 돌려줬다. 칸이 안 바뀌어 '요청받은 내용을 먼저 고쳐 주세요'가 되풀이됐다.
+   * 검증 지적: 요청받은 칸에 얼린 파일과 같은 영상을 다시 고르면 서버가 얼린 자산을 그대로 돌려줬다. 칸이 안 바뀌어 '요청받은 내용을 먼저 고치십시오'가 되풀이됐다.
    * 이미 보낸 영상이라고 고를 때 바로 답한다.
    */
   const stateAt = (scope: IntakeScope) => loadPublicState(db, scope, { now: at(HOUR) });
@@ -968,7 +970,7 @@ const finalize = (scope: IntakeScope, version: number, idempotencyKey = key(), e
   await requestCorrection(db, { adminId: 'a', submissionId: e.submissionId, fields: ['athleteName'] }, at(2 * HOUR));
   const lapsed = await loadPublicState(db, e.scope, { now: at(2 * HOUR) });
   eq(lapsed.screen, 'receipt', '기간이 끝난 고침은 영수증으로 내려간다');
-  ok(lapsed.statusText.includes('기간이 끝났어요'), '고칠 수 없다는 사실을 말한다');
+  ok(lapsed.statusText.includes('기간이 끝났습니다'), '고칠 수 없다는 사실을 말한다');
   await requestCorrection(db, { adminId: 'a', submissionId: e.submissionId, fields: ['athleteName'], extendUploadUntil: at(DAY) }, at(2 * HOUR));
   const v2 = (await db.intakeSubmission.findUniqueOrThrow({ where: { id: e.submissionId } })).version;
   eq((await loadPublicState(db, e.scope, { now: at(2 * HOUR) })).screen, 'correction', '고침 중에 기간을 늘리면 다시 열린다');
@@ -1134,7 +1136,7 @@ const flakyTx = (n: number) => {
     get(target, prop) {
       if (prop === '$transaction') {
         return (...args: unknown[]) => {
-          if (++calls === n) throw new Error('연결이 끊겼어요');
+          if (++calls === n) throw new Error('연결이 끊겼습니다');
           return (target.$transaction as (...a: unknown[]) => unknown)(...args);
         };
       }
@@ -1207,14 +1209,14 @@ const flakyTx = (n: number) => {
   const i = await invite();
   await named(i.scope);
   await recordConsents(db, i.scope, { answers: REQUIRED }, NOW);
-  const nul = buildMov({ stts: [[60, 10]], codec: 'a\0\0b', brand: 'q\0\0t', appleModel: 'iPhone\u0000 15' });
+  const nul = buildMov({ timescale: 120000, stts: [[600, 1001]], codec: 'a\0\0b', brand: 'q\0\0t', appleModel: 'iPhone\u0000 15' });
   const id = await sendFile(i.scope, 'side', nul);
   eq(await verifyAsset(db, storage, id, NOW), 'verified', 'NUL 이 든 머리도 검증이 끝난다');
   const row = await db.intakeAsset.findUniqueOrThrow({ where: { id } });
   eq((row.mediaFacts as { codec: string }).codec, 'ab', '다듬은 값을 저장한다');
 
   /* 말이 안 되는 촬영 시각 */
-  const far = buildMov({ stts: [[60, 10]], mvhdCreated: BigInt(2) ** BigInt(62) });
+  const far = buildMov({ timescale: 120000, stts: [[600, 1001]], mvhdCreated: BigInt(2) ** BigInt(62) });
   const farId = await sendFile(i.scope, 'rear', far);
   eq(await verifyAsset(db, storage, farId, NOW), 'verified', '범위 밖 시각도 검증이 끝난다');
   const farRow = await db.intakeAsset.findUniqueOrThrow({ where: { id: farId } });
@@ -1403,7 +1405,7 @@ const verifyAll = async (...ids: string[]) => {
   const open = await loadPublicState(db, r.scope, { now: at(HOUR) });
   ok(open.screen === 'correction' && open.resultAvailable && open.published, '고침 화면에서도 공개 결과로 갈 길을 준다');
   ok(open.correction != null, '요청 내용도 같이 준다');
-  eq(open.statusText, '고쳐 주셔야 할 내용이 있어요', '상태 글은 고침을 말한다');
+  eq(open.statusText, '고쳐야 할 내용이 있습니다', '상태 글은 고침을 말한다');
 
   const lapsed = await loadPublicState(db, r.scope, { now: at(3 * DAY) });
   ok(lapsed.screen === 'published' && lapsed.resultAvailable, '기간이 끝나도 공개 결과는 그대로 보인다');
@@ -2088,15 +2090,15 @@ const verifyAll = async (...ids: string[]) => {
   const pubState = await loadPublicState(db, a.scope, { now: D(91) });
   eq([pubState.originalDeleteDate, pubState.originalDeletedDate], [seoulDateKey(D(90)), seoulDateKey(D(90))], '지울 날과 지운 날을 말한다');
   eq((await loadPublicState(db, (await sent()).scope, { now: D(1) })).originalDeletedDate, null, '지우기 전에는 지운 날이 없다');
-  eq(pubState.assets.side?.integrity, '보유 기간이 지나 원본을 지웠어요', '받는 사람에게 사실대로 말한다');
+  eq(pubState.assets.side?.integrity, '보유 기간이 지나 원본을 지웠습니다', '받는 사람에게 사실대로 말한다');
   eq(await registerRevision({ db, storage }, (await revisionOf(a.submissionId)).id), 'skipped', '지운 판을 다시 등록해도 실패로 안 쌓인다');
 
   /* 지적 1 · 3: 지운 접수는 분석을 약속하지 않고, 동의 판이 바뀌어도 다시 묻지 않는다 */
   eq(pubState.originalsGone, 'deleted', '지운 사실을 준다');
   eq(pubState.screen, 'receipt', '영수증을 보인다');
-  ok(pubState.statusText.includes('원본을 지웠어요') && !pubState.statusText.includes('기다리고'), '지금 상태가 분석을 약속하지 않는다');
+  ok(pubState.statusText.includes('원본을 지웠습니다') && !pubState.statusText.includes('기다리고'), '지금 상태가 분석을 약속하지 않는다');
   const goneHead = receiptHead(pubState);
-  ok(goneHead.title.includes('지웠어요') && !goneHead.desc.includes('공개되면'), '머리도 약속하지 않는다');
+  ok(goneHead.title.includes('지웠습니다') && !goneHead.desc.includes('공개되면'), '머리도 약속하지 않는다');
   const gc = await sent();
   await db.intakeConsent.updateMany({ where: { submissionId: gc.submissionId, kind: 'submission' }, data: { docVersion: 'old', textHash: 'old' } });
   ok((await loadPublicState(db, gc.scope, { now: D(1) })).needsReconsent, '지우기 전에는 다시 받는다');
@@ -2104,7 +2106,7 @@ const verifyAll = async (...ids: string[]) => {
   await fails(purge(gc.submissionId, D(90)), 'storage_unavailable', '표시만 걸린 채 멈춘다');
   const goneMid = await loadPublicState(db, gc.scope, { now: D(90) });
   eq([goneMid.originalsGone, goneMid.needsReconsent], ['deleting', false], '지우는 중에도 안 받는다');
-  ok(goneMid.statusText.includes('지우고 있어요'), '지우는 중이라고 말한다');
+  ok(goneMid.statusText.includes('지우는 중입니다'), '지우는 중이라고 말한다');
   await fails(recordConsents(db, gc.scope, { answers: REQUIRED }, D(90)), 'not_editable', '지우는 중에는 동의를 안 받는다');
   await purge(gc.submissionId, D(90));
   const goneDone = await loadPublicState(db, gc.scope, { now: D(91) });
@@ -2118,7 +2120,7 @@ const verifyAll = async (...ids: string[]) => {
   eq([dueBefore.originalsGone, dueBefore.needsReconsent], [null, true], '지울 날 전에는 살아 있고 다시 받는다');
   const dueGap = await loadPublicState(db, due.scope, { now: D(90) });
   eq([dueGap.originalsGone, dueGap.needsReconsent], ['deleting', false], '지울 날이 지나면 표시 전이라도 지우는 중으로 본다');
-  ok(dueGap.statusText.includes('지우고 있어요') && !dueGap.statusText.includes('기다리고') && !dueGap.statusText.includes('이어서'), '틈에서도 분석을 약속하지 않는다');
+  ok(dueGap.statusText.includes('지우는 중입니다') && !dueGap.statusText.includes('기다리고') && !dueGap.statusText.includes('이어서'), '틈에서도 분석을 약속하지 않는다');
   await fails(recordConsents(db, due.scope, { answers: REQUIRED }, D(90)), 'not_editable', '틈에서도 동의를 안 받는다');
   eq((await db.intakeAsset.findUniqueOrThrow({ where: { id: due.sideId } })).status, 'verified', '읽기만 했다 — 파일 표시는 크론 몫이다');
 
@@ -2406,14 +2408,14 @@ const verifyAll = async (...ids: string[]) => {
   const nvKey = key();
   const nvReceipt = await finalizeSubmission(db, nv.scope, { expectedVersion: nvBefore.version, idempotencyKey: nvKey }, D(92));
   const nvShown = stateAfterReceipt(nvBefore, nvReceipt);
-  eq([receiptHead(nvShown).title, receiptRetentionRows(nvShown)], ['영상이 잘 도착했어요', []], '영수증 머리 · 줄이 옛 판의 지우는 중을 말하지 않는다');
+  eq([receiptHead(nvShown).title, receiptRetentionRows(nvShown)], ['영상이 도착했습니다', []], '영수증 머리 · 줄이 옛 판의 지우는 중을 말하지 않는다');
   /* 검증 지적: 완료 응답을 잃고 같은 키로 다시 낸다(finishRun 의 retryNetwork) — 서버는 created false 로 같은 판을 준다. 화면은 아직 다시 내기 전 상태를 쥐고 있다 */
   const nvRetry = await finalizeSubmission(db, nv.scope, { expectedVersion: nvBefore.version, idempotencyKey: nvKey }, D(92));
   eq([nvRetry.created, nvRetry.revision], [false, nvReceipt.revision], '같은 키 재시도는 같은 판의 영수증이다');
   const nvRetryShown = stateAfterReceipt(nvBefore, nvRetry);
   eq(
     [receiptHead(nvRetryShown).title, receiptRetentionRows(nvRetryShown), nvRetryShown.statusText, nvRetryShown.originalsGone],
-    ['영상이 잘 도착했어요', [], '파일이 잘 도착했는지 확인하고 있어요', null],
+    ['영상이 도착했습니다', [], '파일이 그대로 도착했는지 확인하고 있습니다', null],
     '응답을 잃은 재시도의 영수증도 방금 보낸 영상을 지우고 있다고 말하지 않는다',
   );
   eq((await loadPublicState(db, nv.scope, { now: D(92) })).originalsGone, null, '서버도 지금 판은 살아 있다고 말한다');
@@ -2757,7 +2759,7 @@ const verifyAll = async (...ids: string[]) => {
 
   /*
    * 줄을 읽은 뒤에 사정이 바뀌면 안 버린다 — 정리가 줄을 읽고 잠그기 전의 틈에 관리자가 기간을 늘리거나 철회가 들어온다.
-   * 버린 파일은 칸에서 내려가 26시간 뒤 지워진다. 화면은 '아직 보내지 않았어요'로 돌아가 받는 사람이 다시 보내야 한다.
+   * 버린 파일은 칸에서 내려가 26시간 뒤 지워진다. 화면은 '아직 보내지 않았습니다'로 돌아가 받는 사람이 다시 보내야 한다.
    */
   const afterScan = (work: () => Promise<unknown>) => {
     let done = false;
@@ -3061,6 +3063,86 @@ const verifyAll = async (...ids: string[]) => {
   /* 범위를 안 넘기는 옛 부름은 그대로 — 코드만 본다 */
   await verifyResultAccess(db, { invitation: plainRow, submissionId: plain.submissionId, code: null }, NOW);
   passed++;
+}
+
+/* ─────────────────────── R04: 120fps 필수 — 서버가 읽은 파일 사실로만 정한다 ─────────────────────── */
+{
+  const i = await invite();
+  await named(i.scope);
+  await recordConsents(db, i.scope, { answers: REQUIRED }, NOW);
+
+  /* 60fps 일반 영상 — 이름이 '240fps' 여도, 종류 신고가 영상이어도 막는다. 해시 전에 막아 전체 읽기를 쓰지 않는다 */
+  const sixty = buildMov({ timescale: 600, stts: [[600, 10]], mdatBytes: 2048 });
+  const before = reads.hash;
+  const sixtyId = await sendFile(i.scope, 'side', sixty, null, 'slowmo_240fps.MOV');
+  eq(await verifyAsset(db, storage, sixtyId, NOW), 'rejected', '60fps 는 막는다');
+  const sixtyRow = await db.intakeAsset.findUniqueOrThrow({ where: { id: sixtyId } });
+  eq([sixtyRow.rejectCode, reads.hash - before], ['capture_rate_low', 0], '까닭은 capture_rate_low, 전체 읽기 없음');
+  const pub = await loadPublicState(db, i.scope, { now: NOW });
+  eq(pub.assets.side?.rejectCode, 'capture_rate_low', '받는 사람 화면이 까닭을 안다');
+
+  /* 슬로 모션을 펴서 30fps 로 내보낸 파일(표본이 30) — 재생 속도를 바꾼 편집이 있어도 표본으로 본다 */
+  const flat = buildMov({ timescale: 600, stts: [[300, 20]], edits: [[2400, 0, 0.5]], mdatBytes: 2048 });
+  const flatId = await sendFile(i.scope, 'side', flat, sixtyId);
+  eq(await verifyAsset(db, storage, flatId, NOW), 'rejected', '펴서 내보낸 슬로 모션(30fps)은 막는다');
+  eq((await db.intakeAsset.findUniqueOrThrow({ where: { id: flatId } })).rejectCode, 'capture_rate_low', '30fps 까닭');
+
+  /* 표본 시간표가 없어 fps 를 모름 — 통과로 치지 않는다 */
+  const blind = buildMov({ timescale: 600, stts: [], mdatBytes: 2048 });
+  const blindId = await sendFile(i.scope, 'side', blind, flatId);
+  eq(await verifyAsset(db, storage, blindId, NOW), 'rejected', 'fps 를 모르면 막는다');
+  eq((await db.intakeAsset.findUniqueOrThrow({ where: { id: blindId } })).rejectCode, 'capture_rate_unknown', '모름 까닭');
+
+  /* 아이폰 슬로 모션 원본 모양 — 240 표본을 편집 목록으로 늘려 재생한다. 재생 속도가 아니라 표본으로 받는다 */
+  const slomo = buildMov({ timescale: 240, stts: [[480, 1]], edits: [[600, 0], [3000, 120], [1200, 360]], mdatBytes: 2048 });
+  const slomoId = await sendFile(i.scope, 'side', slomo, blindId);
+  eq(await verifyAsset(db, storage, slomoId, NOW), 'verified', '편집 목록으로 늘린 240fps 원본은 받는다');
+  const facts = (await db.intakeAsset.findUniqueOrThrow({ where: { id: slomoId } })).mediaFacts as { editList: { retimed: boolean }; stepFps: number };
+  eq([facts.editList.retimed, facts.stepFps], [true, 240], '재생은 늘렸고 표본은 240');
+
+  /* 119.88(1001/120000) — 좁은 허용 폭 안 */
+  const ntsc = mov120(2048);
+  const ntscId = await sendFile(i.scope, 'rear', ntsc);
+  eq(await verifyAsset(db, storage, ntscId, NOW), 'verified', '119.88fps 는 받는다');
+}
+{
+  /* R04 전에 검증을 마친 60fps 가 초안에 남은 경우 — 완료가 막고 그 칸을 말한다(옛 판정으로 끝내지 못한다) */
+  const r = await ready();
+  const old = buildMov({ timescale: 600, stts: [[600, 10]], mdatBytes: 4096 });
+  const oldId = await sendFile(r.scope, 'side', old, r.sideId);
+  const oldFacts = JSON.parse(JSON.stringify(await readIntakeMediaFacts({ size: old.length, read: async (s, e) => new Uint8Array(old.subarray(s, e)) })));
+  await db.intakeAsset.update({ where: { id: oldId }, data: { status: 'verified', mediaFacts: oldFacts, serverSha256: sha(old), storedBytes: BigInt(old.length), verifiedAt: NOW } });
+  await verifyAsset(db, storage, r.rearId, NOW);
+  const st = await loadPublicState(db, r.scope, { now: NOW });
+  const err = await finalize(r.scope, st.version).then(() => null, (e: unknown) => e as IntakeError);
+  eq([err?.code, err?.detail?.view], ['capture_rate_required', 'side'], '옛 판정의 60fps 칸은 완료를 막고 그 칸을 말한다');
+  eq((await db.intakeSubmission.findUniqueOrThrow({ where: { id: r.submissionId } })).status, 'draft', '막혀도 초안 그대로');
+  /* 새 120fps 이상 원본으로 바꾸면 끝난다 */
+  const fresh = mov240(4096);
+  const freshId = await sendFile(r.scope, 'side', fresh, oldId);
+  await verifyAsset(db, storage, freshId, NOW);
+  const st2 = await loadPublicState(db, r.scope, { now: NOW });
+  eq((await finalize(r.scope, st2.version)).submissionStatus, 'verified', '바꾼 뒤에는 끝난다');
+}
+{
+  /* 이미 받은 접수의 옛 칸은 그대로 — 고침에서 요청받지 않은 칸은 다시 가르지 않는다(옛 기록 보존) */
+  const r = await ready();
+  await finalize(r.scope, r.state.version);
+  await verifyAll(r.sideId, r.rearId);
+  /* 받은 뒤의 뒤 영상을 60fps 사실로 바꿔 R04 전에 받은 기록처럼 만든다 */
+  const sixtyFacts = JSON.parse(JSON.stringify(await (async () => {
+    const b = buildMov({ timescale: 600, stts: [[600, 10]], mdatBytes: 16 });
+    return readIntakeMediaFacts({ size: b.length, read: async (s, e) => new Uint8Array(b.subarray(s, e)) });
+  })()));
+  await db.intakeAsset.update({ where: { id: r.rearId }, data: { mediaFacts: sixtyFacts } });
+  await requestCorrection(db, { adminId: 'a', submissionId: r.submissionId, views: ['side'] }, at(HOUR));
+  const fresh = mov240(4096);
+  const id = await sendFile(r.scope, 'side', fresh, r.sideId);
+  await verifyAsset(db, storage, id, at(HOUR));
+  const st2 = await loadPublicState(db, r.scope, { now: at(HOUR) });
+  const done = await finalizeSubmission(db, r.scope, { expectedVersion: st2.version, idempotencyKey: key(), samePitchConfirmed: true }, at(HOUR));
+  eq(done.submissionStatus, 'verified', '요청받지 않은 옛 칸은 그대로 두고 고침이 끝난다');
+  eq((await db.intakeAsset.findUniqueOrThrow({ where: { id: r.rearId } })).status, 'verified', '옛 칸의 기록 · 상태는 그대로');
 }
 
 /* 파일 탓의 쓰기 거절 — 진짜 Postgres 오류 모양으로 본다. 이 뒤에는 DB 를 안 쓴다 */

@@ -27,12 +27,12 @@ export type ReviewErrors = Partial<Record<'name' | 'age' | 'samePitch' | 'relati
 export function reviewProblems(form: ReviewForm, docs: readonly PublicConsentDoc[]): ReviewErrors {
   if (form.ageBand === 'under_14') return {};
   const out: ReviewErrors = {};
-  if (!form.name.trim()) out.name = '선수 이름을 입력해 주세요.';
-  else if ([...form.name.trim()].length > 40) out.name = '이름은 40자 이하로 입력해 주세요.';
-  if (!form.samePitch) out.samePitch = '두 영상이 같은 투구인지 확인해 주세요.';
-  if (!form.ageBand) out.age = '선수가 만 14세 이상인지 골라 주세요.';
-  if (!form.relation) out.relation = '누가 보내는지 골라 주세요.';
-  if (docs.some((d) => d.required && form.agreed[d.kind] !== true)) out.consent = '필수 내용을 읽고 동의해 주세요.';
+  if (!form.name.trim()) out.name = '선수 이름을 입력하십시오.';
+  else if ([...form.name.trim()].length > 40) out.name = '이름은 40자 이하로 입력하십시오.';
+  if (!form.samePitch) out.samePitch = '두 영상이 같은 투구를 동시에 촬영한 것인지 확인하십시오.';
+  if (!form.ageBand) out.age = '선수가 만 14세 이상인지 선택하십시오.';
+  if (!form.relation) out.relation = '누가 보내는지 선택하십시오.';
+  if (docs.some((d) => d.required && form.agreed[d.kind] !== true)) out.consent = '필수 동의에 동의해야 영상을 보낼 수 있습니다.';
   return out;
 }
 
@@ -49,18 +49,62 @@ export function firstProblemTarget(errors: ReviewErrors, form: ReviewForm, docs:
   return null;
 }
 
+/* ── 한 화면 한 결정(R04) ── */
+
+/**
+ * 보내기 전 확인 화면의 차례 — 한 화면에 결정 하나. 'consent:<kind>' 는 동의 글 하나다(필수 먼저, 그다음 선택).
+ * 만 14세 미만을 고르면 나머지를 묻지 않는다(받을 수 없는 사람이 동의까지 누를 까닭이 없다 — reviewProblems 와 같다).
+ * 이름은 이 묶음 앞의 이름 화면에서 받았고, 요약 화면에서 고칠 수 있다.
+ */
+export type ReviewPanel = 'files' | 'same' | 'age' | 'relation' | 'hand' | `consent:${string}` | 'summary';
+
+export function reviewPanels(form: Pick<ReviewForm, 'ageBand'>, docs: readonly PublicConsentDoc[]): ReviewPanel[] {
+  const head: ReviewPanel[] = ['files', 'same', 'age'];
+  if (form.ageBand === 'under_14') return head;
+  const consent = [...docs.filter((d) => d.required), ...docs.filter((d) => !d.required)].map((d) => `consent:${d.kind}` as const);
+  return [...head, 'relation', 'hand', ...consent, 'summary'];
+}
+
+/** 쓸 수 없는 화면 이름(앞뒤 단추 · 동의 글이 바뀜)이면 가장 가까운 화면 — 없으면 첫 화면 */
+export function validPanel(panel: string | null | undefined, panels: readonly ReviewPanel[]): ReviewPanel {
+  return panels.includes(panel as ReviewPanel) ? (panel as ReviewPanel) : panels[0];
+}
+
+/** 이 화면에서 '다음'을 막는 까닭 — 고른 값이 없거나 필수 동의를 안 했다. 선택 항목(던지는 손 · 선택 동의)은 막지 않는다 */
+export function panelProblem(panel: ReviewPanel, form: ReviewForm, docs: readonly PublicConsentDoc[]): ReviewErrors {
+  const all = reviewProblems(form, docs);
+  if (panel === 'same') return all.samePitch ? { samePitch: all.samePitch } : {};
+  if (panel === 'age') return all.age ? { age: all.age } : {};
+  if (panel === 'relation') return all.relation ? { relation: all.relation } : {};
+  if (panel.startsWith('consent:')) {
+    const d = docs.find((x) => `consent:${x.kind}` === panel);
+    return d?.required && form.agreed[d.kind] !== true ? { consent: all.consent ?? '필수 동의에 동의해야 영상을 보낼 수 있습니다.' } : {};
+  }
+  if (panel === 'summary') return all.name ? { name: all.name } : {};
+  return {};
+}
+
+/** 오류가 난 첫 화면 — 화면 차례대로 본다. 이름 오류는 요약 화면(이름을 고치는 곳)이다 */
+export function problemPanel(errors: ReviewErrors, form: ReviewForm, docs: readonly PublicConsentDoc[]): ReviewPanel | null {
+  for (const p of reviewPanels(form, docs)) {
+    const e = panelProblem(p, form, docs);
+    if ((e.samePitch && errors.samePitch) || (e.age && errors.age) || (e.relation && errors.relation) || (e.consent && errors.consent) || (e.name && errors.name)) return p;
+  }
+  return null;
+}
+
 /** 다시 받아야 할 필수 동의 — 지금 판으로 이미 있는 글은 다시 묻지 않는다 */
 export const staleRequiredDocs = (state: Pick<PublicIntakeState, 'consent'>, docs: readonly PublicConsentDoc[]) =>
   docs.filter((d) => d.required && state.consent.granted[d.kind] !== true);
 
 /** 고침 화면에서 지운 칸을 안 고르고 보냈을 때의 글 */
-export const GONE_VIEW_TEXT = '이 칸의 원본은 지웠어요. 영상을 다시 골라 주세요.';
+export const GONE_VIEW_TEXT = '이 칸의 원본은 지웠습니다. 영상을 다시 선택하십시오.';
 /** 아직 지우고 있는 칸 — 지운 일이 끝나지 않았는데 '지웠어요'라고 하면 거짓이다 */
-export const DELETING_VIEW_TEXT = '이 칸의 원본을 지우고 있어요. 영상을 다시 골라 주세요.';
+export const DELETING_VIEW_TEXT = '이 칸의 원본을 지우는 중입니다. 영상을 다시 선택하십시오.';
 /** 끊긴 전송을 정리가 버려 칸이 빈 때의 글 — 지운 원본이 아니라 아직 안 온 파일이다 */
-export const EMPTY_VIEW_TEXT = '이 칸에 보낼 영상을 골라 주세요.';
+export const EMPTY_VIEW_TEXT = '이 칸에 보낼 영상을 선택하십시오.';
 /** 파일은 남아 있지만 새로 골라야 하는 칸 — 얼린 그 파일 그대로이거나 막힌 파일이다. 지웠다거나 전송 중이라고 하지 않는다 */
-export const REPICK_VIEW_TEXT = '이 칸은 새 영상을 골라 주세요.';
+export const REPICK_VIEW_TEXT = '이 칸은 새 영상을 선택하십시오.';
 
 /**
  * 고침에서 꼭 다시 골라야 하는 칸 — 서버의 완료와 같은 판단(correctionRepickViews)이다. 이 기기에서 새로 고른 칸은 뺀다.

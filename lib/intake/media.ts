@@ -54,6 +54,8 @@ export type IntakeMediaFacts = {
   nominalFps: number | null;
   /** 장면 간격이 일정한가 — unknown 은 못 읽음 */
   frameTiming: 'constant' | 'variable' | 'unknown';
+  /** 가장 많은 장면 간격으로 잰 fps(표본 시간) — 간격이 고르지 않은 영상의 촬영 속도를 볼 때 쓴다. 이 칸이 생기기 전(R04)에 적은 사실에는 없다 */
+  stepFps?: number | null;
   editList: {
     present: boolean;
     segments: number;
@@ -124,6 +126,7 @@ type VideoTrack = {
   frameCount: number | null;
   sampleDurationSec: number | null;
   averageFps: number | null;
+  stepFps: number | null;
   frameTiming: 'constant' | 'variable' | 'unknown';
   segments: number;
   /** 편집 목록을 따른 재생 길이 — 없으면 null */
@@ -157,7 +160,7 @@ function rotationOf(b: Uint8Array, tkhd: Box): number | null {
 }
 
 /** stts 표 → 표본 수 · 전체 시간 · 간격이 고른가. 끝 한 칸은 자주 달라서 간격 판정에서 뺀다 */
-function readStts(b: Uint8Array, stts: Box): { count: number; total: number; timing: 'constant' | 'variable' } | null {
+function readStts(b: Uint8Array, stts: Box): { count: number; total: number; timing: 'constant' | 'variable'; stepDelta: number } | null {
   const n = u32(b, stts.body + 4);
   const runs: { count: number; delta: number }[] = [];
   for (let i = 0; i < n; i++) {
@@ -174,10 +177,10 @@ function readStts(b: Uint8Array, stts: Box): { count: number; total: number; tim
   if (last.count === 1 && body.length > 1) body.pop();
   else last.count -= 1;
   const bodyCount = body.reduce((s, r) => s + r.count, 0);
-  if (!bodyCount) return { count, total, timing: 'constant' };
+  if (!bodyCount) return { count, total, timing: 'constant', stepDelta: total / count };
   const main = body.reduce((best, r) => (r.count > best.count ? r : best), body[0]);
   const within = body.filter((r) => Math.abs(r.delta - main.delta) <= main.delta * 0.05).reduce((s, r) => s + r.count, 0);
-  return { count, total, timing: within / bodyCount >= 0.98 ? 'constant' : 'variable' };
+  return { count, total, timing: within / bodyCount >= 0.98 ? 'constant' : 'variable', stepDelta: main.delta };
 }
 
 type EditSegment = {
@@ -283,6 +286,7 @@ function readVideoTrack(b: Uint8Array, trak: Box, movieScale: number): VideoTrac
     frameCount: table?.count ?? null,
     sampleDurationSec,
     averageFps,
+    stepFps: table && mediaScale && table.stepDelta > 0 ? mediaScale / table.stepDelta : null,
     frameTiming: table?.timing ?? 'unknown',
     segments: edits.length,
     playbackDurationSec,
@@ -310,6 +314,7 @@ const EMPTY: Omit<IntakeMediaFacts, 'container' | 'brand'> = {
   averageFps: null,
   nominalFps: null,
   frameTiming: 'unknown',
+  stepFps: null,
   editList: { present: false, segments: 0, retimed: false, trimmed: false, shiftSec: 0 },
   captureAtMs: null,
   captureSource: null,
@@ -398,6 +403,7 @@ export async function readIntakeMediaFacts(source: ByteReader): Promise<IntakeMe
     averageFps: track?.averageFps ?? null,
     nominalFps: track?.averageFps != null ? nominalFpsOf(track.averageFps) : null,
     frameTiming: track?.frameTiming ?? 'unknown',
+    stepFps: track?.stepFps ?? null,
     editList: {
       present: (track?.segments ?? 0) > 0,
       segments: track?.segments ?? 0,
@@ -418,14 +424,57 @@ export type MediaRejectCode = 'not_video' | 'unsupported_container';
 
 /** 사람이 읽는 까닭 — 고를 때 화면과 영수증 쪽이 같은 글을 쓰게 여기 둔다 */
 export const MEDIA_REJECT_TEXT: Record<MediaRejectCode, string> = {
-  not_video: '영상 파일이 아니에요. 찍은 영상을 골라 주세요.',
-  unsupported_container: 'MOV나 MP4 영상만 받을 수 있어요. 카메라로 찍은 원본 영상을 골라 주세요.',
+  not_video: '영상 파일이 아닙니다. 촬영한 영상을 선택하십시오.',
+  unsupported_container: 'MOV나 MP4 영상만 받습니다. 카메라로 촬영한 원본 영상을 선택하십시오.',
 };
 
 /** 바이트만 봐서 막을 까닭 — 낮은 fps 나 재생 못 함으로는 막지 않는다. 머리를 못 읽은 MOV · MP4 도 막지 않는다(mediaUnconfirmed) */
 export function mediaRejectCode(f: Pick<IntakeMediaFacts, 'container' | 'hasVideo'>): MediaRejectCode | null {
   if (f.container === 'matroska') return 'unsupported_container';
   if (f.container === 'unknown' || f.hasVideo === false) return 'not_video';
+  return null;
+}
+
+/**
+ * 촬영 속도 규칙(INTAKE-MAIN/R04) — 옆 · 뒤 두 영상 모두 120fps 이상으로 찍은 슬로 모션이어야 한다. 240fps 는 권장일 뿐 필수가 아니다.
+ *
+ * 잣대는 표본 시간(stts ÷ mdhd)으로 잰 fps 다. 재생 시간(편집 목록)은 쓰지 않는다 — 아이폰 슬로 모션 원본은 240fps 로 담고 편집 목록으로 늘려 재생하므로,
+ * 재생 길이로 재면 진짜 원본을 막는다(retimed 이어도 표본이 240 이면 받는다). 슬로 모션을 펴서 30fps 로 내보낸 파일은 표본 자체가 30fps 라 막힌다.
+ * 반대로 30fps 영상을 120fps 로 늘려 다시 만든 파일은 표본이 120 이라 이 규칙으로 못 가린다 — 파일 정보는 카메라 원본의 증거가 아니다.
+ *
+ * 촬영 속도 = 가장 많은 장면 간격으로 잰 fps(stepFps). 몇 장면이 빠진 진짜 120fps 원본이 평균 때문에 막히지 않게 평균 대신 이것을 본다.
+ * 장면 간격이 고르지 않은 파일(variable)은 평균도 하한을 넘어야 한다 — 섞인 파일이 많은 간격 하나로 통과하지 않게.
+ * stepFps 가 없는 옛 사실(R04 전에 적은 것)은 평균으로 본다.
+ *
+ * 허용 폭(좁다): 120 × 1000/1001 = 119.88 이 아이폰 등 NTSC 계열의 '120fps' 다. 시간 단위의 정수 반올림까지 받으려고 하한을 119.82 로 둔다(120 의 0.15% 아래).
+ * 그 아래는 120 미만이다. 이름표의 nominalFpsOf(1.5% 반올림)는 이 판단에 쓰지 않는다 — 118.3fps 를 '120fps 감지'라고 적어도 받지 않는다.
+ *
+ * 표본 fps 를 못 읽은 파일은 '모름'이다 — 통과로 치지 않는다. 브라우저가 고를 때 같은 함수로 먼저 알리고, 서버가 검증 때 다시 본다(클라이언트 값은 믿지 않는다).
+ */
+export const MIN_CAPTURE_FPS = 120;
+export const CAPTURE_FPS_FLOOR = 119.82;
+
+export type CaptureRateCode = 'capture_rate_low' | 'capture_rate_unknown';
+
+export const CAPTURE_RATE_TEXT: Record<CaptureRateCode, string> = {
+  capture_rate_low:
+    '120fps 미만으로 촬영된 영상입니다. 슬로 모션 120fps 이상(240fps 권장)으로 촬영한 원본을 선택하십시오. 재생 속도를 바꾸거나 형식을 바꾼 파일로는 촬영되지 않은 장면을 되살릴 수 없습니다.',
+  capture_rate_unknown: '촬영 속도(fps)를 확인할 수 없는 파일입니다. 카메라로 촬영한 원본 파일을 다시 선택하십시오.',
+};
+
+/** 이 파일의 촬영 속도(fps) — 판단에 쓰는 값. 못 읽으면 null */
+export function captureFpsOf(f: Pick<IntakeMediaFacts, 'averageFps' | 'stepFps'>): number | null {
+  const step = f.stepFps ?? f.averageFps;
+  return step != null && Number.isFinite(step) && step > 0 ? step : null;
+}
+
+/** 120fps 규칙에 걸리는 까닭 — 통과면 null. 영상이 아닌 파일(mediaRejectCode)은 먼저 따로 막는다 */
+export function captureRateCode(f: Pick<IntakeMediaFacts, 'averageFps' | 'stepFps' | 'frameTiming'> | null | undefined): CaptureRateCode | null {
+  if (!f) return 'capture_rate_unknown';
+  const fps = captureFpsOf(f);
+  if (fps == null || f.averageFps == null || !Number.isFinite(f.averageFps) || f.frameTiming === 'unknown') return 'capture_rate_unknown';
+  if (fps < CAPTURE_FPS_FLOOR) return 'capture_rate_low';
+  if (f.frameTiming === 'variable' && f.averageFps < CAPTURE_FPS_FLOOR) return 'capture_rate_low';
   return null;
 }
 
@@ -451,15 +500,15 @@ export function integrityLabel(status: string, frozen = true, byWithdrawal = fal
   if (status === 'verified') return '선택한 파일 그대로 전송됨';
   if (status === 'rejected' || status === 'unconfirmed') return '영상 정보 확인 필요';
   if (!assetGone(status)) return null;
-  const done = status === 'purging' ? '지우고 있어요' : '지웠어요';
+  const done = status === 'purging' ? '지우는 중입니다' : '지웠습니다';
   if (frozen) return `보유 기간이 지나 원본을 ${done}`;
   return byWithdrawal ? `접수를 철회해서 ${done}` : `접수에 쓰이지 않은 임시 파일이라 ${done}`;
 }
 
 /** 재생과 표본이 다를 때의 안내 — 없으면 null. 표본 시간을 촬영 길이라고 말하지 않는다 */
 export function timingNote(f: Pick<IntakeMediaFacts, 'editList' | 'frameTiming'>): string | null {
-  if (f.editList.retimed) return '재생 속도를 바꾼 구간이 있어요. 재생 길이를 촬영 길이로 읽으면 안 돼요.';
-  if (f.editList.trimmed) return '앞뒤를 잘라 일부 구간만 재생되는 영상이에요.';
-  if (f.frameTiming === 'variable') return '장면 간격이 일정하지 않아요.';
+  if (f.editList.retimed) return '재생 속도가 바뀐 구간이 있습니다(슬로 모션 원본에서 흔합니다). 재생 길이는 촬영 길이가 아닙니다.';
+  if (f.editList.trimmed) return '앞뒤를 잘라 일부 구간만 재생되는 영상입니다.';
+  if (f.frameTiming === 'variable') return '장면 간격이 일정하지 않습니다.';
   return null;
 }
