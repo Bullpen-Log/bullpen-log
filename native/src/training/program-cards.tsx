@@ -1,8 +1,9 @@
 import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
 import { type Href, router } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
-import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
+import Svg, { Rect } from 'react-native-svg';
 import { GOAL_LABELS, programChoiceList, type ProgramChoice } from '@/lib/program/program';
 import type { ProgramShelf } from '@/lib/report/training-home-data';
 import { SPACE, usePalette, useTheme, withAlpha, type Palette } from '~/lib/ui';
@@ -92,11 +93,11 @@ export function ProgramCards({ shelf }: { shelf: ProgramShelf; today: string }) 
               >
                 <Cover p={p} c={c} active={shelf.activeId === id} />
                 <View style={styles.body}>
-                  <Text numberOfLines={1} style={[styles.name, { color: c.ink }]}>
+                  <Text numberOfLines={2} lineBreakStrategyIOS="hangul-word" style={[styles.name, { color: c.ink }]}>
                     {p.name}
                   </Text>
                   <Text style={{ color: c.muted, fontSize: 13 }}>{weeksText(p)}</Text>
-                  <Text numberOfLines={1} style={{ color: blocked ? c.muted : c.link, fontSize: 13 }}>
+                  <Text numberOfLines={2} lineBreakStrategyIOS="hangul-word" style={{ color: blocked ? c.muted : c.link, fontSize: 13 }}>
                     {blocked ?? p.summary}
                   </Text>
                 </View>
@@ -134,86 +135,50 @@ export function ProgramCards({ shelf }: { shelf: ProgramShelf; today: string }) 
   );
 }
 
-/** 커버 — 옅은 파랑 면 위 프로그램마다 다른 소프트 솔리드 그림 하나(목표 이름은 위 작은 글). 프로그램 상세(시안 01)도 같은 커버로 이어진다 */
+const PROGRAM_COVERS = {
+  'stronglifts-5x5': require('../../assets/program-covers/stronglifts-5x5.webp'),
+  '531': require('../../assets/program-covers/531.webp'),
+  'juggernaut-5s': require('../../assets/program-covers/juggernaut-5s.webp'),
+  ws4sb: require('../../assets/program-covers/ws4sb.webp'),
+  'pitcher-power': require('../../assets/program-covers/pitcher-power.webp'),
+  'basics-4w': require('../../assets/program-covers/basics-4w.webp'),
+} satisfies Record<Exclude<ProgramChoice['id'], 'offseason-strength-power'>, number>;
+
+/** 프로그램 목록 · 상세 공통. 표지에는 그림만 넣고 목표와 진행 상태는 앱 글자로 읽는다. */
 export function Cover({ p, c, active }: { p: ProgramChoice; c: Palette; active: boolean }) {
   const dark = useTheme() !== 'light';
+  const source = p.id === 'offseason-strength-power' ? undefined : PROGRAM_COVERS[p.id];
   return (
     <View style={[styles.cover, { backgroundColor: dark ? '#123049' : '#e3effb' }]}>
+      {source ? (
+        <Image
+          accessible={false}
+          accessibilityIgnoresInvertColors
+          pointerEvents="none"
+          source={source}
+          contentFit="cover"
+          style={StyleSheet.absoluteFill}
+        />
+      ) : (
+        <View style={[StyleSheet.absoluteFill, styles.art]} pointerEvents="none">
+          <Svg width={150} height={104} viewBox="0 0 150 104" accessible={false}>
+            <Rect x="28" y="66" width="32" height="28" rx="9" fill={c.skyStrong} opacity={0.7} />
+            <Rect x="60" y="44" width="32" height="50" rx="9" fill={c.skyStrong} opacity={0.85} />
+            <Rect x="92" y="20" width="32" height="74" rx="9" fill={c.skyStrong} />
+          </Svg>
+        </View>
+      )}
       <View style={styles.coverTop}>
-        <Text style={{ color: dark ? '#9fcdf0' : '#3a6f9c', fontSize: 11, fontWeight: '700', letterSpacing: 1 }}>{GOAL_LABELS[p.goal]}</Text>
+        <View style={[styles.badge, { backgroundColor: c.skyTint }]}>
+          <Text style={[styles.badgeText, { color: c.skyStrong }]}>{GOAL_LABELS[p.goal]}</Text>
+        </View>
         {active ? (
           <View style={[styles.badge, { backgroundColor: c.action }]}>
-            <Text style={{ color: c.onAction, fontSize: 11, fontWeight: '700' }}>진행 중</Text>
+            <Text style={[styles.badgeText, { color: c.onAction }]}>진행 중</Text>
           </View>
         ) : null}
       </View>
-      <View style={styles.art}>
-        <CoverArt id={p.id} dark={dark} />
-      </View>
     </View>
-  );
-}
-
-function CoverArt({ id, dark }: { id: string; dark: boolean }) {
-  const top = dark ? '#7cc3f5' : '#7ab6ea';
-  const bottom = dark ? '#3b86c7' : '#3f86cf';
-  const g = (
-    <Defs>
-      <LinearGradient id={`cv-${id}`} x1="0" y1="0" x2="1" y2="1">
-        <Stop offset="0" stopColor={top} />
-        <Stop offset="1" stopColor={bottom} />
-      </LinearGradient>
-    </Defs>
-  );
-  const fill = `url(#cv-${id})`;
-  const shade = dark ? 'rgba(0,0,0,0.22)' : 'rgba(20,70,120,0.12)';
-  return (
-    <Svg width={150} height={104} viewBox="0 0 150 104" accessible={false}>
-      {g}
-      {id === 'pitcher-power' ? (
-        /* 올라가는 막대 셋 */
-        <>
-          <Rect x="34" y="62" width="26" height="34" rx="11" fill={shade} transform="translate(3 4)" />
-          <Rect x="34" y="62" width="26" height="34" rx="11" fill={fill} />
-          <Rect x="64" y="42" width="26" height="54" rx="11" fill={fill} />
-          <Rect x="94" y="16" width="26" height="80" rx="11" fill={fill} />
-        </>
-      ) : id === 'stronglifts-5x5' ? (
-        /* 다섯 줄 다섯 칸 */
-        <>
-          {Array.from({ length: 25 }, (_, i) => (
-            <Circle key={i} cx={39 + (i % 5) * 18} cy={16 + Math.floor(i / 5) * 18} r={6.5} fill={fill} opacity={i % 5 < 3 ? 1 : 0.55} />
-          ))}
-        </>
-      ) : id === '531' ? (
-        /* 원판 셋(작아짐) */
-        <>
-          <Rect x="22" y="48" width="106" height="10" rx="5" fill={shade} />
-          <Rect x="30" y="18" width="20" height="70" rx="8" fill={fill} />
-          <Rect x="56" y="28" width="18" height="50" rx="8" fill={fill} opacity={0.85} />
-          <Rect x="80" y="36" width="16" height="34" rx="7" fill={fill} opacity={0.7} />
-        </>
-      ) : id === 'juggernaut-5s' ? (
-        /* 파도 넷 */
-        <Path d="M14 70 C30 30 44 30 58 62 S86 94 100 50 S126 18 138 40" stroke={fill} strokeWidth={14} strokeLinecap="round" fill="none" />
-      ) : id === 'ws4sb' ? (
-        /* 바벨 */
-        <>
-          <Rect x="18" y="47" width="114" height="10" rx="5" fill={fill} opacity={0.75} />
-          <Rect x="24" y="22" width="18" height="60" rx="8" fill={fill} />
-          <Rect x="108" y="22" width="18" height="60" rx="8" fill={fill} />
-          <Rect x="44" y="32" width="12" height="40" rx="6" fill={fill} opacity={0.85} />
-          <Rect x="94" y="32" width="12" height="40" rx="6" fill={fill} opacity={0.85} />
-        </>
-      ) : (
-        /* 기본기 — 계단 */
-        <>
-          <Rect x="28" y="66" width="32" height="28" rx="9" fill={fill} opacity={0.7} />
-          <Rect x="60" y="44" width="32" height="50" rx="9" fill={fill} opacity={0.85} />
-          <Rect x="92" y="20" width="32" height="74" rx="9" fill={fill} />
-        </>
-      )}
-    </Svg>
   );
 }
 
@@ -222,10 +187,11 @@ const styles = StyleSheet.create({
   headText: { fontSize: 20, fontWeight: '700', letterSpacing: -0.4 },
   headBtn: { minHeight: 44, minWidth: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 3 },
   card: { borderRadius: 24, overflow: 'hidden' },
-  cover: { height: 164, paddingHorizontal: 18, paddingTop: 16 },
-  coverTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 22 },
-  art: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  badge: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
+  cover: { width: '100%', minHeight: 164, aspectRatio: 960 / 492, paddingHorizontal: 16, paddingTop: 13, overflow: 'hidden' },
+  coverTop: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center', justifyContent: 'space-between' },
+  art: { alignItems: 'center', justifyContent: 'center' },
+  badge: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4 },
+  badgeText: { fontSize: 11, fontWeight: '700' },
   body: { padding: 18, gap: 5 },
   name: { fontSize: 20, fontWeight: '700', letterSpacing: -0.5 },
   foot: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 },
