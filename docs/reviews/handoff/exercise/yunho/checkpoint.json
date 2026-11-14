@@ -753,6 +753,7 @@
   "purpose_writing_rule_20261114": "사용자 지시: 앞으로 비슷한 운동 목적도 문장이 어색하지 않고 투수에게 왜 필요한지 정확히 설명하도록 수정한다. 투구에서 필요한 능력과 운동의 훈련 목적을 구체적으로 연결하고, 근거가 부족한 구속 향상 등은 단정하지 않는다.",
   "equipment_intensity_rule_20261114": "사용자 지시: 장비 무게·저항·높이 등 강도 조절과 선택 안내는 강도에 모은다. 안전 고정·배치 및 통증·중단 안내는 이렇게 하세요에 유지한다. 기검수 P001~P022와 밴드 2개를 점검하고 필요한 9개를 수정, P022로 복귀.",
   "description_placement_rule_20261114": "사용자 지시: 비슷한 내용은 같은 위치. 중단·통증·수행 중 안전 안내는 이렇게 하세요, 무게와 속도 선택 기준은 강도에 둔다. 기존 운동 전체 일괄 정리 여부 미확인; 검수 때 적용.",
+  "all_future_review_standards": "docs/reviews/handoff/exercise/yunho/MACBOOK-REVIEW-STANDARDS-2026-11-14.md: 사용자 확정, 기존 지시와 함께 매 영상 동일 적용. 현재 P022 유지.",
   "reporting_preference": "Show before and after of each change and distinguish previous sessions from current edits.",
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
   "latest_resume": {
