@@ -163,7 +163,7 @@ export function SendStep({
 
       {run.stop && <FieldError>{run.stop.message}</FieldError>}
       {stalled && onCancel && (
-        <NoteBox>서버 응답이 늦어지고 있습니다. 멈춘 뒤 이어서 보내면 이미 도착한 부분부터 이어집니다.</NoteBox>
+        <NoteBox>{'서버 응답이 늦어지고 있습니다.\n멈춘 뒤 이어서 보내면 이미 도착한 부분부터 이어집니다.'}</NoteBox>
       )}
     </Screen>
   );

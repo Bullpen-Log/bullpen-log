@@ -113,7 +113,8 @@ export function PrimaryButton({ children, onClick, disabled }) { b.clicks[words(
 export function SecondaryButton({ children, onClick }) { b.clicks[words(children).trim()] = onClick; return h('button', null, children); }
 export function FieldError({ id, children }) { return h('p', { id, 'data-field-error': '' }, children); }
 export function NoteBox({ children }) { return h('aside', null, children); }
-export function HelpButton({ children, onClick }) { b.clicks[words(children).trim()] = onClick; return h('button', { type: 'button' }, children); }`,
+export function HelpButton({ children, onClick }) { b.clicks[words(children).trim()] = onClick; return h('button', { type: 'button' }, children); }
+export function Paras({ text }) { return h('div', null, ...String(text).split('\\n').map((t, i) => h('p', { key: i }, t))); }`,
   /* 체크 칸 — 처리기를 id 로 쥔다. 진짜 부품이 같은 id 를 그리는지는 시험이 따로 본다 */
   '@/components/intake/consent-block': `const b = globalThis.__detailTest; const h = b.React.createElement;
 export function CheckRow({ id, checked, onChange, label, invalid, describedBy }) {
@@ -965,7 +966,7 @@ const panel = (over: Record<string, unknown>) =>
     const html = renderToStaticMarkup(h(real.RequiredConsents, { docs: realDocs, agreed: {}, onChange: () => {}, invalid: false }));
     const bodyLine = sub.body.split('\n')[0];
     ok(!html.includes(bodyLine) && !html.includes('원본 보유 기간'), 'R04: 고침 · 다시 동의 화면에 약관 전문이 펼쳐지지 않는다');
-    ok(html.includes(real.consentCopyOf(sub).summary) && html.includes('약관 보기') && html.includes('(필수)'), 'R04: 짧은 요약 · 필수 표시 · 약관 보기 단추');
+    ok(real.consentCopyOf(sub).summary.split('\n').every((line) => html.includes(line)) && html.includes('약관 보기') && html.includes('(필수)'), 'R04: 짧은 요약 · 필수 표시 · 약관 보기 단추');
     const box = /<input[^>]*id="consent-submission"[^>]*>/.exec(html)?.[0] ?? '';
     ok(box !== '' && !/ checked(=""|\s|>)/.test(box), 'R04: 체크 칸은 꺼진 채로 시작한다');
     ok(!html.includes('consent-model') && !html.includes('consent-overseas'), 'R04: 필수 동의만 다시 묻는다(선택 동의는 그대로)');

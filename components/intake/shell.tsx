@@ -80,7 +80,7 @@ export function Screen({
         <h1 ref={heading} tabIndex={-1} className={`text-heading ${dense ? 'text-[1.375rem]' : 'text-[1.625rem]'} leading-[1.3] text-ink outline-none`}>
           {title}
         </h1>
-        {desc && <p className={`${dense ? 'mt-1' : 'mt-2'} text-subhead leading-relaxed break-keep whitespace-pre-line text-muted`}>{desc}</p>}
+        {desc && <Paras text={desc} gap="mt-1.5" className={`${dense ? 'mt-1' : 'mt-2'} text-subhead leading-relaxed text-muted`} />}
         {children && <div className={dense ? 'mt-4 space-y-3' : 'mt-6 space-y-5'}>{children}</div>}
       </main>
 
@@ -124,7 +124,7 @@ export function FieldError({ id, children }: { id?: string; children: ReactNode 
   return (
     <p id={id} role="alert" className="flex items-start gap-1.5 text-footnote leading-5 text-danger">
       <CircleAlert aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
-      <span>{children}</span>
+      <span className="break-keep whitespace-pre-line">{children}</span>
     </p>
   );
 }
@@ -137,7 +137,24 @@ export function NoteBox({ children, tone = 'plain' }: { children: ReactNode; ton
         tone === 'warn' ? 'border border-warn-line bg-warn-bg text-warn' : 'bg-ink/5 text-muted'
       }`}
     >
-      {children}
+      {typeof children === 'string' ? <Paras text={children} gap="mt-1" /> : children}
+    </div>
+  );
+}
+
+/**
+ * 설명 글을 문단으로(R05) — 줄바꿈(\n)마다 한 문단. 글자는 그대로 두고 문단 사이만 조금 띄운다.
+ * 한 문단 안의 줄바꿈은 브라우저가 단어 단위로 접는다(break-keep). 억지 줄바꿈 · 데스크톱 전용 줄바꿈은 쓰지 않는다.
+ */
+export function Paras({ text, className = '', gap = 'mt-1.5' }: { text: string; className?: string; gap?: string }) {
+  const parts = text.split('\n').filter((t) => t.trim() !== '');
+  return (
+    <div className={className}>
+      {parts.map((t, i) => (
+        <p key={i} className={`break-keep ${i > 0 ? gap : ''}`}>
+          {t}
+        </p>
+      ))}
     </div>
   );
 }

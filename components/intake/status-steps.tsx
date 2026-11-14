@@ -137,7 +137,7 @@ export function ReceiptStep({ state, extra }: { state: PublicIntakeState; extra?
       <p aria-live="polite" className="text-footnote leading-5 break-keep text-muted">
         {copied === 'ok' ? '링크를 복사했습니다.' : copied === 'fail' ? '복사하지 못했습니다. 주소창의 링크를 길게 눌러 복사하십시오.' : ''}
       </p>
-      <NoteBox>접수 상태와 공개된 결과는 이 링크에서 처음에 정한 이름과 PIN 을 입력해야 볼 수 있습니다. 링크는 필요한 사람에게만 전달하십시오.</NoteBox>
+      <NoteBox>{'접수 상태와 공개된 결과는 이 링크에서 처음에 정한 이름과 PIN 을 입력해야 볼 수 있습니다.\n링크는 필요한 사람에게만 전달하십시오.'}</NoteBox>
 
       {extra}
     </Screen>
@@ -172,7 +172,7 @@ export function ReconsentStep({
     <Screen
       screenKey="reconsent"
       title="바뀐 동의 내용에 동의하시나요?"
-      desc="동의 내용이 바뀌었습니다. 약관 보기에서 바뀐 내용을 확인하고 동의하면 이어서 진행됩니다. 동의하지 않으려면 링크를 보내 준 담당자에게 알리십시오."
+      desc={'동의 내용이 바뀌었습니다.\n약관 보기에서 바뀐 내용을 확인하고 동의하면 이어서 진행됩니다.\n동의하지 않으려면 링크를 보내 준 담당자에게 알리십시오.'}
       actions={
         <>
           {error && <FieldError>{error}</FieldError>}
@@ -249,7 +249,7 @@ export function RecoveryStep({
     <Screen
       screenKey="recovery"
       title="보내던 영상을 이어서 보낼까요?"
-      desc="화면을 닫으면 브라우저가 선택한 파일을 놓습니다. 같은 파일을 다시 선택하면 이어서 보낼 수 있습니다."
+      desc={'화면을 닫으면 브라우저가 선택한 파일을 놓습니다.\n같은 파일을 다시 선택하면 이어서 보낼 수 있습니다.'}
       actions={
         <>
           {tried && !hasFile && <FieldError>먼저 보낼 영상을 선택하십시오.</FieldError>}
@@ -415,7 +415,7 @@ export function CorrectionStep({
     <Screen
       screenKey="correction"
       title="요청받은 내용을 고치시겠어요?"
-      desc="요청받은 칸만 바꿀 수 있습니다. 나머지는 그대로 유지됩니다."
+      desc={'요청받은 칸만 바꿀 수 있습니다.\n나머지는 그대로 유지됩니다.'}
       actions={
         <>
           {error && <FieldError>{error}</FieldError>}

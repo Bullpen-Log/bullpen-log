@@ -6,7 +6,7 @@ import { FileFacts, VideoPreview } from '@/components/intake/file-summary';
 import { CaptureNeeds, OriginalTips } from '@/components/intake/guides';
 import { RearFrame, SideFrame } from '@/components/intake/illustrations';
 import { SIZE_HELP_TEXT, type Picked } from '@/components/intake/pick';
-import { FieldError, HelpButton, NoteBox, PrimaryButton, Screen } from '@/components/intake/shell';
+import { FieldError, HelpButton, NoteBox, Paras, PrimaryButton, Screen } from '@/components/intake/shell';
 import { FILL_BUTTON, FileButton, LINK_BUTTON, PickStatus, useFocusOnPick } from '@/components/intake/slots';
 import { formatBytes, type IntakeLimits } from '@/lib/intake/limits';
 import type { IntakeView } from '@/lib/intake/state';
@@ -36,7 +36,7 @@ export function WelcomeStep({ onStart, onCapture, onOriginal, inKakao }: { onSta
         <HelpButton onClick={onCapture}>촬영 방법 보기</HelpButton>
         <HelpButton onClick={onOriginal}>원본 영상 선택 방법</HelpButton>
       </div>
-      {inKakao && <NoteBox>카카오톡 안에서도 보낼 수 있습니다. 영상이 선택되지 않으면 Safari나 Chrome에서 이 링크를 여십시오.</NoteBox>}
+      {inKakao && <NoteBox>{'카카오톡 안에서도 보낼 수 있습니다.\n영상이 선택되지 않으면 Safari나 Chrome에서 이 링크를 여십시오.'}</NoteBox>}
     </Screen>
   );
 }
@@ -112,7 +112,13 @@ export function NameStep({
             className="py-3.5 text-subhead aria-invalid:border-danger"
           />
           {shown && <FieldError id="athlete-name-error">{shown}</FieldError>}
-          {prefilled && !shown && <p className="text-footnote leading-5 break-keep text-muted">이 링크에 들어올 때 입력한 이름을 넣어 두었습니다. 보내는 분과 선수가 다르면 선수 이름으로 고치십시오. 선수 이름을 고쳐도 이 링크에 들어올 때 쓰는 이름과 PIN 은 바뀌지 않습니다.</p>}
+          {prefilled && !shown && (
+            <Paras
+              text={'이 링크에 들어올 때 입력한 이름을 넣어 두었습니다.\n보내는 분과 선수가 다르면 선수 이름으로 고치십시오.\n선수 이름을 고쳐도 이 링크에 들어올 때 쓰는 이름과 PIN 은 바뀌지 않습니다.'}
+              gap="mt-1"
+              className="text-footnote leading-5 text-muted"
+            />
+          )}
         </div>
       </Screen>
     </form>

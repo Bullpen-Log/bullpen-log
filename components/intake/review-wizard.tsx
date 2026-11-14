@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pencil } from '@/components/icon';
 import { Input } from '@/components/ui';
 import { Choice } from '@/components/intake/choice';
-import { CheckRow, TermsDialog, consentCopyOf } from '@/components/intake/consent-block';
+import { CheckRow, ConsentSummary, TermsDialog, consentCopyOf } from '@/components/intake/consent-block';
 import { FileFacts } from '@/components/intake/file-summary';
 import { RearFrame, SideFrame } from '@/components/intake/illustrations';
 import type { Picked } from '@/components/intake/pick';
@@ -245,7 +245,7 @@ export function ReviewStep({
               />
               {shown.samePitch && <FieldError id="same-pitch-error">{shown.samePitch}</FieldError>}
             </div>
-            {apart && <NoteBox tone="warn">파일에 기록된 촬영 시각이 서로 다릅니다. 같은 투구를 동시에 촬영한 영상인지 다시 확인하십시오.</NoteBox>}
+            {apart && <NoteBox tone="warn">{'파일에 기록된 촬영 시각이 서로 다릅니다.\n같은 투구를 동시에 촬영한 영상인지 다시 확인하십시오.'}</NoteBox>}
           </Screen>
         );
       case 'age':
@@ -260,7 +260,7 @@ export function ReviewStep({
               </div>
               {shown.age && <FieldError id="age-error">{shown.age}</FieldError>}
             </fieldset>
-            {underFourteen && <NoteBox tone="warn">만 14세 미만 선수의 영상은 아직 받을 수 없습니다. 이대로 계속하면 입력한 이름은 지워집니다.</NoteBox>}
+            {underFourteen && <NoteBox tone="warn">{'만 14세 미만 선수의 영상은 아직 받을 수 없습니다.\n이대로 계속하면 입력한 이름은 지워집니다.'}</NoteBox>}
           </Screen>
         );
       case 'relation':
@@ -288,7 +288,7 @@ export function ReviewStep({
         );
       case 'hand':
         return (
-          <Screen {...common} title="던지는 손은 어느 쪽인가요?" desc="선택 항목입니다. 고르지 않아도 보낼 수 있습니다. 결과를 만들 때 담당자가 확인합니다.">
+          <Screen {...common} title="던지는 손은 어느 쪽인가요?" desc={'선택 항목입니다. 고르지 않아도 보낼 수 있습니다.\n결과를 만들 때 담당자가 확인합니다.'}>
             {counter}
             <fieldset className="space-y-2">
               <legend className="sr-only">던지는 손(선택)</legend>
@@ -382,7 +382,7 @@ export function ReviewStep({
                   약관 보기
                 </HelpButton>
               </div>
-              {copy.summary && <p className="text-footnote leading-5 break-keep text-muted">{copy.summary}</p>}
+              {copy.summary && <ConsentSummary text={copy.summary} />}
               <CheckRow
                 id={checkId}
                 checked={form.agreed[doc.kind] === true}

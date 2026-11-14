@@ -155,7 +155,7 @@ export function SlotCard({
                   : '아직 선택하지 않았습니다.'}
         </p>
       )}
-      {note && <p className="mt-2 text-footnote leading-5 break-keep text-muted">{note}</p>}
+      {note && <p className="mt-2 text-footnote leading-5 break-keep whitespace-pre-line text-muted">{note}</p>}
       {error && (
         <div className="mt-2">
           <FieldError id={errorId}>{error}</FieldError>

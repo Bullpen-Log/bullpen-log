@@ -200,7 +200,8 @@ function ResultPhase({
     <form onSubmit={submit} noValidate className="mx-auto w-full max-w-[32.5rem] space-y-5 px-5 py-12">
       <div className="space-y-2">
         <h2 className="text-2xl font-bold text-ink">접근 코드는 무엇인가요?</h2>
-        <p className="text-sm text-muted break-keep">이 결과는 접근 코드를 아는 사람만 볼 수 있습니다. 링크를 보내 준 담당자에게 코드를 받으십시오.</p>
+        <p className="text-sm leading-relaxed text-muted break-keep">이 결과는 접근 코드를 아는 사람만 볼 수 있습니다.</p>
+        <p className="text-sm leading-relaxed text-muted break-keep">링크를 보내 준 담당자에게 코드를 받으십시오.</p>
       </div>
       <div className="space-y-2">
         <label htmlFor="intake-access-code" className="block text-sm font-medium text-ink">
@@ -289,11 +290,16 @@ export function ResultBody({ result, preview = false, onReadyChange }: { result:
           )}
           <section className="space-y-2">
             <h2 className="text-base font-semibold text-ink">보는 방법</h2>
-            <p className="text-sm leading-6 text-muted break-keep">
-              화면을 끌면 돌아갑니다. 두 손가락으로 벌리거나 Ctrl 을 누른 채 휠을 굴리면 크게 볼 수 있습니다. 니업, 착지, 릴리스를 누르면 그 순간으로 이동합니다.
-            </p>
+            <ul className="space-y-1.5 text-sm leading-6 text-muted break-keep">
+              <li>화면을 끌면 돌아갑니다.</li>
+              <li>두 손가락으로 벌리거나 Ctrl 을 누른 채 휠을 굴리면 크게 볼 수 있습니다.</li>
+              <li>니업, 착지, 릴리스를 누르면 그 순간으로 이동합니다.</li>
+            </ul>
           </section>
-          <p className="text-xs leading-5 text-muted break-keep">이 화면은 이 링크와 처음에 정한 이름 · PIN 이 함께 있어야 열립니다. 링크와 PIN 은 믿을 수 있는 사람에게만 전달하십시오.</p>
+          <div className="space-y-1 text-footnote leading-5 text-muted break-keep">
+            <p>이 화면은 이 링크와 처음에 정한 이름 · PIN 이 함께 있어야 열립니다.</p>
+            <p>링크와 PIN 은 믿을 수 있는 사람에게만 전달하십시오.</p>
+          </div>
         </aside>
       </div>
     </article>

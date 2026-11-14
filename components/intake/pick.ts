@@ -40,8 +40,8 @@ export async function hashOnce(file: Blob, onProgress?: (done: number, total: nu
  * 고르기 전 안내(guided-steps)와 같은 말을 쓴다.
  */
 export const SIZE_HELP_TEXT = '원본을 줄이거나 다시 만들지 마십시오. 링크를 보내 준 담당자에게 알리면 따로 받는 방법을 안내합니다.';
-export const overFileText = (limits: IntakeLimits) => `영상 하나는 ${formatBytes(limits.maxFileBytes)}까지 보낼 수 있습니다. ${SIZE_HELP_TEXT}`;
-export const overTotalText = (limits: IntakeLimits) => `두 영상을 합쳐 ${formatBytes(limits.maxTotalBytes)}까지 보낼 수 있습니다. ${SIZE_HELP_TEXT}`;
+export const overFileText = (limits: IntakeLimits) => `영상 하나는 ${formatBytes(limits.maxFileBytes)}까지 보낼 수 있습니다.\n${SIZE_HELP_TEXT}`;
+export const overTotalText = (limits: IntakeLimits) => `두 영상을 합쳐 ${formatBytes(limits.maxTotalBytes)}까지 보낼 수 있습니다.\n${SIZE_HELP_TEXT}`;
 
 const UNREADABLE = '파일을 읽지 못했습니다. iCloud에 있는 영상이면 내려받기가 끝난 뒤 다시 선택하십시오.';
 

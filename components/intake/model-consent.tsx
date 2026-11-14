@@ -21,7 +21,7 @@ export function ModelConsentPart({ granted, onWithdraw }: { granted: boolean; on
   return (
     <details className="rounded-2xl bg-surface px-(--block-pad) py-1 text-sm">
       <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-ink">모델 개발 이용 동의</summary>
-      <p className="pb-2 text-footnote leading-5 break-keep text-muted">동의를 거두면 앞으로 모델 개발에 쓰지 않습니다. 이 동의만 거두며 다른 내용은 바뀌지 않습니다.</p>
+      <p className="pb-2 text-footnote leading-5 break-keep whitespace-pre-line text-muted">동의를 거두면 앞으로 모델 개발에 쓰지 않습니다.{'\n'}이 동의만 거두며 다른 내용은 바뀌지 않습니다.</p>
       {phase === 'failed' && <FieldError>거두지 못했습니다. 다시 시도하십시오.</FieldError>}
       <div className="pb-2">
         <SecondaryButton

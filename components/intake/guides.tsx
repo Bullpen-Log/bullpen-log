@@ -5,6 +5,7 @@ import { CircleCheck, CircleAlert } from '@/components/icon';
 import { Modal } from '@/components/modal';
 import { Segmented } from '@/components/segmented';
 import { ClothesArt, PlacementMap, RearFrame, SideFrame } from '@/components/intake/illustrations';
+import { Paras } from '@/components/intake/shell';
 
 /*
  * 접수 전용 안내(INTAKE-MAIN/R04). 3D 동작 분석 안내(lib/pitch-lab-guide.ts)의 그림은 빌려 쓰지만 글은 여기 따로 둔다 —
@@ -28,7 +29,7 @@ export const CAPTURE_REQUIRED = [
 export const CAPTURE_PREFERRED = ['슬로 모션 1080p 240fps(그 폰에서 고를 수 있을 때)', '배율 1× 그대로'] as const;
 
 /** 120fps 를 지키지 못한 파일을 고치는 방법이 없다는 말 — 고르기 전 · 고를 때 같은 글을 쓴다 */
-export const RATE_CANNOT_FIX = '120fps 미만으로 촬영한 영상은 재생 속도를 바꾸거나 다른 형식으로 내보내도 촬영되지 않은 장면이 생기지 않습니다. 카메라 원본을 선택하거나 120fps 이상으로 다시 촬영하십시오.';
+export const RATE_CANNOT_FIX = '120fps 미만으로 촬영한 영상은 재생 속도를 바꾸거나 다른 형식으로 내보내도 촬영되지 않은 장면이 생기지 않습니다.\n카메라 원본을 선택하거나 120fps 이상으로 다시 촬영하십시오.';
 
 /** 찍기 전에 볼 두 묶음 — 첫 화면 · 촬영 방법에 같이 둔다 */
 export function CaptureNeeds() {
@@ -66,6 +67,14 @@ const NOT_ORIGINAL = '메신저나 메일로 받은 영상, 화면 녹화, 자�
 /** 메뉴 이름은 기기 · 버전마다 다르다 — 모든 기기로 확인한 말이 아니다 */
 const MENU_NOTE = '메뉴 이름과 위치는 기기, 운영체제 버전, 공유 대상에 따라 다를 수 있습니다.';
 
+/** 고르기 곁에 두는 아이폰 옮기기 차례 — 자세한 것(형식 · 편집 정보 파일)은 '원본 영상 선택 방법' 창이 말한다 */
+const IPHONE_QUICK = [
+  '사진 앱에서 영상을 선택합니다.',
+  '공유 › 옵션에서 ‘모든 사진 데이터’를 켭니다.',
+  'AirDrop 으로 컴퓨터에 보냅니다.',
+  '컴퓨터에서 이 링크를 열고 원본 영상 파일을 선택합니다.',
+] as const;
+
 /** 고르기 곁의 짧은 안내 — 자세한 것은 '원본 영상 선택 방법' 창이 맡는다 */
 export function OriginalTips() {
   return (
@@ -77,14 +86,14 @@ export function OriginalTips() {
         </li>
         <li className="flex gap-2">
           <span aria-hidden className="mt-2 h-1 w-1 shrink-0 rounded-full bg-muted" />
-          <span>아이폰: 사진 앱 › 영상 선택 › 공유 › 옵션 › ‘모든 사진 데이터’를 켜고 컴퓨터로 AirDrop 한 뒤, 컴퓨터에서 이 링크로 원본 영상 파일을 선택합니다.</span>
-        </li>
-        <li className="flex gap-2">
-          <span aria-hidden className="mt-2 h-1 w-1 shrink-0 rounded-full bg-muted" />
           <span>iCloud에 있는 영상은 내려받기가 끝난 뒤 선택합니다.</span>
         </li>
       </ul>
-      <p className="flex items-start gap-1.5 text-footnote leading-5 break-keep text-warn">
+      <div className="space-y-1.5 border-t border-line pt-2">
+        <p className="text-footnote leading-5 font-semibold text-ink">아이폰 원본 옮기기</p>
+        <Steps items={IPHONE_QUICK} small />
+      </div>
+      <p className="flex items-start gap-1.5 border-t border-line pt-2 text-footnote leading-5 break-keep text-warn">
         <CircleAlert aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
         <span>{NOT_ORIGINAL}</span>
       </p>
@@ -92,32 +101,56 @@ export function OriginalTips() {
   );
 }
 
+/**
+ * 목록 한 칸의 글 — '\n' 마다 한 문단. 차례 칸(note)은 첫 줄이 할 일이고 뒤는 그 칸의 덧붙임이라 조금 흐리게 · 작게,
+ * 점 목록 칸은 뒤 문단도 같은 크기로 띄우기만 한다. 칸 사이는 목록 간격이 띄운다.
+ */
+function ItemText({ text, note = false }: { text: string; note?: boolean }) {
+  const [main, ...more] = text.split('\n');
+  return (
+    <div className="min-w-0">
+      <p>{main}</p>
+      {more.map((m) => (
+        <p key={m} className={note ? 'mt-0.5 text-footnote leading-5 text-muted' : 'mt-1'}>
+          {m}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 function Points({ items }: { items: readonly string[] }) {
   return (
-    <ul className="space-y-1.5 text-sm leading-relaxed break-keep text-ink">
+    <ul className="space-y-2 text-sm leading-relaxed break-keep text-ink">
       {items.map((t) => (
         <li key={t} className="flex gap-2">
           <span aria-hidden className="mt-2.5 h-1 w-1 shrink-0 rounded-full bg-muted" />
-          <span>{t}</span>
+          <ItemText text={t} />
         </li>
       ))}
     </ul>
   );
 }
 
-function Steps({ items }: { items: readonly string[] }) {
+/** 차례대로 하는 일 — 실제 번호 목록(<ol>), 칸마다 한 동작. small 은 고르기 곁의 짧은 상자에서 */
+function Steps({ items, small = false }: { items: readonly string[]; small?: boolean }) {
   return (
-    <ol className="space-y-2 text-sm leading-relaxed break-keep text-ink">
+    <ol className={`${small ? 'space-y-1 text-footnote leading-5' : 'space-y-2.5 text-sm leading-relaxed'} break-keep text-ink`}>
       {items.map((t, i) => (
         <li key={t} className="flex gap-2.5">
-          <span aria-hidden className="text-numeric mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sky/15 text-[0.6875rem] text-sky-strong">
+          <span aria-hidden className="text-numeric mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sky/15 text-xs text-sky-strong">
             {i + 1}
           </span>
-          <span>{t}</span>
+          <ItemText text={t} note />
         </li>
       ))}
     </ol>
   );
+}
+
+/** 섹션 안의 설명 문단 — '\n' 마다 한 문단 */
+function Note({ text, tone = 'muted' }: { text: string; tone?: 'muted' | 'ink' }) {
+  return <Paras text={text} gap="mt-1.5" className={`text-footnote leading-5 ${tone === 'ink' ? 'text-ink' : 'text-muted'}`} />;
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -136,9 +169,10 @@ export function CaptureGuide({ open, onClose }: { open: boolean; onClose: () => 
     <Modal open={open} onClose={onClose} title="촬영 방법">
       <div className="space-y-6 pb-2">
         <Section title="같은 투구를 두 대로 동시에 촬영합니다">
-          <p className="text-sm leading-relaxed break-keep text-muted">
-            3D 동작 결과는 한 번의 투구를 옆과 뒤에서 동시에 촬영한 영상 두 개로 만듭니다. 따로 촬영한 두 영상으로는 만들 수 없습니다.
-          </p>
+          <Paras
+            text={'3D 동작 결과는 한 번의 투구를 옆과 뒤에서 동시에 촬영한 영상 두 개로 만듭니다.\n따로 촬영한 두 영상으로는 만들 수 없습니다.'}
+            className="text-sm leading-relaxed text-muted"
+          />
           <Segmented
             label="던지는 손"
             value={hand}
@@ -165,15 +199,18 @@ export function CaptureGuide({ open, onClose }: { open: boolean; onClose: () => 
         </Section>
 
         <Section title="폰 설정 — 슬로 모션 120fps 이상">
+          <p className="text-sm font-semibold text-ink">아이폰</p>
           <Steps
             items={[
-              '아이폰: 설정 › 카메라 › 슬로 모션 녹화에서 1080p 240fps(없으면 120fps)를 고릅니다.',
-              '카메라 앱을 ‘슬로 모션’으로 넘깁니다. 일반 ‘비디오’ 모드는 30 · 60fps 라 받지 않습니다.',
-              '배율은 1× 그대로 둡니다. 화면에서 투수를 길게 눌러 밝기 · 초점을 고정합니다.',
-              '갤럭시: 카메라 › 더보기 › 슬로우 모션을 고르고 배율 1배로 촬영합니다.',
+              '설정 › 카메라 › 슬로 모션 녹화에서 1080p 240fps(없으면 120fps)를 고릅니다.',
+              '카메라 앱을 ‘슬로 모션’으로 넘깁니다.\n일반 ‘비디오’ 모드는 30 · 60fps 라 받지 않습니다.',
+              '배율은 1× 그대로 둡니다.',
+              '화면에서 투수를 길게 눌러 밝기 · 초점을 고정합니다.',
             ]}
           />
-          <p className="text-footnote leading-5 break-keep text-muted">{RATE_CANNOT_FIX}</p>
+          <p className="pt-1 text-sm font-semibold text-ink">갤럭시</p>
+          <Steps items={['카메라 › 더보기 › 슬로우 모션을 고릅니다.', '배율 1배로 촬영합니다.']} />
+          <Note text={RATE_CANNOT_FIX} />
         </Section>
 
         <Section title="폰 놓는 자리">
@@ -199,11 +236,11 @@ export function CaptureGuide({ open, onClose }: { open: boolean; onClose: () => 
           />
         </Section>
         <Section title="헐렁한 옷은 쓸 수 없습니다">
-          <p className="text-sm leading-relaxed break-keep text-muted">후드 · 바람막이 · 통 넓은 바지는 관절을 가려 3D 결과가 어긋납니다. 몸에 붙는 옷을 입고 겉옷은 벗습니다.</p>
+          <Paras text={'후드 · 바람막이 · 통 넓은 바지는 관절을 가려 3D 결과가 어긋납니다.\n몸에 붙는 옷을 입고 겉옷은 벗습니다.'} className="text-sm leading-relaxed text-muted" />
           <ClothesArt className="mx-auto max-w-[18rem]" />
         </Section>
         <Section title="촬영 순서">
-          <Steps items={['두 폰 모두 던지기 2초 전에 녹화를 시작하고, 팔로스루 1초 뒤에 멈춥니다.', '한 투구에 영상 하나씩, 두 폰이 같은 투구를 촬영합니다.']} />
+          <Steps items={['두 폰 모두 던지기 2초 전에 녹화를 시작합니다.', '팔로스루 1초 뒤에 두 폰 모두 녹화를 멈춥니다.', '한 투구에 영상 하나씩, 두 폰이 같은 투구를 촬영합니다.']} />
         </Section>
       </div>
     </Modal>
@@ -220,51 +257,56 @@ export function OriginalGuide({ open, onClose }: { open: boolean; onClose: () =>
   return (
     <Modal open={open} onClose={onClose} title="원본 영상 선택 방법">
       <div className="space-y-6 pb-2">
-        <p className="text-sm leading-relaxed break-keep text-muted">
-          이 화면은 선택한 파일을 바꾸지 않고 그대로 보냅니다. 다만 사진 선택 창이 어떤 파일을 내주는지는 이 화면이 정할 수 없습니다. 아래 방법으로 원본 파일을 준비하십시오.
-        </p>
+        <Paras
+          text={'이 화면은 선택한 파일을 바꾸지 않고 그대로 보냅니다.\n다만 사진 선택 창이 어떤 파일을 내주는지는 이 화면이 정할 수 없습니다. 아래 방법으로 원본 파일을 준비하십시오.'}
+          className="text-sm leading-relaxed text-muted"
+        />
 
         <Section title="아이폰 → 컴퓨터(AirDrop) — 권장">
           <Steps
             items={[
               '사진 앱에서 영상을 선택합니다.',
-              '공유를 누르고, 위쪽의 ‘옵션’을 누릅니다.',
-              '‘모든 사진 데이터’(All Photos Data)를 켭니다. 목록 아래쪽에 있습니다. 형식을 고르는 칸이 있으면 ‘현재’(Current)를 고릅니다.',
+              '공유를 누릅니다.',
+              '위쪽의 ‘옵션’을 누릅니다.',
+              '‘모든 사진 데이터’(All Photos Data)를 켭니다.\n목록 아래쪽에 있습니다.',
+              '형식을 고르는 칸이 있으면 ‘현재’(Current)를 고릅니다.',
               '‘완료’를 누른 뒤 AirDrop 으로 Mac 에 보냅니다.',
-              'Mac 의 다운로드 폴더에 받은 파일 가운데 원본 영상 파일(.MOV)을 확인합니다. 함께 받은 편집 정보 파일(.AAE)이나 편집본은 보내지 않습니다.',
-              'Mac 의 브라우저에서 이 링크를 열고 같은 이름과 PIN 으로 들어가 그 원본 파일을 선택합니다.',
+              'Mac 의 다운로드 폴더에 받은 파일 가운데 원본 영상 파일(.MOV)을 확인합니다.\n함께 받은 편집 정보 파일(.AAE)이나 편집본은 보내지 않습니다.',
+              'Mac 의 브라우저에서 이 링크를 열고 같은 이름과 PIN 으로 들어갑니다.',
+              '그 원본 파일을 선택합니다.',
             ]}
           />
-          <p className="text-footnote leading-5 break-keep text-muted">
-            ‘모든 사진 데이터’를 켜면 원본 파일과 촬영 정보 · 편집 정보가 함께 전달됩니다. ‘현재’ 형식을 고르면 호환 형식으로 바꾸지 않고 지금 형식 그대로 전달됩니다.
-          </p>
+          <Note text={'‘모든 사진 데이터’를 켜면 원본 파일과 촬영 정보 · 편집 정보가 함께 전달됩니다.\n‘현재’ 형식을 고르면 호환 형식으로 바꾸지 않고 지금 형식 그대로 전달됩니다.'} />
         </Section>
 
         <Section title="아이폰에서 바로 보내기">
           <Steps
             items={[
               '사진 앱에서 영상을 선택하고 공유를 누릅니다.',
-              '목록에 ‘수정되지 않은 원본 내보내기’(Export Unmodified Original)가 있으면 누르고, ‘위치’에서 저장할 곳을 골라 저장합니다.',
+              '목록에 ‘수정되지 않은 원본 내보내기’(Export Unmodified Original)가 있으면 누릅니다.',
+              '‘위치’에서 저장할 곳을 골라 저장합니다.',
               '이 화면의 영상 선택에서 사진 보관함이 아니라 ‘파일 선택’으로 저장한 파일을 고릅니다.',
             ]}
           />
-          <p className="text-footnote leading-5 break-keep text-muted">
-            Apple 안내는 저장할 곳으로 연결한 외장 저장장치를 예로 듭니다. 아이폰 안의 파일 앱 위치가 보이는지, 이 메뉴가 있는지는 iOS 버전과 기기에 따라 다를 수 있습니다. 보이지 않으면 위의 컴퓨터 방법을 사용하십시오. 사진 보관함에서 바로 고르면 아이폰이 호환 형식으로 바꾼 파일을 줄 수 있습니다.
-          </p>
+          <Note
+            text={
+              'Apple 안내는 저장할 곳으로 연결한 외장 저장장치를 예로 듭니다. 아이폰 안의 파일 앱 위치가 보이는지, 이 메뉴가 있는지는 iOS 버전과 기기에 따라 다를 수 있습니다.\n보이지 않으면 위의 컴퓨터 방법을 사용하십시오.\n사진 보관함에서 바로 고르면 아이폰이 호환 형식으로 바꾼 파일을 줄 수 있습니다.'
+            }
+          />
         </Section>
 
         <Section title="‘모든 사진 데이터’에 대해">
           <Points
             items={[
               '이 설정은 아이폰의 공유 메뉴에 있으며, 이 웹페이지가 켜거나 끌 수 없습니다.',
-              '공유 대상에 따라 설정이 보이지 않거나 적용되지 않을 수 있습니다. 이 설정을 켰다고 해서 다른 앱이나 웹페이지의 선택 창이 늘 원본을 내준다는 뜻은 아닙니다.',
+              '공유 대상에 따라 설정이 보이지 않거나 적용되지 않을 수 있습니다.\n이 설정을 켰다고 해서 다른 앱이나 웹페이지의 선택 창이 늘 원본을 내준다는 뜻은 아닙니다.',
               MENU_NOTE,
             ]}
           />
         </Section>
 
         <Section title="iCloud에 있는 영상">
-          <p className="text-sm leading-relaxed break-keep text-ink">기기에 내려받는 데 시간이 걸립니다. 선택 후 오래 멈춰 있으면 내려받기가 끝난 뒤 다시 선택하십시오.</p>
+          <Paras text={'기기에 내려받는 데 시간이 걸립니다.\n선택 후 오래 멈춰 있으면 내려받기가 끝난 뒤 다시 선택하십시오.'} className="text-sm leading-relaxed text-ink" />
         </Section>
 
         <Section title="안드로이드 · 컴퓨터">
@@ -273,14 +315,14 @@ export function OriginalGuide({ open, onClose }: { open: boolean; onClose: () =>
 
         <Section title="보내면 안 되는 파일">
           <Points items={['메신저나 메일로 주고받은 영상(줄어들거나 다시 만들어집니다)', '화면 녹화로 다시 촬영한 영상', '자르거나 고친 영상, 30 · 60fps 로 내보낸 슬로 모션', '원본을 줄이거나 형식을 바꾼 영상']} />
-          <p className="text-footnote leading-5 break-keep text-muted">영상이 커서 보낼 수 없으면 줄이지 말고 링크를 보내 준 담당자에게 알리십시오. 따로 받는 방법을 안내합니다.</p>
+          <Note text={'영상이 커서 보낼 수 없으면 줄이지 말고 링크를 보내 준 담당자에게 알리십시오.\n따로 받는 방법을 안내합니다.'} />
         </Section>
 
         <Section title="화면에 보이는 말의 뜻">
           <Points
             items={[
-              '‘240fps 감지’는 파일에 기록된 정보입니다. 카메라 원본이라는 증명은 아닙니다.',
-              '‘선택한 파일 그대로 전송됨’은 선택한 파일이 한 바이트도 바뀌지 않고 도착했다는 뜻입니다. 서버가 전체를 비교한 뒤에만 표시됩니다. 사진 선택 창이 처음에 어떤 파일을 내주었는지는 이 표시로 알 수 없습니다.',
+              '‘240fps 감지’는 파일에 기록된 정보입니다.\n카메라 원본이라는 증명은 아닙니다.',
+              '‘선택한 파일 그대로 전송됨’은 선택한 파일이 한 바이트도 바뀌지 않고 도착했다는 뜻입니다.\n서버가 전체를 비교한 뒤에만 표시됩니다. 사진 선택 창이 처음에 어떤 파일을 내주었는지는 이 표시로 알 수 없습니다.',
             ]}
           />
         </Section>
