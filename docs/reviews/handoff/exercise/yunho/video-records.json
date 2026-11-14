@@ -2440,6 +2440,33 @@
         {
           "status": "Updated and read back stop-condition wording in library: prescribed repetitions remain target; listed form or speed issue during exercise stops current set.",
           "at_utc": "2026-11-13T11:16:04.689296+00:00"
+        },
+        {
+          "at_utc": "2026-11-14T04:09:46.419248+00:00",
+          "status": "Saved and read back; user review pending.",
+          "before_after": "Step 4 몸을 받습니다 → 팔꿈치를 부드럽게 굽혀 충격을 조절; stable landing and fast transition clarified. Step 5 conditions joined by or. Purpose 훈련에 활용할 수 있습니다 → 상체가 빠르게 힘을 내는 능력을 기르는 데 도움이 됩니다.",
+          "metadata_unchanged": {
+            "target": [
+              "어깨",
+              "가슴",
+              "삼두"
+            ],
+            "intensity": "중간",
+            "difficulty": "초급",
+            "equipment": [
+              "벤치"
+            ],
+            "sets": 3,
+            "reps": 5,
+            "rest_seconds": 90,
+            "hold_seconds": null,
+            "per_side": false
+          },
+          "limits": "Intensity/difficulty are provisional categories and vary by bench height and athlete. 3x5/90s not proven optimal; extend rest if quality drops. Full video editing review pending.",
+          "sources": [
+            "https://pubmed.ncbi.nlm.nih.gov/21873902/",
+            "https://pubmed.ncbi.nlm.nih.gov/37833510/"
+          ]
         }
       ]
     },
