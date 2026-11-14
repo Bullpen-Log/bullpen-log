@@ -735,7 +735,7 @@
   "pitching_direction_rule": "For similar pitching-direction drills explain perform in user pitching rotation direction; review each movement and distinguish bilateral training before changing settings.",
   "latest_resume": {
     "current": "EX-Y-P-018",
-    "status": "P017 next authorized; regrouped full 203 visible assigned-category items into ordered groups; P018 description saved, settings retained; own video user review pending. Next unreviewed: 밴드 보조 플라이오 푸시업. No advance without user instruction."
+    "status": "User requested reshoot due to another person visible; next authorized, moving to band-assisted plyo push-up. Existing video retained."
   },
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
@@ -986,5 +986,13 @@
       "armcare": 89,
       "recovery": 19
     }
-  }
+  },
+  "reshoot_required": [
+    {
+      "review_id": "EX-Y-P-018",
+      "title": "인클라인 플라이오 푸시업",
+      "reason": "다른 사람이 영상에 비침",
+      "status": "촬영 대기"
+    }
+  ]
 }

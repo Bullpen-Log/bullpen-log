@@ -2472,7 +2472,23 @@
     },
     "historical_unresolved_before_application": [
       "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
-    ]
+    ],
+    "user_decisions": [
+      {
+        "at_utc": "2026-11-14T04:33:46.609021+00:00",
+        "verbatim": "이 영상 나중에 재촬영 필요하다고 적어줘 사유는 다른 사람이 비침으로 다음으로 가자",
+        "decision": "재촬영 필요",
+        "reason": "다른 사람이 영상에 비침",
+        "status": "촬영 대기; 기존 영상은 보존",
+        "next_authorized": true
+      }
+    ],
+    "reshoot_required": {
+      "needed": true,
+      "reason": "다른 사람이 영상에 비침",
+      "reported_by": "user",
+      "status": "촬영 대기"
+    }
   },
   {
     "review_id": "EX-Y-P-019",
