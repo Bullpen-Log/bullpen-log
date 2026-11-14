@@ -42,3 +42,9 @@ Verified in browser: initial input focus does not open a keyboard automatically;
 ## Release handoff
 
 Main GPT must independently review and integrate this scoped source commit in isolation, address the unrelated baseline build failure using the appropriate current source, deploy under the existing user release authorization and verify the live assets. A completed local implementation is not itself a production deployment.
+
+## Final integration corrections
+
+Main review caught an implementation error in the public result view: a formatting cleanup had replaced the `Phase` type declaration with a second `Answer` declaration. This was corrected by comparing all nine top-level type/interface declarations in modified UI files with the preserved pre-format source. Only this one declaration differed. The complete corrected `tsc` output was inspected: the remaining diagnostic is solely the unrelated generated `recordingsHref` route-export error described above. Admin detail regression checks still pass (407); result-view lint passes. The earlier statement that all type errors were baseline was premature and is superseded by this audit.
+
+The final CSS follow-up reduces base input-selector specificity using `:where(...)`. A browser check confirmed the invalid input's red border (`rgb(185,28,28)`), blue focus outline (`rgb(10,132,214)`) and 52px height. The temporary validation servers were stopped; the actual feature dev server remains on port 3001.

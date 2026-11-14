@@ -20,7 +20,11 @@ const Body3D = dynamic(() => import('@/app/(app)/videos/lab/[id]/body-3d').then(
   loading: () => <p className="grid aspect-[4/5] max-h-[60vh] w-full place-items-center text-sm text-[#c7cfdd]">3D 화면을 준비하는 중입니다.</p>,
 });
 
-type Answer = { ok: true; result: PublicResult } | { ok: false; code: string; message: string; retryAfterSec: number | null };
+type Phase =
+  | { kind: 'loading' }
+  | { kind: 'code'; error: string | null; busy: boolean }
+  | { kind: 'ready'; result: PublicResult }
+  | { kind: 'blocked'; text: string; retry: boolean };
 
 function dateText(key: string): string {
   const [y, m, d] = key.split('-').map(Number);
