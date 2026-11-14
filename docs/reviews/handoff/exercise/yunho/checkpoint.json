@@ -13,17 +13,17 @@
     "암케어",
     "회복 및 보강"
   ],
-  "current_review_id": "EX-Y-NEW-BAND-SPEED-BENCH",
-  "current_title": "밴드 스피드 벤치 프레스",
+  "current_review_id": "EX-Y-P-001",
+  "current_title": "랜드마인 회전 펀치",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": {
-    "meaning": "사용자가 밴드 보조 플라이오 푸시업에서 다음으로 이동 지시; 미확인 사항 보존, 전체 승인 아님",
     "user_verbatim": "다음",
-    "at_utc": "2026-11-14T09:37:04.638229+00:00"
+    "at_utc": "2026-11-14T09:48:31.997275+00:00",
+    "meaning": "밴드 스피드 벤치 프레스에서 다음 운동으로 이동 승인"
   },
   "next_after_approval": {
-    "status": "현재 밴드 스피드 벤치 프레스; 전체 검수와 사용자 판단 대기. 사용자 다음 지시까지 이동하지 않음."
+    "status": "랜드마인 회전 펀치 현재 회차 검수 및 사용자 판단 대기; 다음 지시까지 유지."
   },
   "order": {
     "basis": "이 대화에서 관찰한 파워57개 라이브러리 순서. 재개 시 실제 목록 변경 여부 대조; 새로 검수한 목록 아님.",
@@ -657,12 +657,19 @@
       "at_utc": "2026-11-14T09:37:04.638229+00:00",
       "unresolved": "밴드 위치 및 전체 영상·편집 미검증 보존",
       "next": "EX-Y-NEW-BAND-SPEED-BENCH"
+    },
+    {
+      "previous_current": "EX-Y-NEW-BAND-SPEED-BENCH",
+      "decision": "사용자 원문: 다음",
+      "at_utc": "2026-11-14T09:48:31.997275+00:00",
+      "next": "EX-Y-P-001",
+      "unresolved": "전체 영상·편집, 다른 기기 확인 및 바닥 대안의 장비 조건 보류"
     }
   ],
   "reverification": {
     "pass": "full metadata and dose review",
-    "completed_count": 18,
-    "current": 19,
+    "completed_count": 19,
+    "current": 20,
     "approved_items": [
       "EX-Y-P-007",
       "EX-Y-P-002",
@@ -681,7 +688,8 @@
       "EX-Y-P-016",
       "EX-Y-P-017",
       "EX-Y-P-018",
-      "EX-Y-NEW-BAND-ASSIST-PLYOPUSHUP"
+      "EX-Y-NEW-BAND-ASSIST-PLYOPUSHUP",
+      "EX-Y-NEW-BAND-SPEED-BENCH"
     ],
     "order": "Cable first; next only on human approval",
     "approval_interpretation": "approved_items means explicit next/movement approvals in this pass, not unconditional approval of all descriptions, doses, footage, or legal review."
@@ -744,8 +752,8 @@
   "reporting_preference": "Show before and after of each change and distinguish previous sessions from current edits.",
   "pitching_direction_rule": "For similar pitching-direction drills explain perform in user pitching rotation direction; review each movement and distinguish bilateral training before changing settings.",
   "latest_resume": {
-    "current": "EX-Y-NEW-BAND-SPEED-BENCH",
-    "status": "밴드 스피드 벤치 프레스 재생 확인; 영상·설정별 독립 검수 및 사용자 판단 대기. 밴드 보조 푸시업 미확인 사항 보존."
+    "current": "EX-Y-P-001",
+    "status": "첫 상체 밀기 묶음에서 이번 회차 이동 승인이 없는 랜드마인 회전 펀치. 기존 영상 및 판정 보존, 실제 화면 재확인 대기."
   },
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
