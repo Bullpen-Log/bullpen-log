@@ -2,19 +2,19 @@
 
 ## Status and ownership
 
-- Revision: v1, 14 November 2026 (Asia/Seoul).
-- Status: investigation and implementation-order draft prepared; NOT dispatched and NOT implementation approval.
+- Revision: v2, 14 November 2026 (Asia/Seoul). v2 assigns immediate web implementation to MacBook Claude 05 under the user's direct instruction.
+- Status: implementation order dispatched to MacBook Claude 05; receipt and investigation start observed in the Claude UI. Phases A/B and evidence-backed, in-scope C fixes are authorized now. Native Phase D and the proposed unknown-rate upload behavior require a separate scoped decision.
 - Requested deliverable: the user asked for root-cause analysis, a correction plan, and a detailed English implementation prompt after a reported 240fps upload failure.
 - GPT design/review owner: MacBook video-sharing support session `01a1c31b-e186-76c2-bc94-3f61553b3506`.
-- Implementation owner: the existing Mac mini intake Claude owner, to be confirmed by the Mac mini GPT lead before assignment. Do not start a duplicate MacBook implementation.
+- Implementation owner: `맥북 · 05 · 영상 공유 · Claude`, session `local_9ce3d4e4-ff2b-4f88-bb3d-bd109907f9b1`. User directly instructed this GPT to hand over the order and have this MacBook Claude start immediately. Existing Mac mini ownership outside this scoped correction is preserved; coordinate overlapping edits rather than duplicating them.
 - Final design/integration/review owner: the existing Mac mini GPT overall lead and its video-sharing GPT.
 - Source inspected: `/Users/yuno/Developer/bullpen-log`, `main`, HEAD `e58bc55fc3d8cff1232d8e09f201b217ad90122d`; includes intake R04/R06 and handoff `bfd82a2a`.
-- Product changes in this investigation: none. Deployment/DB authorization: none. Original incident file: not supplied; the supplied file is a screen recording of the incident, not the selected camera video.
+- Authorization: the latest direct user instruction is “맥북 클로드 영상 공유 담당에게 넘겨서 바로 작업지시해.” This authorizes this correction's local web implementation, appropriate isolated checks, and delivery for GPT review. Product changes at dispatch: none. Deployment/DB authorization: none. Original incident file: not supplied; the supplied file is a screen recording of the incident, not the selected camera video.
 - Existing unrelated local changes: AGENTS, exercise-video player/review records, market dummy and desktop design work. Preserve them.
 
 ## English implementation prompt
 
-You are the existing Claude implementation owner of Sinker external video intake. Implement this order only after the Mac mini lead has confirmed assignment, the current revision, and the authorized phases. Read AGENTS.md, CLAUDE.md, docs/WORKFLOW.md, docs/SESSION_COORDINATION.md, the latest HANDOFF, and this entire order. Run session-guard check with your real session ID, reread current source/diffs, and claim exact files before editing. Read the relevant installed Next.js guide before changing Next.js code. Preserve other sessions' work and the existing intake implementation. This draft is not permission to deploy, change the shared production DB, install dependencies, or launch native builds.
+You are MacBook Claude 05, assigned directly by the user to implement this scoped Sinker intake correction now. The previous preparation-only restriction and the v1 draft waiting-for-assignment text are superseded for this order. Start Phases A/B immediately and implement demonstrated, in-scope Phase C corrections. If a physical device or camera original is unavailable, continue independent diagnostics, recovery UI and isolated checks; report real-device acceptance as pending. Do not wait for a new routine implementation permission. Pause only overlapping files or genuinely out-of-scope decisions; preserve Mac mini final review authority. Read AGENTS.md, CLAUDE.md, docs/WORKFLOW.md, docs/SESSION_COORDINATION.md, the latest HANDOFF, and this entire order. Run session-guard check with your real session ID, reread current source/diffs, and claim exact files before editing. Read the relevant installed Next.js guide before changing Next.js code. Preserve other sessions' work and the existing intake implementation. This order does not authorize deployment, shared production DB changes, dependency installation, or native builds. Use the current suitable local checkout at `/Users/yuno/Developer/bullpen-log` after checking its current source and claims; do not reset/switch it or pull over active unrelated edits. The order can be read at its full absolute path in this GPT's document checkout. Do not implement against the obsolete pre-integration intake branch.
 
 ### 1. User problem and required outcome
 
@@ -130,7 +130,7 @@ Proposed web files, to be claimed and confirmed at dispatch: `components/intake/
 
 Preserve invitation/name/password security, leading-zero passwords, consent bodies/versions/hashes, administrator rights, source-pair binding, review-before-publication, existing submissions/results, immutable asset history, retention, cancellation/resume/idempotency and download access controls. Keep HEVC/MOV originals even where browser preview fails. No conversion, metadata stripping or trimming of stored originals. The downstream analysis owner must confirm correct time interpretation for 240fps/retimed originals; do not normalize the source file to satisfy the engine.
 
-No production DB writes or test uploads to shared production storage during development unless the existing owner confirms a specific authorized test. Use isolation and fake services for code checks. Never run prisma migrate dev/db push/reset or npm run build. Package/schema/storage/region/native-config changes require their applicable approval process. No deployment, push or automatic job creation is authorized by this draft.
+No production DB writes or test uploads to shared production storage during development unless the existing owner confirms a specific authorized test. Use isolation and fake services for code checks. Never run prisma migrate dev/db push/reset or npm run build. Package/schema/storage/region/native-config changes require their applicable approval process. No product deployment, product push or automatic job creation is authorized by this order. Existing documentation-only handoff authorization remains separate.
 
 ### 8. Acceptance criteria and evidence
 
@@ -167,4 +167,4 @@ Do not send the user back through the same failed Photos path with only a longer
 
 ## Implementation receipt / questions / delivery
 
-Not dispatched. No implementer receipt, product diff, independent implementation review or release approval exists for this order yet.
+v2 dispatch evidence: the Claude UI for session `local_9ce3d4e4-ff2b-4f88-bb3d-bd109907f9b1` shows the IMPLEMENT NOW message and an active response. Its checklist marks “발주서 v2 · 현재 상태 · 겹침 확인” complete, “원본 선택 · 검증 경로 조사” in progress, and a running read of video-slot/file-summary source. This confirms receipt and investigation start, not implementation completion or acceptance. Delivery and GPT review remain pending.
