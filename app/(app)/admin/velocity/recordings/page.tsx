@@ -7,7 +7,7 @@ import { RecordingList } from './recording-list';
 
 /** 녹화 칸 — 세션 녹화(측정하는 동안 통째로) · 엔진 개발용 녹화(측정 없이 따로 찍은 원본) */
 export type RecordingKind = 'session' | 'dev';
-export const recordingsHref = (kind: RecordingKind) =>
+const recordingsHref = (kind: RecordingKind) =>
   `/admin/velocity/recordings?kind=${kind}`;
 
 const KINDS: {
