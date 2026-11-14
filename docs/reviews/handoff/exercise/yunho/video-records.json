@@ -2305,6 +2305,32 @@
         {
           "status": "Updated and read back stop-condition wording in library: prescribed repetitions remain target; listed form or speed issue during exercise stops current set.",
           "at_utc": "2026-11-13T11:16:04.689296+00:00"
+        },
+        {
+          "at_utc": "2026-11-14T04:00:34.777498+00:00",
+          "status": "Description saved and displayed, user decision pending.",
+          "changes": "Clear landing and fast rebound cues, safe landing, move incline progression into instructions, replace vague use as training with purpose.",
+          "metadata_unchanged": {
+            "target": [
+              "어깨",
+              "가슴",
+              "삼두"
+            ],
+            "intensity": "높음",
+            "difficulty": "중급",
+            "equipment": "맨몸",
+            "sets": 3,
+            "reps": 5,
+            "hold_seconds": null,
+            "rest_seconds": 120,
+            "per_side": false
+          },
+          "video": "Owned; playback advanced, individual frames inspected, full edit and user review pending.",
+          "sources": [
+            "https://pubmed.ncbi.nlm.nih.gov/37833510/",
+            "https://pubmed.ncbi.nlm.nih.gov/17194236/"
+          ],
+          "limitations": "General upper-body plyometric evidence, not direct evidence exact exercise improves pitching velocity or establishes exact optimal dose."
         }
       ]
     },
