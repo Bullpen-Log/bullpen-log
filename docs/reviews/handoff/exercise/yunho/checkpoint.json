@@ -13,15 +13,17 @@
     "암케어",
     "회복 및 보강"
   ],
-  "current_review_id": "EX-Y-NEW-BAND-ASSIST-PLYOPUSHUP",
-  "current_title": "밴드 보조 플라이오 푸시업",
+  "current_review_id": "EX-Y-NEW-BAND-SPEED-BENCH",
+  "current_title": "밴드 스피드 벤치 프레스",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": {
-    "meaning": "User instructed next from EX-Y-P-014 and requested transfer to MacBook. Movement approval only; no independent blanket approval of every field."
+    "meaning": "사용자가 밴드 보조 플라이오 푸시업에서 다음으로 이동 지시; 미확인 사항 보존, 전체 승인 아님",
+    "user_verbatim": "다음",
+    "at_utc": "2026-11-14T09:37:04.638229+00:00"
   },
   "next_after_approval": {
-    "status": "Current EX-Y-P-015 is awaiting full review and user decision on MacBook; do not move again without explicit next."
+    "status": "현재 밴드 스피드 벤치 프레스; 전체 검수와 사용자 판단 대기. 사용자 다음 지시까지 이동하지 않음."
   },
   "order": {
     "basis": "이 대화에서 관찰한 파워57개 라이브러리 순서. 재개 시 실제 목록 변경 여부 대조; 새로 검수한 목록 아님.",
@@ -648,12 +650,19 @@
       },
       "superseded_by": "User instructed apply pitching relevance and exercise-specific training purpose consistently across exercises, then restart human review at first item.",
       "at_utc": "2026-11-13T08:49:18.277199+00:00"
+    },
+    {
+      "previous_current": "EX-Y-NEW-BAND-ASSIST-PLYOPUSHUP",
+      "decision": "사용자 원문: 다음",
+      "at_utc": "2026-11-14T09:37:04.638229+00:00",
+      "unresolved": "밴드 위치 및 전체 영상·편집 미검증 보존",
+      "next": "EX-Y-NEW-BAND-SPEED-BENCH"
     }
   ],
   "reverification": {
     "pass": "full metadata and dose review",
-    "completed_count": 17,
-    "current": 18,
+    "completed_count": 18,
+    "current": 19,
     "approved_items": [
       "EX-Y-P-007",
       "EX-Y-P-002",
@@ -671,17 +680,17 @@
       "EX-Y-P-015",
       "EX-Y-P-016",
       "EX-Y-P-017",
-      "EX-Y-P-018"
+      "EX-Y-P-018",
+      "EX-Y-NEW-BAND-ASSIST-PLYOPUSHUP"
     ],
     "order": "Cable first; next only on human approval",
     "approval_interpretation": "approved_items means explicit next/movement approvals in this pass, not unconditional approval of all descriptions, doses, footage, or legal review."
   },
   "playback_observation": {
-    "item": "EX-Y-P-015",
-    "source": "OWNED",
-    "loop_setting": "ON (already set; not a requirement to adjust owned footage)",
-    "actual_playback": "Playing at 2 seconds; full edit/content review not performed; repeat cycle not checked.",
-    "updated_at_utc": "2026-11-13T13:02:58.881444+00:00"
+    "item": "EX-Y-NEW-BAND-SPEED-BENCH",
+    "actual_playback": "맥북 운영 라이브러리에서 실제 영상 재생 및 표시 확인. 전체 시범/편집 검수 미실시.",
+    "source": "미확인",
+    "updated_at_utc": "2026-11-14T09:37:04.638229+00:00"
   },
   "equipment_terminology_review": {
     "scope": "21 previously edited exercise descriptions checked; 13 changed and DB readback verified; other library descriptions not yet comprehensively audited.",
@@ -735,8 +744,8 @@
   "reporting_preference": "Show before and after of each change and distinguish previous sessions from current edits.",
   "pitching_direction_rule": "For similar pitching-direction drills explain perform in user pitching rotation direction; review each movement and distinguish bilateral training before changing settings.",
   "latest_resume": {
-    "current": "EX-Y-NEW-BAND-ASSIST-PLYOPUSHUP",
-    "status": "Description and intensity saved and read back. User review pending. P018 reshoot requested due to another person visible."
+    "current": "EX-Y-NEW-BAND-SPEED-BENCH",
+    "status": "밴드 스피드 벤치 프레스 재생 확인; 영상·설정별 독립 검수 및 사용자 판단 대기. 밴드 보조 푸시업 미확인 사항 보존."
   },
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",

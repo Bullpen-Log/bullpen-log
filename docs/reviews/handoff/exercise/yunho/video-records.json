@@ -2839,7 +2839,7 @@
       "kind": "owned",
       "library_database_id": null
     },
-    "human_review_status": "pending",
+    "human_review_status": "다음 이동 승인; 미해결 유지",
     "application": {
       "at_utc": "2026-11-14T04:35:26.194949+00:00",
       "before": {
@@ -2871,6 +2871,48 @@
         "https://pubmed.ncbi.nlm.nih.gov/30284496/"
       ],
       "limitations": "Intensity category judgment; band tension and joint loading not measured. Exact dose not established."
+    },
+    "macbook_next_decision": {
+      "user_verbatim": "다음",
+      "at_utc": "2026-11-14T09:37:04.638229+00:00",
+      "meaning": "이 운동에서 다음 운동으로 이동 승인. 설명·편집·법률·권리의 전면 승인 아님.",
+      "unresolved": [
+        "밴드 몸통 접촉·위쪽 고정점 미확인",
+        "영상 전 구간의 손 이탈·착지와 편집·다른 사람 출현 여부 미확인"
+      ]
     }
+  },
+  {
+    "review_id": "EX-Y-NEW-BAND-SPEED-BENCH",
+    "review_id_note": "맥북 임시 기록 식별자; 라이브러리 DB ID 미확인",
+    "category": "파워",
+    "title_at_review": "밴드 스피드 벤치 프레스",
+    "human_review_status": "검수 및 사용자 판단 대기",
+    "media": {
+      "kind": "확인 필요",
+      "library_database_id": null
+    },
+    "current_display": {
+      "intensity": "중간",
+      "difficulty": "초급",
+      "equipment": [
+        "밴드",
+        "벤치"
+      ],
+      "body_parts": [
+        "가슴",
+        "삼두",
+        "어깨"
+      ],
+      "sets": 3,
+      "reps": 5,
+      "rest_seconds": 180
+    },
+    "observation": "라이브러리에서 실제 영상 재생 확인. 영상 출처·전체 편집 및 설정 적합성 미검증.",
+    "unresolved": [
+      "시범과 설명·장비·강도·난이도·수행 방법 전항목 검수",
+      "촬영 출처와 편집 검수",
+      "직접 운동 근거와 수치 적합성 확인"
+    ]
   }
 ]
