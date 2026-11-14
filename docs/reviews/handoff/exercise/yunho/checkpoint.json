@@ -1002,5 +1002,11 @@
     "current": "EX-Y-NEW-BAND-ASSIST-PLYOPUSHUP",
     "status": "Guide prepared for publication; MacBook receipt not yet verified.",
     "user_instruction": "Continue this current video on MacBook; share all notes and state."
+  },
+  "macbook_workflow_reply_20261114": {
+    "at_utc": "2026-11-14T06:22:15.491045+00:00",
+    "received_report_ref": "b84af0e26b04b90b6c72c8196d0b17a55966cad8",
+    "reply": "docs/reviews/handoff/exercise/yunho/MACBOOK-WORKFLOW-REPLY-2026-11-14.md",
+    "status": "MacBook reports current playback; full motion and all field judgments remain unverified. Reply prepared; receipt of reply not yet verified."
   }
 }

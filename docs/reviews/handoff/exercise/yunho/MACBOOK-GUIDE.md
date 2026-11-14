@@ -2,6 +2,10 @@
 
 Updated 2026-11-14 (Asia/Seoul) by the Mac mini exercise-review session, on the user's explicit request to continue **the current video** on the MacBook. This is a review-record handoff. Remote publication does not prove that the MacBook received or opened it.
 
+## Mandatory detailed scope clarification — 2026-11-14
+
+Read `MACBOOK-WORKFLOW-REPLY-2026-11-14.md` in full before continuing. It responds to your actual workflow report and gives the per-field evaluation, current-item evidence limits and user-facing format the user requested. Independently inspect and assess the full video, editing, title, equipment and anchoring, target areas, intensity, difficulty, execution, sets/reps/hold/rest/side and pitching purpose. Report reasons for changed and unchanged values, exact before → after when known, sources and uncertainties. The user is not responsible for performing our primary review. Preserve their explicit category assignments and P018 reshoot. Playback alone is not completed review; the current band placement and movement remain unverified until checked.
+
 ## Start here, not at the old P015 handoff
 
 - Current item: **밴드 보조 플라이오 푸시업**, power category, owned footage; review record `EX-Y-NEW-BAND-ASSIST-PLYOPUSHUP`. The stable library database ID was not independently established, so do not invent one. Open https://dugout-baseball.com/library/training, expand 파워, select that exact title and show/play it in the right-side browser. The Mac mini page URL was still the previous P018 URL because the current item was opened inline; do not mistake that stale URL for this item. Confirm the actual title on the destination screen.
