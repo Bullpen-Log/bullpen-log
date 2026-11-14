@@ -456,11 +456,70 @@ export const CAPTURE_FPS_FLOOR = 119.82;
 
 export type CaptureRateCode = 'capture_rate_low' | 'capture_rate_unknown';
 
+/*
+ * INTAKE-ORIGINAL-R07: 막힘 글은 '이 파일'에서 잰 사실만 말한다. 사진 보관함 선택 창은 원본 대신 30 · 60fps 로 바꾼 파일을 넘길 수 있어,
+ * 파일이 30fps 라고 카메라가 30fps 로 찍었다고 말하면 틀릴 수 있다. 변환은 '그럴 수 있다'까지만 말하고, 바로 할 일(원본을 파일 앱에 저장해 다시 선택)을 준다.
+ * 모름(표본 시간을 못 읽음)은 낮음과 다르다 — 120fps 미만이라는 뜻이 아니라고 따로 말한다.
+ */
 export const CAPTURE_RATE_TEXT: Record<CaptureRateCode, string> = {
   capture_rate_low:
-    '120fps 미만으로 촬영된 영상입니다. 슬로 모션 120fps 이상(240fps 권장)으로 촬영한 원본을 선택하십시오. 재생 속도를 바꾸거나 형식을 바꾼 파일로는 촬영되지 않은 장면을 되살릴 수 없습니다.',
-  capture_rate_unknown: '촬영 속도(fps)를 확인할 수 없는 파일입니다. 카메라로 촬영한 원본 파일을 다시 선택하십시오.',
+    '선택한 파일에서 확인한 프레임 수가 120fps 미만입니다. 사진 선택 과정에서 변환된 파일일 수 있습니다. 120fps 이상으로 촬영했다면 수정되지 않은 원본을 파일 앱에 저장한 뒤 그 파일을 다시 선택하십시오.',
+  capture_rate_unknown:
+    '선택한 파일에서 프레임 간격 정보를 읽지 못했습니다. 120fps 미만이라는 뜻은 아닙니다. 수정되지 않은 원본을 파일 앱에 저장한 뒤 그 파일을 다시 선택하십시오.',
 };
+
+/** 화면에 적을 잰 fps — 소수 둘째 자리에서 자른다(119.88 · 29.97). 못 읽으면 null */
+export function measuredFpsText(f: Pick<IntakeMediaFacts, 'averageFps' | 'stepFps'> | null | undefined): string | null {
+  const fps = f ? captureFpsOf(f) : null;
+  if (fps == null) return null;
+  const r = Math.round(fps * 100) / 100;
+  return Number.isInteger(r) ? String(r) : r.toFixed(2).replace(/0$/, '');
+}
+
+const RATE_FIX = '사진 선택 과정에서 변환된 파일일 수 있습니다. 120fps 이상(240fps 등)으로 촬영했다면 수정되지 않은 원본을 파일 앱에 저장한 뒤 그 파일을 다시 선택하십시오.';
+
+/**
+ * 고를 때 막힌 까닭의 글 — 잰 fps 를 알면 그 숫자를 적는다(지어내지 않는다). 서버 거절 글(CAPTURE_RATE_TEXT)과 뜻은 같다.
+ * captureRateCode 와 같은 순서로 '실제로 걸린 기준'을 말한다:
+ *   1) 가장 많은 장면 간격 기준 fps 가 하한 밑 — 그 값(간격이 고르지 않으면 평균도 함께)
+ *   2) 간격이 고르지 않고 평균이 하한 밑 — 가장 많은 간격은 120 이상이어도 평균이 못 미친다고 두 값을 다 적는다
+ * 판정 · 하한은 바꾸지 않는다. 걸린 기준을 못 가리면 일반 글로 돌아간다.
+ */
+export function captureRatePickText(
+  code: CaptureRateCode,
+  f: Pick<IntakeMediaFacts, 'averageFps' | 'stepFps' | 'frameTiming'> | null | undefined,
+): string {
+  if (code !== 'capture_rate_low' || !f) return CAPTURE_RATE_TEXT[code];
+  const fps = captureFpsOf(f);
+  const step = measuredFpsText(f);
+  const avg = measuredFpsText({ averageFps: f.averageFps, stepFps: f.averageFps });
+  if (fps == null || !step) return CAPTURE_RATE_TEXT[code];
+  const variable = f.frameTiming === 'variable';
+  if (fps < CAPTURE_FPS_FLOOR) {
+    const both = variable && avg && avg !== step ? ` 장면 간격이 고르지 않으며, 가장 많은 간격 기준 ${step}fps · 평균 ${avg}fps입니다.` : '';
+    return `선택한 파일에서는 ${step}fps가 확인됩니다.${both} ${RATE_FIX}`;
+  }
+  if (variable && avg && f.averageFps != null && f.averageFps < CAPTURE_FPS_FLOOR) {
+    return `선택한 파일은 장면 간격이 고르지 않습니다. 가장 많은 간격 기준으로는 ${step}fps이지만 평균은 ${avg}fps로, 평균도 120fps 이상이어야 합니다. ${RATE_FIX}`;
+  }
+  return CAPTURE_RATE_TEXT[code];
+}
+
+/**
+ * 막힌 파일의 진단 줄 — 화면의 '파일 진단'에만 보인다(서버 · 기록으로 보내지 않는다). 파일 이름 · 촬영 시각 · 기종은 넣지 않는다.
+ * 표본 시간(촬영 속도 판정에 쓴 값)과 재생 시간(편집 목록)을 갈라 적는다.
+ */
+export function pickDiagnostics(f: IntakeMediaFacts | null, sizeBytes: number): string[] {
+  const out = [`크기 ${sizeBytes.toLocaleString('en-US')} bytes`];
+  if (!f) return [...out, '파일 머리를 읽지 못했습니다'];
+  out.push(`형식 ${f.container.toUpperCase()}${f.brand ? `(${f.brand})` : ''}${f.codec ? ` · ${f.codec}` : ''}`);
+  if (f.hasVideo !== true) out.push(f.hasVideo === false ? '영상 트랙 없음' : '영상 트랙 확인 못 함(머리 크기 한도)');
+  const fmt = (n: number | null | undefined, d = 2) => (n == null || !Number.isFinite(n) ? '모름' : String(Math.round(n * 10 ** d) / 10 ** d));
+  out.push(`가장 많은 장면 간격 기준 ${fmt(f.stepFps)}fps · 평균 ${fmt(f.averageFps)}fps · 간격 ${f.frameTiming === 'constant' ? '일정' : f.frameTiming === 'variable' ? '고르지 않음' : '모름'}`);
+  out.push(`장면 ${f.frameCount ?? '모름'}개 · 표본 시간 ${fmt(f.sampleDurationSec)}초 · 재생 시간 ${fmt(f.playbackDurationSec)}초`);
+  if (f.editList.present) out.push(`편집 목록 ${f.editList.segments}조각${f.editList.retimed ? ' · 재생 속도 바뀜' : ''}${f.editList.trimmed ? ' · 일부만 재생' : ''}`);
+  return out;
+}
 
 /** 이 파일의 촬영 속도(fps) — 판단에 쓰는 값. 못 읽으면 null */
 export function captureFpsOf(f: Pick<IntakeMediaFacts, 'averageFps' | 'stepFps'>): number | null {

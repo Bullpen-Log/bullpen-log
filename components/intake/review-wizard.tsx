@@ -11,6 +11,7 @@ import type { Picked } from '@/components/intake/pick';
 import { FieldError, HelpButton, NoteBox, PrimaryButton, Screen, SecondaryButton } from '@/components/intake/shell';
 import { firstProblemTarget, panelProblem, reviewPanels, validPanel, type ReviewErrors, type ReviewForm, type ReviewPanel } from '@/components/intake/review-rules';
 import { FileButton, LINK_BUTTON, PickStatus, VIEW_LABEL, useFocusOnPick } from '@/components/intake/slots';
+import { REPICK_LABEL } from '@/components/intake/file-picker';
 import { PROXY_CONSENT_NOTE, SUBMITTER_RELATIONS, SUBMITTER_RELATION_TEXT, consentCheckLabel, isProxyRelation, optionalCheckLabel } from '@/lib/intake/consent';
 import type { PublicConsentDoc } from '@/lib/intake/public-client';
 import type { IntakeView } from '@/lib/intake/state';
@@ -55,7 +56,7 @@ function ReviewFile({
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-ink">{VIEW_LABEL[view]}</h2>
         <FileButton
-          label={inspecting ? '확인 중' : '변경'}
+          label={inspecting ? '확인 중' : REPICK_LABEL}
           onFile={onPick}
           className={LINK_BUTTON}
           disabled={locked}

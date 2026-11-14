@@ -1,5 +1,6 @@
 'use client';
 
+import { GUIDE_OPEN_LABEL } from '@/components/intake/file-picker';
 import { useState, type ReactNode } from 'react';
 import { CircleAlert, CircleCheck, Clock3, Copy } from '@/components/icon';
 import { Input } from '@/components/ui';
@@ -340,7 +341,7 @@ export function RecoveryStep({
         onClick={onOriginal}
         className="min-h-11 text-sm font-semibold text-sky-strong"
       >
-        원본 영상 선택 방법
+        {GUIDE_OPEN_LABEL}
       </button>
       {extra}
     </Screen>
@@ -413,6 +414,7 @@ export function CorrectionStep({
   onPick,
   onSubmit,
   onViewResult,
+  onOriginal,
   extra,
 }: {
   state: PublicIntakeState;
@@ -429,6 +431,8 @@ export function CorrectionStep({
   onSubmit: (s: CorrectionSubmit) => void;
   /** 공개 중인 결과가 있으면 — 고치는 동안에도 볼 수 있다 */
   onViewResult?: () => void;
+  /** 원본 저장 안내 — 영상을 다시 고르는 고침일 때만 보인다 */
+  onOriginal?: () => void;
   extra?: ReactNode;
 }) {
   const correction = state.correction;
@@ -607,6 +611,11 @@ export function CorrectionStep({
           />
         );
       })}
+      {views.length > 0 && onOriginal && (
+        <button type="button" onClick={onOriginal} className="min-h-11 text-sm font-semibold text-sky-strong">
+          {GUIDE_OPEN_LABEL}
+        </button>
+      )}
 
       {views.length > 0 && (
         <div className="space-y-1">

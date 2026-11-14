@@ -11,7 +11,7 @@ import { backoffMs } from '@/lib/intake/jobs';
 import { DEFAULT_MAX_FILE_BYTES, DEFAULT_MAX_TOTAL_BYTES, GIB, INTAKE_BUCKET_MAX_BYTES, TUS_CHUNK_BYTES, intakeLimits } from '@/lib/intake/limits';
 import { inspectPick } from '@/components/intake/pick';
 import { REJECT_CODE_TEXT } from '@/lib/intake/admin-labels';
-import { CAPTURE_FPS_FLOOR, MEDIA_REJECT_TEXT, captureMs, captureRateCode, cleanFileText, fpsLabel, integrityLabel, mediaRejectCode, mediaUnconfirmed, nominalFpsOf, notAVideo, readIntakeMediaFacts, sniffContainer, timingNote } from '@/lib/intake/media';
+import { CAPTURE_FPS_FLOOR, CAPTURE_RATE_TEXT, MEDIA_REJECT_TEXT, captureMs, captureRatePickText, measuredFpsText, pickDiagnostics, captureRateCode, cleanFileText, fpsLabel, integrityLabel, mediaRejectCode, mediaUnconfirmed, nominalFpsOf, notAVideo, readIntakeMediaFacts, sniffContainer, timingNote } from '@/lib/intake/media';
 import { assetObjectPath, downloadFileName, isPurgeablePath, isSubmissionPath, originalExtension, runObjectPrefix, safeNamePart, seoulDateKey } from '@/lib/intake/paths';
 import { cleanAuditDetail } from '@/lib/intake/audit';
 import { INTAKE_CORRECTION_HOLD_DAYS, INTAKE_ORIGINAL_RETENTION_DAYS, INTAKE_WITHDRAWN_DRAFT_GRACE_DAYS } from '@/lib/intake/limits';
@@ -624,6 +624,25 @@ ok(MEDIA_REJECT_TEXT.unsupported_container.includes('MOV'), '고르는 사람 �
   eq(await rate({ timescale: 600, stts: [] }), 'capture_rate_unknown', '표본 시간표가 없으면 모름');
   eq(captureRateCode(null), 'capture_rate_unknown', '사실이 없으면 모름');
   eq(captureRateCode({ averageFps: 240, frameTiming: 'variable', stepFps: undefined }), null, '옛 사실(stepFps 없음)은 평균으로 본다');
+  /* R07: 시간 단위가 240 으로 안 나뉘는 파일(600) — 간격이 2 · 3 번갈아 고르지 않아도 평균 240 이면 받는다(정수 반올림 조사) */
+  const alt: [number, number][] = Array.from({ length: 480 }, (_, i) => [1, i % 2 ? 3 : 2]);
+  eq(await rate({ timescale: 600, stts: alt }), null, '시간 단위 600 의 240fps(간격 2·3 번갈음)는 받는다');
+  const alt120: [number, number][] = Array.from({ length: 600 }, (_, i) => [1, i % 6 === 5 ? 6 : 5]);
+  eq(await rate({ timescale: 600, stts: alt120 }), 'capture_rate_low', '간격이 5·6 섞인 약 115fps 는 막는다');
+  /* R07: 진단 줄 · 잰 fps 글 — 파일 이름 · 기종을 넣지 않고, 모르면 지어내지 않는다 */
+  const f240 = await readIntakeMediaFacts(reader(mov240(1024)));
+  eq(measuredFpsText(f240), '239.76', '잰 fps 는 반올림 이름표가 아니라 잰 값(239.76)');
+  eq(measuredFpsText({ averageFps: 119.88011988, stepFps: 119.88011988 }), '119.88', '119.88 그대로');
+  eq(measuredFpsText({ averageFps: null, stepFps: null }), null, '모르면 null');
+  eq(captureRatePickText('capture_rate_unknown', f240), CAPTURE_RATE_TEXT.capture_rate_unknown, '모름 글은 숫자를 안 넣는다');
+  const diag = pickDiagnostics(f240, 1024);
+  ok(diag.some((l) => l.includes('239.76fps')) && diag.every((l) => !/IMG_|iPhone/.test(l)), '진단 줄은 잰 값만 적는다');
+  eq(pickDiagnostics(null, 10)[1], '파일 머리를 읽지 못했습니다', '머리를 못 읽으면 그렇게 적는다');
+  /* R07 검수: 판정과 글이 같은 기준을 말한다 — 간격 240 · 평균 66 은 평균 때문에 막힌다 */
+  const vf = { stepFps: 240, averageFps: 66, frameTiming: 'variable' as const };
+  eq(captureRateCode(vf), 'capture_rate_low', '간격 240 · 평균 66 은 막힌다(판정 그대로)');
+  ok(/240fps이지만 평균은 66fps/.test(captureRatePickText('capture_rate_low', vf)), '글이 걸린 평균 기준과 두 값을 적는다');
+  eq(captureRatePickText('capture_rate_low', { stepFps: 240, averageFps: 240, frameTiming: 'constant' }), CAPTURE_RATE_TEXT.capture_rate_low, '걸린 기준을 못 가리면 일반 글');
 }
 
 /* R04: 약관 판이 오르면 R03b 판으로 남은 동의는 지금 동의가 아니다 — 줄은 그대로 두고, 옮기지 않는다 */

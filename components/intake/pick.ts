@@ -4,7 +4,7 @@
  */
 import { INTAKE_ERROR_TEXT } from '@/lib/intake/errors';
 import { formatBytes, type IntakeLimits } from '@/lib/intake/limits';
-import { CAPTURE_RATE_TEXT, MEDIA_REJECT_TEXT, captureRateCode, mediaRejectCode, readIntakeMediaFacts, type IntakeMediaFacts } from '@/lib/intake/media';
+import { MEDIA_REJECT_TEXT, captureRateCode, captureRatePickText, mediaRejectCode, readIntakeMediaFacts, type IntakeMediaFacts } from '@/lib/intake/media';
 import type { PublicAsset } from '@/lib/intake/public-client';
 import { IntakeUploadError, hashFileSha256 } from '@/lib/intake/upload-client';
 
@@ -48,7 +48,15 @@ const UNREADABLE = '파일을 읽지 못했습니다. iCloud에 있는 영상이
 /** 다른 칸의 파일 — 이 기기가 쥔 파일 또는 서버가 아는 자산 */
 export type OtherSlot = { picked: Picked | null; asset: PublicAsset | null };
 
-export type InspectResult = { ok: true; picked: Picked } | { ok: false; message: string; code?: string };
+/**
+ * 막힌 결과. 촬영 속도로 막혔으면 rejected 에 그 파일과 잰 사실을 남긴다 — 화면이 '파일 진단'(잰 값 · 사용자가 누를 때만 SHA-256)을 보이고
+ * 원본을 다시 고르게 할 때 쓴다. 서버로 보내지 않는다.
+ */
+export type InspectResult =
+  | { ok: true; picked: Picked }
+  | { ok: false; message: string; code?: string; rejected?: RejectedPick };
+
+export type RejectedPick = { file: File; facts: IntakeMediaFacts | null };
 
 /** 고른 파일을 살핀다. 실패해도 다른 칸의 선택은 건드리지 않는다 */
 export async function inspectPick(file: File, limits: IntakeLimits, other: OtherSlot): Promise<InspectResult> {
@@ -84,7 +92,11 @@ export async function inspectPick(file: File, limits: IntakeLimits, other: Other
    * 머리를 못 읽은 파일(facts 없음 · 영상인지 모름)도 촬영 속도를 확인할 수 없으니 여기서 멈추고 원본을 다시 고르게 한다.
    */
   const rate = captureRateCode(facts?.hasVideo === true ? facts : null);
-  if (rate) return { ok: false, message: CAPTURE_RATE_TEXT[rate], code: rate };
+  if (rate) {
+    /* 잰 fps 는 이 파일의 값이다 — 카메라가 그 속도로 찍었다고 말하지 않는다(R07) */
+    const message = captureRatePickText(rate, facts?.hasVideo === true ? facts : null);
+    return { ok: false, message, code: rate, rejected: { file, facts } };
+  }
 
   /* 크기가 같을 때만 전체를 잰다 — 다른 파일은 크기가 다르다 */
   if (otherSize === file.size) {
@@ -98,4 +110,46 @@ export async function inspectPick(file: File, limits: IntakeLimits, other: Other
   }
 
   return { ok: true, picked: { file, url: URL.createObjectURL(file), facts } };
+}
+
+/** 파일 진단의 SHA-256 상태 — 어느 파일의 값인지 file 로 묶는다(R07 검수) */
+export type DiagHashState = { file: File; state: 'busy' | 'done' | 'error'; pct?: number; value?: string };
+type HashFn = (file: Blob, onProgress?: (done: number, total: number) => void, signal?: AbortSignal) => Promise<string>;
+
+/**
+ * 진단 SHA-256 을 누를 때만 잰다. 한 번에 하나 — 새 파일로 시작하거나 cancel 하면 앞 재기를 멈추고, 그 뒤에 오는 앞 결과 · 진행은 버린다.
+ * 알림에는 늘 그 파일이 붙어, 화면은 지금 보이는 파일과 같은 객체일 때만 값을 그린다(크기 · 날짜가 같은 다른 파일과 섞이지 않게).
+ */
+export function createDiagHashRun(hash: HashFn = hashOnce) {
+  let current: { file: File; ctrl: AbortController } | null = null;
+  return {
+    start(file: File, onState: (s: DiagHashState) => void) {
+      current?.ctrl.abort();
+      const me = { file, ctrl: new AbortController() };
+      current = me;
+      onState({ file, state: 'busy', pct: 0 });
+      hash(
+        file,
+        (done, total) => {
+          if (current === me) onState({ file, state: 'busy', pct: total ? Math.round((done / total) * 100) : 0 });
+        },
+        me.ctrl.signal,
+      ).then(
+        (value) => {
+          if (current !== me) return;
+          current = null;
+          onState({ file, state: 'done', value });
+        },
+        () => {
+          if (current !== me) return;
+          current = null;
+          onState({ file, state: 'error' });
+        },
+      );
+    },
+    cancel() {
+      current?.ctrl.abort();
+      current = null;
+    },
+  };
 }

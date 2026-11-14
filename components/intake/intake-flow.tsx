@@ -2,13 +2,14 @@
 
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { CaptureGuide, OriginalGuide } from '@/components/intake/guides';
+import { CaptureGuide } from '@/components/intake/guides';
+import { OriginalFileGuide } from '@/components/intake/original-file-guide';
 import { NameStep, VideoStep, WelcomeStep } from '@/components/intake/guided-steps';
 import { ReviewStep } from '@/components/intake/review-wizard';
 import { EnrollStep, LeaveDevice, UnlockStep, inviteeErrorsOf, type InviteeErrors, type UnlockReason } from '@/components/intake/invitee-steps';
 import { consentAnswers } from '@/components/intake/consent-block';
 import { ModelConsentPart } from '@/components/intake/model-consent';
-import { hashOnce, inspectPick, type Picked } from '@/components/intake/pick';
+import { hashOnce, inspectPick, type Picked, type RejectedPick } from '@/components/intake/pick';
 import { REPICK_VIEW_TEXT, SAME_AS_SENT_TEXT, correctionConsentDocs, correctionStopViews, problemPanel, reviewProblems, sentAssetOf, staleRequiredDocs, type ReviewErrors, type ReviewForm, type ReviewPanel } from '@/components/intake/review-rules';
 import { SendStep } from '@/components/intake/send-step';
 import { LoadingScreen, NoteBox } from '@/components/intake/shell';
@@ -143,7 +144,8 @@ function Flow({ token }: { token: string }) {
   const [panel, setPanel] = useState<string>('files');
   const [picked, setPicked] = useState(NO_PICK);
   const [inspecting, setInspecting] = useState<IntakeView | null>(null);
-  const [pickError, setPickError] = useState<{ view: IntakeView; message: string } | null>(null);
+  /* rejected: 촬영 속도로 막힌 파일 — 영상 단계의 '파일 진단'에만 쓴다(R07). 다른 칸 · 앞서 고른 파일은 건드리지 않는다 */
+  const [pickError, setPickError] = useState<{ view: IntakeView; message: string; code?: string; rejected?: RejectedPick } | null>(null);
   const [notes, setNotes] = useState<Partial<Record<IntakeView, string>>>({});
   /* 처음 고른 파일과 다른 파일을 고른 칸 — 그 짝은 같은 투구라고 다시 확인받아야 한다 */
   const [changed, setChanged] = useState<Partial<Record<IntakeView, boolean>>>({});
@@ -404,7 +406,7 @@ function Flow({ token }: { token: string }) {
     const r = await inspectPick(file, data.state.limits, { picked: picked[other], asset: otherAsset && !assetGone(otherAsset.status) ? otherAsset : null });
     if (!r.ok) {
       /* 이 칸의 전 선택도, 다른 칸의 선택도 그대로 둔다 */
-      setPickError({ view, message: r.message });
+      setPickError({ view, message: r.message, code: r.code, rejected: r.rejected });
       setInspecting(null);
       return;
     }
@@ -713,7 +715,7 @@ function Flow({ token }: { token: string }) {
     const guides = (
       <>
         <CaptureGuide open={guide === 'capture'} onClose={() => setGuide(null)} />
-        <OriginalGuide open={guide === 'original'} onClose={() => setGuide(null)} />
+        <OriginalFileGuide open={guide === 'original'} onClose={() => setGuide(null)} />
       </>
     );
 
@@ -811,6 +813,8 @@ function Flow({ token }: { token: string }) {
               picked={picked[shown]}
               inspecting={inspecting === shown}
               error={pickError?.view === shown ? pickError.message : null}
+              errorCode={pickError?.view === shown ? (pickError.code ?? null) : null}
+              rejected={pickError?.view === shown ? (pickError.rejected ?? null) : null}
               limits={state.limits}
               onPick={(f) => void pick(shown, f)}
               onBack={() => back(shown)}
@@ -888,6 +892,7 @@ function Flow({ token }: { token: string }) {
             onPick={(view, f) => void pick(view, f, state.assets[view])}
             onSubmit={(s) => void submitCorrection(s)}
             onViewResult={state.resultAvailable ? () => setViewResult(true) : undefined}
+            onOriginal={() => setGuide('original')}
             extra={tail}
           />
         );

@@ -9,9 +9,10 @@
  *   - 완료 응답을 잃어도 같은 키로 다시 내 같은 영수증을 받고, 서버의 판은 하나다. 완료를 보낸 뒤 멈추면 결과를 되찾는다.
  */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { hashOnce, inspectPick } from '@/components/intake/pick';
+import * as nodeModule from 'node:module';
+import { createDiagHashRun, hashOnce, inspectPick, type DiagHashState } from '@/components/intake/pick';
 import { CAPTURE_RATE_TEXT } from '@/lib/intake/media';
 import { buildMov, hugeMoovHeader, mov120, mov240 } from './intake-fixtures.mts';
 import { SEND_CANCELLED_TEXT, createSendController, type SendControllerInput, type SendState } from '@/components/intake/use-send';
@@ -1264,16 +1265,199 @@ eq(unhandled, 0, '처리되지 않은 거절이 없다');
   const none = { picked: null, asset: null };
   const asFile = (b: Buffer, name: string) => new File([new Uint8Array(b)], name, { type: 'video/quicktime' });
   const sixty = await inspectPick(asFile(buildMov({ timescale: 600, stts: [[600, 10]] }), 'IMG_240fps.MOV'), limits, none);
-  ok(!sixty.ok && sixty.message === CAPTURE_RATE_TEXT.capture_rate_low, 'R04: 60fps 는 고를 때 막고 까닭을 말한다(파일 이름은 안 본다)');
+  ok(!sixty.ok && sixty.code === 'capture_rate_low' && sixty.message.includes('60fps가 확인됩니다'), 'R04: 60fps 는 고를 때 막고 까닭을 말한다(파일 이름은 안 본다)');
+  /* R07: 막힘 글은 이 파일에서 잰 fps 만 말하고, 카메라가 그 속도로 찍었다고 단정하지 않는다. 막힌 파일 · 사실은 진단용으로 돌려준다 */
+  ok(!sixty.ok && !/촬영된 영상입니다/.test(sixty.message) && sixty.message.includes('파일 앱'), 'R07: 낮은 fps 글은 파일 기준 · 원본을 파일 앱에서 다시 고르라고 말한다');
+  ok(!sixty.ok && sixty.rejected?.facts?.stepFps === 60 && sixty.rejected.file.name === 'IMG_240fps.MOV', 'R07: 막힌 파일과 잰 사실을 진단용으로 돌려준다');
   const blind = await inspectPick(asFile(buildMov({ timescale: 600, stts: [] }), 'a.MOV'), limits, none);
-  ok(!blind.ok && blind.message === CAPTURE_RATE_TEXT.capture_rate_unknown, 'R04: fps 를 모르면 막는다');
+  ok(!blind.ok && blind.message === CAPTURE_RATE_TEXT.capture_rate_unknown && blind.code === 'capture_rate_unknown', 'R04: fps 를 모르면 막는다');
+  ok(!blind.ok && blind.message.includes('120fps 미만이라는 뜻은 아닙니다') && !/\d+fps가 확인/.test(blind.message), 'R07: 모름은 낮음과 다른 글이고 fps 를 지어내지 않는다');
+  const ntscLow = await inspectPick(asFile(buildMov({ timescale: 30000, stts: [[300, 1001]] }), 'b.MOV'), limits, none);
+  ok(!ntscLow.ok && ntscLow.message.includes('29.97fps가 확인됩니다'), 'R07: 29.97fps 는 잰 값 그대로 적는다');
   const unread = await inspectPick(asFile(hugeMoovHeader(64 * 1024 * 1024), 'big.MOV'), limits, none);
   ok(!unread.ok && unread.message === CAPTURE_RATE_TEXT.capture_rate_unknown, 'R04: 머리를 못 읽어 영상인지 모르는 파일도 고를 때 멈춘다');
   const fine = await inspectPick(asFile(mov240(4096), 'side.MOV'), limits, none);
   ok(fine.ok && fine.picked.facts?.stepFps != null, 'R04: 240fps 는 고를 수 있다');
   const ntsc = await inspectPick(asFile(mov120(4096), 'rear.MOV'), limits, none);
   ok(ntsc.ok, 'R04: 119.88fps 는 고를 수 있다');
-  ok(!CAPTURE_RATE_TEXT.capture_rate_low.includes('압축') && !/변환하|줄여/.test(CAPTURE_RATE_TEXT.capture_rate_low), 'R04: 막힘 글이 변환 · 압축을 해결책으로 권하지 않는다');
+  for (const t of [CAPTURE_RATE_TEXT.capture_rate_low, CAPTURE_RATE_TEXT.capture_rate_unknown, !sixty.ok ? sixty.message : '']) {
+    ok(!t.includes('압축') && !/변환하|줄여|재생 속도를 바꾸/.test(t), 'R04: 막힘 글이 변환 · 압축을 해결책으로 권하지 않는다');
+  }
+}
+
+/* ── R07 검수: 평균 기준 실패 글 · 진단 SHA 를 파일에 묶기 · 다시 고르기 단추 이름 ── */
+{
+  const limits = { maxFileBytes: 2 ** 30, maxTotalBytes: 2 ** 31, maxAssets: 12 };
+  const none = { picked: null, asset: null };
+  const asFile = (b: Buffer, name: string, lastModified = 1_700_000_000_000) => new File([new Uint8Array(b)], name, { type: 'video/quicktime', lastModified });
+
+  /* 실제 간격이 고르지 않은 파일: 가장 많은 간격은 240fps(100장), 평균은 약 66fps — 판정은 평균 기준으로 막힌다 */
+  const mixed = await inspectPick(asFile(buildMov({ timescale: 240000, stts: [[100, 1000], [60, 8000]] }), 'mixed.MOV'), limits, none);
+  ok(!mixed.ok && mixed.code === 'capture_rate_low', 'R07 검수: 섞인 간격 파일은 평균으로 막힌다(판정 그대로)');
+  ok(
+    !mixed.ok && mixed.rejected?.facts?.frameTiming === 'variable' && /가장 많은 간격 기준으로는 240fps/.test(mixed.message) && /평균은 66(\.\d+)?fps/.test(mixed.message) && mixed.message.includes('평균도 120fps 이상'),
+    'R07 검수: 막힘 글이 걸린 기준(평균)을 말하고 간격 · 평균 두 값을 다 적는다',
+  );
+  ok(!mixed.ok && !/^선택한 파일에서는 240fps가 확인됩니다/.test(mixed.message), 'R07 검수: 240fps 만 적고 120 이상을 요구하는 모순 글이 아니다');
+  /* 간격 자체가 낮고 고르지 않은 파일 — 낮은 값과 평균을 함께 */
+  const lowMixed = await inspectPick(asFile(buildMov({ timescale: 600, stts: [[300, 20], [10, 40]] }), 'lm.MOV'), limits, none);
+  ok(!lowMixed.ok && lowMixed.message.startsWith('선택한 파일에서는 30fps가 확인됩니다') && /평균 \d/.test(lowMixed.message), 'R07 검수: 낮은 간격 + 고르지 않음은 두 값을 함께 적는다');
+
+  /* 진단 SHA: 크기 · 날짜가 같고 내용이 다른 두 파일 */
+  const a = new File([new Uint8Array(4096).fill(1)], 'same.MOV', { lastModified: 1 });
+  const b = new File([new Uint8Array(4096).fill(2)], 'same.MOV', { lastModified: 1 });
+  const want = (f: Uint8Array) => createHash('sha256').update(f).digest('hex');
+  {
+    /* 앞 재기가 늦게 끝나도 새 파일의 상태를 덮지 않는다 · 앞 재기는 멈춤 신호를 받는다 */
+    const pending: { file: Blob; resolve: (v: string) => void; progress?: (d: number, t: number) => void; signal?: AbortSignal }[] = [];
+    const run = createDiagHashRun((file, progress, signal) => new Promise<string>((resolve) => pending.push({ file, resolve, progress, signal })));
+    const seen: DiagHashState[] = [];
+    run.start(a, (s) => seen.push(s));
+    run.start(b, (s) => seen.push(s));
+    ok(pending[0].signal?.aborted === true && pending[1].signal?.aborted === false, 'R07 검수: 새 파일로 시작하면 앞 재기를 멈춘다');
+    pending[0].progress?.(4096, 4096);
+    pending[0].resolve('A-late');
+    await Promise.resolve();
+    await Promise.resolve();
+    ok(!seen.some((s) => s.value === 'A-late' || (s.file === a && s.state !== 'busy')), 'R07 검수: 앞 파일의 늦은 결과 · 진행은 버린다');
+    pending[1].resolve('B-hash');
+    await Promise.resolve();
+    await Promise.resolve();
+    const last = seen[seen.length - 1];
+    ok(last.file === b && last.state === 'done' && last.value === 'B-hash', 'R07 검수: 새 파일의 값만 그 파일에 묶여 온다');
+    /* 화면에서 사라지면(cancel) 늦은 결과도 버린다 */
+    const run2 = createDiagHashRun((file, _p, signal) => new Promise<string>((resolve) => pending.push({ file, resolve, signal })));
+    const seen2: DiagHashState[] = [];
+    run2.start(a, (s) => seen2.push(s));
+    run2.cancel();
+    pending[pending.length - 1].resolve('late');
+    await Promise.resolve();
+    await Promise.resolve();
+    ok(pending[pending.length - 1].signal?.aborted === true && seen2.length === 1 && seen2[0].state === 'busy', 'R07 검수: 사라진 뒤 늦은 결과를 그리지 않는다');
+  }
+  {
+    /* 실제 hashOnce 로: 같은 크기 · 날짜, 다른 내용 — 값이 각 파일 것이다 */
+    const run = createDiagHashRun();
+    const done = (f: File) => new Promise<DiagHashState>((res) => run.start(f, (s) => s.state !== 'busy' && res(s)));
+    const ra = await done(a);
+    const rb = await done(b);
+    ok(ra.file === a && ra.value === want(new Uint8Array(4096).fill(1)) && rb.file === b && rb.value === want(new Uint8Array(4096).fill(2)) && ra.value !== rb.value, 'R07 검수: 같은 크기 · 날짜의 다른 파일은 다른 SHA-256 으로 각자 묶인다');
+  }
+
+  /* 화면: 고른 영상이 남은 채 다음 파일이 막히면, 안내가 실제로 있는 단추 이름(다른 영상 선택)을 말한다 */
+  /* 실제 화면 부품을 서버 렌더로 그린다 — .tsx 는 TypeScript 로 옮기고 .css 모듈은 이름표만 돌려준다(pitch-report-render-test 와 같은 방식) */
+  const ts = (await import('typescript')).default;
+  /* 설치된 @types/node 에는 registerHooks 가 아직 없다 — 쓰는 모양만 적는다(node 26 에는 있다) */
+  type Next<C> = (spec: string, ctx: C) => unknown;
+  type ResolveCtx = { parentURL?: string };
+  type LoadCtx = object;
+  const { registerHooks } = nodeModule as unknown as {
+    registerHooks: (h: {
+      resolve: (spec: string, ctx: ResolveCtx, next: Next<ResolveCtx>) => unknown;
+      load: (url: string, ctx: LoadCtx, next: Next<LoadCtx>) => unknown;
+    }) => void;
+  };
+  registerHooks({
+    /* next/link 같은 확장자 없는 next 하위 경로 — 서버 렌더에서만 필요한 보정 */
+    resolve(spec, ctx, next) {
+      /* next 내부는 서버 렌더 시험에 필요 없다 — 링크 · 이동만 단순한 대역으로 */
+      if (spec === 'next/link')
+        return { url: 'data:text/javascript,' + encodeURIComponent(`import {createElement as h} from '${import.meta.resolve('react')}';` + " export default ({href,children,prefetch,scroll,replace,transitionTypes,...p})=>h('a',{href:String(href),...p},children);"), shortCircuit: true };
+      if (spec === 'next/navigation')
+        return { url: 'data:text/javascript,' + encodeURIComponent("const r={push(){},replace(){},refresh(){},back(){},prefetch(){}}; export const useRouter=()=>r; export const usePathname=()=>'/'; export const useSearchParams=()=>new URLSearchParams(); export const redirect=()=>{}; export const notFound=()=>{};"), shortCircuit: true };
+      if (/^next\/[\w-/]+$/.test(spec)) return next(`${spec}.js`, ctx);
+      /* 앱 안 상대 경로는 확장자를 안 적는다 — .ts · .tsx 를 붙여 본다 */
+      if (spec.startsWith('.') && ctx.parentURL?.startsWith('file:') && !/\.[cm]?[jt]sx?$|\.css$|\.json$/.test(spec)) {
+        for (const ext of ['.ts', '.tsx']) {
+          const u = new URL(spec + ext, ctx.parentURL);
+          if (existsSync(u)) return next(u.href, ctx);
+        }
+      }
+      return next(spec, ctx);
+    },
+    load(url, ctx, next) {
+      if (url.endsWith('.css')) return { format: 'module', shortCircuit: true, source: 'export default new Proxy({},{get:(_,k)=>String(k)})' };
+      if (url.startsWith('file:') && url.endsWith('.tsx')) {
+        const src = readFileSync(new URL(url), 'utf8');
+        const out = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+        return { format: 'module', shortCircuit: true, source: out };
+      }
+      return next(url, ctx);
+    },
+  });
+  const { VideoStep, REPICK_LABEL, PICK_LABEL } = await import('@/components/intake/guided-steps');
+  const React = (await import('react')).default;
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const facts = !mixed.ok ? (mixed.rejected?.facts ?? null) : null;
+  const okPick = await inspectPick(asFile(mov240(4096), 'side.MOV'), limits, none);
+  const base = { view: 'side' as const, inspecting: false, limits, onPick() {}, onBack() {}, onNext() {}, onOriginal() {} };
+  const err = !mixed.ok ? mixed.message : '';
+  const withPicked = renderToStaticMarkup(
+    React.createElement(VideoStep, { ...base, picked: okPick.ok ? okPick.picked : null, error: err, errorCode: 'capture_rate_low', rejected: { file: a, facts } }),
+  );
+  ok(withPicked.includes(`>${REPICK_LABEL}</button>`) && withPicked.includes(`‘${REPICK_LABEL}’을 누르고`) && !withPicked.includes(`>${PICK_LABEL}</button>`), 'R07 검수 · R08: 고른 영상이 남았으면 단추 · 안내가 모두 다른 원본 선택이다');
+  const empty = renderToStaticMarkup(React.createElement(VideoStep, { ...base, picked: null, error: err, errorCode: 'capture_rate_low', rejected: { file: a, facts } }));
+  ok(empty.includes(`>${PICK_LABEL}</button>`) && empty.includes(`‘${PICK_LABEL}’을 누르고`) && !empty.includes(`‘${REPICK_LABEL}’`), 'R07 검수 · R08: 고른 영상이 없으면 단추 · 안내가 모두 파일에서 원본 선택이다');
+  ok(empty.includes('파일 진단') && empty.includes('파일 지문(SHA-256) 계산') && !/[0-9a-f]{64}/.test(empty), 'R07 검수: 진단은 처음에 SHA 를 재지 않는다(누를 때만)');
+  /* ── R08: 파일 먼저 · 네 장 안내 ── */
+  {
+    const fp = await import('@/components/intake/file-picker');
+    const UA = {
+      iphone: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1',
+      ipad: 'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+      ipadDesktop: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Safari/605.1.15',
+      kakaoIphone: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 KAKAOTALK 11.0.0',
+      chromeIos: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/131.0 Mobile/15E148 Safari/604.1',
+      mac: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Safari/605.1.15',
+      android: 'Mozilla/5.0 (Linux; Android 15; SM-S928N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Mobile Safari/537.36',
+      windows: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36',
+    };
+    const touch = (userAgent: string) => fp.intakeAcceptFor({ userAgent, maxTouchPoints: 5 });
+    ok([UA.iphone, UA.ipad, UA.ipadDesktop, UA.kakaoIphone, UA.chromeIos].every((u) => touch(u) === fp.IOS_DOCUMENT_ACCEPT), 'R08: 아이폰 · 아이패드(데스크톱 모드 포함) · 카카오톡 · 크롬 iOS 는 문서 선택 accept');
+    ok(fp.IOS_DOCUMENT_ACCEPT === 'application/octet-stream' && !/video|image|\.mov|\.mp4|\.m4v|\*/i.test(fp.IOS_DOCUMENT_ACCEPT), 'R08: 아이폰 accept 에 영상 · 사진 MIME · 확장자 · 와일드카드가 없다(보관함 · 카메라 메뉴가 안 생긴다)');
+    ok(fp.intakeAcceptFor({ userAgent: UA.mac, maxTouchPoints: 0 }) === fp.DEFAULT_ACCEPT && touch(UA.android) === fp.DEFAULT_ACCEPT && fp.intakeAcceptFor({ userAgent: UA.windows }) === fp.DEFAULT_ACCEPT, 'R08: Mac · 안드로이드 · 윈도는 예전 accept 그대로');
+    ok(fp.DEFAULT_ACCEPT === 'video/*,.mov,.mp4,.m4v' && fp.currentIntakeAccept() === fp.DEFAULT_ACCEPT, 'R08: 서버 렌더(navigator 없음)는 예전 값');
+    {
+      const seen: string[] = [];
+      const el = { accept: fp.DEFAULT_ACCEPT, click() { seen.push(this.accept); } };
+      fp.openFilePicker(el, touch(UA.iphone));
+      fp.openFilePicker(el, touch(UA.android));
+      ok(seen[0] === fp.IOS_DOCUMENT_ACCEPT && seen[1] === fp.DEFAULT_ACCEPT, 'R08 검수: accept 는 click 이 불리기 전에 기기 값으로 바뀐다');
+      const src = readFileSync(new URL('../components/intake/slots.tsx', import.meta.url), 'utf8');
+      ok(/openFilePicker\(input\.current\)/.test(src) && !/input\.current\?\.click\(\)/.test(src), 'R08 검수: 고르기 단추는 늘 openFilePicker 로 연다');
+    }
+
+    ok(fp.GUIDE_CHAPTERS.length === 4 && fp.GUIDE_CHAPTERS.map((c) => c.id).join() === '01-open-share,02-export-original,03-save-files,04-pick-file', 'R08: 안내는 네 장, 차례대로');
+    ok(fp.GUIDE_CHAPTERS.every((c) => c.video === `/intake-guides/original-file-v1/${c.id}.mp4` && c.poster === `/intake-guides/original-file-v1/${c.id}.jpg`), 'R08: 영상 · 포스터 주소는 GPT 가 가린 파일 자리만');
+    const all = fp.GUIDE_CHAPTERS.map((c) => `${c.title} ${c.body} ${c.note ?? ''}`).join(' ');
+    ok(all.includes('무수정 원본 내보내기') && all.includes('수정되지 않은 원본 내보내기') && all.includes(`‘${fp.PICK_LABEL}’`), 'R08: 메뉴 이름 둘 · 실제 단추 이름을 말한다');
+    ok(!/AirDrop|모든 사진 데이터|‘현재’|사진 보관함|카메라로/.test(all + fp.FILE_FIRST_NOTE), 'R08: 다른 길(AirDrop · 모든 사진 데이터 · 현재 · 보관함 · 카메라)을 가르치지 않는다');
+    ok(fp.GUIDE_CHAPTERS.every((c) => [...c.body].length <= 90), 'R08: 장마다 본문이 짧다');
+    ok(fp.GUIDE_CHAPTERS.map((c) => c.shape).join() === 'tall,wide,tall,tall', 'R08 검수: 2장만 가로(590×328) 영상, 나머지는 세로(590×1278)');
+    ok(fp.FILE_FIRST_NOTE === '사진 앱에서 ‘무수정 원본 내보내기’로 파일 앱에 저장한 뒤 선택해 주세요.' && !/만 고를|만 선택|확인합니다|보장/.test(fp.FILE_FIRST_NOTE), 'R08 검수: 고르기 전 한 줄은 할 일만 말하고, 출처를 막는다고 하지 않는다');
+
+    const { GuideBody } = await import('@/components/intake/original-file-guide');
+    const g0 = renderToStaticMarkup(React.createElement(GuideBody, { onClose() {} }));
+    const vids = g0.match(/<video\b[^>]*>/g) ?? [];
+    ok(vids.length === 1 && /preload="none"/.test(vids[0]) && vids[0].includes('poster="/intake-guides/original-file-v1/01-open-share.jpg"') && /playsinline/i.test(vids[0]) && /controls/.test(vids[0]) && !/autoplay/i.test(vids[0]), 'R08: 한 번에 영상 하나 · preload none · poster · 조작 · 저절로 안 틂');
+    ok(!g0.includes('02-export-original.mp4') && !g0.includes('04-pick-file.mp4'), 'R08: 다른 장 영상은 붙이지 않는다');
+    ok((g0.match(/aria-current="step"/g) ?? []).length === 1 && g0.includes('>이전</button>') && g0.includes('>다음</button>') && /disabled=""[^>]*>이전/.test(g0), 'R08: 번호 이동 · 이전(첫 장은 잠김) · 다음');
+    ok(g0.includes(`‘${fp.PICK_LABEL}’`), 'R08: 준비된 사람은 창을 닫고 곧장 고를 수 있다고 말한다');
+    const g3 = renderToStaticMarkup(React.createElement(GuideBody, { onClose() {}, initial: 3 }));
+    ok(/aspect-\[590\/1278\]/.test(vids[0] ?? "") && !/aspect-\[590\/328\]/.test(vids[0] ?? ""), 'R08 검수: 세로 영상은 세로 비율 칸으로 글 옆에 선다');
+    const g1 = renderToStaticMarkup(React.createElement(GuideBody, { onClose() {}, initial: 1 }));
+    const v1 = (g1.match(/<video\b[^>]*>/g) ?? [])[0] ?? '';
+    ok(/aspect-\[590\/328\]/.test(v1) && /w-full/.test(v1) && v1.includes('02-export-original.mp4'), 'R08 검수: 가로 영상(2장)은 폭을 다 쓴다');
+    ok(g3.includes('>닫기</button>') && g3.includes('04-pick-file.mp4') && g3.includes('미리 보기가 나오지 않아도'), 'R08: 마지막 장은 닫기 · 미리 보기 안내');
+
+    const { SlotCard } = await import('@/components/intake/slots');
+    const slotEmpty = renderToStaticMarkup(React.createElement(SlotCard, { view: 'side', asset: null, picked: null, inspecting: false, error: null, onPick() {} }));
+    const slotPicked = renderToStaticMarkup(React.createElement(SlotCard, { view: 'rear', asset: null, picked: okPick.ok ? okPick.picked : null, inspecting: false, error: null, onPick() {} }));
+    ok(slotEmpty.includes(`>${fp.PICK_LABEL}</button>`) && slotPicked.includes(`>${fp.REPICK_LABEL}</button>`), 'R08: 교체 · 고침 · 이어 보내기 칸도 같은 단추 이름');
+    ok(slotEmpty.includes(`accept="${fp.DEFAULT_ACCEPT}"`) && !slotEmpty.includes('capture='), 'R08: 서버 렌더 accept 는 예전 값 · capture 없음(누를 때 기기 값으로 바뀐다)');
+    const noPick = renderToStaticMarkup(React.createElement(VideoStep, { ...base, picked: null, error: null }));
+    ok(noPick.includes(fp.FILE_FIRST_NOTE) && noPick.includes(`>${fp.GUIDE_OPEN_LABEL}</button>`) && !/AirDrop|모든 사진 데이터|‘파일 선택’/.test(noPick), 'R08: 고르기 전 화면은 짧은 한 줄 + 안내 열기, 옛 길 글 없음');
+  }
 }
 
 console.log(`intake client selftest: ${passed} 통과`);

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, type RefObject } from 'react';
 import { CircleCheck, Loader2 } from '@/components/icon';
+import { DEFAULT_ACCEPT, PICK_LABEL, REPICK_LABEL, openFilePicker } from '@/components/intake/file-picker';
 import { FieldError } from '@/components/intake/shell';
 import { FileFacts } from '@/components/intake/file-summary';
 import type { Picked } from '@/components/intake/pick';
@@ -12,8 +13,10 @@ import { assetArrived, assetGone, assetInTransit, type IntakeView } from '@/lib/
 
 export const VIEW_LABEL: Record<IntakeView, string> = { side: '옆 영상', rear: '뒤 영상' };
 
-/* 사진 앱 · 파일 앱 둘 다 고를 수 있게 둔다. capture 를 달지 않는다 — 찍은 원본을 고르는 곳이다 */
-const ACCEPT = 'video/*,.mov,.mp4,.m4v';
+/*
+ * 고르는 길은 file-picker.ts 한 곳이 정한다(R08 — 아이폰은 사진 보관함 · 카메라 없이 파일 선택기로). capture 를 달지 않는다.
+ * accept 는 누를 때 그 기기 값으로 바꾼다 — 서버 렌더는 기기를 모른다.
+ */
 
 /**
  * 파일을 고른 뒤 초점 — 고르기 단추가 사라지거나 잠기면 초점이 문서 밖으로 떨어진다. 새 파일이 들어온 순간에만 옮긴다(처음 그릴 때는 안 옮긴다).
@@ -59,7 +62,7 @@ export function FileButton({
       <input
         ref={input}
         type="file"
-        accept={ACCEPT}
+        accept={DEFAULT_ACCEPT}
         tabIndex={-1}
         aria-hidden
         className="sr-only"
@@ -69,7 +72,9 @@ export function FileButton({
           if (file) onFile(file);
         }}
       />
-      <button ref={buttonRef} type="button" className={className} disabled={disabled} aria-describedby={describedBy} onClick={() => input.current?.click()}>
+      <button ref={buttonRef} type="button" className={className} disabled={disabled} aria-describedby={describedBy} onClick={() => {
+          if (input.current) openFilePicker(input.current);
+        }}>
         {label}
       </button>
     </>
@@ -169,7 +174,7 @@ export function SlotCard({
           </p>
         ) : (
           <FileButton
-            label={picked || arrived ? '다른 영상 선택' : `${view === 'side' ? '옆' : '뒤'} 영상 선택`}
+            label={picked || arrived ? REPICK_LABEL : PICK_LABEL}
             onFile={onPick}
             className={`-ml-2 ${LINK_BUTTON}`}
             describedBy={error ? errorId : undefined}
