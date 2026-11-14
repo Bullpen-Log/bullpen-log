@@ -731,10 +731,10 @@
   "reporting_preference": "Show before and after of each change and distinguish previous sessions from current edits.",
   "pitching_direction_rule": "For similar pitching-direction drills explain perform in user pitching rotation direction; review each movement and distinguish bilateral training before changing settings.",
   "latest_resume": {
-    "at_utc": "2026-11-13T12:57:43.899629+00:00",
-    "item": "EX-Y-P-014",
-    "meaning": "User resumed video review after implementation dispatch; current item restored, no next approval inferred.",
-    "content_change_this_resume": false,
+    "at_utc": "2026-11-14T03:49:25.942820+00:00",
+    "item": "EX-Y-P-015",
+    "meaning": "User resumed on this computer; metadata review included for every video.",
+    "content_change_this_resume": true,
     "human_review": "pending"
   },
   "macbook_handoff": {

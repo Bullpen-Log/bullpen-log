@@ -2042,6 +2042,29 @@
           ],
           "limits": "Sources address pitching or related training programs, not proof each exact exercise improves pitching velocity or its optimal prescription.",
           "at_utc": "2026-11-13T08:49:18.277199+00:00"
+        },
+        {
+          "at_utc": "2026-11-14T03:49:25.942820+00:00",
+          "status": "Saved via production admin form; visible saved text confirmed; user review pending.",
+          "user_instruction": "매 영상 강도·난이도·수행방법 등 함께 검수하고 현 영상 수정 필요 판단",
+          "changes": [
+            {
+              "field": "이렇게 하세요 4",
+              "before": "두 발을 박스 위에 충분히 올려놓고 무릎과 엉덩이를 굽혀 몸을 받은 뒤 균형을 잡습니다.",
+              "after": "박스 위에 두 발을 충분히 올려놓고 무릎과 엉덩이를 굽혀 충격을 조절한 뒤 균형을 잡습니다."
+            },
+            {
+              "field": "투수에게 왜 필요한가",
+              "before": "이 운동은 한 발로 바닥을 빠르게 밀어 뛰어오르고 두 발로 박스에 안정적으로 착지하는 훈련에 활용할 수 있습니다.",
+              "after": "이 운동은 한 발로 지면을 빠르게 밀어내는 능력을 기르는 데 도움이 됩니다. 박스 위에 두 발로 착지하며 움직임을 제어하는 연습도 함께 합니다."
+            }
+          ],
+          "metadata": "고관절·햄스트링/둔근·종아리/발목, 높음, 중급, 박스, 3×3 좌우, 휴식120초 유지; 직접 해당 변형의 최적값 미확인.",
+          "sources": [
+            "https://pubmed.ncbi.nlm.nih.gov/37123275/",
+            "https://pubmed.ncbi.nlm.nih.gov/17194236/"
+          ],
+          "limitations": "일반 단측 훈련과 파워 운동 휴식의 간접 근거. 투구 구속 향상 및 개별 최적값 근거 아님. 120초와 180초의 보편적 우열 확정하지 않음. 영상 편집 전체 검수 미완료."
         }
       ]
     },
