@@ -1,3 +1,5 @@
+CURRENT EX-Y-P-016: user requested pitching direction only; description updated, per-side unchecked and saved; 3x5, 180sec. Await user review. Reference only; filming required.
+
 CURRENT EX-Y-P-016 CROSSUNDER; P015 next authorized. Reference only, filming needed. Rest 90 to 180 seconds and description updated and reloaded; other metadata retained. User review pending; full motion not independently reviewed.
 
 CURRENT EX-Y-P-015 on this computer; user requires metadata and performance review each video. Description step 4 and pitching purpose saved/read back; metadata retained (3×3 each side, 120s, high/intermediate). Human video/edits review pending. See video-records.

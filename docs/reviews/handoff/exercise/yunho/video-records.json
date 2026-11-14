@@ -2203,6 +2203,13 @@
             "https://pubmed.ncbi.nlm.nih.gov/34570055/"
           ],
           "evidence_limits": "General review and correlational study; neither proves optimal dose or that this exact drill increases pitching velocity."
+        },
+        {
+          "at_utc": "2026-11-14T03:57:43.414728+00:00",
+          "user_instruction": "투구 방향으로만 수행, 양쪽 실시 설명 삭제",
+          "before": "투구 방향 포함 양쪽 실시; 3세트 × 좌우 각각 5회",
+          "after": "투구 방향이 몸의 옆에 오도록 서서 메디신볼을 몸 앞에 듭니다; 좌우 각각 체크 해제, 3세트 × 투구 방향 5회",
+          "status": "Saved and read back; user review pending. Other fields unchanged."
         }
       ]
     },
