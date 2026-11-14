@@ -40,7 +40,7 @@ export const CREW_SPACES: readonly {
   {
     crew: 'B',
     space: '케이블 공간',
-    stations: ['케이블', '밴드(고정 기둥)', '덤벨 · 케틀벨', '공 · 워터백(벽 앞)'],
+    stations: ['케이블', '머신', '밴드(고정 기둥)', '덤벨 · 케틀벨', '공 · 워터백(벽 앞)'],
   },
 ];
 

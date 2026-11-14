@@ -145,9 +145,10 @@ export function carriedOver(
   const target = plan.weeks.find((w) => w.week === week);
   const outdoor = !!target?.outdoor;
   const hasDeferred = plan.weeks.some((w) => w.deferred);
+  /* 실내 · 야외 어디서 미뤘든 미룬 영상 칸에 모은다(2026-11-14 김민 — version 6, 야외 1주차에서 미룬 것도) */
   if (target?.deferred)
     return plan.weeks
-      .filter((w) => !w.outdoor && !w.deferred)
+      .filter((w) => !w.deferred)
       .flatMap(weekItems)
       .filter((it) => stateOf(it, checks) === 'later');
   return plan.weeks

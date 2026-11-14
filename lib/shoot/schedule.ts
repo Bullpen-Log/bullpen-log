@@ -99,6 +99,8 @@ export const STATIONS = [
   '벤치',
   '덤벨 · 케틀벨',
   '케이블',
+  /* 헬스장 머신(레그 프레스 · 레그 컬 …, 2026-11-08 라이브러리에 더함) */
+  '머신',
   '철봉 · TRX',
   '공 · 워터백(벽 앞)',
   '밴드(고정 기둥)',
@@ -139,7 +141,7 @@ export function isWarmupItem(x: { bucket: Bucket; title: string; station: Statio
 }
 
 /** 세웠다 치우는 준비물 — 이것끼리 이어 찍는다. 이름에 든 것(랜드마인)이 먼저, 그다음 장비 칸의 차례 */
-const SETUP_PRIORITY = ['바벨', '케이블', 'TRX', '철봉', '박스', '벤치', '케틀벨', '덤벨', '원판', '짐볼', '메디신볼', '워터볼', '워터백', '플라이오볼', '밴드'];
+const SETUP_PRIORITY = ['바벨', '케이블', '머신', 'TRX', '철봉', '박스', '벤치', '케틀벨', '덤벨', '원판', '짐볼', '메디신볼', '워터볼', '워터백', '플라이오볼', '밴드'];
 export function setupOf(x: { title: string; equipment: string[] }): string {
   if (/랜드마인/.test(x.title)) return '랜드마인';
   return SETUP_PRIORITY.find((e) => x.equipment.includes(e)) ?? '맨몸';
@@ -176,6 +178,7 @@ export function stationOf(x: ShootExercise): Station {
     return '랙 · 바벨 · 원판';
   if (e.includes('철봉') || e.includes('TRX')) return '철봉 · TRX';
   if (e.includes('케이블')) return '케이블';
+  if (e.includes('머신')) return '머신';
   if (e.includes('박스')) return '박스';
   if (e.includes('벤치')) return '벤치';
   if (e.some((q) => BALLS.includes(q))) return '공 · 워터백(벽 앞)';
@@ -326,7 +329,7 @@ export type PlanWeek = {
   outdoor?: boolean;
   /**
    * 미룬 영상 칸(2026-10-18 사용자: "미룬 항목 전용 카드 — 주차 이름 대신 '미룬 영상'") — 주차가 아니라 미룬 것을 모으는 곳.
-   * 다른 실내 주에서 미룸으로 체크한 것도 여기 끝에 이어 붙는다(lib/shoot/progress.ts carriedOver).
+   * 다른 주(실내 · 야외)에서 미룸으로 체크한 것도 여기 끝에 이어 붙는다(lib/shoot/progress.ts carriedOver).
    */
   deferred?: boolean;
 };
@@ -590,7 +593,7 @@ function rotateBuckets(
   return out;
 }
 
-function layoutWeek(week: number, items: Row[]): PlanWeek {
+export function layoutWeek(week: number, items: Row[]): PlanWeek {
   const warm = items.filter(isWarmupItem);
   const byStation = new Map<Station, Row[]>();
   for (const x of items.filter((x) => !isWarmupItem(x))) {

@@ -241,33 +241,16 @@ const deferredWeeks = plan.weeks.filter((w) => w.deferred);
 {
   /* 미룬 영상 칸의 운동은 실내 운동이다(원래 주차 번호 그대로) — 개수에 같이 센다 */
   const items = [...indoorPlan.weeks, ...deferredWeeks].flatMap(weekItems);
+  /*
+   * version 6(2026-11-14 김민): 찍은 것은 모두 계획에서 뺐다 — 야외 남은 것 1주차, 실내 남은 것(라이브러리에 새로 넣은 운동) 2주차,
+   * 미룬 것은 미룬 영상 칸(3). 2주차는 19개, 미룬 영상 34개.
+   */
   check(
-    '실내 5주 · 321개(야외를 붙여도 그대로 — 2026-10-14 사용자가 14개 지우고 토 워크 둘 · 나중에 촬영 60개를 뺌, 403 → 327 · 한 회 3시간쯤으로 7 → 5주 · 10-15 파워 넷 더함 → 331 · 10-16 불안정 지면 스냅다운 · 백 페달을 나중에 촬영으로 → 329 · 10-23 5주차의 8개를 야외 6주차로 → 321)',
-    indoorPlan.weeks.length === 5 &&
-      items.length === 321 &&
-      indoorPlan.weeks.every((w, i) => w.week === i + 1),
-    `${indoorPlan.weeks.length}주 · ${items.length}개`
+    '실내 1주(2주차) · 19개 + 미룬 영상 34개(version 6 — 찍은 것은 뺌)',
+    indoorPlan.weeks.map((w) => w.week).join() === '2' && weekItems(indoorPlan.weeks[0]).length === 19 && items.length === 53,
+    `${indoorPlan.weeks.map((w) => w.week).join(',')}주 · ${items.length}개`
   );
   invariants(indoorPlan, '고정 계획');
-  /*
-   * version 4(2026-10-18 사용자) — 2~4주차는 찍은 것만 남기고, 3 · 4주차의 남은 것을 5주차로 모아 두 사람이 공간 + 장비로 나눠 찍는다.
-   * (예전의 '하체 부하는 회마다 고르게'는 그때 뺐다 — 남은 것을 한 주에 모았다.)
-   */
-  const w5 = indoorPlan.weeks.find((w) => w.week === 5)!;
-  const crews = crewsOf(w5);
-  const ends = crews.map((c) => crewWeek(w5, c).stations.at(-1)!.end);
-  const spaceCrew = new Map<string, Set<string>>();
-  for (const s of w5.stations)
-    spaceCrew.set(s.space ?? '', (spaceCrew.get(s.space ?? '') ?? new Set()).add(s.crew ?? ''));
-  check(
-    '5주차 — 두 사람(A · B)이 공간을 나눠(한 공간은 한 사람) 동시에, 끝 시각 차이 15분 안 · 둘 다 3시간 안',
-    crews.join() === 'A,B' &&
-      w5.stations.every((s) => s.crew && s.space) &&
-      [...spaceCrew.values()].every((cs) => cs.size === 1) &&
-      Math.abs(ends[0] - ends[1]) <= 15 &&
-      ends.every((e) => e <= SESSION_MINUTES),
-    `${crews.join(' · ')} 끝 ${ends.map(clockText).join(' · ')} · 공간 ${[...spaceCrew.keys()].join(' · ')}`
-  );
   void LOWER_BUCKETS;
 }
 
@@ -276,12 +259,12 @@ console.log('\n■ 미룬 영상 칸(version 4)');
   const d = deferredWeeks[0];
   const its = d ? weekItems(d) : [];
   check(
-    '미룬 영상 칸 하나 — 실내 마지막 주 뒤 번호, 원래 번호(2-32 …) 그대로, 야외 아님',
+    '미룬 영상 칸 하나 — 마지막 주 뒤 번호(3), 번호는 3-01 부터 차례로(version 6 — 옛 번호가 새 1 · 2주차와 겹쳐 다시 매김), 야외 아님',
     deferredWeeks.length === 1 &&
       !d.outdoor &&
       d.week > Math.max(...plan.weeks.filter((w) => !w.deferred).map((w) => w.week)) &&
       its.length > 0 &&
-      its.every((it) => /^[2-5]-\d{2}$/.test(it.no)),
+      its.every((it, i) => it.no === `${d.week}-${String(i + 1).padStart(2, '0')}`),
     its.map((it) => it.no).join(' · ')
   );
 }
@@ -293,10 +276,10 @@ console.log('\n■ 고정 계획 — 야외 8~10주(투구 드릴만 — 워밍�
   const drills = items.filter((i) => i.kind === 'drill');
   const warms = items.filter((i) => i.kind === 'warmup');
   check(
-    '야외 1주(6) — 드릴 83 · 5주차에서 옮긴 운동 8 · 워밍업 없음(2026-10-14 37개를 나중에 촬영으로, 120 → 83 · 10-23 사용자가 6 · 7주를 합치고 5주차 남은 것 8개를 넣음)',
-    out.map((w) => w.week).join() === '6' &&
-      drills.length === 83 &&
-      items.filter((i) => !i.kind).length === 8 &&
+    '야외 1주(1주차) — 드릴 53 · 운동 2 · 워밍업 없음(version 6 — 6주차에서 찍은 것 · 미룬 것을 빼고 남은 것)',
+    out.map((w) => w.week).join() === '1' &&
+      drills.length === 53 &&
+      items.filter((i) => !i.kind).length === 2 &&
       warms.length === 0,
     `${out.map((w) => w.week).join(',')} · 드릴 ${drills.length} · 운동 ${items.filter((i) => !i.kind).length} · 워밍업 ${warms.length}`
   );
@@ -316,7 +299,7 @@ console.log('\n■ 고정 계획 — 야외 8~10주(투구 드릴만 — 워밍�
     `${all.length}개`
   );
   check(
-    '번호는 주차-순번으로 빈틈없이(6-01 …)',
+    '번호는 주차-순번으로 빈틈없이(1-01 …)',
     out.every((w) =>
       weekItems(w).every(
         (it, i) => it.no === `${w.week}-${String(i + 1).padStart(2, '0')}`
@@ -693,8 +676,10 @@ console.log('\n■ 진행(지금 · 다음 · 미룬 것)');
     '쉬기 뒤 운동이면 쉬기를 알린다',
     transitionAfter(w, brk, items[items.indexOf(brk) + 1]).rest === true
   );
+  /* 넘어오기는 같은 쪽(실내 · 야외) 다음 주로 — 고정 계획은 주마다 쪽이 달라, 1주차와 같은 쪽 빈 2주차를 붙인 시험 계획으로 본다 */
+  const carryPlan: ShootPlan = { ...plan, weeks: [w, { ...w, week: 2, stations: [] }, ...plan.weeks.filter((x) => x.deferred)] };
   const carried = carriedOver(
-    plan,
+    carryPlan,
     2,
     mk([
       [0, 'done', 0],
@@ -708,11 +693,11 @@ console.log('\n■ 진행(지금 · 다음 · 미룬 것)');
     carried.length === items.length - 2 &&
       !carried.includes(items[0]) &&
       !carried.includes(items[1]) &&
-      carriedOver(plan, deferredNo, mk([[1, 'later', 2]])).includes(items[1])
+      carriedOver(carryPlan, deferredNo, mk([[1, 'later', 2]])).includes(items[1])
   );
   check(
     '체크가 없는 앞 주는 넘어오지 않는다',
-    carriedOver(plan, 2, mk([])).length === 0
+    carriedOver(carryPlan, 2, mk([])).length === 0
   );
   {
     const fixed = JSON.parse(
@@ -735,8 +720,8 @@ console.log('\n■ 진행(지금 · 다음 · 미룬 것)');
     const outN = carriedOver(fixed, firstOut, one).length;
     const in2 = carriedOver(fixed, 2, one).length;
     check(
-      '야외 주차에는 실내에서 남은 것이 넘어오지 않는다(실내끼리만)',
-      outN === 0 && in2 === w1.length - 1,
+      '쪽이 다른 주로는 넘어오지 않는다(야외 1주차의 남은 것이 실내 2주차로 안 옴)',
+      outN === 0 && in2 === 0,
       `${firstOut}주차 ${outN} · 2주차 ${in2}`
     );
   }
