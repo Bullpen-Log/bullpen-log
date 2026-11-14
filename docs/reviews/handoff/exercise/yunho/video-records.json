@@ -2830,5 +2830,47 @@
       "바벨 접촉 부위는21번 촬영 시 확인",
       "22번 시범의 몸통 자세 및 사용자 판단 대기"
     ]
+  },
+  {
+    "review_id": "EX-Y-NEW-BAND-ASSIST-PLYOPUSHUP",
+    "category": "power",
+    "title_at_review": "밴드 보조 플라이오 푸시업",
+    "media": {
+      "kind": "owned",
+      "library_database_id": null
+    },
+    "human_review_status": "pending",
+    "application": {
+      "at_utc": "2026-11-14T04:35:26.194949+00:00",
+      "before": {
+        "intensity": "매우 높음"
+      },
+      "after": {
+        "intensity": "높음",
+        "description": "밴드 고정, 준비, 착지와 연속 동작, 통증 중단 및 투구 연관성 설명 저장"
+      },
+      "unchanged": {
+        "body_parts": [
+          "어깨",
+          "가슴",
+          "삼두"
+        ],
+        "difficulty": "상급",
+        "equipment": [
+          "밴드"
+        ],
+        "sets": 3,
+        "reps": 5,
+        "rest_seconds": 180,
+        "hold_seconds": null,
+        "per_side": false
+      },
+      "verification": "Saved and read back. Partial video frames seen; human and full edit review pending.",
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/37833510/",
+        "https://pubmed.ncbi.nlm.nih.gov/30284496/"
+      ],
+      "limitations": "Intensity category judgment; band tension and joint loading not measured. Exact dose not established."
+    }
   }
 ]

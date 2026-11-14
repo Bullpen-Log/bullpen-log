@@ -13,8 +13,8 @@
     "암케어",
     "회복 및 보강"
   ],
-  "current_review_id": "EX-Y-P-018",
-  "current_title": "인클라인 플라이오 푸시업",
+  "current_review_id": "EX-Y-NEW-BAND-ASSIST-PLYOPUSHUP",
+  "current_title": "밴드 보조 플라이오 푸시업",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": {
@@ -652,8 +652,8 @@
   ],
   "reverification": {
     "pass": "full metadata and dose review",
-    "completed_count": 16,
-    "current": 17,
+    "completed_count": 17,
+    "current": 18,
     "approved_items": [
       "EX-Y-P-007",
       "EX-Y-P-002",
@@ -670,7 +670,8 @@
       "EX-Y-P-014",
       "EX-Y-P-015",
       "EX-Y-P-016",
-      "EX-Y-P-017"
+      "EX-Y-P-017",
+      "EX-Y-P-018"
     ],
     "order": "Cable first; next only on human approval",
     "approval_interpretation": "approved_items means explicit next/movement approvals in this pass, not unconditional approval of all descriptions, doses, footage, or legal review."
@@ -734,8 +735,8 @@
   "reporting_preference": "Show before and after of each change and distinguish previous sessions from current edits.",
   "pitching_direction_rule": "For similar pitching-direction drills explain perform in user pitching rotation direction; review each movement and distinguish bilateral training before changing settings.",
   "latest_resume": {
-    "current": "EX-Y-P-018",
-    "status": "User requested reshoot due to another person visible; next authorized, moving to band-assisted plyo push-up. Existing video retained."
+    "current": "EX-Y-NEW-BAND-ASSIST-PLYOPUSHUP",
+    "status": "Description and intensity saved and read back. User review pending. P018 reshoot requested due to another person visible."
   },
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
