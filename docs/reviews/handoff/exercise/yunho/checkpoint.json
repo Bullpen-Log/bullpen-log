@@ -995,5 +995,12 @@
       "reason": "다른 사람이 영상에 비침",
       "status": "촬영 대기"
     }
-  ]
+  ],
+  "macbook_handoff_20261114": {
+    "at_utc": "2026-11-14T06:10:38.609099+00:00",
+    "guide": "docs/reviews/handoff/exercise/yunho/MACBOOK-GUIDE.md",
+    "current": "EX-Y-NEW-BAND-ASSIST-PLYOPUSHUP",
+    "status": "Guide prepared for publication; MacBook receipt not yet verified.",
+    "user_instruction": "Continue this current video on MacBook; share all notes and state."
+  }
 }

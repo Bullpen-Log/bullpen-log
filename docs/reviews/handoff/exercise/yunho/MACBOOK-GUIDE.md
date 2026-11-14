@@ -1,43 +1,36 @@
-# 금윤호 운동영상 검수 — 맥북 인계 및 작업 지시
+# Exercise video review — MacBook handoff
 
-작성: 2026-11-13 · 맥 미니 `03 · 운동영상` GPT. 사용자 지시: 다음 영상으로 이동하고 이후 맥북에서 동일한 방식으로 이어간다. 이 문서는 검수 기록이며 수신 맥북의 실제 실행·로그인·수신 완료를 뜻하지 않는다.
+Updated 2026-11-14 (Asia/Seoul) by the Mac mini exercise-review session, on the user's explicit request to continue **the current video** on the MacBook. This is a review-record handoff. Remote publication does not prove that the MacBook received or opened it.
 
-## 지금 어디까지 했는가
+## Start here, not at the old P015 handoff
 
-- 담당: 금윤호 파워 → 코어 → 암케어 → 회복 및 보강. 워밍업·상체·하체·모빌리티는 김민 담당. 메커니즘 영상 및 김민의 진행 기록을 합치지 않는다.
-- 가장 최근 화면: **싱글렉 박스 점프**, `EX-Y-P-015`, 운동 DB ID `a2c755d9-8be0-4f24-b26c-293ebd7a46f3`. [운동 상세](https://dugout-baseball.com/library/training?review=a2c755d9-8be0-4f24-b26c-293ebd7a46f3). 직접 촬영본. 맥 미니에서 재생 위치 2초와 반복 켜짐을 확인했으나 전체 동작·편집 검수는 하지 않았다. **맥북에서 이 영상부터 사람과 함께 검수한다.**
-- 직전은 `EX-Y-P-014` 스트레치 스로우(큰 공). 사용자가 “다음으로 넘어가는데 … 맥북”이라고 명시했다. 다음 이동의 승인이지 모든 설명·처방·권리의 포괄 승인으로 해석하지 않는다. 참고 영상만 있어 촬영 필요 목록에 이미 있다.
-- 현재 13개 항목에서 사용자의 다음 이동을 받아 진행했다. 숫자는 현재 전체 메타데이터 재검수 회차의 **이동 승인 수**다. 과거 21개 1차 진행, 21개 내용 변경은 별도다. 이번 회차의 이전 승인 목록과 순서는 `checkpoint.json`의 `reverification`을 읽는다. 역사적 `ordinal`과 실제 검수 순서는 다르다. 라이브러리 표시 순서도 내용 수정 후 달라졌다. 이미 검수한 드롭스텝을 이 이유만으로 반복하지 않고 싱글렉 박스 점프를 현재 항목으로 연다.
-- 현재 P015 기존 표시: 박스, 고관절·햄스트링/둔근·종아리/발목, 강도 높음, 난이도 중급, **3세트 × 3회 좌우 각각, 세트 사이 120초**. 한 발 도약·두 발 착지 설명과 영상이 일치하는지, 박스 선택·착지·내려오기, 촬영 프레이밍 및 편집을 맥북에서 확인한다. ‘왜 필요한가’의 ‘훈련에 활용할 수 있습니다’는 사용자가 반복한 설명 원칙상 검토할 후보이며, 사용자 판단이나 새 수정 완료가 아니다. ‘몸을 받은’ 표현도 초보자에게 쉬운지 확인한다.
+- Current item: **밴드 보조 플라이오 푸시업**, power category, owned footage; review record `EX-Y-NEW-BAND-ASSIST-PLYOPUSHUP`. The stable library database ID was not independently established, so do not invent one. Open https://dugout-baseball.com/library/training, expand 파워, select that exact title and show/play it in the right-side browser. The Mac mini page URL was still the previous P018 URL because the current item was opened inline; do not mistake that stale URL for this item. Confirm the actual title on the destination screen.
+- The user has **not** yet said OK/next for this current item. Show it again with the previously reported changes and the user's review guidance; do not advance merely because of the computer switch.
+- Review status: play started and individual frames were inspected, but full video/editing and exact band placement have not been independently confirmed. Ask the user to inspect whether the band placement/anchoring and the hand landing and repeated motion agree with the description. Verify the full motion/editing yourself before declaring it checked; no invented observations.
+- Current saved settings, read back in the library: target 어깨·가슴·삼두; intensity **높음** (before 매우 높음); difficulty **상급**; equipment **밴드**; 3 sets × 5 repetitions; 180 s between sets; hold blank; no separate left/right. Intensity is a pragmatic classification, not a measured load; band tension, attachment and the athlete affect effort. Exact optimal dosage is unproven.
+- Saved description replaced three brief caution bullets with an ordered procedure: secure and inspect band/anchor, prepare posture with band support, push quickly, control landing, connect repetitions while retaining stable landing, stop for loss of control or pain; state a pitching-related purpose. A claim that this exercise trains the ability to turn off opposing muscles was removed because direct support was not established. **User has not yet approved or rejected the saved changes.** Check whether “밴드가 몸통 아래를 받치도록” matches the actual video before treating it as verified.
+- Relevant sources are general rather than proof for this exact band variation: https://pubmed.ncbi.nlm.nih.gov/37833510/ and https://pubmed.ncbi.nlm.nih.gov/30284496/. Do not claim direct proof of pitching-velocity benefit or an optimal 3×5/180 s dose.
 
-## 맥북에서 실제로 시작하는 순서
+## Reshoot and earlier history
 
-1. `AGENTS.md`, `CLAUDE.md`, `docs/WORKFLOW.md`, `docs/SESSION_COORDINATION.md`, `docs/reviews/handoff/README.md`를 읽고 자기 채팅 ID로 session-guard check. `python3 scripts/video-review-sync.py receive`로 최신 공유본을 수신한다. 충돌이나 오프라인이면 양쪽 기록을 보존하고 충돌 범위만 보류한다. 다른 작업 변경을 reset/stash/pull로 덮지 않는다.
-2. 이 파일과 `checkpoint.json`, `video-records.json`, `RESUME.txt`를 읽는다. `video-records.json`은 운동별 사용자 원문·기존→수정 문구·수정 이유·DB 재확인·참고 문헌과 촬영 상태의 상세 기록이다. 기록된 내용 전부가 이번 회차에서 다시 승인된 것은 아니다. 원본 스냅샷/전후값이 없는 항목은 없다고 명시한다. 현재 상태가 더 최신이면 인계를 그대로 덮어쓰지 않고 비교한다.
-3. 사용자에게 보이는 오른쪽 브라우저에서 위 P015 상세를 연다. 기존 관리자 로그인 세션 우선; 적절한 기존 개발용 관리자 로그인 승인은 WORKFLOW 범위 안에서 유지한다. 영상·제목·설명을 함께 보여준다. 사용자 시청 전에 영상 전체/해당 장면을 실제 확인하고, 영상 편집·설명·제목·메타데이터 검토 결과와 사용자가 확인할 부분을 안내한다. 안 보이면 실제 재생 상태를 바로잡는다. 로그인·플레이어 설정은 기기 간 자동 복제되지 않는다.
-4. 참고 영상은 공통 플레이어 반복 설정이 켜져 있는지만 확인하고 반복 한 바퀴를 기다리지 않는다. **직접 촬영 영상은 사용자가 자동 연속재생 설정을 하지 않아도 된다고 정정했으므로 강제하지 않는다.** 기본 플레이어 상태가 이미 켜져 있으면 현재 설정으로 재생하되 반복 기능 자체를 다시 시험하지 않는다.
-5. 실제 보이는 영상과 설명을 대조하고 국내외 논문·공식 학회/원저를 확인한다. 정확한 운동 변형에 대한 직접 근거와 유사 운동·투구 역학의 간접 근거를 구분한다. 3×3, 휴식 120초, 박스 높이, 중량 등은 목적·대상·난이도·강도·안전성을 검토하되 문헌이 해당 운동의 최적값을 입증하지 않으면 단정하지 않는다. 선수별 조절 가능 여부는 R2A 구현 상태를 실제 확인하고 말한다.
-6. 사용자가 이미 명시한 방향과 공통 지침 안에서 필요한 제목·설명·메타데이터를 구체화해 실제로 저장한 뒤 다시 읽어 검증한다. **각 변경의 이전값 → 변경값 → 이유·근거를 보고하고 사용자 확인을 받는다.** 요청한 수정의 운동역학/논문상 적절성에 대한 GPT 의견과 불확실성도 알린다. 추가 관찰이 사용자의 방향을 벗어나거나 시범이 불명확하면 후보로 설명하고 판단을 받는다. 요청이 없던 후보를 임의 수정하지 않는다.
-7. ‘다음’은 현재 항목에서 다음 이동 승인이다. 수정 지시가 있으면 적용·재확인하고 결과를 보고한 후 다음으로 간다. 재생 시간 경과·인계·클로드 납품은 다음 영상 승인으로 취급하지 않는다. 매 항목의 판정·전후값·미해결과 현재 ID를 기록하고 공개 안전성을 확인한 뒤 `video-review-sync.py publish --reviewed-public-safe --paths ...`로 **검수 기록만** 공유한다. 원격 ref 일치를 확인하고 맥북 수신과 원격 전송을 구분한다.
+- Immediately previous: **인클라인 플라이오 푸시업**, `EX-Y-P-018`, owned footage. The user said verbatim: “이 영상 나중에 재촬영 필요하다고 적어줘 사유는 다른 사람이 비침으로 다음으로 가자”. Record **재촬영 필요 — 다른 사람이 영상에 비침**, pending shooting. Existing file has been preserved; no editing, removal, replacement or filming has been done. This request approved moving to the current band-assisted exercise, not moving beyond it.
+- Current full-metadata re-review has 17 explicit prior next/movement approvals. That count does not mean all editing, legal, rights or content questions received final approval. The 21 earlier historical records are separate; use `checkpoint.json` and `video-records.json`, not the old count or library row position. Current P018 re-shoot item is recorded in both checkpoint and per-video record.
+- Previous exercise-specific source snapshots may be incomplete. Report what actually exists; do not claim that all previous metadata was changed. In this exercise review, explain actual **before → after** for changed values, and mark unchanged values as unchanged.
 
-## 설명과 표시의 지속 규칙
+## Frozen grouping and scope
 
-- 실제 영상과 제목, 원본 YouTube 제목의 동작·강조 표현, 소개, 방법, 효과·훈련 목적의 일치 여부를 검사한다. 원본 제목 변경을 무조건 복사하지 않고 실제 동작과 공식 명칭을 같이 확인한다.
-- ‘어떤 운동인가’는 실제 시작·주요 동작을 설명한다. ‘이렇게 하세요’는 처음 하는 사람도 이해하도록 장비 준비 → 시작 자세 → 순서 → 복귀와 중단 조건을 쉽고 구체적으로 쓴다. 불필요한 부정 설명, 어려운 축약어, 같은 설명의 반복은 피한다. 줄바꿈은 읽기 쉽게 넣는다.
-- ‘투수에게 왜 필요한가’는 투구의 관련 동작과 운동이 기르려는 능력을 연결한다. ‘운동에 활용할 수 있다’는 식으로 동작을 되풀이하지 않는다. 확립된 사실, 훈련 목적, 도움이 될 가능성을 근거 강도에 맞게 쓴다. 해당 운동이 구속을 직접 높인다는 증거가 없으면 보장하지 않는다.
-- 같은 장비는 같은 명칭: 케이블 머신, 메디신볼, 랜드마인 고정 장치 등. ‘세기’ 대신 **강도**. 양쪽을 따로 할 필요와 실제 투구 방향을 운동별로 구분한다. 유사 투구 동작에서 앞발로 지면을 누르고 골반이 과도하게 앞으로 밀리지 않는 설명을 상황에 맞게 통일하되 무릎을 반드시 펴거나 상체가 실제로 튕겨 나간다고 단정하지 않는다.
-- 각 운동마다 목표 부위·강도·난이도·장비·수행 방법·세트·횟수 또는 버티는 시간·휴식·좌우를 확인한다. 버티기 운동은 횟수와 시간을 혼동하지 않는다. 기존값과 새 값을 모두 보고한다. 권장값과 개인별 선택을 구분하고 모든 사용자에게 같은 수치가 최적이라고 말하지 않는다.
-- 한국·미국·일본의 효능·안전 표현, 번역과 참고 영상의 권리 문제는 국가별 사실·근거·미확인을 기록한다. 담당 법률 확인 전 전체 적합성 완료로 선언하지 않는다.
+`checkpoint.json` → `ordered_review_plan` has the complete title-level sequence recorded from the visible library on 2026-11-14: 파워 57, 코어 38, 암케어 89, 회복 및 보강 19 (203 unique titles). Group similar movements; keep the record of already reviewed items and do not silently repeat or skip them. Row order can change as content changes, so identify by title plus stable ID when available. The next *unreviewed* item within the first similar-movement group after current user approval should be determined by reconciling the plan with the actual approval ledger; previously visited items are not automatically approved on every unresolved issue. Historical `EX-Y-P-001` 랜드마인 회전 펀치 was flagged for this pass because no current-pass movement approval is recorded; verify its actual status before deciding to revisit it.
 
-## 영상 편집과 촬영
+The separate visible “나중에 촬영” group of 65 has mixed/unknown ownership; it is not counted as 203 or silently dropped. Establish assignment from the library/records and include any of 금윤호's entries in the appropriate group; do not invent assignment or claim every missing item has been classified. User wants a final complete list of missing footage and each reshoot reason.
 
-- 사용자가 소유한 영상 편집을 구체적으로 요청하면 원본과 안전한 작업 사본을 보존하면서 요청한 편집을 실제 수행하고 결과를 보여 준다. 교체/업로드·삭제는 기존 권한 및 대상에 맞춰 구체적으로 확인한다. 촬영본이 없는 항목은 참고 영상만 있음/영상 없음으로 구분해 촬영 필요 목록에 자동 기록한다. 직접 촬영본·참고 영상·촬영 필요·불명은 섞지 않는다.
-- P015는 직접 촬영본이므로 촬영 필요로 자동 분류하지 않는다. 실제 시범과 자막·화질·컷·중요 신체 부위 가림을 검토하고, 편집이나 재촬영이 필요하면 구체적 구간과 이유를 안내한다. 신체 동작을 정지 화면으로 합성해 수행한 것처럼 만들지 않는다.
+## MacBook startup and user experience
 
-## 별도 진행 중인 구현
+1. Read `AGENTS.md`, `CLAUDE.md`, `docs/WORKFLOW.md`, `docs/SESSION_COORDINATION.md`, and `docs/reviews/handoff/README.md`; run the session guard using the destination session's own ID. Receive the latest review records with `python3 scripts/video-review-sync.py receive --paths docs/reviews/handoff/exercise/yunho/checkpoint.json docs/reviews/handoff/exercise/yunho/video-records.json docs/reviews/handoff/exercise/yunho/RESUME.txt docs/reviews/handoff/exercise/yunho/MACBOOK-GUIDE.md`. Read and reconcile these files. Do not reset/stash/pull over concurrent changes. If conflict or offline, preserve both and report the precise gap.
+2. Open the current exercise, show the player in the user's right-side browser, and get it playing. Do not claim a player, login, or video was verified until verified on the MacBook. For reference videos confirm repeat is enabled; no need to wait through a full loop. For owned videos the user said enabling repeat is optional; if already enabled leave it alone. This is separate from inspecting the actual content/edit as needed.
+3. Review each video and edit (including own footage), exercise name and original YouTube title if applicable, description, pitching connection, target regions, exercise intensity, difficulty, equipment, sets, reps or hold time, rest, unilateral setting and safe setup. Explain the prior value and changed value, not just the result. Search current international/Korean primary research or reputable original sources for relevant biomechanics, speed, loading and rest. Distinguish direct evidence for the exact variation from general or correlational evidence; tailor a reasonable starting prescription rather than presenting it as universally optimal.
+4. Existing explicit user directions authorize prompt content and metadata changes within the review scope; concretize, save, read back, and report them and your judgment. Use easy numbered first-timer directions: equipment, setup, movement, return, stop. Apply consistent terminology (e.g. 케이블 머신, 메디신볼; 강도 not 세기), spacing and line breaks. Why-needed should explain the exercise purpose and its plausible pitching connection, not merely say it can be used for training. Avoid unnecessary negative wording and unsupported benefits. Separate stopping for pain from easier variation. Review country-specific Korea/US/Japan claim, translation, source rights and legal points; log unresolved items without declaring legal clearance.
+5. For each own-video editing instruction, perform the expressly requested edit when feasible and preserve source; distinguish edit, re-shoot, file replacement, and deployment. Automatically record absent footage and reshoots with reason. For any uncertain new interpretation or conflicting movement, tell the user what needs judgment and avoid presenting it as a verified fact.
+6. Remain on the current item until user says 다음/OK. After each user decision save the checkpoint and per-item record, validate, and publish only the non-sensitive exercise-review records with `video-review-sync.py`. Read back remote ref. Do not include secrets, signed/original private video URLs, personal data, other project changes, code, or deployment. Track actual MacBook receipt separately from publication.
+7. Current implementation work (including EX-RX01) belongs to its existing implementation owner. Do not treat this handoff as permission to change schema, ship code, or deploy; do not disrupt their changes. Continue the separately authorized individual exercise-content edits.
 
-운동 목표 개인화 `EX-RX01 R2A`는 맥 미니의 기존 운동영상 Claude가 별도로 작업 중이다. 구현 도중인 파일·스키마·미완료 변경을 건드리거나 복제 발주하지 않는다. GPT의 독립 검수와 사용자 보고가 남아 있으며 실제 적용·배포를 추정하지 않는다. 이 인계의 기록 공유는 제품 코드·DB 구조·배포 승인이 아니다. 검수 중 사용자가 직접 지시한 개별 라이브러리 내용 수정은 최신 검수 지시에 따라 처리한다.
-
-## 맥북 담당자가 바로 따를 지시
-
-> 금윤호 운동영상 검수를 이어받아. 먼저 `docs/reviews/handoff/README.md`의 수신 절차와 이 문서, `checkpoint.json` 및 `video-records.json`을 읽고 현재 DB·라이브러리 표시를 대조해. 현재 항목은 싱글렉 박스 점프(EX-Y-P-015)이며 직접 촬영본이야. 영상을 오른쪽에 띄워 사용자와 함께 하나씩 보면서 편집, 제목, 설명, 투구와의 연결, 논문·역학 근거 및 모든 메타데이터를 검수해. 이미 지시된 내용은 구체화해 저장·재확인하고 이전값과 변경값을 보고해. 새로 발견한 모호한 점은 사용자에게 판단받아. 촬영이 필요한 항목은 자동 기록해. 사용자가 다음을 지시할 때만 이동하고 매 항목 검수 기록을 공개 가능한 범위에서 자동 공유해. 맥북 수신·실제 재생·내용 수정은 각각 확인 후에만 완료라고 말해.
+User-facing communication is Korean. All inter-agent handoff instructions are English; the quoted Korean user direction above is preserved verbatim. Report the exact received ref and that you actually opened the current item when those actions have happened, rather than claiming receipt in advance.
