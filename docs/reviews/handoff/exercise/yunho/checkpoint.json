@@ -13,8 +13,8 @@
     "암케어",
     "회복 및 보강"
   ],
-  "current_review_id": "EX-Y-P-032",
-  "current_title": "메디신볼 밀어 내리치기 (푸시 슬램)",
+  "current_review_id": "EX-Y-P-033",
+  "current_title": "메디신볼 머리 위 내리치기 (오버헤드 슬램)",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": {
@@ -23,7 +23,7 @@
     "meaning": "랜드마인 좌우 수행 확정 및 다음 이동; 직접 던지기 예외를 둔 대부분 파워 운동 양쪽 수행 기준"
   },
   "next_after_approval": {
-    "status": "메디신볼 밀어 내리치기 검수 중; 전체 영상 및 사용자 판단 대기."
+    "status": "P033 설명 수정 저장, 영상 전체 확인 및 사용자 판단 대기."
   },
   "order": {
     "basis": "이 대화에서 관찰한 파워57개 라이브러리 순서. 재개 시 실제 목록 변경 여부 대조; 새로 검수한 목록 아님.",
@@ -235,8 +235,9 @@
       },
       {
         "ordinal": 33,
-        "title": "오버헤드 메디신볼 슬램",
-        "status": "not_human_reviewed"
+        "title": "메디신볼 머리 위 내리치기 (오버헤드 슬램)",
+        "status": "content_applied_human_reverification_pending",
+        "previous_title": "오버헤드 메디신볼 슬램"
       },
       {
         "ordinal": 34,
