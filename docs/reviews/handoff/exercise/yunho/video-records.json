@@ -2172,6 +2172,37 @@
         {
           "status": "Updated and read back stop-condition wording in library: prescribed repetitions remain target; listed form or speed issue during exercise stops current set.",
           "at_utc": "2026-11-13T11:16:04.689296+00:00"
+        },
+        {
+          "at_utc": "2026-11-14T03:54:13.265164+00:00",
+          "status": "Saved and reloaded; user review pending.",
+          "changes": {
+            "rest_seconds": {
+              "before": 90,
+              "after": 180
+            },
+            "description": "Beginner wording, pitching direction on both sides, purpose and force production, rename 세기 to 강도; stop cue moved to instructions."
+          },
+          "retained": {
+            "intensity": "높음",
+            "difficulty": "중급",
+            "target": [
+              "코어",
+              "고관절",
+              "전신"
+            ],
+            "equipment": "메디신볼",
+            "sets": 3,
+            "reps": 5,
+            "per_side": true,
+            "hold_seconds": null
+          },
+          "media": "Reference only; own footage needed. Playback advanced and loop enabled; full motion/editing not independently reviewed.",
+          "sources": [
+            "https://pubmed.ncbi.nlm.nih.gov/17194236/",
+            "https://pubmed.ncbi.nlm.nih.gov/34570055/"
+          ],
+          "evidence_limits": "General review and correlational study; neither proves optimal dose or that this exact drill increases pitching velocity."
         }
       ]
     },
