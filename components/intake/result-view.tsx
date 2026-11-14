@@ -20,11 +20,7 @@ const Body3D = dynamic(() => import('@/app/(app)/videos/lab/[id]/body-3d').then(
   loading: () => <p className="grid aspect-[4/5] max-h-[60vh] w-full place-items-center text-sm text-[#c7cfdd]">3D 화면을 준비하는 중입니다.</p>,
 });
 
-type Phase =
-  | { kind: 'loading' }
-  | { kind: 'code'; error: string | null; busy: boolean }
-  | { kind: 'ready'; result: PublicResult }
-  | { kind: 'blocked'; text: string; retry: boolean };
+type Answer = { ok: true; result: PublicResult } | { ok: false; code: string; message: string; retryAfterSec: number | null };
 
 function dateText(key: string): string {
   const [y, m, d] = key.split('-').map(Number);
@@ -251,7 +247,15 @@ function useBody3dReady(section: RefObject<HTMLElement | null>, onReadyChange?: 
  * preview 면 위에 '아직 공개 전'을 말하고 제목 초점을 옮기지 않는다(창 안에서 연다).
  * onReadyChange 는 관리자 검토만 쓴다 — 3D 가 실제로 그릴 준비가 됐는지(body3dReady). 사람이 봤다는 뜻은 아니다.
  */
-export function ResultBody({ result, preview = false, onReadyChange }: { result: PublicResult; preview?: boolean; onReadyChange?: (ready: boolean) => void }) {
+export function ResultBody({
+  result,
+  preview = false,
+  onReadyChange,
+}: {
+  result: PublicResult;
+  preview?: boolean;
+  onReadyChange?: (ready: boolean) => void;
+}) {
   const heading = useRef<HTMLHeadingElement>(null);
   const stage = useRef<HTMLElement>(null);
   const body3d = useMemo(() => body3dResultOf(result.view), [result.view]);
@@ -265,19 +269,30 @@ export function ResultBody({ result, preview = false, onReadyChange }: { result:
   return (
     <article className="mx-auto w-full max-w-6xl px-5 py-6 lg:px-8">
       {preview && (
-        <p role="status" className="mb-4 rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-sm text-warn break-keep">
+        <p
+          role="status"
+          className="mb-4 rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-sm text-warn break-keep"
+        >
           아직 공개 전입니다. 공개하면 받는 사람에게 이 모양 그대로 보입니다.
         </p>
       )}
       <header className="mb-5 space-y-1">
-        <h1 ref={heading} tabIndex={-1} className="text-2xl font-bold text-ink outline-none break-keep">
-          {result.athleteName} 선수의 3D 투구 분석
+        <h1
+          ref={heading}
+          tabIndex={-1}
+          className="text-2xl font-bold text-ink outline-none break-keep"
+        >
+          {result.athleteName} 선수의 3D 투구 결과
         </h1>
         <p className="text-sm text-muted">결과일 {dateText(result.resultDate)}</p>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
-        <section ref={stage} aria-label="3D 동작" className="theme-dark min-w-0 rounded-3xl bg-[#151722] p-3 text-ink">
+        <section
+          ref={stage}
+          aria-label="3D 동작"
+          className="theme-dark min-w-0 rounded-3xl bg-[#151722] p-3 text-ink"
+        >
           <Body3D result={body3d} />
         </section>
 
@@ -285,20 +300,24 @@ export function ResultBody({ result, preview = false, onReadyChange }: { result:
           {result.explanation && (
             <section className="space-y-2">
               <h2 className="text-base font-semibold text-ink">담당자 설명</h2>
-              <p className="whitespace-pre-line text-sm leading-6 text-ink break-keep">{result.explanation}</p>
+              <p className="whitespace-pre-line text-[15px] leading-[1.7] text-ink break-keep">
+                {result.explanation}
+              </p>
             </section>
           )}
           <section className="space-y-2">
             <h2 className="text-base font-semibold text-ink">보는 방법</h2>
             <ul className="space-y-1.5 text-sm leading-6 text-muted break-keep">
               <li>화면을 끌면 돌아갑니다.</li>
-              <li>두 손가락으로 벌리거나 Ctrl 을 누른 채 휠을 굴리면 크게 볼 수 있습니다.</li>
+              <li>
+                두 손가락으로 벌리거나 Ctrl 을 누른 채 휠을 굴리면 크게 볼 수 있습니다.
+              </li>
               <li>니업, 착지, 릴리스를 누르면 그 순간으로 이동합니다.</li>
             </ul>
           </section>
           <div className="space-y-1 text-footnote leading-5 text-muted break-keep">
-            <p>이 화면은 이 링크와 처음에 정한 이름 · PIN 이 함께 있어야 열립니다.</p>
-            <p>링크와 PIN 은 믿을 수 있는 사람에게만 전달하십시오.</p>
+            <p>이 화면은 이 링크와 설정한 이름과 비밀번호가 함께 있어야 열립니다.</p>
+            <p>링크와 비밀번호는 필요한 사람에게만 전달합니다.</p>
           </div>
         </aside>
       </div>

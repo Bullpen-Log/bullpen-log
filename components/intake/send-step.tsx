@@ -83,8 +83,16 @@ export function SendStep({
   return (
     <Screen
       screenKey="send"
-      title="선택한 영상 파일을 그대로 보내는 중입니다"
-      desc="완료될 때까지 이 화면을 닫지 마십시오."
+      title={
+        run.stop
+          ? '전송이 멈췄습니다'
+          : preparing
+            ? '전송 준비 중'
+            : after
+              ? '서버 확인 중'
+              : '영상 전송 중'
+      }
+      desc="접수 완료가 표시될 때까지 화면을 열어 둡니다."
       step={5}
       actions={
         run.stop && actionLabel ? (
@@ -103,31 +111,52 @@ export function SendStep({
           const passed = i < at;
           const now = i === at;
           return (
-            <li key={s.id} aria-current={now ? 'step' : undefined} className={`flex items-center gap-1.5 text-footnote ${now ? 'font-bold text-ink' : passed ? 'text-ink' : 'text-muted'}`}>
+            <li
+              key={s.id}
+              aria-current={now ? 'step' : undefined}
+              className={`flex items-center gap-1.5 text-footnote ${now ? 'font-bold text-ink' : passed ? 'text-ink' : 'text-muted'}`}
+            >
               {passed ? (
                 <Check aria-hidden className="h-4 w-4 text-ok" />
               ) : (
-                <span aria-hidden className={`h-2 w-2 rounded-full ${now ? 'bg-sky' : 'bg-line-strong'}`} />
+                <span
+                  aria-hidden
+                  className={`h-2 w-2 rounded-full ${now ? 'bg-sky' : 'bg-line-strong'}`}
+                />
               )}
               {s.label}
-              {i < STAGES.length - 1 && <span aria-hidden className="ml-0.5 h-px w-4 bg-line-strong" />}
+              {i < STAGES.length - 1 && (
+                <span aria-hidden className="ml-0.5 h-px w-4 bg-line-strong" />
+              )}
             </li>
           );
         })}
       </ol>
 
-      <section aria-label="전체 진행" className="rounded-2xl bg-surface p-(--block-pad)">
+      <section
+        aria-label="전체 진행"
+        className="rounded-2xl bg-surface p-(--block-pad)"
+      >
         {after ? (
           <p className="flex items-start gap-2 text-sm leading-relaxed break-keep text-ink">
-            {!run.stop && <Loader2 aria-hidden className="mt-0.5 h-5 w-5 shrink-0 motion-safe:animate-spin" />}
+            {!run.stop && (
+              <Loader2
+                aria-hidden
+                className="mt-0.5 h-5 w-5 shrink-0 motion-safe:animate-spin"
+              />
+            )}
             {/* 멈춘 뒤에는 '확인하고 있어요'라고 하지 않는다 — 다음 행동은 아래 단추가 말한다 */}
-            {run.stop ? '영상은 모두 도착했습니다.' : '전송이 끝났습니다. 파일이 그대로 도착했는지 확인하고 있습니다.'}
+            {run.stop
+              ? '전송 후 서버 확인이 완료되지 않았습니다.'
+              : '파일 전체가 바뀌지 않고 도착했는지 확인 중입니다.'}
           </p>
         ) : (
           <>
             <div className="flex items-baseline justify-between gap-3">
-              <p className="text-sm font-semibold text-ink">{preparing ? '파일을 준비하는 중' : '보내는 중'}</p>
-              <p className="text-numeric text-lg text-ink">{pct}%</p>
+              <p className="text-sm font-semibold text-ink">
+                {preparing ? '파일을 준비하는 중' : '보내는 중'}
+              </p>
+              <p className="text-numeric text-[28px] font-semibold text-ink">{pct}%</p>
             </div>
             <div
               role="progressbar"
@@ -137,7 +166,10 @@ export function SendStep({
               aria-valuenow={pct}
               className="mt-2 h-2 overflow-hidden rounded-full bg-line"
             >
-              <div className="h-full rounded-full bg-sky transition-[width] duration-200 motion-reduce:transition-none" style={{ width: `${pct}%` }} />
+              <div
+                className="h-full rounded-full bg-sky transition-[width] duration-200 motion-reduce:transition-none"
+                style={{ width: `${pct}%` }}
+              />
             </div>
             <p className="mt-1.5 text-footnote text-muted">
               {formatBytes(done)} / {formatBytes(total)}
@@ -148,13 +180,18 @@ export function SendStep({
 
       <ul className="space-y-2">
         {run.rows.map((r) => (
-          <li key={r.view} className="flex items-center gap-3 rounded-2xl bg-surface p-(--block-pad)">
+          <li
+            key={r.view}
+            className="flex items-center gap-3 border-b border-line py-3"
+          >
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-ink">{VIEW_LABEL[r.view]}</p>
               <p className="truncate text-footnote text-muted">{r.name}</p>
             </div>
             <p className="flex shrink-0 items-center gap-1.5 text-footnote text-muted">
-              {r.status === 'arrived' && <CircleCheck aria-hidden className="h-4 w-4 text-ok" />}
+              {r.status === 'arrived' && (
+                <CircleCheck aria-hidden className="h-4 w-4 text-ok" />
+              )}
               {rowText(r)}
             </p>
           </li>
@@ -163,7 +200,11 @@ export function SendStep({
 
       {run.stop && <FieldError>{run.stop.message}</FieldError>}
       {stalled && onCancel && (
-        <NoteBox>{'서버 응답이 늦어지고 있습니다.\n멈춘 뒤 이어서 보내면 이미 도착한 부분부터 이어집니다.'}</NoteBox>
+        <NoteBox>
+          {
+            '서버 응답이 늦어지고 있습니다.\n멈춘 뒤 이어서 보내면 이미 도착한 부분부터 이어집니다.'
+          }
+        </NoteBox>
       )}
     </Screen>
   );

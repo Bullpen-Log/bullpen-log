@@ -204,7 +204,7 @@ const { ManifestLink } = await import('../manifest-link.tsx');
 
 /** 처리기를 부르고 끝날 때까지 기다린다 */
 async function press(handler: Handler | undefined, label: string) {
-  assert.ok(handler, `${label}: 단추가 없어요`);
+  assert.ok(handler, `${label}: 단추가 없습니다`);
   handler();
   await (bench as unknown as { last?: Promise<unknown> }).last;
 }
@@ -296,7 +296,7 @@ const panel = (over: Record<string, unknown>) =>
 {
   eq(rules.originalWarning(ASSET), null, '확인된 영상은 바로 받는다');
   eq(rules.originalWarning({ ...ASSET, verifiedAt: null }), null, '검증됨 상태면 믿는다');
-  ok(rules.originalWarning({ ...ASSET, status: 'rejected', rejectCode: 'not_video', verifiedAt: null })?.includes('영상이 아니에요'), '막힌 파일은 까닭을 말한다');
+  ok(rules.originalWarning({ ...ASSET, status: 'rejected', rejectCode: 'not_video', verifiedAt: null })?.includes('영상이 아닙니다'), '막힌 파일은 까닭을 말한다');
   ok(rules.originalWarning({ ...ASSET, status: 'replaced', rejectCode: 'not_video', verifiedAt: null }), '교체돼도 막힌 파일이다');
   ok(rules.originalWarning({ ...ASSET, status: 'unconfirmed' }), '영상인지 모르는 파일');
   ok(rules.originalWarning({ ...ASSET, status: 'uploaded', verifiedAt: null }), '아직 확인 전인 파일');
@@ -325,7 +325,7 @@ const panel = (over: Record<string, unknown>) =>
   await press(bench.clicks['옆 · 뒤 원본 함께 받기'], '짝 단추');
   eq(bench.calls, [], '짝도 먼저 묻는다');
   bench.answers.getIntakePairLinks = { ok: false, code: 'x', message: '막힘' };
-  await press(bench.confirms['확인되지 않은 파일이 있어요'], '짝 확인');
+  await press(bench.confirms['확인되지 않은 파일이 있습니다'], '짝 확인');
   eq(bench.calls.map((c) => c[0]), ['getIntakePairLinks'], '확인한 뒤에 받는다');
 }
 
@@ -340,7 +340,7 @@ const panel = (over: Record<string, unknown>) =>
   bench.answers.getIntakeOriginalLink = { ok: false, code: 'x', message: '막힘' };
   await press(bench.clicks['원본 내려받기'], '옛 원본 단추');
   eq(bench.calls.map((c) => c.slice(0, 4)), [['getIntakeOriginalLink', SID, 'old', 'download']], '옛 원본 번호로 주소를 받는다');
-  const page = readFileSync(fileURLToPath(new URL('./page.tsx', import.meta.url)), 'utf8');
+  const page = readFileSync(fileURLToPath(new URL('./page.tsx', import.meta.url)), 'utf8').replace(/\s+/g, ' ').replace(/, ([}\]])/g, ' $1');
   ok(/frozen\.map\(\(a\) => \(\s*<AssetCard/.test(page), '화면이 얼린 파일에 카드를 그린다');
 }
 
@@ -358,7 +358,7 @@ const panel = (over: Record<string, unknown>) =>
   const html = draw(panel({}));
   ok(html.includes('3D 결과 검토') && typeof bench.clicks['3D 결과 검토'] === 'function', '성공한 실행에는 검토 단추가 있다');
   ok(/<button[^>]*disabled=""[^>]*>이 결과 공개/.test(html), '검토 완료 전에는 공개 단추가 꺼져 있다');
-  ok(html.includes('이 결과 검토 완료') && html.includes('를 누르면 공개할 수 있어요'), '왜 꺼졌는지 한 줄');
+  ok(html.includes('이 결과 검토 완료') && html.includes('를 누르면 공개할 수 있습니다'), '왜 꺼졌는지 한 줄');
   ok(!draw(panel({ runs: [{ ...RUN, status: 'failed', hasResult: false }] })).includes('3D 결과 검토'), '실패한 실행에는 검토 단추가 없다');
   ok(!draw(panel({ withdrawn: true })).includes('3D 결과 검토'), '철회된 접수에는 검토 단추가 없다');
   /* 공개할 수 없는 실행(공개 중 · 옛 판)은 '보기'로만 연다 — 검토 완료 단추가 없는 창 */
@@ -452,7 +452,7 @@ const panel = (over: Record<string, unknown>) =>
 
   /* 공개할 수 없는 실행(공개 중 · 옛 판)은 보기만 */
   html = await opened(false);
-  ok(html.includes('보기만 해요') && !html.includes('이 결과 검토 완료'), '공개할 수 없는 실행에는 검토 완료 단추가 없다');
+  ok(html.includes('조회만 가능합니다') && !html.includes('이 결과 검토 완료'), '공개할 수 없는 실행에는 검토 완료 단추가 없다');
   bench.rr.slots = [];
   bench.rr.i = 0;
   bench.resultBody = undefined;
@@ -465,19 +465,19 @@ const panel = (over: Record<string, unknown>) =>
   bench.answers.publishIntakeRun = { ok: true, replaced: false };
   await press(bench.clicks['이 결과 공개'], '공개');
   eq(bench.calls, [['publishIntakeRun', SID, RUN.id, '', null, { acknowledgementId: null }]], '공개가 없을 때는 null 을 보낸다(검토 완료가 없으면 번호 없이 — 서버가 막는다)');
-  ok(bench.refreshes === 1 && bench.toasts[0] === '결과를 공개했어요', '끝나면 새로 받고 알린다');
+  ok(bench.refreshes === 1 && bench.toasts[0] === '결과를 공개했습니다', '끝나면 새로 받고 알린다');
 
   draw(panel({ runs: [{ ...RUN, id: 'other', published: true }, RUN], activePublicationId: PUB }));
   await press(bench.clicks['이 결과 공개'], '바꿔 공개');
   eq(bench.calls, [], '다른 공개가 있으면 먼저 묻는다');
-  bench.answers.publishIntakeRun = { ok: false, code: 'stale_publication', message: '다른 관리자가 공개를 바꿨어요.' };
+  bench.answers.publishIntakeRun = { ok: false, code: 'stale_publication', message: '다른 관리자가 공개를 변경했습니다.' };
   await press(bench.confirms['공개 중인 결과를 바꿀까요?'], '바꿔 공개 확인');
   eq(bench.calls, [['publishIntakeRun', SID, RUN.id, '', PUB, { acknowledgementId: null }]], '그릴 때 본 공개 번호를 보낸다');
   eq(bench.refreshes, 1, '막히면 최신 내용을 받는다');
   eq(bench.toasts, [], '막혔는데 공개했다고 말하지 않는다');
 
   draw(panel({ runs: [{ ...RUN, published: true }], activePublicationId: PUB }));
-  bench.answers.unpublishIntake = { ok: false, code: 'stale_publication', message: '다른 관리자가 공개를 바꿨어요.' };
+  bench.answers.unpublishIntake = { ok: false, code: 'stale_publication', message: '다른 관리자가 공개를 변경했습니다.' };
   await press(bench.clicks['공개 내리기'], '내리기 단추');
   eq(bench.calls, [], '내리기는 먼저 묻는다');
   await press(bench.confirms['공개를 내릴까요?'], '내리기 확인');
@@ -492,10 +492,10 @@ const panel = (over: Record<string, unknown>) =>
   const notes = [{ view: 'side', code: 'screen_like', text: '옆 영상: 화면 녹화로 보여요.', dropsTiming: true }];
   const made = draw(panel({ readiness: { ...READY, inputNotes: notes }, runs: [] }));
   ok(made.includes('옆 영상: 화면 녹화로 보여요.') && made.indexOf('화면 녹화로') < made.indexOf('분석 실행'), '단추보다 먼저 보인다');
-  ok(made.includes('시간 지표는 빠져요'), '돌리면 무엇이 빠지는지 말한다');
-  ok(!draw(panel({ readiness: { ...READY, inputNotes: [{ ...notes[0], dropsTiming: false }] }, runs: [] })).includes('시간 지표는 빠져요'), '안 빠지면 그 말은 없다');
+  ok(made.includes('시간 지표는 제외됩니다'), '돌리면 무엇이 빠지는지 말한다');
+  ok(!draw(panel({ readiness: { ...READY, inputNotes: [{ ...notes[0], dropsTiming: false }] }, runs: [] })).includes('시간 지표는 제외됩니다'), '안 빠지면 그 말은 없다');
   ok(!draw(panel({ readiness: READY, runs: [] })).includes('분석 전에 볼 것'), '주의가 없으면 칸도 없다');
-  ok(draw(panel({ runs: [{ ...RUN, timingDropped: true }] })).includes('시간 지표를 뺀 실행'), '시간 지표를 뺀 실행을 표시한다');
+  ok(draw(panel({ runs: [{ ...RUN, timingDropped: true }] })).includes('시간 지표를 제외한 실행'), '시간 지표를 제외한 실행을 표시한다');
 }
 
 /* ── 철회 기록(#1 · #7 · #26) ── */
@@ -511,13 +511,13 @@ const panel = (over: Record<string, unknown>) =>
   ok(!rules.withdrawalRecordable({ status: 'verified', consents: [consent({ withdrawnAt: 'x' })] } as never), '다 거둔 동의도 아니다');
 
   const made = draw(h(WithdrawConsentButton, { submissionId: SID }));
-  ok(made.includes('되돌릴 수 없어요') && made.includes('철회를 알린 내용'), '창이 결과를 말하고 메모 칸을 준다');
+  ok(made.includes('되돌릴 수 없습니다') && made.includes('철회를 알린 내용'), '창이 결과를 말하고 메모 칸을 준다');
   await press(bench.clicks['필수 동의 철회 기록'], '철회 단추');
   eq(bench.calls, [], '누르자마자 기록하지 않는다');
   bench.answers.withdrawIntakeConsent = { ok: true, withdrawn: true, unpublished: true };
   await press(bench.confirms['필수 동의 철회를 기록할까요?'], '철회 확인');
   eq(bench.calls, [['withdrawIntakeConsent', SID, null]], '확인하면 기록한다');
-  ok(bench.toasts[0].includes('공개를 내렸어요') && bench.refreshes === 1, '공개가 닫혔는지 알린다');
+  ok(bench.toasts[0].includes('공개를 비공개로 전환했습니다') && bench.refreshes === 1, '공개가 닫혔는지 알린다');
 }
 
 /* ── 멈춘 일감(#14) ── */
@@ -528,11 +528,11 @@ const panel = (over: Record<string, unknown>) =>
   bench.answers.requeueIntakeVerification = { ok: true, requeued: 1 };
   await press(bench.clicks['다시 확인'], '다시 확인');
   eq(bench.calls, [['requeueIntakeVerification', SID]], '지금 판을 다시 건다');
-  ok(bench.toasts[0] === '다시 확인을 걸었어요' && bench.refreshes === 1, '걸었다고 알리고 새로 받는다');
+  ok(bench.toasts[0] === '다시 확인을 요청했습니다' && bench.refreshes === 1, '걸었다고 알리고 새로 받는다');
   draw(h(JobIssuesPanel, { submissionId: SID, issues: [job], locked: false }));
   bench.answers.requeueIntakeVerification = { ok: true, requeued: 0 };
   await press(bench.clicks['다시 확인'], '또 다시 확인');
-  eq(bench.toasts, ['다시 걸 일감이 없어요'], '걸린 것이 없으면 그렇게 말한다');
+  eq(bench.toasts, ['다시 걸 일감이 없습니다'], '걸린 것이 없으면 그렇게 말한다');
   const noButton = draw(h(JobIssuesPanel, { submissionId: SID, issues: [{ ...job, state: 'stalled', canRequeue: false }], locked: false }));
   ok(!noButton.includes('다시 확인') && noButton.includes('크론'), '시도가 남은 일감은 단추 대신 안내');
   ok(!draw(h(JobIssuesPanel, { submissionId: SID, issues: [job], locked: true })).includes('다시 확인'), '철회된 접수에는 단추가 없다');
@@ -546,12 +546,12 @@ const panel = (over: Record<string, unknown>) =>
   const failed = draw(h(JobStateLine, { issue: base }));
   ok(failed.includes('text-danger') && failed.includes('시도를 다 썼어요') && failed.includes('8/8'), '실패는 오류 색 · 시도 횟수');
 
-  const waitNote = `${VERIFY_BUDGET_NOTE_PREFIX} 큰 파일이라 다음 실행에서 이어 확인해요.`;
+  const waitNote = `${VERIFY_BUDGET_NOTE_PREFIX} 큰 파일이라 다음 실행에서 이어 확인합니다.`;
   const waiting = draw(h(JobStateLine, { issue: { ...base, state: 'waiting', attempts: 0, lastError: null, note: waitNote } }));
-  ok(waiting.includes('검증 대기') && waiting.includes('다음 실행에서 이어 확인해요'), '기다림 글을 보인다');
+  ok(waiting.includes('검증 대기') && waiting.includes('다음 실행에서 이어 확인합니다'), '기다림 글을 보인다');
   ok(!waiting.includes('text-danger'), '기다림은 오류 색이 아니다');
   ok(!waiting.includes('시도 0/'), '횟수를 안 쓰는 기다림이라 시도 칸을 안 보인다');
-  eq((waiting.match(/다음 실행에서 이어 확인해요/g) ?? []).length, 1, '모습 글과 같은 기다림 글은 두 번 말하지 않는다');
+  eq((waiting.match(/다음 실행에서 이어 확인합니다/g) ?? []).length, 1, '모습 글과 같은 기다림 글은 두 번 말하지 않는다');
 
   const parked = draw(h(JobStateLine, { issue: { ...base, state: 'waiting', attempts: 0, lastError: null, note: `${VERIFY_BUDGET_NOTE_PREFIX} 시간 안에 다 읽지 못한 일이 거듭돼 검증 작업자를 기다려요.` } }));
   ok(parked.includes('검증 작업자를 기다려요') && !parked.includes(VERIFY_BUDGET_NOTE_PREFIX), '덧붙일 사정은 머리말 없이 보인다');
@@ -571,7 +571,7 @@ const panel = (over: Record<string, unknown>) =>
 {
   const base = { submissionId: SID, version: 7, requested: true, correction: { fields: ['athleteName'], views: ['side'], message: '다시 찍어 주세요' }, requestedAt: '2026-11-06T00:00:00.000Z', uploadExpired: true, editable: true, extendChoices: [3, 7], suggestViews: [], cancelDetail: '거두기 글' };
   const made = draw(h(CorrectionPanel, base));
-  ok(made.includes('선수 이름 · 옆 영상') && made.includes('다시 찍어 주세요') && made.includes('기간을 늘려'), '연 요청과 막힌 까닭을 보인다');
+  ok(made.includes('선수 이름 · 옆 영상') && made.includes('다시 찍어 주세요') && made.includes('기간을 연장'), '연 요청과 막힌 까닭을 보인다');
   ok(bench.clicks['요청 바꾸기'] && bench.clicks['고침 요청 거두기'], '바꾸고 거둘 길이 있다');
   await press(bench.clicks['고침 요청 거두기'], '거두기 단추');
   eq(bench.calls, [], '거두기는 먼저 묻는다');
@@ -584,15 +584,15 @@ const panel = (over: Record<string, unknown>) =>
   /* 검증 지적: 폐기된 초대의 고침에 '기간을 늘려 주세요'를 권했다 — 폐기된 초대는 기간을 늘릴 수 없고, 늘리기 칸도 없다 */
   for (const uploadExpired of [true, false]) {
     const revoked = draw(h(CorrectionPanel, { ...base, editable: false, uploadExpired }));
-    ok(!revoked.includes('기간을 늘려') && !revoked.includes('올리기 기간이 끝나'), `폐기된 초대에는 기간 늘리기를 권하지 않는다: 기간 끝남 ${uploadExpired}`);
-    ok(revoked.includes('초대를 폐기해 받는 분이 고칠 수 없어요') && revoked.includes('고침 요청을 거둘 수 있어요'), `폐기한 까닭과 할 수 있는 일을 말한다: 기간 끝남 ${uploadExpired}`);
+    ok(!revoked.includes('기간을 연장') && !revoked.includes('올리기 기간이 끝나'), `폐기된 초대에는 기간 늘리기를 권하지 않는다: 기간 끝남 ${uploadExpired}`);
+    ok(revoked.includes('초대를 폐기해 받는 분이 고칠 수 없습니다') && revoked.includes('고침 요청을 철회할 수 있습니다'), `폐기한 까닭과 할 수 있는 일을 말한다: 기간 끝남 ${uploadExpired}`);
   }
   ok(!draw(h(CorrectionPanel, base)).includes('초대를 폐기'), '살아 있는 초대에는 폐기 글이 없다');
   const form = draw(h(CorrectionPanel, { ...base, requested: false, correction: null, requestedAt: null, uploadExpired: false, suggestViews: ['rear'] }));
   ok(/<input[^>]*checked[^>]*value="rear"|<input[^>]*value="rear"[^>]*checked/.test(form), '막힌 칸은 미리 골라 둔다');
   ok(!/<input[^>]*checked[^>]*value="side"|<input[^>]*value="side"[^>]*checked/.test(form), '멀쩡한 칸은 안 고른다');
   ok(form.includes('뒤 영상을 다시 받아야'), '왜 고른 칸인지 말한다');
-  ok(form.includes(">그대로<"), '기간이 남았으면 안 늘려도 된다');
+  ok(form.includes('>그대로<'), '기간이 남았으면 안 늘려도 된다');
 
   const none = { status: 'verified', invitation: { status: 'revoked' } };
   ok(!rules.correctionSectionVisible(none as never), '폐기됐고 연 요청이 없으면 칸이 없다');
@@ -613,7 +613,7 @@ const panel = (over: Record<string, unknown>) =>
   ok(!rules.uploadWindowExtendable({ status: 'verified', invitation: { status: 'active' } } as never), '끝난 접수는 뜻이 없다');
   ok(!rules.uploadWindowExtendable({ status: 'draft', invitation: { status: 'revoked' } } as never), '폐기된 초대는 안 늘린다');
   const made = draw(h(UploadWindowBox, { submissionId: SID, expired: true, choices: [3, 7] }));
-  ok(made.includes('기간이 끝났어요') && made.includes('오늘부터 7일'), '끝났다고 알린다');
+  ok(made.includes('기간이 종료되었습니다') && made.includes('오늘부터 7일'), '끝났다고 알린다');
   bench.answers.extendIntakeUploadWindow = { ok: true, uploadExpiresAt: '2026-11-13T00:00:00.000Z' };
   await press(bench.clicks['올리기 기간 늘리기'], '기간 늘리기');
   eq(bench.calls, [['extendIntakeUploadWindow', SID, 7]], '고른 날수로 늘린다');
@@ -633,9 +633,9 @@ const panel = (over: Record<string, unknown>) =>
   await press(bench.confirms['결과 보기 잠금을 풀까요?'], '풀기 확인');
   eq(bench.calls, [['resetIntakeAccessCodeLock', SID]], '확인하면 푼다');
   /* R03 — 초대 폼은 접근 코드를 더 받지 않는다. 받는 분이 처음 열 때 이름과 PIN 을 정한다 */
-  const hint = readFileSync(fileURLToPath(new URL('../create-invitation.tsx', import.meta.url)), 'utf8');
+  const hint = readFileSync(fileURLToPath(new URL('../create-invitation.tsx', import.meta.url)), 'utf8').replace(/\s+/g, ' ').replace(/, ([}\]])/g, ' $1');
   ok(!hint.includes('name="accessCode"'), '초대 폼에 접근 코드 칸이 없다');
-  ok(hint.includes('받는 분이 처음 열 때 이름과 숫자 네 자리 PIN 을 정해요. 한 사람에게 링크 하나를 보내 주세요.'), '이름 · PIN 안내 한 줄이 있다');
+  ok(hint.includes('받는 분이 이름과 숫자 4자리 비밀번호를 설정합니다. 한 사람에게 링크 하나를 전달합니다.'), '이름·비밀번호 안내 한 줄이 있다');
 }
 
 /* ── 원본 보유 기간 ── */
@@ -667,7 +667,7 @@ const panel = (over: Record<string, unknown>) =>
   const current = { ...base, purging: { since, files: 2, scope: 'current' } };
   const shown = rules.retentionText(current as never, now);
   eq([shown.label, shown.date], ['원본 지우는 중', since], '지금 판을 지우는 중이면 그렇게 말하고 시작한 때를 보인다');
-  ok(shown.note?.includes('지운 날로 바뀌어요'), '끝나면 어떻게 되는지 말한다');
+  ok(shown.note?.includes('지운 날로 변경됩니다'), '끝나면 어떻게 되는지 말한다');
   eq(rules.retentionText({ ...current, purgeAt: '2027-05-07T00:00:00.000Z' } as never, now).label, '원본 지우는 중', '철회로 지울 날이 밀려도 지우는 중이다');
   ok(!rules.retentionText({ ...current, heldUntil: '2027-02-10T00:00:00.000Z' } as never, now).note?.includes('고침'), '고침을 기다린다고 안 말한다');
 
@@ -675,7 +675,7 @@ const panel = (over: Record<string, unknown>) =>
   const older = { ...base, purging: { since, files: 1, scope: 'older' } };
   const olderShown = rules.retentionText(older as never, now);
   eq([olderShown.label, olderShown.date], ['원본 삭제 예정일', base.purgeAt], '지금 판의 지울 날을 지킨다');
-  ok(olderShown.note?.includes('옛 판') && !olderShown.note.includes('지운 날로 바뀌어요'), '옛 판을 지우는 중이라고 따로 말한다');
+  ok(olderShown.note?.includes('옛 판') && !olderShown.note.includes('지운 날로 변경됩니다'), '옛 판을 지우는 중이라고 따로 말한다');
   ok(!rules.retentionText({ ...older, heldUntil: '2027-02-10T00:00:00.000Z' } as never, now).note?.includes('고침'), '옛 판을 말할 때는 기다림 글을 안 섞는다');
   const olderGone = rules.retentionText({ ...older, purgedAt: '2027-02-04T01:00:00.000Z' } as never, now);
   eq([olderGone.label, olderGone.date], ['원본 지운 날', '2027-02-04T01:00:00.000Z'], '지금 판을 지웠으면 지운 날을 말한다');
@@ -684,18 +684,18 @@ const panel = (over: Record<string, unknown>) =>
   /* 철회 배너 — 시각을 늘 넘긴다. 기본값(지금)에 기대면 지울 날(2027-02-04)이 지난 뒤 시험이 깨진다 */
   const beforeDue = new Date('2027-01-10T00:00:00.000Z');
   eq(rules.withdrawnRetentionText(null, beforeDue), '', '지울 날이 없으면 안 말한다');
-  ok(rules.withdrawnRetentionText(base as never, beforeDue).includes('에 지워요'), '지울 날을 말한다');
-  ok(rules.withdrawnRetentionText({ ...base, purgedAt: '2027-02-04T01:00:00.000Z' } as never, beforeDue).includes('에 지웠어요'), '지운 날을 말한다');
-  eq(rules.withdrawnRetentionText({ ...current, purgeAt: '2027-05-07T00:00:00.000Z' } as never, beforeDue), ' 원본을 지우고 있어요.', '철회로 밀린 날을 지울 날이라고 안 말한다');
-  ok(rules.withdrawnRetentionText(older as never, beforeDue).includes('에 지워요'), '옛 판만 지우면 지금 판의 지울 날을 말한다');
+  ok(rules.withdrawnRetentionText(base as never, beforeDue).includes('에 삭제합니다'), '지울 날을 말한다');
+  ok(rules.withdrawnRetentionText({ ...base, purgedAt: '2027-02-04T01:00:00.000Z' } as never, beforeDue).includes('에 삭제했습니다'), '지운 날을 말한다');
+  eq(rules.withdrawnRetentionText({ ...current, purgeAt: '2027-05-07T00:00:00.000Z' } as never, beforeDue), ' 원본을 지우고 있습니다.', '철회로 밀린 날을 지울 날이라고 안 말한다');
+  ok(rules.withdrawnRetentionText(older as never, beforeDue).includes('에 삭제합니다'), '옛 판만 지우면 지금 판의 지울 날을 말한다');
 
-  const page = readFileSync(fileURLToPath(new URL('./page.tsx', import.meta.url)), 'utf8');
+  const page = readFileSync(fileURLToPath(new URL('./page.tsx', import.meta.url)), 'utf8').replace(/\s+/g, ' ').replace(/, ([}\]])/g, ' $1');
   ok(page.includes('pairDownloadable(d)') && page.includes('retentionFactRows(d.retention, d.filesPurgedAt, now)'), '화면이 규칙을 쓴다');
   ok(!page.includes('보유 기간이 정해질 때까지'), '옛 약속이 안 남는다');
-  const manage = readFileSync(fileURLToPath(new URL('./detail-manage.tsx', import.meta.url)), 'utf8');
-  ok(manage.includes('모델 개발 동의는 이 기록으로 거둬지지 않고 따로 남아요'), '철회 확인창이 모델 동의를 말한다');
+  const manage = readFileSync(fileURLToPath(new URL('./detail-manage.tsx', import.meta.url)), 'utf8').replace(/\s+/g, ' ').replace(/, ([}\]])/g, ' $1');
+  ok(manage.includes('모델 개발 동의는 이 기록으로 거둬지지 않고 별도로 유지됩니다'), '철회 확인창이 모델 동의를 말한다');
   ok(!manage.includes('보유 기간이 정해질 때까지'), '철회 확인창의 옛 약속이 없다');
-  const list = readFileSync(fileURLToPath(new URL('../page.tsx', import.meta.url)), 'utf8');
+  const list = readFileSync(fileURLToPath(new URL('../page.tsx', import.meta.url)), 'utf8').replace(/\s+/g, ' ').replace(/, ([}\]])/g, ' $1');
   /* 검증 지적: 칸 머리가 판에 안 오른 철회 초안의 파일까지 '원본'이라고 불렀다 — 낱말은 칸 글 쪽이 고른다(retentionLineText · 상세 fileWords) */
   ok(list.includes("'삭제 예정일'") && !list.includes('원본 삭제 예정일'), '목록 칸 머리가 모든 줄을 원본이라고 부르지 않는다');
   ok(list.includes('retentionCellText(r)') && list.includes('retentionLineText(r)'), '목록이 지우는 중을 아는 글을 쓴다');
@@ -733,27 +733,27 @@ const panel = (over: Record<string, unknown>) =>
   const olderOnly = { ...alive, purging: { since: '2027-02-04T00:10:00.000Z', files: 1, scope: 'older' } };
   /* 시각을 늘 넘긴다 — 기본값(지금)에 기대면 지울 날(2027-02-04)이 지난 뒤 '그대로 · 까지 열려요' 시험이 깨진다 */
   const early = new Date('2027-01-10T00:00:00.000Z');
-  ok(rules.cancelCorrectionDetail(alive as never, early).includes('그대로예요'), '살아 있으면 그대로라고 말한다');
-  ok(rules.cancelCorrectionDetail(gone as never, early).includes('이미 지웠어요') && !rules.cancelCorrectionDetail(gone as never, early).includes('그대로예요'), '지웠으면 지웠다고 말한다');
-  ok(rules.cancelCorrectionDetail(deleting as never, early).includes('지우고 있어요'), '지우는 중이면 그렇게 말한다');
-  ok(rules.cancelCorrectionDetail(olderOnly as never, early).includes('그대로예요'), '옛 판만 지우면 지금 판은 그대로다');
-  ok(rules.cancelCorrectionDetail(null, early).includes('그대로예요'), '지울 날이 없어도 그대로다');
-  ok(rules.revokeRetentionText(alive as never, { now: early }).includes('2027. 02. 04') && rules.revokeRetentionText(alive as never, { now: early }).includes('까지 열려요'), '폐기해도 지울 날까지만 열린다');
+  ok(rules.cancelCorrectionDetail(alive as never, early).includes('그대로입니다'), '살아 있으면 그대로라고 말한다');
+  ok(rules.cancelCorrectionDetail(gone as never, early).includes('이미 삭제했습니다') && !rules.cancelCorrectionDetail(gone as never, early).includes('그대로입니다'), '지웠으면 지웠다고 말한다');
+  ok(rules.cancelCorrectionDetail(deleting as never, early).includes('지우고 있습니다'), '지우는 중이면 그렇게 말한다');
+  ok(rules.cancelCorrectionDetail(olderOnly as never, early).includes('그대로입니다'), '옛 판만 지우면 지금 판은 그대로다');
+  ok(rules.cancelCorrectionDetail(null, early).includes('그대로입니다'), '지울 날이 없어도 그대로다');
+  ok(rules.revokeRetentionText(alive as never, { now: early }).includes('2027. 02. 04') && rules.revokeRetentionText(alive as never, { now: early }).includes('까지 열 수 있습니다'), '폐기해도 지울 날까지만 열린다');
   ok(!rules.revokeRetentionText(alive as never, { now: early }).includes('계속'), '계속 열린다고 안 말한다');
-  ok(rules.revokeRetentionText(gone as never, { now: early }).includes('이미 지웠어요') && !rules.revokeRetentionText(gone as never, { now: early }).includes('열려요'), '지웠으면 열린다고 안 말한다');
-  ok(rules.revokeRetentionText(deleting as never, { now: early }).includes('지우고 있어요'), '지우는 중이면 그렇게 말한다');
-  eq(rules.revokeRetentionText(null, { now: early }), '동의 철회는 아니에요.', '지울 날이 없으면 날짜를 안 말한다');
+  ok(rules.revokeRetentionText(gone as never, { now: early }).includes('이미 삭제했습니다') && !rules.revokeRetentionText(gone as never, { now: early }).includes('열 수 있습니다'), '지웠으면 열린다고 안 말한다');
+  ok(rules.revokeRetentionText(deleting as never, { now: early }).includes('지우고 있습니다'), '지우는 중이면 그렇게 말한다');
+  eq(rules.revokeRetentionText(null, { now: early }), '동의 철회는 아닙니다.', '지울 날이 없으면 날짜를 안 말한다');
 
-  const page = readFileSync(new URL('./page.tsx', import.meta.url), 'utf8');
-  const list = readFileSync(new URL('../page.tsx', import.meta.url), 'utf8');
+  const page = readFileSync(new URL('./page.tsx', import.meta.url), 'utf8').replace(/\s+/g, ' ').replace(/, ([}\]])/g, ' $1');
+  const list = readFileSync(new URL('../page.tsx', import.meta.url), 'utf8').replace(/\s+/g, ' ').replace(/, ([}\]])/g, ' $1');
   ok(page.includes('<AnalysisChip') && !page.includes('analysisTone('), '상세 칩이 지운 사실을 안다');
   ok(list.split('<AnalysisChip').length === 3 && !list.includes('analysisTone('), '목록 두 칩이 지운 사실을 안다');
   ok(page.includes('cancelDetail={cancelCorrectionDetail(d.retention, now)}') && page.includes('retentionLine={revokeRetentionText(d.retention, { status: d.status, now })}'), '두 확인창이 지운 사실 · 지울 날 · 철회를 안다');
   ok(page.includes('retentionLine={withdrawConsentRetentionText(d.retention, now)}') && page.includes('goneViews={goneViewsOf(d.assets)}') && page.includes('emptyVideosText(d.assets)'), '철회 확인창 · 고침 칸 · 빈 영상 칸이 지운 사실 · 지울 날을 안다');
   ok(page.includes('<AnalysisChip status={d.analysisStatus} block={d.analysisBlock} />') && list.split('block={r.analysisBlock}').length === 3, '칩은 서버가 정한 막힘을 그대로 쓴다');
-  const manage = readFileSync(new URL('./detail-manage.tsx', import.meta.url), 'utf8');
-  const client = readFileSync(new URL('./detail-client.tsx', import.meta.url), 'utf8');
-  ok(!manage.includes('얼린 판의 원본은 그대로예요') && !client.includes('원본은 계속 열려요'), '고정 글이 안 남는다');
+  const manage = readFileSync(new URL('./detail-manage.tsx', import.meta.url), 'utf8').replace(/\s+/g, ' ').replace(/, ([}\]])/g, ' $1');
+  const client = readFileSync(new URL('./detail-client.tsx', import.meta.url), 'utf8').replace(/\s+/g, ' ').replace(/, ([}\]])/g, ' $1');
+  ok(!manage.includes('얼린 판의 원본은 그대로입니다') && !client.includes('원본은 계속 열 수 있습니다'), '고정 글이 안 남는다');
 }
 
 /* ── 검증 지적: 지울 날이 지난 접수 · 철회한 접수의 확인창 글, 지운 접수의 칸 ── */
@@ -765,25 +765,25 @@ const panel = (over: Record<string, unknown>) =>
 
   /* 고침 거두기 — 기다리던 삭제가 이어진다 */
   const cancel = rules.cancelCorrectionDetail(due as never, at);
-  ok(!cancel.includes('그대로예요') && cancel.includes('다음 정리 때') && cancel.includes('되돌릴 수 없어요'), '지울 날이 지나 기다리는 원본은 거두면 지운다고 말한다');
-  ok(!rules.cancelCorrectionDetail({ ...due, heldUntil: null } as never, at).includes('그대로예요'), '기다림 없이 지울 날이 지난 원본도 그대로라고 안 한다');
-  ok(rules.cancelCorrectionDetail(alive as never, before).includes('그대로예요'), '지울 날 전에는 그대로다');
+  ok(!cancel.includes('그대로입니다') && cancel.includes('다음 정리 때') && cancel.includes('되돌릴 수 없습니다'), '지울 날이 지나 기다리는 원본은 거두면 지운다고 말한다');
+  ok(!rules.cancelCorrectionDetail({ ...due, heldUntil: null } as never, at).includes('그대로입니다'), '기다림 없이 지울 날이 지난 원본도 그대로라고 안 한다');
+  ok(rules.cancelCorrectionDetail(alive as never, before).includes('그대로입니다'), '지울 날 전에는 그대로다');
 
   /* 초대 폐기 — 지난 날짜까지 열린다고 안 하고, 철회한 접수에는 열린다고 안 한다 */
   const revokeDue = rules.revokeRetentionText(due as never, { status: 'correction_requested', now: at });
-  ok(!revokeDue.includes('까지 열려요') && revokeDue.includes('다음 정리 때'), '지난 날짜까지 열린다고 안 한다');
-  ok(rules.revokeRetentionText(alive as never, { status: 'verified', now: before }).includes('까지 열려요'), '지울 날 전에는 그날까지 열린다');
+  ok(!revokeDue.includes('까지 열 수 있습니다') && revokeDue.includes('다음 정리 때'), '지난 날짜까지 열린다고 안 한다');
+  ok(rules.revokeRetentionText(alive as never, { status: 'verified', now: before }).includes('까지 열 수 있습니다'), '지울 날 전에는 그날까지 열린다');
   const revokeWithdrawn = rules.revokeRetentionText(alive as never, { status: 'withdrawn', now: before });
-  ok(revokeWithdrawn.includes('철회한 접수') && !revokeWithdrawn.includes('열려요') && !revokeWithdrawn.includes('동의 철회는 아니'), '철회한 접수에는 원본이 열린다고 안 한다');
-  eq(rules.revokeRetentionText(null, { status: 'withdrawn', now: before }), '이미 철회한 접수예요.', '지울 날 없는 철회 초안');
-  ok(!rules.withdrawnRetentionText({ ...alive, basis: 'published' } as never, at).includes('2027. 02. 04.에 지워요'), '철회 배너도 지난 날짜에 지운다고 안 한다');
+  ok(revokeWithdrawn.includes('철회한 접수') && !revokeWithdrawn.includes('열 수 있습니다') && !revokeWithdrawn.includes('동의 철회는 아니'), '철회한 접수에는 원본이 열린다고 안 한다');
+  eq(rules.revokeRetentionText(null, { status: 'withdrawn', now: before }), '이미 철회한 접수입니다.', '지울 날 없는 철회 초안');
+  ok(!rules.withdrawnRetentionText({ ...alive, basis: 'published' } as never, at).includes('2027. 02. 04.에 삭제합니다'), '철회 배너도 지난 날짜에 지운다고 안 한다');
 
   /* 필수 동의 철회 — 이미 지운 원본을 앞으로 지운다고 안 한다 */
   const gone = { ...alive, purgedAt: '2027-02-04T01:00:00.000Z' };
   const deleting = { ...alive, purging: { since: '2027-02-04T00:10:00.000Z', files: 2, scope: 'current' } };
   const wGone = rules.withdrawConsentRetentionText(gone as never, at);
-  ok(wGone.includes('이미 지웠어요') && !wGone.includes('90일 뒤 지우고'), '지운 원본은 지웠다고 한다');
-  ok(rules.withdrawConsentRetentionText(deleting as never, at).includes('지우고 있어요'), '지우는 중이면 그렇게 말한다');
+  ok(wGone.includes('이미 삭제했습니다') && !wGone.includes('90일 뒤 지우고'), '지운 원본은 지웠다고 한다');
+  ok(rules.withdrawConsentRetentionText(deleting as never, at).includes('지우고 있습니다'), '지우는 중이면 그렇게 말한다');
   ok(rules.withdrawConsentRetentionText(alive as never, before).includes('90일 뒤 지우고'), '살아 있으면 규칙을 말한다');
   /*
    * 검증 지적: 공개한 적이 있는 접수는 철회가 지울 날을 늦추지 않는다(retention.ts). 지울 날이 지나 고침을 기다리던 원본은
@@ -791,7 +791,7 @@ const panel = (over: Record<string, unknown>) =>
    */
   for (const basis of ['published', 'resubmitted'] as const) {
     const wDue = rules.withdrawConsentRetentionText({ ...due, basis } as never, at);
-    ok(wDue.includes('다음 정리 때') && wDue.includes('되돌릴 수 없어요') && !wDue.includes('원래 지울 날에 지워요'), `공개한 적 있는 지난 원본은 다음 정리 때 지운다고 한다: ${basis}`);
+    ok(wDue.includes('다음 정리 때') && wDue.includes('되돌릴 수 없습니다') && !wDue.includes('원래 지울 날에 삭제합니다'), `공개한 적 있는 지난 원본은 다음 정리 때 지운다고 한다: ${basis}`);
     ok(rules.withdrawConsentRetentionText({ ...alive, basis } as never, before).includes('원래 지울 날'), `지울 날 전이면 규칙을 그대로 말한다: ${basis}`);
   }
   /* 공개한 적 없는 접수는 철회한 날부터 다시 센다 — 지난 날짜라도 곧 지운다고 안 한다 */
@@ -812,22 +812,22 @@ const panel = (over: Record<string, unknown>) =>
   /* 고침 칸 — 지운 칸은 끝내지 못한 접수처럼 말하지 않는다 */
   const panel = { submissionId: SID, version: 7, requested: false, correction: null, requestedAt: null, uploadExpired: false, editable: true, extendChoices: [3, 7], cancelDetail: '거두기 글' };
   const goneForm = draw(h(CorrectionPanel, { ...panel, suggestViews: ['side', 'rear'], goneViews: ['side', 'rear'] }));
-  ok(!goneForm.includes('다시 받아야 접수를 끝낼 수 있어요') && goneForm.includes('원본을 지웠어요'), '지운 칸은 지웠다고 말한다');
+  ok(!goneForm.includes('다시 받아야 접수를 완료할 수 있습니다') && goneForm.includes('원본을 삭제했습니다'), '지운 칸은 지웠다고 말한다');
   const mixed = draw(h(CorrectionPanel, { ...panel, suggestViews: ['side', 'rear'], goneViews: ['rear'] }));
-  ok(mixed.includes('옆 영상을 다시 받아야 접수를 끝낼 수 있어요') && mixed.includes('뒤 영상 원본을 지웠어요'), '막힌 칸과 지운 칸을 가른다');
+  ok(mixed.includes('옆 영상을 다시 받아야 접수를 완료할 수 있습니다') && mixed.includes('뒤 영상 원본을 삭제했습니다'), '막힌 칸과 지운 칸을 가른다');
   eq(rules.goneViewsOf([{ view: 'side', status: 'purged', current: true }, { view: 'rear', status: 'rejected', current: true }]), ['side'], '지운 칸만 고른다');
 
   /* 분석 칸 — 원본이 없으면 손 고르기 · 분석 전 주의 · 국외 이전 확인을 안 보인다 */
   const over = {
     runnable: false,
     blockers: [
-      { code: 'original_purged', text: '보유 기간이 끝난 원본이라 쓸 수 없어요.' },
-      { code: 'analysis_hand_required', text: '던지는 손을 먼저 정해 주세요.' },
+      { code: 'original_purged', text: '보유 기간이 끝난 원본이라 쓸 수 없습니다.' },
+      { code: 'analysis_hand_required', text: '던지는 손을 먼저 선택합니다.' },
       { code: 'analysis_confirm_required', text: '확인' },
     ],
     needsDraftConfirm: true,
     hand: null,
-    inputNotes: [{ view: 'side', code: 'zoom_unknown', text: '옆 영상: 줌 배율을 읽지 못했어요. 1배로 찍었다고 보고 돌려요.', dropsTiming: false }],
+    inputNotes: [{ view: 'side', code: 'zoom_unknown', text: '옆 영상: 줌 배율을 읽지 못했습니다. 1배로 찍었다고 보고 돌려요.', dropsTiming: false }],
   };
   const panelHtml = draw(h(AnalysisPanel, { submissionId: SID, analysisStatus: 'ready', readiness: over, runs: [], hand: null, withdrawn: false, activePublicationId: null }));
   ok(!panelHtml.includes('던지는 손을 정해') && !panelHtml.includes('던지는 손을 먼저') && !panelHtml.includes('분석 전에 볼 것') && !panelHtml.includes('국외 이전 안내'), '돌릴 수 없는 접수에 손 · 주의 · 확인 칸이 없다');
@@ -892,7 +892,7 @@ const panel = (over: Record<string, unknown>) =>
   const send = (picked: Props['picked']) => {
     focused.length = 0;
     const click = bench.clicks['고친 내용 보내기'];
-    assert.ok(click, '고친 내용 보내기 단추가 있어요');
+    assert.ok(click, '고친 내용 보내기 단추가 있습니다');
     click();
     const moved = [...focused];
     render(picked);
@@ -1060,27 +1060,27 @@ const panel = (over: Record<string, unknown>) =>
     return draw(h(CorrectionPanel, { ...corr, suggestViews: rules.viewsToResend(assets), goneViews: rules.goneViewsOf(assets), deletingViews: rules.deletingViewsOf(assets) }));
   };
   const deletingBoth = correctionFor('purging', 'purging');
-  ok(deletingBoth.includes('옆 영상 · 뒤 영상 원본을 지우고 있어요. 다시 분석하려면 영상을 다시 받아야 해요.') && !deletingBoth.includes('지웠어요'), '지우고 있는 원본을 지웠다고 안 한다');
+  ok(deletingBoth.includes('옆 영상 · 뒤 영상 원본을 지우고 있습니다. 다시 분석하려면 영상을 다시 받아야 합니다.') && !deletingBoth.includes('삭제했습니다'), '지우고 있는 원본을 지웠다고 안 한다');
   const mixedGone = correctionFor('purged', 'purging');
-  ok(mixedGone.includes('옆 영상 원본을 지웠어요. 뒤 영상 원본을 지우고 있어요.'), '지운 칸과 지우는 칸을 따로 말한다');
+  ok(mixedGone.includes('옆 영상 원본을 삭제했습니다. 뒤 영상 원본을 지우고 있습니다.'), '지운 칸과 지우는 칸을 따로 말한다');
   const doneBoth = correctionFor('purged', 'purged');
-  ok(doneBoth.includes('옆 영상 · 뒤 영상 원본을 지웠어요.') && !doneBoth.includes('지우고 있어요'), '다 지운 칸은 지웠다고 한다');
+  ok(doneBoth.includes('옆 영상 · 뒤 영상 원본을 삭제했습니다.') && !doneBoth.includes('지우고 있습니다'), '다 지운 칸은 지웠다고 한다');
   const deletingBlocked = correctionFor('rejected', 'purging');
-  ok(deletingBlocked.includes('옆 영상을 다시 받아야 접수를 끝낼 수 있어요') && deletingBlocked.includes('뒤 영상 원본을 지우고 있어요.') && !deletingBlocked.includes('지웠어요'), '막힌 칸 · 지우는 칸을 가른다');
+  ok(deletingBlocked.includes('옆 영상을 다시 받아야 접수를 완료할 수 있습니다') && deletingBlocked.includes('뒤 영상 원본을 지우고 있습니다.') && !deletingBlocked.includes('삭제했습니다'), '막힌 칸 · 지우는 칸을 가른다');
   eq(rules.deletingViewsOf([{ view: 'side', status: 'purging', current: true }, { view: 'rear', status: 'purged', current: true }, { view: 'rear', status: 'purging', current: false }] as never), ['side'], '지우는 칸은 지금 칸의 purging 뿐이다');
-  const page = readFileSync(new URL('./page.tsx', import.meta.url), 'utf8');
+  const page = readFileSync(new URL('./page.tsx', import.meta.url), 'utf8').replace(/\s+/g, ' ').replace(/, ([}\]])/g, ' $1');
   ok(page.includes('deletingViews={deletingViewsOf(d.assets)}'), '고침 칸이 지우는 칸을 안다');
 
   /* 2 빈 영상 칸 — 목록 칸(slotProgressOf)과 칸마다 같은 판단이다. 칸 하나만 지워도 받은 적 없는 접수처럼 안 말한다 */
   const file = (view: string, status: string, revisions: number[] = []) => ({ view, status, current: false, revisions });
-  eq(rules.emptyVideosText([file('side', 'purged'), file('rear', 'abandoned')] as never), '옆 영상은 지웠어요. 뒤 영상은 없어요.', '옆만 지우고 뒤는 버린 초안');
-  eq(rules.emptyVideosText([file('side', 'purging'), file('rear', 'abandoned')] as never), '옆 영상은 지우고 있어요. 뒤 영상은 없어요.', '지우는 칸은 지우고 있다고 한다');
-  eq(rules.emptyVideosText([file('rear', 'purged')] as never), '옆 영상은 없어요. 뒤 영상은 지웠어요.', '받은 적 없는 칸은 없다고 한다');
-  eq(rules.emptyVideosText([file('side', 'purged'), file('rear', 'purging')] as never), '옆 영상은 지웠어요. 뒤 영상은 지우고 있어요.', '지운 칸 · 지우는 칸이 섞이면 둘 다 말한다');
-  eq(rules.emptyVideosText([file('side', 'purged'), file('rear', 'purged')] as never), '받은 영상을 지웠어요.', '다 지웠으면 한 줄이다');
-  eq(rules.emptyVideosText([file('side', 'purging'), file('rear', 'purging')] as never), '받은 영상을 지우고 있어요.', '다 지우는 중이면 한 줄이다');
-  eq(rules.emptyVideosText([file('side', 'verified', [1]), file('rear', 'verified', [1]), file('side', 'purged')] as never), '새로 받은 영상이 없어요. 판에 얼린 원본은 아래 이전에 고른 영상에 있어요.', '얼린 원본이 살아 있으면 지금 글이다');
-  eq(rules.emptyVideosText([]), '아직 고른 영상이 없어요.', '받은 적 없으면 그대로다');
+  eq(rules.emptyVideosText([file('side', 'purged'), file('rear', 'abandoned')] as never), '옆 영상은 삭제했습니다. 뒤 영상은 없습니다.', '옆만 지우고 뒤는 버린 초안');
+  eq(rules.emptyVideosText([file('side', 'purging'), file('rear', 'abandoned')] as never), '옆 영상은 지우고 있습니다. 뒤 영상은 없습니다.', '지우는 칸은 지우고 있다고 한다');
+  eq(rules.emptyVideosText([file('rear', 'purged')] as never), '옆 영상은 없습니다. 뒤 영상은 삭제했습니다.', '받은 적 없는 칸은 없다고 한다');
+  eq(rules.emptyVideosText([file('side', 'purged'), file('rear', 'purging')] as never), '옆 영상은 삭제했습니다. 뒤 영상은 지우고 있습니다.', '지운 칸 · 지우는 칸이 섞이면 둘 다 말한다');
+  eq(rules.emptyVideosText([file('side', 'purged'), file('rear', 'purged')] as never), '받은 영상을 삭제했습니다.', '다 지웠으면 한 줄이다');
+  eq(rules.emptyVideosText([file('side', 'purging'), file('rear', 'purging')] as never), '받은 영상을 지우고 있습니다.', '다 지우는 중이면 한 줄이다');
+  eq(rules.emptyVideosText([file('side', 'verified', [1]), file('rear', 'verified', [1]), file('side', 'purged')] as never), '새로 받은 영상이 없습니다. 판에 얼린 원본은 아래 이전에 고른 영상에 있습니다.', '얼린 원본이 살아 있으면 지금 글이다');
+  eq(rules.emptyVideosText([]), '아직 고른 영상이 없습니다.', '받은 적 없으면 그대로다');
   /* 칸 넷의 모든 짝 — 글이 칸마다 목록과 같은 판단을 말한다 */
   const kinds: (string | null)[] = [null, 'abandoned', 'purged', 'purging'];
   for (const s of kinds)
@@ -1090,8 +1090,8 @@ const panel = (over: Record<string, unknown>) =>
       const progress = (['side', 'rear'] as const).map((v) => slotProgressOf(assets, v, null));
       for (const [i, v] of (['옆', '뒤'] as const).entries()) {
         const p = progress[i];
-        const said = text.includes(`${v} 영상은 지웠어요`) || (text === '받은 영상을 지웠어요.' && p === 'deleted');
-        const saying = text.includes(`${v} 영상은 지우고 있어요`) || (text === '받은 영상을 지우고 있어요.' && p === 'deleting');
+        const said = text.includes(`${v} 영상은 삭제했습니다`) || (text === '받은 영상을 삭제했습니다.' && p === 'deleted');
+        const saying = text.includes(`${v} 영상은 지우고 있습니다`) || (text === '받은 영상을 지우고 있습니다.' && p === 'deleting');
         ok(said === (p === 'deleted') && saying === (p === 'deleting'), `칸마다 목록과 같다: 옆 ${s} · 뒤 ${r} → ${text}`);
       }
     }
@@ -1108,15 +1108,15 @@ const panel = (over: Record<string, unknown>) =>
   eq(rules.retentionFactRows({ ...draftR, purgedAt: '2026-11-17T01:00:00.000Z' } as never, '2026-11-17T01:00:00.000Z', now).map(([k]) => k), ['영상 지운 날'], '보유 줄도 영상 지운 날이다');
   eq(rules.retentionFactRows(draftR as never, null, new Date('2026-11-12T00:00:00.000Z')).map(([k]) => k), ['영상 삭제 예정일', '삭제 기준'], '지울 날 줄도 영상이다');
   const banner = rules.withdrawnRetentionText({ ...draftR, purgedAt: '2026-11-17T01:00:00.000Z' } as never, now);
-  ok(banner.includes('받은 영상은') && banner.includes('지웠어요') && !banner.includes('원본'), `철회 배너가 받은 영상이라고 한다: ${banner}`);
+  ok(banner.includes('받은 영상은') && banner.includes('삭제했습니다') && !banner.includes('원본'), `철회 배너가 받은 영상이라고 한다: ${banner}`);
   const bannerDue = rules.withdrawnRetentionText(draftR as never, new Date('2026-11-12T00:00:00.000Z'));
   ok(bannerDue.includes('받은 영상은') && !bannerDue.includes('원본'), `지울 날 전 배너도 받은 영상이다: ${bannerDue}`);
   ok(!rules.withdrawnRetentionText(draftR as never, now).includes('원본'), '지울 날이 지난 배너도 원본이라고 안 한다');
   ok(!rules.revokeRetentionText(draftR as never, { status: 'withdrawn', now }).includes('원본'), '폐기 확인창도 판에 안 오른 파일을 원본이라고 안 한다');
   /* 배너 첫 줄도 같은 낱말이다 — 한 배너에서 '원본'과 '받은 영상'이 섞이지 않게 */
-  eq(rules.withdrawnBannerLead({ revisions: [] } as never), '필수 동의가 철회된 접수예요. 받은 영상을 열거나 분석할 수 없어요.', '판에 안 오른 철회 초안의 배너는 받은 영상이다');
-  eq(rules.withdrawnBannerLead({ revisions: [{ number: 1 }] } as never), '필수 동의가 철회된 접수예요. 원본을 열거나 분석할 수 없어요.', '판이 있으면 원본이다');
-  ok(page.includes('{withdrawnBannerLead(d)}') && !page.includes('원본을 열거나 분석할 수 없어요'), '배너가 낱말 규칙을 쓴다');
+  eq(rules.withdrawnBannerLead({ revisions: [] } as never), '필수 동의가 철회된 접수입니다. 받은 영상을 열거나 분석할 수 없습니다.', '판에 안 오른 철회 초안의 배너는 받은 영상이다');
+  eq(rules.withdrawnBannerLead({ revisions: [{ number: 1 }] } as never), '필수 동의가 철회된 접수입니다. 원본을 열거나 분석할 수 없습니다.', '판이 있으면 원본이다');
+  ok(page.includes('{withdrawnBannerLead(d)}') && !page.includes('원본을 열거나 분석할 수 없습니다'), '배너가 낱말 규칙을 쓴다');
   /* 판이 있는 접수는 그대로 '원본'이다 */
   eq(rules.retentionText({ ...draftR, basis: 'withdrawn', purgedAt: '2026-11-17T01:00:00.000Z' } as never, now).label, '원본 지운 날', '판이 있으면 원본이다');
   ok(rules.withdrawnRetentionText({ ...draftR, basis: 'withdrawn', purgedAt: '2026-11-17T01:00:00.000Z' } as never, now).includes('원본은'), '판이 있는 철회 배너는 원본이다');
@@ -1140,19 +1140,19 @@ const panel = (over: Record<string, unknown>) =>
   const html = draw(h(ReissueButton, { submissionId: SID, reissueCount: 3, ready: true, blockedText: null, devNote: null }));
   ok(html.includes('새 링크 만들기') && !/<button[^>]*disabled/.test(html), '준비되면 새 링크 단추가 켜진다');
   ok(html.includes(labels.REISSUE_WARNING_TEXT), '확인 창이 예전 링크가 막히고 자료가 이어진다고 말한다');
-  ok(labels.REISSUE_WARNING_TEXT.includes('예전 링크는 바로 막혀요') && !labels.REISSUE_WARNING_TEXT.includes('—'), '경고 글 — 줄표 없이');
+  ok(labels.REISSUE_WARNING_TEXT.includes('예전 링크는 바로 차단됩니다') && !labels.REISSUE_WARNING_TEXT.includes('—'), '경고 글 — 줄표 없이');
   await press(bench.confirms['새 링크를 만들까요?'], '새 링크 확인');
   eq(bench.calls, [['reissueIntakeInvitation', SID, 3]], '그릴 때 본 바꿈 횟수를 보낸다');
-  const off = draw(h(ReissueButton, { submissionId: SID, reissueCount: 0, ready: false, blockedText: 'DB 마이그레이션 적용 전이에요.', devNote: null }));
-  ok(/<button[^>]*disabled/.test(off) && off.includes('DB 마이그레이션 적용 전이에요.'), '준비가 안 되면 단추가 꺼지고 까닭을 말한다');
+  const off = draw(h(ReissueButton, { submissionId: SID, reissueCount: 0, ready: false, blockedText: 'DB 마이그레이션 적용 전입니다.', devNote: null }));
+  ok(/<button[^>]*disabled/.test(off) && off.includes('DB 마이그레이션 적용 전입니다.'), '준비가 안 되면 단추가 꺼지고 까닭을 말한다');
   /* 준비 글 · 개발용 표시 */
   eq(labels.readinessLines({ blockers: [], link: { source: 'default', problem: null, external: true } }), [], '준비되면 안내가 없다');
   ok(labels.readinessLines({ blockers: ['db', 'origin'], link: { source: 'default', problem: null, external: true } }).length === 2, '막힌 까닭마다 한 줄');
-  ok(labels.devLinkText({ link: { source: 'NEXT_PUBLIC_SITE_URL', problem: 'not_https', external: false } })?.includes('https 주소가 아니에요'), '개발용 표시가 까닭을 말한다');
+  ok(labels.devLinkText({ link: { source: 'NEXT_PUBLIC_SITE_URL', problem: 'not_https', external: false } })?.includes('https 주소가 아닙니다'), '개발용 표시가 까닭을 말한다');
   for (const t of [...labels.readinessLines({ blockers: ['db', 'origin'], link: { source: 'INTAKE_PUBLIC_ORIGIN', problem: 'local_host', external: false } }), labels.devLinkText({ link: { source: 'default', problem: 'preview_host', external: false } }) ?? '', labels.UNTOUCHED_TEXT]) {
     ok(!t.includes('—'), `줄표 없는 글: ${t.slice(0, 20)}`);
   }
-  ok(labels.AUDIT_ACTION_TEXT['invitation.reissued'] === '링크를 새로 바꿨어요', '링크 바꿈 감사 글');
+  ok(labels.AUDIT_ACTION_TEXT['invitation.reissued'] === '링크를 새로 변경했습니다', '링크 바꿈 감사 글');
 }
 
 
@@ -1165,11 +1165,11 @@ const panel = (over: Record<string, unknown>) =>
   ok(rules.needsFreshView('manual_result_stale'), '판이 바뀌어 막힌 가져오기는 최신 내용을 다시 받는다');
 
   /* 파일 상한 — 서버 모듈(node:crypto 를 불러 브라우저가 못 부름)과 같은 값이어야 한다 */
-  const server = readFileSync(fileURLToPath(new URL('../../../../../lib/intake/manual-result.ts', import.meta.url)), 'utf8');
+  const server = readFileSync(fileURLToPath(new URL('../../../../../lib/intake/manual-result.ts', import.meta.url)), 'utf8').replace(/\s+/g, ' ').replace(/, ([}\]])/g, ' $1');
   const m = /export const MAX_MANUAL_IMPORT_BYTES = ([\d_]+);/.exec(server);
   ok(m && Number(m[1].replaceAll('_', '')) === rules.MANUAL_IMPORT_MAX_BYTES, '화면의 결과 파일 상한이 서버와 같다');
   eq(rules.manualFileProblem(1000), null, '작은 파일은 보낸다');
-  ok(rules.manualFileProblem(rules.MANUAL_IMPORT_MAX_BYTES + 1)?.includes('너무 커요'), '큰 파일은 보내기 전에 막는다');
+  ok(rules.manualFileProblem(rules.MANUAL_IMPORT_MAX_BYTES + 1)?.includes('너무 큽니다'), '큰 파일은 보내기 전에 막는다');
   ok(rules.manualFileProblem(0), '빈 파일은 막는다');
 
   /* 가져올 판 · 막는 까닭 */
@@ -1185,10 +1185,10 @@ const panel = (over: Record<string, unknown>) =>
   const box = (over: Record<string, unknown> = {}) =>
     draw(h(ManualImportBox, { submissionId: SID, revision: { id: 'rev1', number: 1 }, sideSha256: 'a'.repeat(64), rearSha256: 'b'.repeat(64), blocked: null, ...over }));
   const open = box();
-  ok(open.includes(`href="/admin/intake/manifest?submission=${SID}"`) && open.includes('묶음 틀 받기'), '묶음 틀은 이 접수의 매니페스트로 받는다');
+  ok(open.includes(`href="/admin/intake/manifest?submission=${SID}"`) && open.includes('결과 JSON 양식 받기'), '묶음 틀은 이 접수의 매니페스트로 받는다');
   ok(open.includes('1판') && open.includes('aaaaaaaaaaaa…') && open.includes('bbbbbbbbbbbb…'), '지금 판과 짧은 해시가 보인다');
   ok(!/<input[^>]*type="file"[^>]*disabled=""/.test(open), '가져올 수 있으면 파일 칸이 켜진다');
-  const shut = box({ blocked: '필수 동의가 철회된 접수라 결과를 가져올 수 없어요.' });
+  const shut = box({ blocked: '필수 동의가 철회된 접수라 결과를 가져올 수 없습니다.' });
   ok(/<input[^>]*type="file"[^>]*disabled=""/.test(shut) && shut.includes('철회된 접수'), '막히면 파일 칸이 꺼지고 까닭을 말한다');
   ok(/<input[^>]*type="file"[^>]*disabled=""/.test(box({ revision: null })), '판이 없으면 꺼진다');
 
@@ -1196,14 +1196,14 @@ const panel = (over: Record<string, unknown>) =>
   const manualRun = { ...RUN, engineKey: 'manual-import/1', source: 'manual', manualSourceSha256: 'c'.repeat(64) };
   const listed = draw(panel({ runs: [manualRun] }));
   ok(listed.includes('수동 가져오기') && listed.includes('cccccccccccc…'), '수동 가져오기와 가져온 파일 해시가 보인다');
-  ok(listed.includes('이 결과 공개') && listed.includes('누르면 공개할 수 있어요'), '공개는 검토 완료 뒤에 열린다');
+  ok(listed.includes('이 결과 공개') && listed.includes('누르면 공개할 수 있습니다'), '공개는 검토 완료 뒤에 열린다');
   ok(!draw(panel({ runs: [RUN] })).includes('수동 가져오기'), 'GPU 실행은 엔진 이름 그대로');
 
   /* 받는 사람 */
   const facts = { enrolled: false, name: null, enrolledAt: null, failures: 0, locked: false, lockedAt: null, resetAt: null, liveSessions: 0, lastSeenAt: null };
   const fresh0 = draw(h(InviteeBox, { submissionId: SID, invitee: facts, maxFailures: 10 }));
-  ok(fresh0.includes('아직 안 열었어요') && fresh0.includes('0/10'), '아직 안 연 링크');
-  ok(!bench.clicks['잠금 풀기'] && !bench.clicks['이름 · PIN 지우기'], '안 연 링크에는 풀기 · 지우기가 없다');
+  ok(fresh0.includes('아직 설정하지 않았습니다') && fresh0.includes('0/10'), '아직 안 연 링크');
+  ok(!bench.clicks['잠금 풀기'] && !bench.clicks['접속 정보 초기화'], '안 연 링크에는 풀기 · 지우기가 없다');
   const locked = { ...facts, enrolled: true, name: '김선수', enrolledAt: '2026-11-10T00:00:00.000Z', failures: 10, locked: true, lockedAt: '2026-11-11T00:00:00.000Z', liveSessions: 2, lastSeenAt: '2026-11-11T00:00:00.000Z' };
   const lockedHtml = draw(h(InviteeBox, { submissionId: SID, invitee: locked, maxFailures: 10 }));
   ok(lockedHtml.includes('김선수') && lockedHtml.includes('10/10') && lockedHtml.includes('2개'), '이름 · 틀린 횟수 · 세션 수가 보인다');
@@ -1216,11 +1216,11 @@ const panel = (over: Record<string, unknown>) =>
   eq(bench.calls, [['unlockIntakeInvitee', SID]], '확인하면 푼다');
   draw(h(InviteeBox, { submissionId: SID, invitee: locked, maxFailures: 10 }));
   bench.answers.resetIntakeInvitee = { ok: true, reset: true };
-  await press(bench.confirms['이름과 PIN 을 지울까요?'], '지우기 확인');
+  await press(bench.confirms['이름과 비밀번호를 지울까요?'], '지우기 확인');
   eq(bench.calls, [['resetIntakeInvitee', SID]], '확인하면 지운다');
-  ok(bench.toasts.includes('이름과 PIN 을 지웠어요') && bench.refreshes === 1, '지운 뒤 알리고 다시 받는다');
+  ok(bench.toasts.includes('이름과 비밀번호를 초기화했습니다') && bench.refreshes === 1, '지운 뒤 알리고 다시 받는다');
   draw(h(InviteeBox, { submissionId: SID, invitee: { ...locked, locked: false, failures: 0 }, maxFailures: 10 }));
-  ok(!bench.clicks['잠금 풀기'] && bench.clicks['이름 · PIN 지우기'], '틀린 횟수가 없으면 풀기 단추가 없다');
+  ok(!bench.clicks['잠금 풀기'] && bench.clicks['접속 정보 초기화'], '틀린 횟수가 없으면 풀기 단추가 없다');
 
   /* 로컬 사본 확인 — 가장 늦은 기록 */
   const audit = [
@@ -1232,7 +1232,7 @@ const panel = (over: Record<string, unknown>) =>
   eq(rules.latestLocalCopy([] as never), null, '확인이 없으면 null');
   const copy = draw(h(LocalCopyBox, { submissionId: SID, revision: { id: 'rev2', number: 2 }, audit }));
   ok(copy.includes('외장 디스크 A') && copy.includes('2판'), '마지막 확인이 보인다');
-  ok(copy.includes('내려받기만으로는 적히지 않아요') && copy.includes('서버 원본과 삭제 예정일은 그대로'), '내려받기와 다르고 보유 기간을 안 바꾼다고 말한다');
+  ok(copy.includes('다운로드만으로 자동 기록되지 않습니다') && copy.includes('서버 원본과 삭제 예정일은 유지'), '내려받기와 다르고 보유 기간을 안 바꾼다고 말한다');
   ok(bench.clicks['로컬 사본 확인 적기'], '적기 단추가 있다');
   await press(bench.clicks['로컬 사본 확인 적기'], '빈 칸 적기');
   eq(bench.calls, [], '곳을 안 적으면 보내지 않는다');
@@ -1241,7 +1241,7 @@ const panel = (over: Record<string, unknown>) =>
 
   /* 매니페스트 링크 · 보유 문장 */
   const all = renderToStaticMarkup(h(ManifestLink, {}));
-  ok(all.includes('href="/admin/intake/manifest"') && all.includes('download') && all.includes('매니페스트 받기'), '목록의 매니페스트 받기');
+  ok(all.includes('href="/admin/intake/manifest"') && all.includes('download') && all.includes('접수 정보 JSON 받기'), '목록의 접수 정보 JSON 받기');
   ok(renderToStaticMarkup(h(ManifestLink, { submissionId: SID })).includes(`/admin/intake/manifest?submission=${SID}`), '상세는 그 접수만');
   ok(rules.SERVER_COPY_NOTE.includes('서버') && rules.SERVER_COPY_NOTE.includes('내려받은 사본') && !rules.SERVER_COPY_NOTE.includes('—'), '서버 원본 기한과 사본이 따로라고 말한다');
 }

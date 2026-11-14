@@ -354,10 +354,10 @@ export function correctionReceiptLine(input: { submissionStatus: string; revisio
 
 /** 영수증 머리 글 — 지금 상태 줄(publicStatusText)과 같은 사실을 말해야 한다 */
 const RECEIPT_HEADS: Record<string, { title: string; desc: string }> = {
-  receipt: { title: '영상이 도착했습니다', desc: '결과가 준비되어 공개되면 이 링크에서 같은 이름과 PIN 으로 볼 수 있습니다.' },
+  receipt: { title: '영상이 도착했습니다', desc: '결과가 준비되어 공개되면 이 링크에서 같은 이름과 비밀번호로 볼 수 있습니다.' },
   needs_attention: { title: '영상을 확인하고 있습니다', desc: '담당자가 살펴본 뒤 필요하면 이 링크에서 다시 안내합니다.' },
-  analysis_running: { title: '영상을 분석하고 있습니다', desc: '결과가 준비되어 공개되면 이 링크에서 같은 이름과 PIN 으로 볼 수 있습니다.' },
-  admin_review: { title: '담당자가 결과를 검토하고 있습니다', desc: '공개되면 이 링크에서 같은 이름과 PIN 으로 볼 수 있습니다.' },
+  analysis_running: { title: '영상을 분석하고 있습니다', desc: '결과가 준비되어 공개되면 이 링크에서 같은 이름과 비밀번호로 볼 수 있습니다.' },
+  admin_review: { title: '담당자가 결과를 검토하고 있습니다', desc: '공개되면 이 링크에서 같은 이름과 비밀번호로 볼 수 있습니다.' },
   /* 고침 요청이 열린 채 올리기 기간이 끝났다 — 고칠 수는 없어도 접수 내용은 그대로 보인다 */
   correction_closed: { title: '고칠 수 있는 기간이 끝났습니다', desc: '접수된 내용은 그대로 있습니다. 링크를 보내 준 담당자에게 문의하십시오.' },
 };

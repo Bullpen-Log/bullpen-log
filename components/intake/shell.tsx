@@ -4,6 +4,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { ChevronLeft, CircleAlert, Loader2 } from '@/components/icon';
 import { Wordmark } from '@/components/logo';
 import { Button } from '@/components/ui';
+import styles from './experience.module.css';
 
 /** 안내 단계 다섯 — 위의 가는 막대가 쓴다 */
 const GUIDED_STEPS = 5;
@@ -49,8 +50,10 @@ export function Screen({
   }, [screenKey]);
 
   return (
-    <div className="mx-auto flex min-h-[var(--vvh,100dvh)] w-full max-w-[33rem] flex-col px-5 pt-[max(env(safe-area-inset-top),0.5rem)] desk:px-[1.5rem]">
-      <header className="flex h-12 shrink-0 items-center justify-between gap-3">
+    <div
+      className={`${styles.screen} mx-auto flex min-h-[var(--vvh,100dvh)] w-full max-w-[33rem] flex-col px-5 pt-[max(env(safe-area-inset-top),0.5rem)] desk:px-[1.5rem]`}
+    >
+      <header className="flex h-11 shrink-0 items-center justify-between gap-3">
         {onBack ? (
           <button
             type="button"
@@ -65,7 +68,10 @@ export function Screen({
         )}
         {step != null && (
           <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-            <span className="sr-only">{`${GUIDED_STEPS}단계 중 ${step}단계`}</span>
+            <span className="text-xs text-muted">
+              {step} / {GUIDED_STEPS}
+              <span className="sr-only"> 단계</span>
+            </span>
             <div aria-hidden className="h-1 w-24 overflow-hidden rounded-full bg-line">
               <div
                 className="h-full rounded-full bg-sky transition-[width] duration-300 motion-reduce:transition-none"
@@ -77,15 +83,29 @@ export function Screen({
       </header>
 
       <main key={screenKey} className="flex-1 pt-3 pb-6 motion-safe:animate-fade-in">
-        <h1 ref={heading} tabIndex={-1} className={`text-heading ${dense ? 'text-[1.375rem]' : 'text-[1.625rem]'} leading-[1.3] text-ink outline-none`}>
+        <h1
+          ref={heading}
+          tabIndex={-1}
+          className={`${styles.heading} ${dense ? styles.denseHeading : ''} text-ink outline-none`}
+        >
           {title}
         </h1>
-        {desc && <Paras text={desc} gap="mt-1.5" className={`${dense ? 'mt-1' : 'mt-2'} text-subhead leading-relaxed text-muted`} />}
-        {children && <div className={dense ? 'mt-4 space-y-3' : 'mt-6 space-y-5'}>{children}</div>}
+        {desc && (
+          <Paras
+            text={desc}
+            gap="mt-1.5"
+            className="mt-2 text-[15px] leading-[1.6] text-muted"
+          />
+        )}
+        {children && (
+          <div className={dense ? 'mt-4 space-y-3' : 'mt-6 space-y-4'}>{children}</div>
+        )}
       </main>
 
       {actions && (
-        <div className="sticky bottom-[var(--kb,0px)] z-10 -mx-5 space-y-2 bg-page px-5 pt-3 pb-[max(env(safe-area-inset-bottom),1rem)] desk:-mx-[1.5rem] desk:px-[1.5rem]">
+        <div
+          className={`${styles.actions} sticky bottom-[var(--kb,0px)] z-10 -mx-5 space-y-2 border-t border-line bg-page px-5 pt-3 pb-[max(env(safe-area-inset-bottom),1rem)] desk:-mx-[1.5rem] desk:px-[1.5rem]`}
+        >
           {actions}
         </div>
       )}
@@ -94,9 +114,19 @@ export function Screen({
 }
 
 /** 바닥의 큰 단추 */
-export function PrimaryButton({ busy = false, children, ...props }: React.ComponentProps<'button'> & { busy?: boolean }) {
+export function PrimaryButton({
+  busy = false,
+  children,
+  ...props
+}: React.ComponentProps<'button'> & { busy?: boolean }) {
   return (
-    <Button size="lg" className="h-14 w-full" aria-busy={busy || undefined} {...props} disabled={props.disabled || busy}>
+    <Button
+      size="lg"
+      className="min-h-13 w-full rounded-[14px]"
+      aria-busy={busy || undefined}
+      {...props}
+      disabled={props.disabled || busy}
+    >
       {busy && <Loader2 aria-hidden className="h-5 w-5 motion-safe:animate-spin" />}
       {children}
     </Button>

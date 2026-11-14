@@ -67,7 +67,11 @@ export const metadata: Metadata = { title: '접수 상세' };
  * 접수 하나(2026-11-06) — 보낸 영상의 사실 · 원본 내려받기 · 담당 · 메모 · 고침 요청 · 철회 기록 · 멈춘 일감 · 분석 · 공개 · 감사 기록.
  * 서명 주소는 화면을 그릴 때 만들지 않는다 — 누른 순간 서버 동작이 5분짜리를 준다. 저장 경로는 화면으로 내보내지 않는다.
  */
-export default async function IntakeDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function IntakeDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const user = await requirePermission('intake');
   const { id } = await params;
   if (!isIntakeId(id)) notFound();
@@ -75,11 +79,15 @@ export default async function IntakeDetailPage({ params }: { params: Promise<{ i
   if (!d) notFound();
   const analysis = await loadAnalysis(id);
   /* 새 링크 만들기도 초대 만들기와 같은 준비(표 · 정식 주소)를 본다 */
-  const readiness = d.invitation.status === 'active' ? await checkIntakeReadiness(prisma as unknown as PrismaClient) : null;
+  const readiness =
+    d.invitation.status === 'active'
+      ? await checkIntakeReadiness(prisma as unknown as PrismaClient)
+      : null;
   const current = d.assets.filter((a) => a.current);
   const older = splitOlderAssets(d.assets);
   const extendChoices = extendDayChoices(d.invitation.uploadExpiresAt);
-  const hasRunPreview = analysis !== 'unavailable' && analysis.runs.some((r) => r.hasPreviews);
+  const hasRunPreview =
+    analysis !== 'unavailable' && analysis.runs.some((r) => r.hasPreviews);
   const title = d.athleteName ?? d.invitation.note ?? '이름 미입력';
   const withdrawn = d.status === 'withdrawn';
   const now = new Date();
@@ -93,11 +101,19 @@ export default async function IntakeDetailPage({ params }: { params: Promise<{ i
         <BackLink href="/admin/intake">외부 영상 접수</BackLink>
         <PageHeading kicker={d.receiptCode ?? '접수 번호 없음'} title={title} />
         <div className="flex flex-wrap gap-1.5">
-          <StatusChip tone={submissionTone(d.status)}>{textOf(SUBMISSION_STATUS_TEXT, d.status)}</StatusChip>
+          <StatusChip tone={submissionTone(d.status)}>
+            {textOf(SUBMISSION_STATUS_TEXT, d.status)}
+          </StatusChip>
           <AnalysisChip status={d.analysisStatus} block={d.analysisBlock} />
-          <StatusChip tone={publicationTone(d.publicationStatus)}>{textOf(PUBLICATION_STATUS_TEXT, d.publicationStatus)}</StatusChip>
-          {d.invitation.status === 'revoked' && <StatusChip tone="danger">초대 폐기됨</StatusChip>}
-          {d.invitation.accessCodeNeedsReset && <StatusChip tone="warn">결과 보기 잠김</StatusChip>}
+          <StatusChip tone={publicationTone(d.publicationStatus)}>
+            {textOf(PUBLICATION_STATUS_TEXT, d.publicationStatus)}
+          </StatusChip>
+          {d.invitation.status === 'revoked' && (
+            <StatusChip tone="danger">초대 폐기됨</StatusChip>
+          )}
+          {d.invitation.accessCodeNeedsReset && (
+            <StatusChip tone="warn">결과 보기 잠김</StatusChip>
+          )}
           {d.invitee.locked && <StatusChip tone="warn">링크 잠김</StatusChip>}
         </div>
       </div>
@@ -112,17 +128,29 @@ export default async function IntakeDetailPage({ params }: { params: Promise<{ i
       <div className="grid gap-(--block-pad) lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="stack-page min-w-0">
           {d.jobIssues.length > 0 && (
-            <Section title={d.jobIssues.every((j) => j.state === 'waiting') ? '확인 중인 일감' : '끝나지 않은 일감'}>
-              <JobIssuesPanel submissionId={d.id} issues={d.jobIssues} locked={withdrawn} />
+            <Section
+              title={
+                d.jobIssues.every((j) => j.state === 'waiting')
+                  ? '확인 중인 일감'
+                  : '끝나지 않은 일감'
+              }
+            >
+              <JobIssuesPanel
+                submissionId={d.id}
+                issues={d.jobIssues}
+                locked={withdrawn}
+              />
             </Section>
           )}
 
           <Section
-            title="영상"
+            title="1. 원본 영상"
             action={
               <div className="flex flex-wrap items-start justify-end gap-2">
                 <ManifestLink submissionId={d.id} />
-                {pairDownloadable(d) ? <PairDownload submissionId={d.id} warning={pairOriginalWarning(d)} /> : null}
+                {pairDownloadable(d) ? (
+                  <PairDownload submissionId={d.id} warning={pairOriginalWarning(d)} />
+                ) : null}
               </div>
             }
           >
@@ -131,27 +159,66 @@ export default async function IntakeDetailPage({ params }: { params: Promise<{ i
             ) : (
               <div className="grid gap-(--block-pad) md:grid-cols-2">
                 {current.map((a) => (
-                  <AssetCard key={a.id} submissionId={d.id} asset={a} locked={withdrawn} hasRunPreview={hasRunPreview} />
+                  <AssetCard
+                    key={a.id}
+                    submissionId={d.id}
+                    asset={a}
+                    locked={withdrawn}
+                    hasRunPreview={hasRunPreview}
+                  />
                 ))}
               </div>
             )}
-            {older.frozen.length + older.loose.length > 0 && <OlderAssets submissionId={d.id} frozen={older.frozen} loose={older.loose} locked={withdrawn} hasRunPreview={hasRunPreview} />}
-            <LocalCopyBox submissionId={d.id} revision={manual.revision} audit={d.audit} />
+            {older.frozen.length + older.loose.length > 0 && (
+              <OlderAssets
+                submissionId={d.id}
+                frozen={older.frozen}
+                loose={older.loose}
+                locked={withdrawn}
+                hasRunPreview={hasRunPreview}
+              />
+            )}
+            <LocalCopyBox
+              submissionId={d.id}
+              revision={manual.revision}
+              audit={d.audit}
+            />
           </Section>
 
-          <Section title="분석 · 공개">
+          <Section title="2. 3D 결과 제작·공개">
             {/* 결과 가져오기는 GPU · 분석 서버 준비와 따로다 — 저장소를 못 읽어도 보인다 */}
-            <ManualImportBox submissionId={d.id} revision={manual.revision} sideSha256={manual.sideSha256} rearSha256={manual.rearSha256} blocked={manualImportBlock(d)} />
+            <p className="text-sm leading-6 text-muted">
+              결과 가져오기 → 3D 검토 → 검토 완료 → 공개 순서로 진행합니다. 가져오기와
+              검토만으로는 받는 분에게 공개되지 않습니다.
+            </p>
+            <ManualImportBox
+              submissionId={d.id}
+              revision={manual.revision}
+              sideSha256={manual.sideSha256}
+              rearSha256={manual.rearSha256}
+              blocked={manualImportBlock(d)}
+            />
             {analysis === 'unavailable' ? (
-              <p className="text-sm text-muted">저장소에 연결하지 못해 분석 정보를 읽지 못했어요. 잠시 뒤에 다시 열어 주세요.</p>
+              <p className="text-sm text-muted">
+                저장소에 연결하지 못해 분석 정보를 읽지 못했습니다. 잠시 뒤에 다시 다시
+                엽니다.
+              </p>
             ) : (
-              <AnalysisPanel submissionId={d.id} analysisStatus={d.analysisStatus} readiness={analysis.readiness} runs={analysis.runs} hand={d.throwingHand} withdrawn={withdrawn} activePublicationId={d.activePublicationId} />
+              <AnalysisPanel
+                submissionId={d.id}
+                analysisStatus={d.analysisStatus}
+                readiness={analysis.readiness}
+                runs={analysis.runs}
+                hand={d.throwingHand}
+                withdrawn={withdrawn}
+                activePublicationId={d.activePublicationId}
+              />
             )}
             <Publications d={d} />
           </Section>
 
           {correctionSectionVisible(d) && (
-            <Section title="고침 요청">
+            <Section title="3. 수정 요청">
               <CorrectionPanel
                 submissionId={d.id}
                 version={d.version}
@@ -169,14 +236,19 @@ export default async function IntakeDetailPage({ params }: { params: Promise<{ i
             </Section>
           )}
 
-          <Section title="기록">
+          <Section title="변경 기록" collapsible>
             <Audit d={d} />
           </Section>
         </div>
 
         <aside className="stack-page min-w-0">
           <Section title="담당">
-            <AssignBox submissionId={d.id} assigneeId={d.assigneeId} admins={d.admins} me={user.id} />
+            <AssignBox
+              submissionId={d.id}
+              assigneeId={d.assigneeId}
+              admins={d.admins}
+              me={user.id}
+            />
           </Section>
           <Section title="접수 정보">
             <Facts
@@ -192,25 +264,61 @@ export default async function IntakeDetailPage({ params }: { params: Promise<{ i
               ]}
             />
             {retention?.note && <p className="text-xs text-warn">{retention.note}</p>}
-            {d.retention && !d.retention.purgedAt && <p className="text-xs text-muted">{SERVER_COPY_NOTE}</p>}
+            {d.retention && !d.retention.purgedAt && (
+              <p className="text-[13px] leading-5 text-muted">{SERVER_COPY_NOTE}</p>
+            )}
           </Section>
-          <Section title="초대">
+          <Section title="초대·접속 관리" collapsible>
             <Facts
               rows={[
                 ['상태', textOf(INVITATION_STATUS_TEXT, d.invitation.status)],
                 ['메모', d.invitation.note ?? '-'],
                 ['만든 분', d.invitation.createdBy ?? '-'],
-                ['올리기 끝', `${seoulDateText(d.invitation.uploadExpiresAt)}${d.invitation.uploadExpired ? ' (끝남)' : ''}`],
-                ['결과 보기 끝', d.invitation.resultExpiresAt ? seoulDateText(d.invitation.resultExpiresAt) : '만료 없음'],
+                [
+                  '올리기 끝',
+                  `${seoulDateText(d.invitation.uploadExpiresAt)}${d.invitation.uploadExpired ? ' (끝남)' : ''}`,
+                ],
+                [
+                  '결과 보기 끝',
+                  d.invitation.resultExpiresAt
+                    ? seoulDateText(d.invitation.resultExpiresAt)
+                    : '만료 없음',
+                ],
                 /* 접근 코드는 R03 부터 새로 만들지 않는다 — 예전에 건 초대만 보인다 */
-                ...(d.invitation.hasAccessCode ? ([['접근 코드', accessCodeText(d.invitation)]] as [string, string][]) : []),
-                ['파일 한도', `${formatBytes(d.invitation.limits.maxFileBytes)} · 합계 ${formatBytes(d.invitation.limits.maxTotalBytes)}`],
-                ...(d.invitation.reissuedAt ? ([['링크 바꿈', `${d.invitation.reissueCount}번 · 마지막 ${seoulTimeText(d.invitation.reissuedAt)}`]] as [string, string][]) : []),
-                ...(d.invitation.revokedAt ? ([['폐기', `${seoulTimeText(d.invitation.revokedAt)} · ${d.invitation.revokedBy ?? '-'}`]] as [string, string][]) : []),
+                ...(d.invitation.hasAccessCode
+                  ? ([['접근 코드', accessCodeText(d.invitation)]] as [
+                      string,
+                      string,
+                    ][])
+                  : []),
+                [
+                  '파일 한도',
+                  `${formatBytes(d.invitation.limits.maxFileBytes)} · 합계 ${formatBytes(d.invitation.limits.maxTotalBytes)}`,
+                ],
+                ...(d.invitation.reissuedAt
+                  ? ([
+                      [
+                        '링크 바꿈',
+                        `${d.invitation.reissueCount}번 · 마지막 ${seoulTimeText(d.invitation.reissuedAt)}`,
+                      ],
+                    ] as [string, string][])
+                  : []),
+                ...(d.invitation.revokedAt
+                  ? ([
+                      [
+                        '폐기',
+                        `${seoulTimeText(d.invitation.revokedAt)} · ${d.invitation.revokedBy ?? '-'}`,
+                      ],
+                    ] as [string, string][])
+                  : []),
               ]}
             />
             {d.invitation.status === 'active' && d.untouched && (
-              <p className="text-xs text-muted">{UNTOUCHED_TEXT}. 링크를 못 받았거나 잃었다면 새 링크를 만들거나 초대를 폐기해 주세요. 이름과 PIN 을 정하기 전에는 링크를 열었는지 몰라요.</p>
+              <p className="text-[13px] leading-5 text-muted">
+                {UNTOUCHED_TEXT}. 링크를 못 받았거나 잃었다면 새 링크를 만들거나 초대를
+                폐기합니다. 이름과 비밀번호를 설정하기 전에는 열람 여부를 확인할 수
+                없습니다.
+              </p>
             )}
             {d.invitation.status === 'active' && readiness && (
               <ReissueButton
@@ -221,16 +329,48 @@ export default async function IntakeDetailPage({ params }: { params: Promise<{ i
                 devNote={readiness.ready ? devLinkText(readiness) : null}
               />
             )}
-            <InviteeBox submissionId={d.id} invitee={d.invitee} maxFailures={PIN_MAX_FAILURES} />
-            {d.invitation.accessCodeNeedsReset && <AccessCodeLockBox submissionId={d.id} failures={d.invitation.accessCodeFailures} />}
-            {uploadWindowExtendable(d) && <UploadWindowBox submissionId={d.id} expired={d.invitation.uploadExpired} choices={extendChoices} />}
-            {d.invitation.status === 'active' && <RevokeButton submissionId={d.id} retentionLine={revokeRetentionText(d.retention, { status: d.status, now })} />}
+            <InviteeBox
+              submissionId={d.id}
+              invitee={d.invitee}
+              maxFailures={PIN_MAX_FAILURES}
+            />
+            {d.invitation.accessCodeNeedsReset && (
+              <AccessCodeLockBox
+                submissionId={d.id}
+                failures={d.invitation.accessCodeFailures}
+              />
+            )}
+            {uploadWindowExtendable(d) && (
+              <UploadWindowBox
+                submissionId={d.id}
+                expired={d.invitation.uploadExpired}
+                choices={extendChoices}
+              />
+            )}
+            {d.invitation.status === 'active' && (
+              <RevokeButton
+                submissionId={d.id}
+                retentionLine={revokeRetentionText(d.retention, {
+                  status: d.status,
+                  now,
+                })}
+              />
+            )}
           </Section>
-          <Section title="동의">
+          <Section title="동의 기록·철회" collapsible>
             <Consents d={d} />
-            {withdrawalRecordable(d) && <WithdrawConsentButton submissionId={d.id} retentionLine={withdrawConsentRetentionText(d.retention, now)} />}
-            {modelWithdrawalRecordable(d) && <WithdrawModelConsentButton submissionId={d.id} />}
-            {overseasWithdrawalRecordable(d) && <WithdrawOptionalConsentButton submissionId={d.id} kind="overseas" />}
+            {withdrawalRecordable(d) && (
+              <WithdrawConsentButton
+                submissionId={d.id}
+                retentionLine={withdrawConsentRetentionText(d.retention, now)}
+              />
+            )}
+            {modelWithdrawalRecordable(d) && (
+              <WithdrawModelConsentButton submissionId={d.id} />
+            )}
+            {overseasWithdrawalRecordable(d) && (
+              <WithdrawOptionalConsentButton submissionId={d.id} kind="overseas" />
+            )}
           </Section>
           <Section title="내부 메모">
             <NotesPanel submissionId={d.id} notes={d.notes} />
@@ -288,14 +428,35 @@ const submitterOf = (d: IntakeDetail) => {
   return d.submitterName ? `${d.submitterName}(${relation})` : relation;
 };
 
-function Section({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
+function Section({
+  title,
+  action,
+  children,
+  collapsible = false,
+}: {
+  title: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+  collapsible?: boolean;
+}) {
   return (
     <Card>
-      <div className="mb-3 flex min-h-10 flex-wrap items-center justify-between gap-2">
-        <h2 className="text-base font-bold text-ink">{title}</h2>
-        {action}
-      </div>
-      <div className="stack-block">{children}</div>
+      {collapsible ? (
+        <details>
+          <summary className="min-h-11 cursor-pointer py-2 text-base font-semibold text-ink">
+            {title}
+          </summary>
+          <div className="mt-3 space-y-4">{children}</div>
+        </details>
+      ) : (
+        <>
+          <div className="mb-4 flex min-h-10 flex-wrap items-center justify-between gap-2">
+            <h2 className="text-base font-semibold text-ink">{title}</h2>
+            {action}
+          </div>
+          <div className="space-y-4">{children}</div>
+        </>
+      )}
     </Card>
   );
 }
@@ -359,11 +520,14 @@ function Publications({ d }: { d: IntakeDetail }) {
         {d.publications.map((p) => (
           <li key={p.id} className="rounded-xl border border-line px-3 py-2">
             <p className="text-ink">
-              {p.number}번째 공개 · {p.active ? '공개 중' : '내림'} · {seoulTimeText(p.publishedAt)} · {p.publishedBy}
+              {p.number}번째 공개 · {p.active ? '공개 중' : '내림'} ·{' '}
+              {seoulTimeText(p.publishedAt)} · {p.publishedBy}
             </p>
-            {p.explanation && <p className="mt-1 whitespace-pre-wrap text-muted">{p.explanation}</p>}
+            {p.explanation && (
+              <p className="mt-1 whitespace-pre-wrap text-muted">{p.explanation}</p>
+            )}
             {p.unpublishedAt && (
-              <p className="mt-1 text-xs text-muted">
+              <p className="mt-1 text-[13px] leading-5 text-muted">
                 {seoulTimeText(p.unpublishedAt)} · {p.unpublishedBy ?? '-'} 내림
               </p>
             )}
@@ -375,13 +539,16 @@ function Publications({ d }: { d: IntakeDetail }) {
 }
 
 function Consents({ d }: { d: IntakeDetail }) {
-  if (d.consents.length === 0) return <p className="text-sm text-muted">아직 남긴 동의가 없어요.</p>;
+  if (d.consents.length === 0)
+    return <p className="text-sm text-muted">아직 남긴 동의가 없습니다.</p>;
   return (
     <div className="space-y-2">
       <p className="text-sm text-ink">
-        필수 동의 {d.consentRequiredOk ? '있음' : '없음'} · 국외 이전(자동 분석) {d.overseasAllowed ? '동의' : '미동의'} · 모델 개발 이용 {d.modelUseAllowed ? '동의' : '미동의'}
+        필수 동의 {d.consentRequiredOk ? '있음' : '없음'} · 국외 이전(자동 분석){' '}
+        {d.overseasAllowed ? '동의' : '미동의'} · 모델 개발 이용{' '}
+        {d.modelUseAllowed ? '동의' : '미동의'}
       </p>
-      <ul className="space-y-1.5 text-xs text-muted">
+      <ul className="space-y-1.5 text-[13px] leading-5 text-muted">
         {d.consents.map((c) => (
           <li key={c.id} className="break-words">
             {textOf(CONSENT_KIND_TEXT, c.kind)} · {c.granted ? '동의' : '거부'}
@@ -390,7 +557,12 @@ function Consents({ d }: { d: IntakeDetail }) {
           </li>
         ))}
       </ul>
-      {d.consentsHidden > 0 && <p className="text-xs text-muted">더 있음: 오래된 동의 기록 {d.consentsHidden}건은 줄여서 안 보여요. 지금 판단에 쓰는 기록은 다 보여요.</p>}
+      {d.consentsHidden > 0 && (
+        <p className="text-[13px] leading-5 text-muted">
+          더 있음: 오래된 동의 기록 {d.consentsHidden}건은 줄여서 안 표시됩니다. 지금
+          판단에 쓰는 기록은 다 표시됩니다.
+        </p>
+      )}
     </div>
   );
 }
@@ -420,15 +592,19 @@ function reissueDetailText(detail: Record<string, unknown>): string | null {
 function Audit({ d }: { d: IntakeDetail }) {
   return (
     <details className="group">
-      <summary className="cursor-pointer text-sm text-ink">감사 기록 {d.audit.length}건</summary>
+      <summary className="cursor-pointer text-sm text-ink">
+        감사 기록 {d.audit.length}건
+      </summary>
       <ol className="mt-3 space-y-2 text-sm">
         {d.audit.map((a) => (
           <li key={a.id} className="flex flex-wrap justify-between gap-x-3">
             <span className="min-w-0 text-ink">
               {textOf(AUDIT_ACTION_TEXT, a.action)}
-              {detailText(a.action, a.detail) ? <span className="text-muted"> · {detailText(a.action, a.detail)}</span> : null}
+              {detailText(a.action, a.detail) ? (
+                <span className="text-muted"> · {detailText(a.action, a.detail)}</span>
+              ) : null}
             </span>
-            <span className="shrink-0 text-xs text-muted">
+            <span className="shrink-0 text-[13px] leading-5 text-muted">
               {a.actor} · {seoulTimeText(a.createdAt)}
             </span>
           </li>
@@ -440,7 +616,9 @@ function Audit({ d }: { d: IntakeDetail }) {
           {d.revisions.map((r) => (
             <p key={r.id} className="text-muted">
               {r.number}판 · {textOf(REVISION_STATUS_TEXT, r.status)}
-              {r.failureCode ? ` · ${textOf(FAILURE_CODE_TEXT, r.failureCode)}` : ''} · {seoulTimeText(r.finalizedAt)}
+              {r.failureCode
+                ? ` · ${textOf(FAILURE_CODE_TEXT, r.failureCode)}`
+                : ''} · {seoulTimeText(r.finalizedAt)}
               {r.current ? ' · 지금 판' : ''}
             </p>
           ))}

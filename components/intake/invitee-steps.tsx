@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Input } from '@/components/ui';
 import { FieldError, HelpButton, NoteBox, PrimaryButton, Screen } from '@/components/intake/shell';
 import { INTAKE_ERROR_TEXT } from '@/lib/intake/errors';
@@ -20,7 +20,12 @@ const NAME_MAX = 40;
 export const pinDigits = (raw: string) => raw.replace(/[^0-9]/g, '').slice(0, PIN_LENGTH);
 
 /** 칸마다의 오류 — 서버 코드를 그 칸으로 보낸다(flow 가 채운다) */
-export type InviteeErrors = { name?: string; pin?: string; pinConfirm?: string; form?: string };
+export type InviteeErrors = {
+  name?: string;
+  pin?: string;
+  pinConfirm?: string;
+  form?: string;
+};
 
 /** 서버 오류를 칸으로 — 이름이 틀렸는지 PIN 이 틀렸는지는 서버가 일부러 안 가른다(invitee_credentials_wrong) */
 export function inviteeErrorsOf(code: string, message: string, retryAfterSec: number | null): InviteeErrors {
@@ -47,6 +52,7 @@ function PinField({
   error,
   autoComplete,
   show,
+  hint,
 }: {
   id: string;
   label: string;
@@ -55,10 +61,11 @@ function PinField({
   error?: string;
   autoComplete: string;
   show: boolean;
+  hint?: string;
 }) {
   return (
     <div className="space-y-1.5">
-      <label htmlFor={id} className="text-sm font-bold text-ink">
+      <label htmlFor={id} className="block text-sm font-semibold text-ink">
         {label}
       </label>
       <Input
@@ -81,24 +88,36 @@ function PinField({
       {error ? (
         <FieldError id={`${id}-error`}>{error}</FieldError>
       ) : (
-        <p id={`${id}-hint`} className="sr-only">
-          숫자 네 자리
+        <p
+          id={`${id}-hint`}
+          className={hint ? 'text-footnote leading-5 text-muted' : 'sr-only'}
+        >
+          {hint ?? '숫자 네 자리'}
         </p>
       )}
     </div>
   );
 }
 
-function NameField({ id, value, onChange, error, label }: { id: string; value: string; onChange: (v: string) => void; error?: string; label: string }) {
-  const input = useRef<HTMLInputElement>(null);
-  useEffect(() => input.current?.focus({ preventScroll: true }), []);
+function NameField({
+  id,
+  value,
+  onChange,
+  error,
+  label,
+}: {
+  id: string;
+  value: string;
+  onChange: (v: string) => void;
+  error?: string;
+  label: string;
+}) {
   return (
     <div className="space-y-1.5">
-      <label htmlFor={id} className="text-sm font-bold text-ink">
+      <label htmlFor={id} className="block text-sm font-semibold text-ink">
         {label}
       </label>
       <Input
-        ref={input}
         id={id}
         value={value}
         onChange={(e) => onChange(e.currentTarget.value)}
@@ -119,7 +138,7 @@ function NameField({ id, value, onChange, error, label }: { id: string; value: s
 function ShowPin({ show, onToggle }: { show: boolean; onToggle: () => void }) {
   return (
     <HelpButton onClick={onToggle} aria-pressed={show}>
-      {show ? 'PIN 숨기기' : 'PIN 보기'}
+      {show ? '비밀번호 숨기기' : '비밀번호 보기'}
     </HelpButton>
   );
 }
@@ -155,7 +174,11 @@ export function EnrollStep({
     if (Object.keys(next).length) {
       setLocal(next);
       if (next.pinConfirm && !next.pin) setPinConfirm('');
-      document.getElementById(next.name ? 'invitee-name' : next.pin ? 'invitee-pin' : 'invitee-pin-confirm')?.focus();
+      document
+        .getElementById(
+          next.name ? 'invitee-name' : next.pin ? 'invitee-pin' : 'invitee-pin-confirm'
+        )
+        ?.focus();
       return;
     }
     setLocal({});
@@ -177,36 +200,65 @@ export function EnrollStep({
     >
       <Screen
         screenKey="invitee-enroll"
-        title="이 링크에 쓸 이름과 PIN 은 무엇인가요?"
-        desc={'이 이름과 PIN 은 이 링크에 다시 들어올 때 본인 확인에 쓰입니다.\n다음에 이 링크를 열 때 같은 이름과 PIN 을 입력합니다.\nPIN 은 직접 정하는 숫자 네 자리입니다.'}
+        title="이름과 비밀번호 설정"
+        desc="영상을 다시 확인할 때 사용할 정보입니다."
         focusTitle={false}
         actions={
           <>
             {shown.form && <FieldError>{shown.form}</FieldError>}
             <PrimaryButton type="submit" busy={busy}>
-              정하고 시작하기
+              설정하고 계속
             </PrimaryButton>
           </>
         }
       >
-        <NameField id="invitee-name" label="보내는 분의 이름" value={name} onChange={setName} error={shown.name} />
-        <PinField id="invitee-pin" label="PIN 숫자 네 자리" value={pin} onChange={setPin} error={shown.pin} autoComplete="new-password" show={show} />
-        <PinField id="invitee-pin-confirm" label="PIN 한 번 더" value={pinConfirm} onChange={setPinConfirm} error={shown.pinConfirm} autoComplete="new-password" show={show} />
-        <ShowPin show={show} onToggle={() => setShow((v) => !v)} />
-        <NoteBox>{'PIN 은 다른 사람에게 알리지 마십시오.\n잊으면 링크를 보내 준 담당자에게 문의하십시오.'}</NoteBox>
+        <NameField
+          id="invitee-name"
+          label="보내는 분 이름"
+          value={name}
+          onChange={setName}
+          error={shown.name}
+        />
+        <div className="space-y-4 pt-2">
+          <PinField
+            id="invitee-pin"
+            label="비밀번호"
+            hint="직접 정하는 숫자 4자리입니다."
+            value={pin}
+            onChange={setPin}
+            error={shown.pin}
+            autoComplete="new-password"
+            show={show}
+          />
+          <PinField
+            id="invitee-pin-confirm"
+            label="비밀번호 확인"
+            value={pinConfirm}
+            onChange={setPinConfirm}
+            error={shown.pinConfirm}
+            autoComplete="new-password"
+            show={show}
+          />
+          <ShowPin show={show} onToggle={() => setShow((v) => !v)} />
+        </div>
+        <p className="text-footnote leading-5 text-muted">
+          비밀번호를 잊은 경우 링크를 보낸 담당자에게 문의합니다.
+        </p>
       </Screen>
     </form>
   );
 }
 
 /** 다시 들어오는 까닭 — 처음 화면 · 세션이 끝남 · 이 기기에서 나감 · 다른 기기가 먼저 정함 */
-export type UnlockReason = 'session_required' | 'session_expired' | 'ended' | 'enrolled_elsewhere';
+export type UnlockReason =
+  'session_required' | 'session_expired' | 'ended' | 'enrolled_elsewhere';
 
 const UNLOCK_DESC: Record<UnlockReason, string> = {
-  session_required: '처음에 정한 이름과 PIN 을 입력하면 이어서 볼 수 있습니다.',
+  session_required: '처음에 설정한 이름과 비밀번호를 입력합니다.',
   session_expired: INTAKE_ERROR_TEXT.session_expired,
-  ended: '이 기기에서 나갔습니다.\n다시 보려면 이름과 PIN 을 입력하십시오.',
-  enrolled_elsewhere: '방금 다른 곳에서 이름과 PIN 을 먼저 정했습니다.\n정한 이름과 PIN 을 입력하십시오.',
+  ended:
+    '이 기기에서 로그아웃되었습니다. 이름과 비밀번호를 입력하면 다시 확인할 수 있습니다.',
+  enrolled_elsewhere: '다른 기기에서 설정한 이름과 비밀번호를 입력합니다.',
 };
 
 /* ── 다시 들어오기 ── */
@@ -259,22 +311,36 @@ export function UnlockStep({
     >
       <Screen
         screenKey={`invitee-unlock-${reason}`}
-        title="처음에 정한 이름과 PIN 은 무엇인가요?"
+        title="영상 접수 확인"
         desc={UNLOCK_DESC[reason]}
         focusTitle={false}
         actions={
           <>
             {shown.form && <FieldError>{shown.form}</FieldError>}
             <PrimaryButton type="submit" busy={busy}>
-              확인
+              확인하고 계속
             </PrimaryButton>
           </>
         }
       >
-        <NameField id="unlock-name" label="이름" value={name} onChange={setName} error={shown.name} />
-        <PinField id="unlock-pin" label="PIN 숫자 네 자리" value={pin} onChange={setPin} error={shown.pin} autoComplete="off" show={show} />
+        <NameField
+          id="unlock-name"
+          label="이름"
+          value={name}
+          onChange={setName}
+          error={shown.name}
+        />
+        <PinField
+          id="unlock-pin"
+          label="비밀번호"
+          value={pin}
+          onChange={setPin}
+          error={shown.pin}
+          autoComplete="off"
+          show={show}
+        />
         <ShowPin show={show} onToggle={() => setShow((v) => !v)} />
-        <NoteBox>{'선택한 영상과 보내던 내용은 그대로 있습니다.\nPIN 을 잊었으면 링크를 보내 준 담당자에게 문의하십시오.'}</NoteBox>
+        <NoteBox>비밀번호를 잊은 경우 링크를 보낸 담당자에게 문의합니다.</NoteBox>
       </Screen>
     </form>
   );

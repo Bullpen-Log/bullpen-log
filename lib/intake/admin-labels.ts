@@ -71,19 +71,19 @@ export const CONSENT_KIND_TEXT: Record<string, string> = {
 };
 
 export const REJECT_CODE_TEXT: Record<string, string> = {
-  size_mismatch: '도착한 크기가 신고한 크기와 달라요',
-  hash_mismatch: '해시가 고른 파일과 달라요',
-  not_video: '파일 머리를 읽어 보니 영상이 아니에요',
-  unsupported_container: 'MOV · MP4 가 아닌 그릇이라 받지 않았어요',
-  facts_unreadable: '파일 머리를 읽지 못했어요',
-  capture_rate_low: '표본 시간으로 잰 촬영 속도가 120fps 미만이에요(R04 필수 기준)',
-  capture_rate_unknown: '촬영 속도(fps)를 읽지 못해 120fps 기준을 확인할 수 없어요',
+  size_mismatch: '도착한 크기가 신고한 크기와 다릅니다',
+  hash_mismatch: '해시가 고른 파일과 다릅니다',
+  not_video: '파일 머리를 읽어 보니 영상이 아닙니다',
+  unsupported_container: 'MOV · MP4 가 아닌 그릇이라 받지 않았습니다',
+  facts_unreadable: '파일 머리를 읽지 못했습니다',
+  capture_rate_low: '표본 시간으로 잰 촬영 속도가 120fps 미만입니다(R04 필수 기준)',
+  capture_rate_unknown: '촬영 속도(fps)를 읽지 못해 120fps 기준을 확인할 수 없습니다',
 };
 
 export const FAILURE_CODE_TEXT: Record<string, string> = {
-  same_file: '옆과 뒤가 같은 파일이에요',
-  asset_rejected: '막힌 영상이 있어요',
-  media_unconfirmed: '영상인지 확인하지 못한 파일이 있어요',
+  same_file: '옆과 뒤가 같은 파일입니다',
+  asset_rejected: '막힌 영상이 있습니다',
+  media_unconfirmed: '영상인지 확인하지 못한 파일이 있습니다',
 };
 
 export const CORRECTION_FIELD_TEXT: Record<string, string> = {
@@ -103,63 +103,63 @@ export const HAND_TEXT: Record<string, string> = { R: '오른손', L: '왼손' }
 /** 감사 기록의 동작 이름 — 모르는 이름은 코드 그대로 보인다(숨기지 않는다) */
 export const AUDIT_ACTION_TEXT: Record<string, string> = {
   'invitation.created': '초대를 만들었어요',
-  'invitation.revoked': '초대를 폐기했어요',
-  'invitation.reissued': '링크를 새로 바꿨어요',
-  'consent.recorded': '동의를 남겼어요',
-  'consent.withdrawn': '동의를 철회했어요',
-  'consent.withdrawn_by_admin': '담당자가 필수 동의 철회를 기록했어요',
-  'consent.model_withdrawn_by_admin': '담당자가 모델 개발 동의 철회를 기록했어요',
-  'consent.overseas_withdrawn_by_admin': '담당자가 국외 이전 동의 철회를 기록했어요',
-  'asset.reserved': '영상을 골랐어요',
-  'asset.replaced': '영상을 바꿨어요',
-  'asset.arrived': '영상이 저장소에 도착했어요',
+  'invitation.revoked': '초대를 폐기했습니다',
+  'invitation.reissued': '링크를 새로 변경했습니다',
+  'consent.recorded': '동의를 기록했습니다',
+  'consent.withdrawn': '동의를 철회했습니다',
+  'consent.withdrawn_by_admin': '담당자가 필수 동의 철회를 기록했습니다',
+  'consent.model_withdrawn_by_admin': '담당자가 모델 개발 동의 철회를 기록했습니다',
+  'consent.overseas_withdrawn_by_admin': '담당자가 국외 이전 동의 철회를 기록했습니다',
+  'asset.reserved': '영상을 선택했습니다',
+  'asset.replaced': '영상을 변경했습니다',
+  'asset.arrived': '영상이 저장소에 도착했습니다',
   'asset.size_mismatch': '도착한 크기가 달랐어요',
-  'asset.verified': '파일 검증을 마쳤어요',
+  'asset.verified': '파일 검증을 완료했습니다',
   'asset.rejected': '파일 검증에서 막혔어요',
-  'asset.unconfirmed': '바이트는 맞지만 영상인지 확인하지 못했어요',
-  'asset.verify_requeued': '파일 확인을 다시 걸었어요',
-  'asset.purged': '쓰이지 않는 파일을 지웠어요',
-  'originals.purge_started': '보유 기간이 끝나 원본 지우기를 시작했어요',
-  'originals.purged': '보유 기간이 끝나 원본과 미리보기를 지웠어요',
-  'submission.finalized': '접수를 마쳤어요',
-  'revision.verified': '두 파일이 검증됐어요',
-  'revision.failed': '확인이 필요한 접수가 됐어요',
-  'revision.registered': '두 원본을 분석 가능으로 등록했어요',
-  'correction.requested': '고침을 요청했어요',
-  'correction.updated': '고침 요청을 바꿨어요',
-  'correction.cancelled': '고침 요청을 거뒀어요',
-  'correction.widened': '막힌 영상 칸을 고침 요청에 더했어요',
-  'draft.age_band_changed': '나이 확인을 바꿨어요',
-  'revision.register_requeued': '분석 등록을 다시 걸었어요',
-  'upload_window.extended': '올리기 기간을 늘렸어요',
-  'access_code.wrong': '틀린 접근 코드를 입력했어요',
-  'access_code.locked': '접근 코드를 많이 틀려 결과 보기가 잠겼어요',
-  'access_code.reset': '접근 코드 막힘을 풀었어요',
-  'assignee.changed': '담당자를 바꿨어요',
-  'note.added': '내부 메모를 남겼어요',
-  'note.deleted': '내부 메모를 지웠어요',
-  'original.download_issued': '원본 내려받기 주소를 받았어요',
-  'original.preview_issued': '원본 미리보기 주소를 받았어요',
-  'preview.issued': '분석 미리보기 주소를 받았어요',
+  'asset.unconfirmed': '바이트는 맞지만 영상인지 확인하지 못했습니다',
+  'asset.verify_requeued': '파일 확인을 다시 요청했습니다',
+  'asset.purged': '쓰이지 않는 파일을 삭제했습니다',
+  'originals.purge_started': '보유 기간이 끝나 원본 지우기를 시작했습니다',
+  'originals.purged': '보유 기간이 끝나 원본과 미리보기를 삭제했습니다',
+  'submission.finalized': '접수를 완료했습니다',
+  'revision.verified': '두 파일이 검증되었습니다',
+  'revision.failed': '확인이 필요한 접수가 되었습니다',
+  'revision.registered': '두 원본을 분석 가능으로 등록했습니다',
+  'correction.requested': '고침을 요청했습니다',
+  'correction.updated': '고침 요청을 변경했습니다',
+  'correction.cancelled': '고침 요청을 철회했습니다',
+  'correction.widened': '막힌 영상 칸을 고침 요청에 더했습니다',
+  'draft.age_band_changed': '나이 확인을 변경했습니다',
+  'revision.register_requeued': '분석 등록을 다시 요청했습니다',
+  'upload_window.extended': '올리기 기간을 연장했습니다',
+  'access_code.wrong': '틀린 접근 코드를 입력했습니다',
+  'access_code.locked': '접근 코드를 많이 틀려 결과 보기가 잠겼습니다',
+  'access_code.reset': '접근 코드 막힘을 해제했습니다',
+  'assignee.changed': '담당자를 변경했습니다',
+  'note.added': '내부 메모를 기록했습니다',
+  'note.deleted': '내부 메모를 삭제했습니다',
+  'original.download_issued': '원본 내려받기 주소를 받았습니다',
+  'original.preview_issued': '원본 미리보기 주소를 받았습니다',
+  'preview.issued': '분석 미리보기 주소를 받았습니다',
   'run.reviewed': '3D 결과를 열어 봤어요(예전 기록)',
   'run.review_opened': '3D 결과를 열어 봤어요',
   'run.review_acknowledged': '3D 결과 검토 완료',
-  'analysis.hand_set': '던지는 손을 정했어요',
-  'analysis.requested': '분석을 요청했어요',
-  'analysis.carried': '같은 영상의 분석을 새 판에 이어 받았어요',
-  'analysis.succeeded': '분석이 끝났어요',
-  'analysis.failed': '분석이 실패했어요',
-  'publication.published': '결과를 공개했어요',
+  'analysis.hand_set': '던지는 손을 설정했습니다',
+  'analysis.requested': '분석을 요청했습니다',
+  'analysis.carried': '같은 영상의 분석을 새 판에 이어 받았습니다',
+  'analysis.succeeded': '분석이 종료되었습니다',
+  'analysis.failed': '분석이 실패했습니다',
+  'publication.published': '결과를 공개했습니다',
   'publication.unpublished': '결과 공개를 내렸어요',
-  'invitee.enrolled': '받는 분이 이름과 PIN 을 정했어요',
-  'invitee.session_started': '받는 분이 이름과 PIN 으로 들어왔어요',
-  'invitee.unlock_failed': '이름이나 PIN 이 틀렸어요',
-  'invitee.locked': '이름 · PIN 을 많이 틀려 링크가 잠겼어요',
-  'invitee.reset': '담당자가 이름과 PIN 을 지웠어요',
-  'invitee.unlocked': '담당자가 링크 잠금을 풀었어요',
-  'analysis.manual_imported': '3D 결과를 직접 가져왔어요',
+  'invitee.enrolled': '받는 분이 이름과 비밀번호를 설정했습니다',
+  'invitee.session_started': '받는 분이 이름과 비밀번호로 접속했습니다',
+  'invitee.unlock_failed': '이름이나 비밀번호가 일치하지 않습니다',
+  'invitee.locked': '이름 · 비밀번호를 많이 틀려 링크가 잠겼습니다',
+  'invitee.reset': '담당자가 이름과 비밀번호를 초기화했습니다',
+  'invitee.unlocked': '담당자가 링크 잠금을 해제했습니다',
+  'analysis.manual_imported': '3D 결과를 직접 가져왔습니다',
   'original.local_copy_confirmed': '원본 로컬 사본을 확인했다고 적었어요',
-  'manifest.exported': '원본 매니페스트를 받았어요',
+  'manifest.exported': '원본 매니페스트를 받았습니다',
 };
 
 /** 멈춘 일감 — 상세 화면이 까닭과 함께 보인다 */
@@ -183,10 +183,10 @@ export const RETENTION_BASIS_TEXT: Record<RetentionBasis, string> = {
 
 export const JOB_STATE_TEXT: Record<string, string> = {
   failed: '시도를 다 썼어요',
-  retrying: '다시 시도하는 중이에요',
+  retrying: '다시 시도하는 중입니다',
   stalled: '일꾼이 멈춘 것 같아요',
   /* 실패가 아니다 — 큰 파일이라 크론 한 번의 시간 안에 다 못 읽어 기다린다. 시도 횟수를 안 쓴다(lib/intake/admin.ts jobStateOf) */
-  waiting: '검증 대기 · 큰 파일이라 다음 실행에서 이어 확인해요',
+  waiting: '검증 대기 · 큰 파일이라 다음 실행에서 이어 확인합니다',
 };
 
 /** 일감 모습의 색 — 기다림은 오류 색으로 그리지 않는다. 색만으로 알리지 않게 화면은 JOB_STATE_TEXT 를 같이 보인다 */
@@ -332,14 +332,14 @@ export const retentionLineText = (r: RetentionCell) =>
 
 /** 정식 주소가 아닌 까닭 — lib/intake/link-origin.ts LinkOriginProblem */
 export const LINK_ORIGIN_PROBLEM_TEXT: Record<string, string> = {
-  unparsable: '주소를 읽을 수 없어요',
-  not_https: 'https 주소가 아니에요',
-  has_path: '주소 뒤에 경로가 붙어 있어요',
-  has_port: '포트 번호가 붙어 있어요',
-  credentials: '주소에 계정 정보가 들어 있어요',
-  ip_literal: '도메인이 아니라 IP 주소예요',
-  local_host: '이 컴퓨터나 내부망에서만 열리는 주소예요',
-  preview_host: '미리보기 배포 주소예요',
+  unparsable: '주소를 읽을 수 없습니다',
+  not_https: 'https 주소가 아닙니다',
+  has_path: '주소 뒤에 경로가 붙어 있습니다',
+  has_port: '포트 번호가 붙어 있습니다',
+  credentials: '주소에 계정 정보가 들어 있습니다',
+  ip_literal: '도메인이 아니라 IP 주소입니다',
+  local_host: '이 컴퓨터나 내부망에서만 열리는 주소입니다',
+  preview_host: '미리보기 배포 주소입니다',
 };
 
 type ReadinessView = {
@@ -353,10 +353,10 @@ const originVarOf = (source: string) => (source === 'INTAKE_PUBLIC_ORIGIN' ? 'IN
 /** 초대를 못 만드는 까닭 — 화면이 버튼을 끄고 이 글을 보인다. 준비됐으면 빈 목록 */
 export function readinessLines(r: ReadinessView): string[] {
   const lines: string[] = [];
-  if (r.blockers.includes('db')) lines.push('DB 마이그레이션 적용 전이에요. 외부 접수 표를 만든 뒤에 초대를 만들 수 있어요.');
+  if (r.blockers.includes('db')) lines.push('DB 마이그레이션 적용 전입니다. 외부 접수 표를 만든 뒤에 초대를 만들 수 있습니다.');
   if (r.blockers.includes('origin')) {
     const why = r.link.problem ? ` ${textOf(LINK_ORIGIN_PROBLEM_TEXT, r.link.problem)}.` : '';
-    lines.push(`외부 주소 설정이 없어요: ${originVarOf(r.link.source)}.${why} 받는 사람이 열 수 있는 https 정식 주소를 넣어 주세요.`);
+    lines.push(`외부 주소 설정이 없습니다: ${originVarOf(r.link.source)}.${why} 받는 사람이 열 수 있는 https 정식 주소를 입력합니다.`);
   }
   return lines;
 }
@@ -365,11 +365,11 @@ export function readinessLines(r: ReadinessView): string[] {
 export function devLinkText(r: Pick<ReadinessView, 'link'>): string | null {
   if (r.link.external) return null;
   const why = r.link.problem ? ` (${textOf(LINK_ORIGIN_PROBLEM_TEXT, r.link.problem)})` : '';
-  return `개발용 주소라 받는 사람에게 보내면 안 돼요${why}. 정식 주소는 ${originVarOf(r.link.source)} 설정으로 정해요.`;
+  return `개발용 주소라 받는 사람에게 보내면 안 됩니다${why}. 정식 주소는 ${originVarOf(r.link.source)} 설정으로 설정합니다.`;
 }
 
 /** 새 링크 만들기의 확인 글 — 받은 영상 · 공개 결과는 이어진다 */
-export const REISSUE_WARNING_TEXT = '새 링크로 바꾸면 예전 링크는 바로 막혀요. 이미 받은 영상과 공개한 결과는 새 링크로 이어져요.';
+export const REISSUE_WARNING_TEXT = '새 링크로 바꾸면 예전 링크는 바로 차단됩니다. 이미 받은 영상과 공개한 결과는 새 링크로 이어집니다.';
 
 /** 받는 분이 아직 시작하지 않은 접수 — 열었는지는 기록하지 않아 모른다 */
-export const UNTOUCHED_TEXT = '받는 분이 아직 시작하지 않았어요';
+export const UNTOUCHED_TEXT = '받는 분이 아직 시작하지 않았습니다';

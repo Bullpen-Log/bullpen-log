@@ -1,0 +1,58 @@
+.screen {
+  font-size: 15px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.heading {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.025em;
+  word-break: keep-all;
+  text-wrap: pretty;
+}
+
+.denseHeading {
+  font-size: 22px;
+}
+
+.screen input:not([type='checkbox']):not([type='radio']):not([type='file']) {
+  min-height: 52px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.screen input:focus-visible {
+  border-color: var(--color-sky);
+  outline: 2px solid var(--color-sky);
+  outline-offset: 2px;
+}
+
+.screen input[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+
+.actions > button {
+  min-height: 52px;
+  height: auto;
+  border-radius: 14px;
+  padding-block: 12px;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.screen summary {
+  min-height: 44px;
+  padding-block: 10px;
+  cursor: pointer;
+}
+
+.screen summary:focus-visible {
+  outline: 2px solid var(--color-sky);
+  outline-offset: 2px;
+  border-radius: 4px;
+}

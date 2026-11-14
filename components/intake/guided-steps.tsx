@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Input } from '@/components/ui';
 import { FileFacts, VideoPreview } from '@/components/intake/file-summary';
-import { CaptureNeeds, OriginalTips } from '@/components/intake/guides';
+import { OriginalTips } from '@/components/intake/guides';
 import { RearFrame, SideFrame } from '@/components/intake/illustrations';
 import { SIZE_HELP_TEXT, type Picked } from '@/components/intake/pick';
 import { FieldError, HelpButton, NoteBox, Paras, PrimaryButton, Screen } from '@/components/intake/shell';
@@ -12,31 +12,63 @@ import { formatBytes, type IntakeLimits } from '@/lib/intake/limits';
 import type { IntakeView } from '@/lib/intake/state';
 
 /* ── 1 환영 ── */
-export function WelcomeStep({ onStart, onCapture, onOriginal, inKakao }: { onStart: () => void; onCapture: () => void; onOriginal: () => void; inKakao: boolean }) {
+export function WelcomeStep({
+  onStart,
+  onCapture,
+  onOriginal,
+  inKakao,
+}: {
+  onStart: () => void;
+  onCapture: () => void;
+  onOriginal: () => void;
+  inKakao: boolean;
+}) {
   return (
     <Screen
       screenKey="welcome"
-      title="투구 영상 두 개를 보내시겠어요?"
-      desc={'옆과 뒤에서 동시에 촬영한 슬로 모션 원본 영상 두 개를 받습니다.\n앱 설치나 회원가입은 필요하지 않습니다.'}
+      title="투구 영상 보내기"
+      desc="3D 동작 결과를 만들기 위한 원본 영상을 접수합니다."
       actions={<PrimaryButton onClick={onStart}>시작하기</PrimaryButton>}
     >
       <div className="flex items-end justify-center gap-4 rounded-2xl bg-surface px-4 py-5">
         <figure className="w-[58%]">
           <SideFrame className="w-full" />
-          <figcaption className="mt-1.5 text-center text-footnote text-muted">옆에서</figcaption>
+          <figcaption className="mt-1.5 text-center text-footnote text-muted">
+            옆에서
+          </figcaption>
         </figure>
         <figure className="w-[30%]">
           <RearFrame className="w-full" />
-          <figcaption className="mt-1.5 text-center text-footnote text-muted">뒤에서</figcaption>
+          <figcaption className="mt-1.5 text-center text-footnote text-muted">
+            뒤에서
+          </figcaption>
         </figure>
       </div>
-      <p className="text-sm leading-relaxed break-keep text-ink">같은 투구 한 번을 두 대의 폰으로 동시에, 슬로 모션 120fps 이상으로 촬영한 영상이 필요합니다.</p>
-      <CaptureNeeds />
-      <div className="flex flex-col items-start">
+      <ul className="space-y-2 text-[15px] leading-6 text-ink">
+        <li>
+          <strong className="font-semibold">같은 투구 1회</strong>를 옆과 뒤에서
+          촬영합니다.
+        </li>
+        <li>
+          <strong className="font-semibold">휴대폰 2대</strong>로 동시에 촬영합니다.
+        </li>
+        <li>
+          두 영상 모두{' '}
+          <strong className="font-semibold">120fps 이상 슬로 모션 원본</strong>이
+          필요합니다.
+        </li>
+      </ul>
+      <div className="flex flex-wrap items-center gap-x-4">
         <HelpButton onClick={onCapture}>촬영 방법 보기</HelpButton>
         <HelpButton onClick={onOriginal}>원본 영상 선택 방법</HelpButton>
       </div>
-      {inKakao && <NoteBox>{'카카오톡 안에서도 보낼 수 있습니다.\n영상이 선택되지 않으면 Safari나 Chrome에서 이 링크를 여십시오.'}</NoteBox>}
+      {inKakao && (
+        <NoteBox>
+          {
+            '카카오톡 안에서도 보낼 수 있습니다.\n영상이 선택되지 않으면 Safari나 Chrome에서 이 링크를 여십시오.'
+          }
+        </NoteBox>
+      )}
     </Screen>
   );
 }
@@ -61,7 +93,6 @@ export function NameStep({
   const [name, setName] = useState(initial);
   const [local, setLocal] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
-  useEffect(() => input.current?.focus({ preventScroll: true }), []);
 
   const submit = () => {
     const trimmed = name.trim();
@@ -83,7 +114,7 @@ export function NameStep({
       <Screen
         screenKey="name"
         title="영상 속 선수의 이름은 무엇인가요?"
-        desc="접수된 영상의 선수별 영상 이름 정리에 사용됩니다."
+        desc="접수된 영상을 선수별로 정리하는 데 사용됩니다."
         step={1}
         onBack={onBack}
         focusTitle={false}
@@ -94,7 +125,10 @@ export function NameStep({
         }
       >
         <div className="space-y-2">
-          <label htmlFor="athlete-name" className="sr-only">
+          <label
+            htmlFor="athlete-name"
+            className="block text-sm font-semibold text-ink"
+          >
             선수 이름
           </label>
           <Input
@@ -114,7 +148,9 @@ export function NameStep({
           {shown && <FieldError id="athlete-name-error">{shown}</FieldError>}
           {prefilled && !shown && (
             <Paras
-              text={'이 링크에 들어올 때 입력한 이름을 넣어 두었습니다.\n보내는 분과 선수가 다르면 선수 이름으로 고치십시오.\n선수 이름을 고쳐도 이 링크에 들어올 때 쓰는 이름과 PIN 은 바뀌지 않습니다.'}
+              text={
+                '보내는 분과 선수가 다르면 선수 이름으로 변경합니다.\n접속할 때 사용하는 이름과 비밀번호는 바뀌지 않습니다.'
+              }
               gap="mt-1"
               className="text-footnote leading-5 text-muted"
             />
@@ -126,18 +162,24 @@ export function NameStep({
 }
 
 /* ── 3 · 4 영상 ── */
-const VIDEO_COPY: Record<IntakeView, { title: string; desc: string; pick: string; tips: string[] }> = {
+const VIDEO_COPY: Record<
+  IntakeView,
+  { title: string; desc: string; pick: string; tips: string[] }
+> = {
   side: {
-    title: '옆에서 촬영한 영상은 어느 것인가요?',
-    desc: '투수의 옆모습과 전신이 보이는 슬로 모션 120fps 이상 원본을 선택하십시오.',
+    title: '옆 영상 선택',
+    desc: '옆에서 촬영한 120fps 이상 슬로 모션 원본을 선택합니다.',
     pick: '옆 영상 선택',
     tips: ['폰을 가로로 두고 촬영한 영상', '발끝부터 머리, 손까지 보이는 영상'],
   },
   rear: {
-    title: '뒤에서 촬영한 영상은 어느 것인가요?',
-    desc: '같은 투구를 뒤에서 동시에 촬영한 슬로 모션 120fps 이상 원본을 선택하십시오.',
+    title: '뒤 영상 선택',
+    desc: '같은 투구를 뒤에서 동시에 촬영한 120fps 이상 원본을 선택합니다.',
     pick: '뒤 영상 선택',
-    tips: ['옆 영상과 같은 투구를 동시에 촬영한 영상', '폰을 세로로 두고 투수 뒤에서 촬영한 영상'],
+    tips: [
+      '옆 영상과 같은 투구를 동시에 촬영한 영상',
+      '폰을 세로로 두고 투수 뒤에서 촬영한 영상',
+    ],
   },
 };
 
@@ -187,11 +229,18 @@ export function VideoStep({
         picked ? (
           <>
             <PrimaryButton ref={next} onClick={onNext} disabled={inspecting}>
-              이 영상으로 계속
+              다음
             </PrimaryButton>
           </>
         ) : (
-          <FileButton buttonRef={pickButton} label={inspecting ? '영상을 살펴보는 중' : copy.pick} onFile={onPick} className={FILL_BUTTON} disabled={inspecting} describedBy={error ? errorId : undefined} />
+          <FileButton
+            buttonRef={pickButton}
+            label={inspecting ? '영상을 살펴보는 중' : copy.pick}
+            onFile={onPick}
+            className={FILL_BUTTON}
+            disabled={inspecting}
+            describedBy={error ? errorId : undefined}
+          />
         )
       }
     >
@@ -199,29 +248,51 @@ export function VideoStep({
       {picked ? (
         <div className="space-y-3">
           <VideoPreview url={picked.url} />
-          <FileFacts name={picked.file.name} size={picked.file.size} facts={picked.facts} />
-          <FileButton buttonRef={pickButton} label="다른 영상 선택" onFile={onPick} className={`-ml-2 ${LINK_BUTTON}`} disabled={inspecting} describedBy={error ? errorId : undefined} />
+          <FileFacts
+            name={picked.file.name}
+            size={picked.file.size}
+            facts={picked.facts}
+          />
+          <FileButton
+            buttonRef={pickButton}
+            label="다른 영상 선택"
+            onFile={onPick}
+            className={`-ml-2 ${LINK_BUTTON}`}
+            disabled={inspecting}
+            describedBy={error ? errorId : undefined}
+          />
         </div>
       ) : (
         <>
-          <div className="flex justify-center rounded-2xl bg-surface px-4 py-5">
-            {view === 'side' ? <SideFrame flip={hand === 'L'} className="w-[70%]" /> : <RearFrame flip={hand === 'L'} className="w-[38%]" />}
+          <div className="flex h-32 justify-center rounded-2xl bg-surface px-4 py-3">
+            {view === 'side' ? (
+              <SideFrame flip={hand === 'L'} className="h-full w-auto max-w-full" />
+            ) : (
+              <RearFrame flip={hand === 'L'} className="h-full w-auto max-w-full" />
+            )}
           </div>
           <ul className="space-y-1.5 text-sm leading-relaxed break-keep text-ink">
             {copy.tips.map((t) => (
               <li key={t} className="flex gap-2">
-                <span aria-hidden className="mt-2.5 h-1 w-1 shrink-0 rounded-full bg-muted" />
+                <span
+                  aria-hidden
+                  className="mt-2.5 h-1 w-1 shrink-0 rounded-full bg-muted"
+                />
                 <span>{t}</span>
               </li>
             ))}
           </ul>
           <OriginalTips />
-          <div className="space-y-1 text-footnote leading-5 break-keep text-muted">
-            <p>
-              영상 하나는 {formatBytes(limits.maxFileBytes)}까지, 두 영상을 합쳐 {formatBytes(limits.maxTotalBytes)}까지 보낼 수 있습니다.
-            </p>
-            <p>한도보다 커도 {SIZE_HELP_TEXT}</p>
-          </div>
+          <details className="text-footnote leading-5 text-muted">
+            <summary className="font-medium">파일 용량 안내</summary>
+            <div className="space-y-1 pb-2">
+              <p>
+                영상 하나는 {formatBytes(limits.maxFileBytes)}까지, 두 영상을 합쳐{' '}
+                {formatBytes(limits.maxTotalBytes)}까지 보낼 수 있습니다.
+              </p>
+              <p>한도보다 커도 {SIZE_HELP_TEXT}</p>
+            </div>
+          </details>
         </>
       )}
       {error && <FieldError id={errorId}>{error}</FieldError>}

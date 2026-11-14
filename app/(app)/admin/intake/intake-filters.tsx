@@ -26,11 +26,25 @@ function hrefOf(f: IntakeListFilters): string {
   return s ? `${BASE}?${s}` : BASE;
 }
 
-function Pick({ label, value, options, onChange }: { label: string; value: string | null; options: Record<string, string>; onChange: (v: string | null) => void }) {
+function Pick({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string | null;
+  options: Record<string, string>;
+  onChange: (v: string | null) => void;
+}) {
   return (
     <label className="block space-y-1">
-      <span className="block text-xs text-muted">{label}</span>
-      <select className={SELECT} value={value ?? ''} onChange={(e) => onChange(e.target.value || null)}>
+      <span className="block text-[13px] leading-5 text-muted">{label}</span>
+      <select
+        className={SELECT}
+        value={value ?? ''}
+        onChange={(e) => onChange(e.target.value || null)}
+      >
         <option value="">전체</option>
         {Object.entries(options).map(([v, text]) => (
           <option key={v} value={v}>

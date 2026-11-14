@@ -33,11 +33,11 @@ type WarnAsset = Pick<IntakeAssetDetail, 'status' | 'rejectCode' | 'verifiedAt' 
  */
 export function originalWarning(a: WarnAsset): string | null {
   if (a.rejectCode) return `${textOf(REJECT_CODE_TEXT, a.rejectCode)}.`;
-  if (a.status === 'rejected') return '파일 검증에서 막힌 파일이에요.';
-  if (a.status === 'unconfirmed') return '영상인지 확인하지 못한 파일이에요.';
+  if (a.status === 'rejected') return '파일 검증에서 막힌 파일입니다.';
+  if (a.status === 'unconfirmed') return '영상인지 확인하지 못한 파일입니다.';
   if (a.status === 'verified') return null;
-  if (a.verifiedAt == null) return '아직 파일 확인이 끝나지 않았어요.';
-  return a.container != null && KNOWN_CONTAINERS.has(a.container) ? null : '영상인지 확인하지 못한 파일이에요.';
+  if (a.verifiedAt == null) return '아직 파일 확인이 완료되지 않았습니다.';
+  return a.container != null && KNOWN_CONTAINERS.has(a.container) ? null : '영상인지 확인하지 못한 파일입니다.';
 }
 
 /** 짝 내려받기가 줄 두 파일의 까닭 — 서버는 지금 판의 짝을 준다(판이 없으면 지금 고른 짝) */
@@ -107,15 +107,15 @@ export function goneViewsText(gone: readonly IntakeView[], deleting: readonly In
   const done = gone.filter((v) => !deleting.includes(v));
   const doing = gone.filter((v) => deleting.includes(v));
   return [
-    done.length > 0 ? `${viewNames(done)} 원본을 지웠어요.` : null,
-    doing.length > 0 ? `${viewNames(doing)} 원본을 지우고 있어요.` : null,
-    '다시 분석하려면 영상을 다시 받아야 해요.',
+    done.length > 0 ? `${viewNames(done)} 원본을 삭제했습니다.` : null,
+    doing.length > 0 ? `${viewNames(doing)} 원본을 지우고 있습니다.` : null,
+    '다시 분석하려면 영상을 다시 받아야 합니다.',
   ]
     .filter(Boolean)
     .join(' ');
 }
 
-const FROZEN_ALIVE_TEXT = '새로 받은 영상이 없어요. 판에 얼린 원본은 아래 이전에 고른 영상에 있어요.';
+const FROZEN_ALIVE_TEXT = '새로 받은 영상이 없습니다. 판에 얼린 원본은 아래 이전에 고른 영상에 있습니다.';
 
 /**
  * 영상 칸이 비었을 때의 글 — 칸이 빈 접수에서만 부른다. 목록 칸과 같은 함수(slotProgressOf)로 칸마다 판단한다.
@@ -130,16 +130,16 @@ export function emptyVideosText(assets: readonly Pick<IntakeAssetDetail, 'view' 
   if (gone.length === 0) {
     if (frozenAlive()) return FROZEN_ALIVE_TEXT;
     const frozen = assets.filter((a) => a.revisions.length > 0);
-    if (frozen.length > 0) return `새로 받은 영상이 없어요. 판에 얼린 원본은 ${frozen.some((a) => a.status === 'purging') ? '지우고 있어요' : '지웠어요'}.`;
-    return '아직 고른 영상이 없어요.';
+    if (frozen.length > 0) return `새로 받은 영상이 없습니다. 판에 얼린 원본은 ${frozen.some((a) => a.status === 'purging') ? '지우고 있습니다' : '삭제했습니다'}.`;
+    return '아직 고른 영상이 없습니다.';
   }
-  if (gone.length === progress.length && gone.every(({ p }) => p === gone[0].p)) return gone[0].p === 'deleting' ? '받은 영상을 지우고 있어요.' : '받은 영상을 지웠어요.';
+  if (gone.length === progress.length && gone.every(({ p }) => p === gone[0].p)) return gone[0].p === 'deleting' ? '받은 영상을 지우고 있습니다.' : '받은 영상을 삭제했습니다.';
   return progress
     .map(({ view, p }) => {
       const name = `${VIEW_TEXT[view]} 영상`;
-      if (p === 'deleted') return `${name}은 지웠어요.`;
-      if (p === 'deleting') return `${name}은 지우고 있어요.`;
-      return frozenAlive(view) ? `${name} 원본은 아래 이전에 고른 영상에 있어요.` : `${name}은 없어요.`;
+      if (p === 'deleted') return `${name}은 삭제했습니다.`;
+      if (p === 'deleting') return `${name}은 지우고 있습니다.`;
+      return frozenAlive(view) ? `${name} 원본은 아래 이전에 고른 영상에 있습니다.` : `${name}은 없습니다.`;
     })
     .join(' ');
 }
@@ -172,10 +172,10 @@ const purgingFiles = (r: Retention) => r.purging?.scope === 'current' || (r.basi
  */
 export function retentionText(r: Retention, now: Date = new Date()): { label: string; date: string; note: string | null } {
   const w = fileWords(r).label;
-  if (purgingFiles(r)) return { label: `${w} 지우는 중`, date: r.purging!.since, note: '저장소에서 지우고 있어요. 끝나면 지운 날로 바뀌어요. 막히면 6시간마다 다시 해요.' };
-  if (r.purgedAt) return { label: `${w} 지운 날`, date: r.purgedAt, note: r.purging ? '옛 판 파일은 아직 지우고 있어요. 막히면 6시간마다 다시 해요.' : null };
+  if (purgingFiles(r)) return { label: `${w} 지우는 중`, date: r.purging!.since, note: '저장소에서 지우고 있습니다. 끝나면 지운 날로 변경됩니다. 막히면 6시간마다 다시 시도합니다.' };
+  if (r.purgedAt) return { label: `${w} 지운 날`, date: r.purgedAt, note: r.purging ? '옛 판 파일은 아직 지우고 있습니다. 막히면 6시간마다 다시 시도합니다.' : null };
   const waiting = r.heldUntil != null && new Date(r.purgeAt) <= now;
-  const note = r.purging ? '옛 판 파일을 지우고 있어요. 지금 판의 지울 날은 그대로예요.' : waiting ? '고침 요청이 열려 있어 삭제를 기다리고 있어요. 고쳐서 내면 시계가 새로 돌고, 거두면 다음 정리 때 지워요.' : null;
+  const note = r.purging ? '옛 판 파일을 지우고 있습니다. 지금 판의 지울 날은 그대로입니다.' : waiting ? '고침 요청이 열려 있어 삭제를 기다리고 있습니다. 고쳐서 내면 시계가 새로 돌고, 거두면 다음 정리 때 삭제합니다.' : null;
   return { label: `${w} 삭제 예정일`, date: r.purgeAt, note };
 }
 
@@ -186,28 +186,28 @@ export function retentionText(r: Retention, now: Date = new Date()): { label: st
 const overdueAlive = (r: Retention, now: Date) => !purgingFiles(r) && !r.purgedAt && new Date(r.purgeAt).getTime() <= now.getTime();
 
 /** 철회 배너 첫 줄 — 판에 한 번도 안 오른 접수의 파일은 원본이 아니라 받은 영상이다(fileWords 와 같은 낱말) */
-export const withdrawnBannerLead = (d: Pick<IntakeDetail, 'revisions'>) => `필수 동의가 철회된 접수예요. ${d.revisions.length > 0 ? '원본' : '받은 영상'}을 열거나 분석할 수 없어요.`;
+export const withdrawnBannerLead = (d: Pick<IntakeDetail, 'revisions'>) => `필수 동의가 철회된 접수입니다. ${d.revisions.length > 0 ? '원본' : '받은 영상'}을 열거나 분석할 수 없습니다.`;
 
 /** 철회 배너 끝에 붙일 글 — 철회가 지울 날을 밀어도 지우기 시작한 원본은 끝까지 지운다. 지난 날짜에 지운다고 말하지 않는다. 판에 안 오른 초안이면 받은 영상이라고 한다 */
 export function withdrawnRetentionText(r: IntakeDetail['retention'], now: Date = new Date()): string {
   if (!r) return '';
   const { noun } = fileWords(r);
-  if (purgingFiles(r)) return ` ${noun}을 지우고 있어요.`;
-  if (r.purgedAt) return ` ${noun}은 ${seoulDateText(r.purgedAt)}에 지웠어요.`;
-  return overdueAlive(r, now) ? ` 지울 날이 지나 다음 정리 때 ${noun}을 지워요.` : ` ${noun}은 ${seoulDateText(r.purgeAt)}에 지워요.`;
+  if (purgingFiles(r)) return ` ${noun}을 지우고 있습니다.`;
+  if (r.purgedAt) return ` ${noun}은 ${seoulDateText(r.purgedAt)}에 삭제했습니다.`;
+  return overdueAlive(r, now) ? ` 지울 날이 지나 다음 정리 때 ${noun}을 삭제합니다.` : ` ${noun}은 ${seoulDateText(r.purgeAt)}에 삭제합니다.`;
 }
 
 /** 고침 거두기 확인창 — 지운 원본을 그대로라고 말하지 않고, 거두면 곧 지워지는 원본도 그대로라고 말하지 않는다 */
 export function cancelCorrectionDetail(r: IntakeDetail['retention'], now: Date = new Date()): string {
   const originals =
     r?.purging?.scope === 'current'
-      ? '얼린 판의 원본은 지우고 있어요.'
+      ? '얼린 판의 원본은 지우고 있습니다.'
       : r?.purgedAt
-        ? '얼린 판의 원본은 이미 지웠어요.'
+        ? '얼린 판의 원본은 이미 삭제했습니다.'
         : r && overdueAlive(r, now)
-          ? '지울 날이 지나 거두면 다음 정리 때 얼린 판의 원본을 지워요. 되돌릴 수 없어요.'
-          : '얼린 판의 원본은 그대로예요.';
-  return `접수가 지금 판의 상태로 돌아가요. 받는 분이 그사이 새로 고른 영상이나 고친 글은 칸에서 내려가요. ${originals}`;
+          ? '지울 날이 지나 거두면 다음 정리 때 얼린 판의 원본을 삭제합니다. 되돌릴 수 없습니다.'
+          : '얼린 판의 원본은 그대로입니다.';
+  return `접수가 지금 판의 상태로 돌아갑니다. 받는 분이 그사이 새로 고른 영상이나 고친 글은 칸에서 해제됩니다. ${originals}`;
 }
 
 /**
@@ -216,11 +216,11 @@ export function cancelCorrectionDetail(r: IntakeDetail['retention'], now: Date =
  */
 export function revokeRetentionText(r: IntakeDetail['retention'], opts: { status?: string; now?: Date } = {}): string {
   const now = opts.now ?? new Date();
-  if (opts.status === 'withdrawn') return r ? `이미 철회한 접수라 ${fileWords(r).noun}은 열 수 없어요.${withdrawnRetentionText(r, now)}` : '이미 철회한 접수예요.';
-  if (r?.purging?.scope === 'current') return '동의 철회는 아니에요. 원본은 지우고 있어요.';
-  if (r?.purgedAt) return '동의 철회는 아니에요. 원본은 이미 지웠어요.';
-  if (r && overdueAlive(r, now)) return '동의 철회는 아니에요. 지울 날이 지나 다음 정리 때 원본을 지워요. 되돌릴 수 없어요.';
-  return r ? `동의 철회는 아니어서 원본은 지울 날(${seoulDateText(r.purgeAt)})까지 열려요.` : '동의 철회는 아니에요.';
+  if (opts.status === 'withdrawn') return r ? `이미 철회한 접수라 ${fileWords(r).noun}은 열 수 없습니다.${withdrawnRetentionText(r, now)}` : '이미 철회한 접수입니다.';
+  if (r?.purging?.scope === 'current') return '동의 철회는 아닙니다. 원본은 지우고 있습니다.';
+  if (r?.purgedAt) return '동의 철회는 아닙니다. 원본은 이미 삭제했습니다.';
+  if (r && overdueAlive(r, now)) return '동의 철회는 아닙니다. 지울 날이 지나 다음 정리 때 원본을 삭제합니다. 되돌릴 수 없습니다.';
+  return r ? `동의 철회는 아니어서 원본은 지울 날(${seoulDateText(r.purgeAt)})까지 열 수 있습니다.` : '동의 철회는 아닙니다.';
 }
 
 /**
@@ -229,11 +229,11 @@ export function revokeRetentionText(r: IntakeDetail['retention'], opts: { status
  * 공개한 적이 없으면 철회한 날부터 다시 세므로 지난 날짜여도 곧 지우지 않는다.
  */
 export function withdrawConsentRetentionText(r: IntakeDetail['retention'], now: Date = new Date()): string {
-  const draft = `접수를 끝내지 못한 파일은 ${INTAKE_WITHDRAWN_DRAFT_GRACE_DAYS}일 뒤 지워요.`;
-  if (r?.purging?.scope === 'current') return `원본은 이미 지우고 있어요. 철회해도 끝까지 지워요. ${draft}`;
-  if (r?.purgedAt) return `원본은 이미 지웠어요. ${draft}`;
-  if (r && (r.basis === 'published' || r.basis === 'resubmitted') && overdueAlive(r, now)) return `공개한 적이 있는 접수라 철회해도 지울 날은 그대로예요. 지울 날이 지나 철회하면 다음 정리 때 원본을 지워요. 되돌릴 수 없어요. ${draft}`;
-  return `원본은 공개한 적이 없으면 철회한 날부터 ${INTAKE_ORIGINAL_RETENTION_DAYS}일 뒤 지우고, 공개한 적이 있으면 원래 지울 날에 지워요. ${draft}`;
+  const draft = `접수를 끝내지 못한 파일은 ${INTAKE_WITHDRAWN_DRAFT_GRACE_DAYS}일 뒤 삭제합니다.`;
+  if (r?.purging?.scope === 'current') return `원본은 이미 지우고 있습니다. 철회해도 끝까지 삭제합니다. ${draft}`;
+  if (r?.purgedAt) return `원본은 이미 삭제했습니다. ${draft}`;
+  if (r && (r.basis === 'published' || r.basis === 'resubmitted') && overdueAlive(r, now)) return `공개한 적이 있는 접수라 철회해도 지울 날은 그대로입니다. 지울 날이 지나 철회하면 다음 정리 때 원본을 삭제합니다. 되돌릴 수 없습니다. ${draft}`;
+  return `원본은 공개한 적이 없으면 철회한 날부터 ${INTAKE_ORIGINAL_RETENTION_DAYS}일 뒤 지우고, 공개한 적이 있으면 원래 지울 날에 삭제합니다. ${draft}`;
 }
 
 /**
@@ -271,8 +271,8 @@ export const MANUAL_IMPORT_MAX_BYTES = 960_000;
 
 /** 고른 결과 파일이 너무 크면 그 까닭, 아니면 null */
 export function manualFileProblem(size: number): string | null {
-  if (size <= 0) return '빈 파일이에요.';
-  if (size > MANUAL_IMPORT_MAX_BYTES) return `파일이 너무 커요. ${Math.floor(MANUAL_IMPORT_MAX_BYTES / 1000)}KB 안의 한 줄 JSON 으로 내보내 주세요.`;
+  if (size <= 0) return '빈 파일입니다.';
+  if (size > MANUAL_IMPORT_MAX_BYTES) return `파일이 너무 큽니다. ${Math.floor(MANUAL_IMPORT_MAX_BYTES / 1000)}KB 안의 한 줄 JSON 으로 내보냅니다.`;
   return null;
 }
 
@@ -289,11 +289,11 @@ export function manualImportTarget(d: Pick<IntakeDetail, 'assets' | 'revisions'>
  * 결과를 가져올 수 없는 까닭 — GPU · 분석 서버 준비와는 상관없다. 서버(lib/intake/manual-result.ts)가 같은 것을 다시 본다. 가져올 수 있으면 null.
  */
 export function manualImportBlock(d: Pick<IntakeDetail, 'status' | 'assets' | 'revisions'>): string | null {
-  if (d.status === 'withdrawn') return '필수 동의가 철회된 접수라 결과를 가져올 수 없어요.';
+  if (d.status === 'withdrawn') return '필수 동의가 철회된 접수라 결과를 가져올 수 없습니다.';
   const { revision, sideSha256, rearSha256 } = manualImportTarget(d);
-  if (!revision) return '접수를 마친 판이 없어 결과를 가져올 수 없어요.';
-  if (revision.status !== 'verified') return '지금 판의 두 파일 검증이 끝나야 결과를 가져올 수 있어요.';
-  if (!sideSha256 || !rearSha256) return '지금 판의 서버 해시가 없어 결과를 가져올 수 없어요.';
+  if (!revision) return '접수를 마친 판이 없어 결과를 가져올 수 없습니다.';
+  if (revision.status !== 'verified') return '지금 판의 두 파일 검증이 끝나야 결과를 가져올 수 있습니다.';
+  if (!sideSha256 || !rearSha256) return '지금 판의 서버 해시가 없어 결과를 가져올 수 없습니다.';
   return null;
 }
 
@@ -301,7 +301,7 @@ export function manualImportBlock(d: Pick<IntakeDetail, 'status' | 'assets' | 'r
 export const inviteeUnlockable = (i: Pick<IntakeDetail['invitee'], 'locked' | 'failures'>) => i.locked || i.failures > 0;
 
 /** 서버 원본 지울 날 옆에 붙이는 말 — 내려받은 사본은 이 기한과 상관없다 */
-export const SERVER_COPY_NOTE = '이 날짜는 서버에 둔 원본의 기한이에요. 내려받은 사본과는 따로예요.';
+export const SERVER_COPY_NOTE = '이 날짜는 서버에 둔 원본의 기한입니다. 내려받은 사본과는 따로입니다.';
 
 /** 마지막 로컬 사본 확인 — 감사 기록에서 가장 늦은 것. 없으면 null */
 export function latestLocalCopy(audit: IntakeDetail['audit']): { place: string; revision: number | null; at: string; actor: string } | null {

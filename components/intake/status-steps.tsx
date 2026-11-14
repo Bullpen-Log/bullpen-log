@@ -12,7 +12,11 @@ import { correctionProblem, goneViewsToPick, pickViewText, slotNeedsRepick, stal
 import { PROXY_CONSENT_NOTE, SUBMITTER_RELATIONS, SUBMITTER_RELATION_TEXT, isProxyRelation } from '@/lib/intake/consent';
 import { INTAKE_ERROR_TEXT } from '@/lib/intake/errors';
 import { formatBytes } from '@/lib/intake/limits';
-import type { PublicAsset, PublicConsentDoc, PublicIntakeState } from '@/lib/intake/public-client';
+import type {
+  PublicAsset,
+  PublicConsentDoc,
+  PublicIntakeState,
+} from '@/lib/intake/public-client';
 import { assetArrived, assetGone, receiptHead, receiptRetentionRows, type IntakeView } from '@/lib/intake/state';
 
 /* ── 막힌 화면 ── */
@@ -97,7 +101,13 @@ function AssetLine({ view, asset }: { view: IntakeView; asset: PublicAsset | nul
   );
 }
 
-export function ReceiptStep({ state, extra }: { state: PublicIntakeState; extra?: ReactNode }) {
+export function ReceiptStep({
+  state,
+  extra,
+}: {
+  state: PublicIntakeState;
+  extra?: ReactNode;
+}) {
   const [copied, setCopied] = useState<'ok' | 'fail' | null>(null);
   const head = receiptHead(state);
 
@@ -119,9 +129,7 @@ export function ReceiptStep({ state, extra }: { state: PublicIntakeState; extra?
     >
       <dl className="divide-y divide-line rounded-2xl bg-surface px-(--block-pad) py-1">
         <Row label="선수 이름">{state.draft.athleteName}</Row>
-        {state.receipt && <Row label="접수일">{keyDateText(state.receipt.receiptDate)}</Row>}
         {state.receipt && <Row label="접수 번호">{state.receipt.code}</Row>}
-        <Row label="지금 상태">{state.statusText}</Row>
         {receiptRetentionRows(state).map((row) => (
           <Row key={row.label} label={row.label}>
             {'date' in row ? keyDateText(row.date) : row.text}
@@ -129,15 +137,32 @@ export function ReceiptStep({ state, extra }: { state: PublicIntakeState; extra?
         ))}
       </dl>
 
-      <ul aria-label="보낸 영상" className="divide-y divide-line rounded-2xl bg-surface px-(--block-pad) py-1">
-        <AssetLine view="side" asset={state.assets.side} />
-        <AssetLine view="rear" asset={state.assets.rear} />
-      </ul>
+      <details className="border-b border-line text-sm text-ink">
+        <summary className="font-semibold">접수·영상 상세 정보</summary>
+        <div className="pb-3">
+          <p className="text-footnote text-muted">{state.statusText}</p>
+          {state.receipt && (
+            <p className="mt-1 text-footnote text-muted">
+              접수일 {keyDateText(state.receipt.receiptDate)}
+            </p>
+          )}
+          <ul aria-label="보낸 영상" className="mt-2 divide-y divide-line">
+            <AssetLine view="side" asset={state.assets.side} />
+            <AssetLine view="rear" asset={state.assets.rear} />
+          </ul>
+        </div>
+      </details>
 
       <p aria-live="polite" className="text-footnote leading-5 break-keep text-muted">
-        {copied === 'ok' ? '링크를 복사했습니다.' : copied === 'fail' ? '복사하지 못했습니다. 주소창의 링크를 길게 눌러 복사하십시오.' : ''}
+        {copied === 'ok'
+          ? '링크를 복사했습니다.'
+          : copied === 'fail'
+            ? '복사하지 못했습니다. 주소창의 링크를 길게 눌러 복사하십시오.'
+            : ''}
       </p>
-      <NoteBox>{'접수 상태와 공개된 결과는 이 링크에서 처음에 정한 이름과 PIN 을 입력해야 볼 수 있습니다.\n링크는 필요한 사람에게만 전달하십시오.'}</NoteBox>
+      <NoteBox>
+        {'같은 링크에서 설정한 이름과 비밀번호로 접수 상태와 공개된 결과를 확인합니다.'}
+      </NoteBox>
 
       {extra}
     </Screen>
@@ -171,8 +196,10 @@ export function ReconsentStep({
   return (
     <Screen
       screenKey="reconsent"
-      title="바뀐 동의 내용에 동의하시나요?"
-      desc={'동의 내용이 바뀌었습니다.\n약관 보기에서 바뀐 내용을 확인하고 동의하면 이어서 진행됩니다.\n동의하지 않으려면 링크를 보내 준 담당자에게 알리십시오.'}
+      title="변경된 동의 내용 확인"
+      desc={
+        '약관 보기에서 변경 내용을 확인한 뒤 필수 항목에 동의하면 계속할 수 있습니다.\n동의하지 않는 경우 담당자에게 문의합니다.'
+      }
       actions={
         <>
           {error && <FieldError>{error}</FieldError>}
@@ -181,7 +208,11 @@ export function ReconsentStep({
             onClick={() => {
               if (stale.some((d) => agreed[d.kind] !== true)) {
                 setMissing(true);
-                document.getElementById(`consent-${stale.find((d) => agreed[d.kind] !== true)?.kind}`)?.focus();
+                document
+                  .getElementById(
+                    `consent-${stale.find((d) => agreed[d.kind] !== true)?.kind}`
+                  )
+                  ?.focus();
                 return;
               }
               setMissing(false);
@@ -190,7 +221,9 @@ export function ReconsentStep({
           >
             동의하고 이어가기
           </PrimaryButton>
-          {onViewResult && <SecondaryButton onClick={onViewResult}>공개 결과 보기</SecondaryButton>}
+          {onViewResult && (
+            <SecondaryButton onClick={onViewResult}>공개 결과 보기</SecondaryButton>
+          )}
         </>
       }
     >
@@ -207,7 +240,11 @@ export function ReconsentStep({
           describedBy={missing ? 'reconsent-error' : undefined}
           proxy={proxy}
         />
-        {missing && <FieldError id="reconsent-error">{INTAKE_ERROR_TEXT.consent_required}</FieldError>}
+        {missing && (
+          <FieldError id="reconsent-error">
+            {INTAKE_ERROR_TEXT.consent_required}
+          </FieldError>
+        )}
       </div>
       {extra}
     </Screen>
@@ -248,8 +285,10 @@ export function RecoveryStep({
   return (
     <Screen
       screenKey="recovery"
-      title="보내던 영상을 이어서 보낼까요?"
-      desc={'화면을 닫으면 브라우저가 선택한 파일을 놓습니다.\n같은 파일을 다시 선택하면 이어서 보낼 수 있습니다.'}
+      title="전송 이어서 진행"
+      desc={
+        '이전에 선택한 같은 원본 파일을 다시 선택합니다.\n이미 도착한 부분부터 전송이 이어집니다.'
+      }
       actions={
         <>
           {tried && !hasFile && <FieldError>먼저 보낼 영상을 선택하십시오.</FieldError>}
@@ -279,12 +318,28 @@ export function RecoveryStep({
       ))}
       {askSame && (
         <div className="space-y-1">
-          <CheckRow checked={same} onChange={setSame} label="두 영상은 같은 투구를 동시에 촬영한 영상입니다" invalid={sameMissing} describedBy={sameMissing ? 'recovery-same' : undefined} />
-          {sameMissing && <FieldError id="recovery-same">{INTAKE_ERROR_TEXT.same_pitch_required}</FieldError>}
+          <CheckRow
+            checked={same}
+            onChange={setSame}
+            label="두 영상은 같은 투구를 동시에 촬영한 영상입니다"
+            invalid={sameMissing}
+            describedBy={sameMissing ? 'recovery-same' : undefined}
+          />
+          {sameMissing && (
+            <FieldError id="recovery-same">
+              {INTAKE_ERROR_TEXT.same_pitch_required}
+            </FieldError>
+          )}
         </div>
       )}
-      <NoteBox>다른 기기에서 보내는 중이라면 그 기기에서 끝낸 뒤 이 화면을 다시 여십시오.</NoteBox>
-      <button type="button" onClick={onOriginal} className="min-h-11 text-sm font-semibold text-sky-strong">
+      <NoteBox>
+        다른 기기에서 보내는 중이라면 그 기기에서 끝낸 뒤 이 화면을 다시 여십시오.
+      </NoteBox>
+      <button
+        type="button"
+        onClick={onOriginal}
+        className="min-h-11 text-sm font-semibold text-sky-strong"
+      >
         원본 영상 선택 방법
       </button>
       {extra}
@@ -335,7 +390,12 @@ export function FinishStep({ state, onFinish, extra }: { state: PublicIntakeStat
 
 /* ── 고침 요청 ── */
 export type CorrectionSubmit = {
-  patch: { athleteName?: string; throwingHand?: 'R' | 'L' | null; submitterRelation?: string; submitterName?: string | null };
+  patch: {
+    athleteName?: string;
+    throwingHand?: 'R' | 'L' | null;
+    submitterRelation?: string;
+    submitterName?: string | null;
+  };
   agreed: Record<string, boolean>;
   samePitch: boolean;
 };
@@ -387,15 +447,27 @@ export function CorrectionStep({
   const [same, setSame] = useState(false);
   const [problem, setProblem] = useState<CorrectionProblem | null>(null);
   /* 관계를 바꾸면 옛 동의는 다른 사람의 것이다 — 새 관계로 다시 받는다 */
-  const relationChanged = fields.includes('submitterRelation') && relation !== state.draft.submitterRelation;
+  const relationChanged =
+    fields.includes('submitterRelation') && relation !== state.draft.submitterRelation;
   const needsConsent = !state.consent.requiredOk || relationChanged;
-  const proxy = isProxyRelation(fields.includes('submitterRelation') ? relation : state.draft.submitterRelation);
+  const proxy = isProxyRelation(
+    fields.includes('submitterRelation') ? relation : state.draft.submitterRelation
+  );
 
   /* 지운 칸 · 비운 칸 · 막힌 칸 · 얼린 그 파일 그대로인 칸은 새 파일이 있어야 낼 수 있다 — 보낸 뒤에 막연한 글을 보이지 않고 여기서 그 칸을 말한다 */
   const missing = goneViewsToPick(state, picked);
 
   const submit = () => {
-    const stop = correctionProblem({ nameAsked: fields.includes('athleteName'), name, missing, viewsAsked: views.length > 0, same, needsConsent, docs, agreed });
+    const stop = correctionProblem({
+      nameAsked: fields.includes('athleteName'),
+      name,
+      missing,
+      viewsAsked: views.length > 0,
+      same,
+      needsConsent,
+      docs,
+      agreed,
+    });
     if (stop) {
       setProblem(stop.problem);
       /* 바닥 단추를 누르면 막힌 칸이 화면 밖일 수 있다 — 그 칸으로 초점을 옮겨 보이게 한다 */
@@ -405,24 +477,28 @@ export function CorrectionStep({
     setProblem(null);
     const patch: CorrectionSubmit['patch'] = {};
     if (fields.includes('athleteName')) patch.athleteName = name.trim();
-    if (fields.includes('throwingHand')) patch.throwingHand = hand === 'R' || hand === 'L' ? hand : null;
+    if (fields.includes('throwingHand'))
+      patch.throwingHand = hand === 'R' || hand === 'L' ? hand : null;
     if (fields.includes('submitterRelation')) patch.submitterRelation = relation;
-    if (fields.includes('submitterName')) patch.submitterName = submitterName.trim() || null;
+    if (fields.includes('submitterName'))
+      patch.submitterName = submitterName.trim() || null;
     onSubmit({ patch, agreed, samePitch: same });
   };
 
   return (
     <Screen
       screenKey="correction"
-      title="요청받은 내용을 고치시겠어요?"
-      desc={'요청받은 칸만 바꿀 수 있습니다.\n나머지는 그대로 유지됩니다.'}
+      title="요청받은 내용 수정"
+      desc={'아래 요청에 해당하는 항목을 수정합니다.'}
       actions={
         <>
           {error && <FieldError>{error}</FieldError>}
           <PrimaryButton onClick={submit} busy={busy} disabled={inspecting != null}>
             고친 내용 보내기
           </PrimaryButton>
-          {onViewResult && <SecondaryButton onClick={onViewResult}>공개 결과 보기</SecondaryButton>}
+          {onViewResult && (
+            <SecondaryButton onClick={onViewResult}>공개 결과 보기</SecondaryButton>
+          )}
         </>
       }
     >
@@ -433,8 +509,20 @@ export function CorrectionStep({
           <label htmlFor="fix-name" className="text-sm font-bold text-ink">
             선수 이름
           </label>
-          <Input id="fix-name" value={name} onChange={(e) => setName(e.currentTarget.value)} autoComplete="off" maxLength={80} aria-invalid={problem === 'name' || undefined} aria-describedby={problem === 'name' ? 'fix-name-error' : undefined} />
-          {problem === 'name' && <FieldError id="fix-name-error">{INTAKE_ERROR_TEXT.athlete_name_required}</FieldError>}
+          <Input
+            id="fix-name"
+            value={name}
+            onChange={(e) => setName(e.currentTarget.value)}
+            autoComplete="off"
+            maxLength={80}
+            aria-invalid={problem === 'name' || undefined}
+            aria-describedby={problem === 'name' ? 'fix-name-error' : undefined}
+          />
+          {problem === 'name' && (
+            <FieldError id="fix-name-error">
+              {INTAKE_ERROR_TEXT.athlete_name_required}
+            </FieldError>
+          )}
         </div>
       )}
 
@@ -443,7 +531,14 @@ export function CorrectionStep({
           <legend className="text-sm font-bold text-ink">던지는 손</legend>
           <div className="flex gap-2">
             {(['R', 'L'] as const).map((h) => (
-              <Choice key={h} name="fix-hand" value={h} checked={hand === h} label={h === 'R' ? '오른손' : '왼손'} onSelect={setHand} />
+              <Choice
+                key={h}
+                name="fix-hand"
+                value={h}
+                checked={hand === h}
+                label={h === 'R' ? '오른손' : '왼손'}
+                onSelect={setHand}
+              />
             ))}
           </div>
         </fieldset>
@@ -454,11 +549,18 @@ export function CorrectionStep({
           <legend className="text-sm font-bold text-ink">보내는 사람</legend>
           <div className="grid grid-cols-2 gap-2">
             {SUBMITTER_RELATIONS.map((r) => (
-              <Choice key={r} name="fix-relation" value={r} checked={relation === r} label={SUBMITTER_RELATION_TEXT[r]} onSelect={(r) => {
+              <Choice
+                key={r}
+                name="fix-relation"
+                value={r}
+                checked={relation === r}
+                label={SUBMITTER_RELATION_TEXT[r]}
+                onSelect={(r) => {
                   setRelation(r);
                   /* 다른 사람의 자격으로 눌렀던 체크다 */
                   setAgreed({});
-                }} />
+                }}
+              />
             ))}
           </div>
         </fieldset>
@@ -469,7 +571,13 @@ export function CorrectionStep({
           <label htmlFor="fix-submitter" className="text-sm font-bold text-ink">
             보내는 분의 이름
           </label>
-          <Input id="fix-submitter" value={submitterName} onChange={(e) => setSubmitterName(e.currentTarget.value)} autoComplete="off" maxLength={40} />
+          <Input
+            id="fix-submitter"
+            value={submitterName}
+            onChange={(e) => setSubmitterName(e.currentTarget.value)}
+            autoComplete="off"
+            maxLength={40}
+          />
         </div>
       )}
 
@@ -482,9 +590,19 @@ export function CorrectionStep({
             asset={asset}
             picked={picked[view]}
             inspecting={inspecting === view}
-            error={pickError?.view === view ? pickError.message : problem === 'file' && missing.includes(view) ? pickViewText(asset) : null}
+            error={
+              pickError?.view === view
+                ? pickError.message
+                : problem === 'file' && missing.includes(view)
+                  ? pickViewText(asset)
+                  : null
+            }
             note={notes[view] ?? null}
-            requested={asset != null && (assetArrived(asset.status) || assetGone(asset.status)) && slotNeedsRepick(state, view)}
+            requested={
+              asset != null &&
+              (assetArrived(asset.status) || assetGone(asset.status)) &&
+              slotNeedsRepick(state, view)
+            }
             onPick={(f) => onPick(view, f)}
           />
         );
@@ -492,16 +610,38 @@ export function CorrectionStep({
 
       {views.length > 0 && (
         <div className="space-y-1">
-          <CheckRow id="fix-same-pitch" checked={same} onChange={setSame} label="두 영상은 같은 투구를 동시에 촬영한 영상입니다" invalid={problem === 'same'} describedBy={problem === 'same' ? 'fix-same' : undefined} />
-          {problem === 'same' && <FieldError id="fix-same">{INTAKE_ERROR_TEXT.same_pitch_required}</FieldError>}
+          <CheckRow
+            id="fix-same-pitch"
+            checked={same}
+            onChange={setSame}
+            label="두 영상은 같은 투구를 동시에 촬영한 영상입니다"
+            invalid={problem === 'same'}
+            describedBy={problem === 'same' ? 'fix-same' : undefined}
+          />
+          {problem === 'same' && (
+            <FieldError id="fix-same">
+              {INTAKE_ERROR_TEXT.same_pitch_required}
+            </FieldError>
+          )}
         </div>
       )}
 
       {needsConsent && (
         <div className="space-y-3">
           {proxy && <NoteBox>{PROXY_CONSENT_NOTE}</NoteBox>}
-          <RequiredConsents docs={docs} agreed={agreed} onChange={(kind, next) => setAgreed((a) => ({ ...a, [kind]: next }))} invalid={problem === 'consent'} describedBy={problem === 'consent' ? 'fix-consent' : undefined} proxy={proxy} />
-          {problem === 'consent' && <FieldError id="fix-consent">{INTAKE_ERROR_TEXT.consent_required}</FieldError>}
+          <RequiredConsents
+            docs={docs}
+            agreed={agreed}
+            onChange={(kind, next) => setAgreed((a) => ({ ...a, [kind]: next }))}
+            invalid={problem === 'consent'}
+            describedBy={problem === 'consent' ? 'fix-consent' : undefined}
+            proxy={proxy}
+          />
+          {problem === 'consent' && (
+            <FieldError id="fix-consent">
+              {INTAKE_ERROR_TEXT.consent_required}
+            </FieldError>
+          )}
         </div>
       )}
       {extra}

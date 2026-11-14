@@ -30,7 +30,11 @@ export const metadata: Metadata = { title: '외부 영상 접수' };
  * 외부 영상 접수함(2026-11-06) — 초대 링크로 받은 옆 · 뒤 투구 원본. 대표관리자가 함께 보는 한 곳이고, 원본을 관리자 폴더로 복사하지 않는다.
  * 3D 개발 관리자의 타자 샘플 · 실험실의 투구 샘플과는 저장소도 표도 따로다. 표 · 규칙은 lib/intake/admin.ts, 쓰기는 app/actions/intake-admin.ts.
  */
-export default async function IntakeAdminPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
+export default async function IntakeAdminPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const user = await requirePermission('intake');
   const filters = parseIntakeFilters(await searchParams);
   /* 준비 확인 — 표 · 칸이 없거나 운영에 정식 주소가 없으면 초대 만들기를 끈다. 서버 동작도 같은 판단으로 다시 막는다 */
@@ -46,34 +50,59 @@ export default async function IntakeAdminPage({ searchParams }: { searchParams: 
         <PageHeading
           kicker="대표관리자"
           title="외부 영상 접수"
-          description="초대 링크로 받은 옆 · 뒤 투구 원본이에요. 실험실 투구 샘플이나 타자 샘플과 따로 쌓이고, 대표관리자가 함께 봐요."
+          description="초대 링크 생성부터 원본 다운로드, 3D 결과 검토·공개까지 관리합니다."
           action={
             <div className="flex flex-wrap items-center gap-2">
               {list !== 'not_ready' && <ManifestLink />}
-              <CreateInvitation ready={readiness.ready} blockedText={blocked[0] ?? null} devNote={devNote} />
+              <CreateInvitation
+                ready={readiness.ready}
+                blockedText={blocked[0] ?? null}
+                devNote={devNote}
+              />
             </div>
           }
         />
       </div>
       {blocked.length > 0 && (
-        <div id="intake-readiness" role="status" className="space-y-1 rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-sm text-warn">
-          <p className="font-semibold">아직 초대를 만들 수 없어요</p>
+        <div
+          id="intake-readiness"
+          role="status"
+          className="space-y-1 rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-sm text-warn"
+        >
+          <p className="font-semibold">초대를 만들 수 없습니다</p>
           {blocked.map((line) => (
             <p key={line}>{line}</p>
           ))}
         </div>
       )}
-      {devNote && <p className="rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-sm text-warn">{devNote}</p>}
+      {devNote && (
+        <p className="rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-sm text-warn">
+          {devNote}
+        </p>
+      )}
       {list === 'not_ready' ? (
-        <EmptyState icon={<Film />} title="접수 표가 아직 준비되지 않았어요" description="데이터베이스에 외부 접수 마이그레이션을 적용하면 이 화면을 쓸 수 있어요." />
+        <EmptyState
+          icon={<Film />}
+          title="접수 기능 준비 중"
+          description="접수 데이터 구성을 완료하면 사용할 수 있습니다."
+        />
       ) : (
         <>
-          <IntakeFilters key={filters.q ?? ''} filters={filters} admins={list.admins} me={user.id} />
+          <IntakeFilters
+            key={filters.q ?? ''}
+            filters={filters}
+            admins={list.admins}
+            me={user.id}
+          />
           <p className="text-sm text-muted" aria-live="polite">
             {list.total}건 · 안 읽음 {list.unreadCount}건
           </p>
           {list.rows.length === 0 ? (
-            <EmptyState icon={<Film />} title="맞는 접수가 없어요" description="거름을 지우거나 초대를 새로 만들어 보세요." />
+            <EmptyState
+              icon={<Film />}
+              title="검색 결과가 없습니다"
+              description="검색 조건을 변경하거나 새 초대를 만듭니다."
+            />
           ) : (
             <>
               <DeskTable rows={list.rows} />
@@ -139,8 +168,17 @@ function DeskTable({ rows }: { rows: IntakeListRow[] }) {
     <div className="hidden overflow-x-auto rounded-2xl border border-line bg-surface desk:block">
       <table className="w-full min-w-[56rem] text-left text-sm">
         <thead>
-          <tr className="border-b border-line text-xs text-muted">
-            {['이름', '접수일', '옆 · 뒤', '검증', '분석', '공개', '담당', '삭제 예정일'].map((h) => (
+          <tr className="border-b border-line text-[13px] leading-5 text-muted">
+            {[
+              '이름',
+              '접수일',
+              '옆 · 뒤',
+              '검증',
+              '분석',
+              '공개',
+              '담당',
+              '삭제 예정일',
+            ].map((h) => (
               <th key={h} scope="col" className="px-3 py-2 font-medium">
                 {h}
               </th>
@@ -151,31 +189,47 @@ function DeskTable({ rows }: { rows: IntakeListRow[] }) {
           {rows.map((r) => (
             <tr key={r.id}>
               <td className="max-w-56 px-3 py-2.5">
-                <Link href={hrefOfRow(r.id)} prefetch={false} className="block min-w-0 font-semibold text-ink hover:text-sky">
+                <Link
+                  href={hrefOfRow(r.id)}
+                  prefetch={false}
+                  className="block min-w-0 font-semibold text-ink hover:text-sky"
+                >
                   <span className="block truncate">{titleOf(r)}</span>
                 </Link>
-                <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted">
+                <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[13px] leading-5 text-muted">
                   {r.receiptCode && <span className="font-mono">{r.receiptCode}</span>}
-                  {inviteeLineOf(r) && <span className="truncate">{inviteeLineOf(r)}</span>}
+                  {inviteeLineOf(r) && (
+                    <span className="truncate">{inviteeLineOf(r)}</span>
+                  )}
                   <Unread on={r.unread} />
                   <InvitationNote row={r} />
                 </span>
               </td>
-              <td className="whitespace-nowrap px-3 py-2.5 text-muted">{seoulDateText(r.receivedAt)}</td>
+              <td className="whitespace-nowrap px-3 py-2.5 text-muted">
+                {seoulDateText(r.receivedAt)}
+              </td>
               <td className="px-3 py-2.5">
                 <Views row={r} />
               </td>
               <td className="px-3 py-2.5">
-                <StatusChip tone={submissionTone(r.status)}>{textOf(SUBMISSION_STATUS_TEXT, r.status)}</StatusChip>
+                <StatusChip tone={submissionTone(r.status)}>
+                  {textOf(SUBMISSION_STATUS_TEXT, r.status)}
+                </StatusChip>
               </td>
               <td className="px-3 py-2.5">
                 <AnalysisChip status={r.analysisStatus} block={r.analysisBlock} />
               </td>
               <td className="px-3 py-2.5">
-                <StatusChip tone={publicationTone(r.publicationStatus)}>{textOf(PUBLICATION_STATUS_TEXT, r.publicationStatus)}</StatusChip>
+                <StatusChip tone={publicationTone(r.publicationStatus)}>
+                  {textOf(PUBLICATION_STATUS_TEXT, r.publicationStatus)}
+                </StatusChip>
               </td>
-              <td className="max-w-32 truncate px-3 py-2.5 text-muted">{r.assigneeName ?? '없음'}</td>
-              <td className="whitespace-nowrap px-3 py-2.5 text-muted">{retentionCellText(r)}</td>
+              <td className="max-w-32 truncate px-3 py-2.5 text-muted">
+                {r.assigneeName ?? '없음'}
+              </td>
+              <td className="whitespace-nowrap px-3 py-2.5 text-muted">
+                {retentionCellText(r)}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -190,23 +244,41 @@ function PhoneList({ rows }: { rows: IntakeListRow[] }) {
     <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface desk:hidden">
       {rows.map((r) => (
         <li key={r.id}>
-          <Link href={hrefOfRow(r.id)} prefetch={false} className="flex items-center gap-3 p-(--block-pad)">
+          <Link
+            href={hrefOfRow(r.id)}
+            prefetch={false}
+            className="flex items-center gap-3 p-(--block-pad)"
+          >
             <span className="min-w-0 flex-1 space-y-1.5">
               <span className="flex items-center gap-2">
-                <span className="truncate text-sm font-semibold text-ink">{titleOf(r)}</span>
+                <span className="truncate text-sm font-semibold text-ink">
+                  {titleOf(r)}
+                </span>
                 <Unread on={r.unread} />
               </span>
-              <span className="block text-xs text-muted">
+              <span className="block text-[13px] leading-5 text-muted">
                 {seoulDateText(r.receivedAt)}
                 {r.assigneeName ? ` · 담당 ${r.assigneeName}` : ''}
               </span>
-              {inviteeLineOf(r) && <span className="block truncate text-xs text-muted">{inviteeLineOf(r)}</span>}
-              {(r.originalPurgeAt || r.originalsPurgedAt || r.originalsPurging) && <span className="block text-xs text-muted">{retentionLineText(r)}</span>}
+              {inviteeLineOf(r) && (
+                <span className="block truncate text-[13px] leading-5 text-muted">
+                  {inviteeLineOf(r)}
+                </span>
+              )}
+              {(r.originalPurgeAt || r.originalsPurgedAt || r.originalsPurging) && (
+                <span className="block text-[13px] leading-5 text-muted">
+                  {retentionLineText(r)}
+                </span>
+              )}
               <span className="flex flex-wrap gap-1">
                 <Views row={r} />
-                <StatusChip tone={submissionTone(r.status)}>{textOf(SUBMISSION_STATUS_TEXT, r.status)}</StatusChip>
+                <StatusChip tone={submissionTone(r.status)}>
+                  {textOf(SUBMISSION_STATUS_TEXT, r.status)}
+                </StatusChip>
                 <AnalysisChip status={r.analysisStatus} block={r.analysisBlock} />
-                <StatusChip tone={publicationTone(r.publicationStatus)}>{textOf(PUBLICATION_STATUS_TEXT, r.publicationStatus)}</StatusChip>
+                <StatusChip tone={publicationTone(r.publicationStatus)}>
+                  {textOf(PUBLICATION_STATUS_TEXT, r.publicationStatus)}
+                </StatusChip>
                 <InvitationNote row={r} />
               </span>
             </span>

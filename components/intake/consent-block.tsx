@@ -52,7 +52,7 @@ const LEAD = /^([^:：\n]{1,14})([:：] )([\s\S]+)$/;
 export function ConsentText({ body }: { body: string }) {
   const lines = body.split('\n').filter((t) => t.trim() !== '');
   return (
-    <div className="space-y-2.5 text-sm leading-relaxed break-keep text-muted">
+    <div className="space-y-4 text-[15px] leading-[1.75] break-keep text-muted">
       {lines.map((line, i) => {
         const m = LEAD.exec(line);
         return (
@@ -79,37 +79,47 @@ export function ConsentText({ body }: { body: string }) {
  */
 const CONSENT_SUMMARY: Record<string, { question: string; summary: string }> = {
   submission: {
-    question: '영상 제출과 처리에 동의하시나요?',
+    question: '영상 제출·처리 동의',
     summary:
-      '옆 · 뒤 원본 영상과 선수 정보를 접수합니다.\n불펜로그 팀이 원본을 내려받아 이 투구의 3D 동작 결과를 만들고, 검토 · 승인한 결과만 이 링크에서 볼 수 있습니다.\n동의해야 영상을 보낼 수 있습니다.',
+      '원본 영상과 선수 정보를 접수하고, 팀이 원본을 내려받아 3D 동작 결과를 만듭니다.\n검토·승인한 결과만 이 링크에 공개됩니다.',
   },
   overseas: {
-    question: '자동 분석 서버(국외)로 보내는 것에 동의하시나요?',
-    summary: '원본을 국외의 자동 분석 서버로 보내 분석하는 것에 대한 선택 항목입니다.\n동의하지 않아도 접수와 팀이 직접 만드는 결과는 그대로 진행됩니다.',
+    question: '국외 자동 분석 동의',
+    summary:
+      '원본 영상을 국외 자동 분석 서버로 보내 분석하는 데 동의합니다.\n미동의 시에도 접수와 팀의 직접 결과 제작은 진행됩니다.',
   },
   model: {
-    question: '모델 개발에 쓰는 것에 동의하시나요?',
-    summary: '접수한 영상과 결과를 투구 분석 모델을 만들고 고치는 데 쓰는 것에 대한 선택 항목입니다.\n동의하지 않아도 접수와 결과 만들기는 그대로 진행됩니다.',
+    question: '모델 개발 이용 동의',
+    summary:
+      '접수한 영상과 결과를 투구 분석 모델의 개발·개선에 사용합니다.\n미동의 시에도 접수와 결과 제작은 진행됩니다.',
   },
 };
 export const consentCopyOf = (d: Pick<PublicConsentDoc, 'kind' | 'title'>) => CONSENT_SUMMARY[d.kind] ?? { question: `${d.title}에 동의하시나요?`, summary: '' };
 
 /** 동의 요약 — 문장마다 한 줄로(R05). 화면 글자 크기는 R04 그대로 */
 export function ConsentSummary({ text }: { text: string }) {
-  return <Paras text={text} gap="mt-1" className="text-footnote leading-5 text-muted" />;
+  return <Paras text={text} gap="mt-1" className="text-[15px] leading-6 text-muted" />;
 }
 
 /**
  * 약관 전문 창 — 열기만 해서는 동의가 기록되지 않는다(체크 칸은 창 밖에 있다). 닫으면 브라우저가 초점을 연 단추로 돌려준다(<dialog>).
  */
-export function TermsDialog({ doc, onClose }: { doc: PublicConsentDoc | null; onClose: () => void }) {
+export function TermsDialog({
+  doc,
+  onClose,
+}: {
+  doc: PublicConsentDoc | null;
+  onClose: () => void;
+}) {
   return (
     <Modal open={doc != null} onClose={onClose} title={doc?.title ?? '약관'}>
       {doc && (
         <div className="space-y-4 pb-2">
           <ConsentText body={doc.body} />
           <Paras
-            text={'약관을 읽기만 해서는 동의가 기록되지 않습니다.\n창을 닫은 뒤 체크 칸에서 직접 고르십시오.'}
+            text={
+              '약관을 열람해도 동의는 기록되지 않습니다.\n닫은 뒤 체크 칸에서 직접 선택합니다.'
+            }
             className="border-t border-line pt-3 text-footnote leading-5 text-muted"
           />
           <SecondaryButton onClick={onClose}>닫기</SecondaryButton>

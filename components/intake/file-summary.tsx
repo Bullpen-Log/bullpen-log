@@ -27,7 +27,9 @@ export function VideoPreview({ url }: { url: string }) {
     return (
       <div className="flex items-center gap-3 rounded-2xl bg-ink/5 px-4 py-5 text-footnote leading-5 text-muted">
         <FileVideo aria-hidden className="h-6 w-6 shrink-0" />
-        <p className="break-keep">이 브라우저에서는 미리 볼 수 없습니다. 영상은 그대로 보낼 수 있습니다.</p>
+        <p className="break-keep">
+          이 브라우저에서는 미리 볼 수 없습니다. 영상은 그대로 보낼 수 있습니다.
+        </p>
       </div>
     );
   }
@@ -45,19 +47,39 @@ export function VideoPreview({ url }: { url: string }) {
         /* 소리만 풀리고 그림은 못 푸는 브라우저가 있다 */
         if (e.currentTarget.videoWidth === 0) setFailed(true);
       }}
-      className="max-h-[42dvh] w-full rounded-2xl bg-black object-contain"
+      className="max-h-[28dvh] w-full rounded-2xl bg-black object-contain"
     />
   );
 }
 
 /** 파일 이름 · 크기 · 사실 */
-export function FileFacts({ name, size, facts }: { name: string; size: number; facts: IntakeMediaFacts | null }) {
+export function FileFacts({
+  name,
+  size,
+  facts,
+  compact = false,
+}: {
+  name: string;
+  size: number;
+  facts: IntakeMediaFacts | null;
+  compact?: boolean;
+}) {
   const note = facts ? timingNote(facts) : null;
   return (
     <div className="min-w-0">
-      <p className="truncate text-sm font-semibold text-ink">{name}</p>
-      <p className="mt-0.5 text-footnote text-muted">{[formatBytes(size), ...factLines(facts)].join(' · ')}</p>
-      {note && <p className="mt-0.5 text-footnote text-muted">{note}</p>}
+      <p className="text-sm font-semibold break-all text-ink">{name}</p>
+      <p className="mt-1 text-sm font-semibold text-ink">
+        {facts ? fpsLabel(facts) : '프레임 정보 확인 필요'}
+      </p>
+      {!compact && (
+        <details className="mt-1 text-footnote leading-5 text-muted">
+          <summary>파일 정보</summary>
+          <p className="pb-1">
+            {[formatBytes(size), ...factLines(facts).slice(1)].join(' · ')}
+          </p>
+          {note && <p className="pb-2">{note}</p>}
+        </details>
+      )}
     </div>
   );
 }
