@@ -3,7 +3,7 @@
 ## Status and ownership
 
 - Revision: v2, 14 November 2026 (Asia/Seoul). v2 assigns immediate web implementation to MacBook Claude 05 under the user's direct instruction.
-- Status: implementation order dispatched to MacBook Claude 05; receipt and investigation start observed in the Claude UI. Phases A/B and evidence-backed, in-scope C fixes are authorized now. Native Phase D and the proposed unknown-rate upload behavior require a separate scoped decision.
+- Status: Claude web delivery and three GPT-requested corrections reviewed; independent core/client/lint checks pass. Overall acceptance and product release withheld pending real-original acquisition evidence (AC01/02/07). Phases A/B and evidence-backed, in-scope C fixes are authorized now. Native Phase D and the proposed unknown-rate upload behavior require a separate scoped decision.
 - Requested deliverable: the user asked for root-cause analysis, a correction plan, and a detailed English implementation prompt after a reported 240fps upload failure.
 - GPT design/review owner: MacBook video-sharing support session `01a1c31b-e186-76c2-bc94-3f61553b3506`.
 - Implementation owner: `맥북 · 05 · 영상 공유 · Claude`, session `local_9ce3d4e4-ff2b-4f88-bb3d-bd109907f9b1`. User directly instructed this GPT to hand over the order and have this MacBook Claude start immediately. Existing Mac mini ownership outside this scoped correction is preserved; coordinate overlapping edits rather than duplicating them.
@@ -168,3 +168,8 @@ Do not send the user back through the same failed Photos path with only a longer
 ## Implementation receipt / questions / delivery
 
 v2 dispatch evidence: the Claude UI for session `local_9ce3d4e4-ff2b-4f88-bb3d-bd109907f9b1` shows the IMPLEMENT NOW message and an active response. Its checklist marks “발주서 v2 · 현재 상태 · 겹침 확인” complete, “원본 선택 · 검증 경로 조사” in progress, and a running read of video-slot/file-summary source. This confirms receipt and investigation start, not implementation completion or acceptance. Delivery and GPT review remain pending.
+
+
+## Independent review update — 14 November 2026
+
+See `docs/reviews/intake-original-r07-2026-11-14.md`. GPT found and obtained corrections for average-rate error wording, File-identity-bound diagnostic hashing, and recovery action labels. Independently rerun core507/client211 and changed-file lint passed. User supplied private original/edited files transferred with AirDrop All Photos Data enabled; both show dominant60fps and whole-sample average45.29fps under independent inspection, so they do not establish a successful240fps-original path. Awaiting Photos asset fps and real-device acquisition/download evidence. User authorized product push **if** the order is satisfied; that condition is not met, so no product commit/push/deployment has occurred.
