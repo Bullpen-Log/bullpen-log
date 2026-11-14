@@ -276,9 +276,9 @@ console.log('\n■ 고정 계획 — 야외 8~10주(투구 드릴만 — 워밍�
   const drills = items.filter((i) => i.kind === 'drill');
   const warms = items.filter((i) => i.kind === 'warmup');
   check(
-    '야외 1주(1주차) — 드릴 53 · 운동 2 · 워밍업 없음(version 6 — 6주차에서 찍은 것 · 미룬 것을 빼고 남은 것)',
+    '야외 1주(1주차) — 드릴 90 · 운동 2 · 워밍업 없음(version 6 — 6주차에서 찍은 것 · 미룬 것을 빼고 남은 것, version 7 — 나중에 촬영 37개를 넣음)',
     out.map((w) => w.week).join() === '1' &&
-      drills.length === 53 &&
+      drills.length === 90 &&
       items.filter((i) => !i.kind).length === 2 &&
       warms.length === 0,
     `${out.map((w) => w.week).join(',')} · 드릴 ${drills.length} · 운동 ${items.filter((i) => !i.kind).length} · 워밍업 ${warms.length}`
