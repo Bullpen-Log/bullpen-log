@@ -3600,6 +3600,28 @@
         "evidence_limits": "No guaranteed velocity or injury-prevention claim, no assertion jump height alone measures or diagnoses peak force/power. Exact dose/intensity labels are starting judgments, not individual validated optimum. Domestic source abstract only.",
         "verification": "Admin saved content plus target; live row before/after confirmed only title/description/thumbPath/bodyParts changed. New poster hash verified and old source/poster retained; editor save invalidates library cache.",
         "legal_country_status": "KR/US/JP final rights/claim clearance remains unresolved; no different country-specific movement text established this turn."
+      },
+      {
+        "at_utc": "2026-11-16T09:24:57.225040+00:00",
+        "user_direction_summary": "Trim the beginning and ending appropriately, and confirm thumbnail was adjusted.",
+        "video_edit": {
+          "version": "P023 trim1 8.75s",
+          "before_duration_seconds": 11.133333,
+          "after_duration_seconds": 8.75,
+          "source_interval_seconds": [
+            2.35,
+            11.1
+          ],
+          "reason": "Remove initial idle and initial overhead-arm preparation. Keep the full3 jumps and final landing/rise/settled finish. Tail reduction is minimal because end already contains landing recovery; do not truncate it abruptly.",
+          "speed": "Unchanged, no freeze frames or internal jump removals.",
+          "portrait": "Autorotated re-encode1080x1920/60fps,525frames; stored aspect0.563 retained.",
+          "thumbnail": "Previously selected real airborne source3.25s poster pixels retained, corresponding to edited0.90s. New poster identity uploaded with trimmed clip; old poster/source preserved.",
+          "verification": "Full local decode8.75s/525frames; frame-sheet start/3jumps/finish inspected. Live row changed only videoPath/thumbPath; uploaded edited clip/poster and retained original downloaded and SHA256 matched local files. Editor unchanged-save invalidated library cache. Page reloaded; edited web player displays8s duration and active playback with repeat enabled. No repeat-cycle wait.",
+          "backup": "npm run backup succeeded; private before/after and rollback pointers outside repository.",
+          "limits": "Native/offline bundle/client update and other-device playback not verified. User edit decision pending."
+        },
+        "content_and_metadata": "Title, description, targets, intensity, difficulty, equipment and prescription unchanged.",
+        "human_decision": "Requested edit applied; no next approval."
       }
     ],
     "thumbnail_updates": [

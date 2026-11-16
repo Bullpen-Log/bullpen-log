@@ -18,9 +18,8 @@
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": {
-    "at_utc": "2026-11-16T09:19:34.111740+00:00",
-    "user_verbatim": "다음",
-    "meaning": "P024 next authorized to P023."
+    "at_utc": "2026-11-16T09:24:57.225040+00:00",
+    "direction_summary": "Trim current vertical-jump start/end appropriately; asks thumbnail confirmation. Does not authorize next."
   },
   "next_after_approval": {
     "review_id": "EX-Y-P-046",
@@ -769,7 +768,7 @@
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
   "latest_resume": {
     "current": "EX-Y-P-023",
-    "status": "P024 next authorized. P023 title/description/target and portrait poster corrected/saved/live DB read back. high/beginner3x5/rest180 retained after assessment; source11.13s reviewed in samples, not trimmed. Await human review."
+    "status": "User beginning/end trim applied:11.13->8.75s, retain source2.35-11.10s, all3 jumps/final landing. Existing airborne portrait poster image retained. Source/oldposter preserved, hashes/DB checked; user review pending, no next."
   },
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
