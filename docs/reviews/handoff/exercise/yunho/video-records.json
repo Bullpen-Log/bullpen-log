@@ -1692,6 +1692,19 @@
     },
     "historical_unresolved_before_application": [
       "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
+    ],
+    "thumbnail_updates": [
+      {
+        "at_utc": "2026-11-16T09:05:07.694719+00:00",
+        "library_database_id": "2a9cc104-087c-4356-b146-1595a8dc7d43",
+        "title": "싱글렉 브로드 점프",
+        "source_time_seconds": 2.55,
+        "crop_pixels": null,
+        "reason": "Single-leg forward takeoff with trailing leg visible.",
+        "poster_sha256": "94e071b91ae549fb9a0b9f51ff01770366d76ec7d1aa5255c7af37dd6bbf66f5",
+        "status": "Applied and DB readback/upload hash verified; original/prior posters and video retained.",
+        "batch": "THUMBNAILS-20261116.json"
+      }
     ]
   },
   {
@@ -2088,6 +2101,19 @@
         "changes_this_visit": [],
         "candidate": "왜 필요한가의 훈련에 활용 문장과 몸을 받은 표현은 기존 사용자 원칙에 비추어 검토 후보. 맥북에서 동작·근거 확인 후 사용자에게 전후 보고."
       }
+    ],
+    "thumbnail_updates": [
+      {
+        "at_utc": "2026-11-16T09:05:07.694719+00:00",
+        "library_database_id": "a2c755d9-8be0-4f24-b26c-293ebd7a46f3",
+        "title": "싱글렉 박스 점프",
+        "source_time_seconds": 1.6,
+        "crop_pixels": null,
+        "reason": "Single-leg jump and box visible.",
+        "poster_sha256": "ab2e318b1f0b8139a7921086b12258f7ae632e96679c5337231c0cab3be400eb",
+        "status": "Applied and DB readback/upload hash verified; original/prior posters and video retained.",
+        "batch": "THUMBNAILS-20261116.json"
+      }
     ]
   },
   {
@@ -2341,6 +2367,24 @@
     },
     "historical_unresolved_before_application": [
       "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
+    ],
+    "thumbnail_updates": [
+      {
+        "at_utc": "2026-11-16T09:05:07.694719+00:00",
+        "library_database_id": "4a63d7ac-ffe5-46bf-821c-e680b36b06ff",
+        "title": "플라이오 푸시업",
+        "source_time_seconds": 2.3,
+        "crop_pixels": [
+          1600,
+          900,
+          160,
+          160
+        ],
+        "reason": "Hands visibly clear of ground during plyo push-up.",
+        "poster_sha256": "8e5d69451ddcca8087f386d90719959cb44b7572b38d8b26e18c5dbe8733db22",
+        "status": "Applied and DB readback/upload hash verified; original/prior posters and video retained.",
+        "batch": "THUMBNAILS-20261116.json"
+      }
     ]
   },
   {
@@ -2493,7 +2537,25 @@
       "reason": "다른 사람이 영상에 비침",
       "reported_by": "user",
       "status": "촬영 대기"
-    }
+    },
+    "thumbnail_updates": [
+      {
+        "at_utc": "2026-11-16T09:05:07.694719+00:00",
+        "library_database_id": "6b204b36-d854-4b21-9619-da8a3dda0a52",
+        "title": "인클라인 플라이오 푸시업",
+        "source_time_seconds": 1.8,
+        "crop_pixels": [
+          1440,
+          810,
+          300,
+          270
+        ],
+        "reason": "Incline push-up bench and full athlete clear; crop excludes distracting reflected people without cutting head or feet. Existing video reshoot requirement remains.",
+        "poster_sha256": "1ab74401c3232c7ac53c3fcef17857fe5673a389602d43132aab2c8158ff3417",
+        "status": "Applied and DB readback/upload hash verified; original/prior posters and video retained.",
+        "batch": "THUMBNAILS-20261116.json"
+      }
+    ]
   },
   {
     "review_id": "EX-Y-P-019",
@@ -3064,6 +3126,24 @@
         "verbatim": "이걸로 하고 다음 영상으로 넘어가자.",
         "decision": "4.05-second revision accepted; next approved."
       }
+    ],
+    "thumbnail_updates": [
+      {
+        "at_utc": "2026-11-16T09:05:07.694719+00:00",
+        "library_database_id": "86ac9808-a5b5-4068-aa1a-1d35c8e2356f",
+        "title": "옆으로 뛰고 메디신볼 내리치기 (레터럴 바운드 슬램)",
+        "source_time_seconds": 3.2,
+        "crop_pixels": [
+          1600,
+          900,
+          160,
+          60
+        ],
+        "reason": "Lateral/split posture and raised ball identify bound/slam.",
+        "poster_sha256": "a520de1272292cbf3b4504d4f84f8565d0cf292b4ce85df9824ceb5cffab8e06",
+        "status": "Applied and DB readback/upload hash verified; original/prior posters and video retained.",
+        "batch": "THUMBNAILS-20261116.json"
+      }
     ]
   },
   {
@@ -3133,6 +3213,19 @@
         "at_utc": "2026-11-16T07:31:21.646733+00:00",
         "verbatim": "그럼 너의 판단하에 수정하고 다음으로가",
         "meaning": "Apply the discussed placement correction and move to P025; no blanket future item approval."
+      }
+    ],
+    "thumbnail_updates": [
+      {
+        "at_utc": "2026-11-16T09:05:07.694719+00:00",
+        "library_database_id": "5b19a6d2-a9e0-4e08-9a97-4044952fba8e",
+        "title": "박스 점프",
+        "source_time_seconds": 2.3,
+        "crop_pixels": null,
+        "reason": "Airborne athlete and full box distinguish box jump.",
+        "poster_sha256": "b9cd7a313636c20ee42d280fa723edd62ab56b60748afec8b583ce1a862e40d0",
+        "status": "Applied and DB readback/upload hash verified; original/prior posters and video retained.",
+        "batch": "THUMBNAILS-20261116.json"
       }
     ]
   },
@@ -3287,6 +3380,24 @@
         "user_direction_summary": "Accept this4.60s edit and move next.",
         "meaning": "P025 trim2 accepted; move by grouped order to P024."
       }
+    ],
+    "thumbnail_updates": [
+      {
+        "at_utc": "2026-11-16T09:05:07.694719+00:00",
+        "library_database_id": "7130118f-1f0d-46de-a44b-856425d28836",
+        "title": "제자리 멀리뛰기 (브로드 점프)",
+        "source_time_seconds": 2.8,
+        "crop_pixels": [
+          1440,
+          810,
+          200,
+          120
+        ],
+        "reason": "Two-foot forward flight distinguishes broad jump.",
+        "poster_sha256": "72bdd0f91250b5ff6ec4b758d64c07e19690295f55e29f91c821acdd66bd95d1",
+        "status": "Applied and DB readback/upload hash verified; original/prior posters and video retained.",
+        "batch": "THUMBNAILS-20261116.json"
+      }
     ]
   },
   {
@@ -3375,6 +3486,24 @@
         "legal_country_status": "KR/US/JP final rights/legal clearance remains unresolved as standing record; no country-specific exercise wording difference established this turn. Own-footage designation alone does not establish all rights.",
         "verification": "Saved title/description/additional target through admin UI; reloaded page and read back; live DB after snapshot confirmed title/description/targets and unchanged media/prescription.",
         "human_next": "Wait for explicit next/okay."
+      }
+    ],
+    "thumbnail_updates": [
+      {
+        "at_utc": "2026-11-16T09:05:07.694719+00:00",
+        "library_database_id": "a676ba56-9ad6-4bff-b97c-68d42f7c2e51",
+        "title": "발 넓게 벌려 제자리 멀리뛰기 (와이드 스탠스 브로드 점프)",
+        "source_time_seconds": 1.25,
+        "crop_pixels": [
+          1440,
+          810,
+          400,
+          130
+        ],
+        "reason": "Wide takeoff stance and forward arm drive.",
+        "poster_sha256": "4d9b253b879a05a64ec633333cc402241da9322b9e346c0a5822dfbb04123dc2",
+        "status": "Applied and DB readback/upload hash verified; original/prior posters and video retained.",
+        "batch": "THUMBNAILS-20261116.json"
       }
     ]
   }

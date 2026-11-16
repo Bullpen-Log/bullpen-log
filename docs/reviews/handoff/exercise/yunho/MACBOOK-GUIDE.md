@@ -1,5 +1,9 @@
 # Exercise video review — MacBook handoff
 
+## Latest standing thumbnail requirement -2026-11-16
+
+Apply thumbnail corrections ONLY to videos we filmed (OWN), for previously reviewed and all future exercises/drills. Reference/YouTube posters are excluded. Choose a real representative source frame showing the movement/variation, athlete, relevant equipment and key limbs at a glance; avoid idle setup/finish, unnecessary blur, occlusion and cropping critical body parts. Preserve original video and old posters, upload a new poster identity and update thumbnail only. No gallery/per-poster approval is needed. Verify saved values and visible use where feasible; distinguish native/cache limits. Keep human review/current item unchanged.14 reviewed owned exercise posters have been updated; details in THUMBNAILS-20261116.json. The mechanics session received and persisted this owned-only rule. Resume from checkpoint.json/latest RESUME, not the historical item below.
+
 Updated 2026-11-14 (Asia/Seoul) by the Mac mini exercise-review session, on the user's explicit request to continue **the current video** on the MacBook. This is a review-record handoff. Remote publication does not prove that the MacBook received or opened it.
 
 ## Mandatory detailed scope clarification — 2026-11-14
