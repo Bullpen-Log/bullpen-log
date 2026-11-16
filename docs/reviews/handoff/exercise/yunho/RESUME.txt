@@ -1,3 +1,5 @@
+LATEST P033 review: purpose wording saved/read back, all metadata checked and retained. Exact8.8s end holds ball; overhead crop confirmed, source-vs-display and smoothness unresolved. User review pending, no next instruction.
+
 LATEST 2026-11-16 MAC MINI: P033 메디신볼 머리 위 내리치기, MacBook handoff received; exact exercise opened, playback and repeat setting on; displayed overhead frame ball cropped at top. Source-vs-player, full clip/edit, audio state and user review pending; no next approval. See MACMINI-RECEIPT-2026-11-16.md.
 
 LATEST 2026-11-16: P033 메디신볼 머리 위 내리치기. 사용자 요청으로 마지막 시선 장면을 잘라 8.8초 편집본 연결·웹 재생 확인, 원본 보존. 공 상단 잘림·반복 자연스러움·앱/다른 기기 및 사용자 판단 미확인. 기준과 전체 현황 MACBOOK-COMPLETE-HANDOFF-2026-11-14.md, 편집 상세 MACBOOK-OVERHEAD-SLAM-2026-11-14.md. 맥 미니 실제 수신·이해 확인 대기.

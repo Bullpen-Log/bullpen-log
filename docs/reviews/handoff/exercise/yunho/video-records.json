@@ -2960,6 +2960,37 @@
         },
         "changes_this_resume": []
       }
+    ],
+    "application_updates": [
+      {
+        "at_utc": "2026-11-16T06:22:37.757082+00:00",
+        "before": "이 운동은 다리와 몸통, 두 팔을 함께 사용해 메디신볼을 빠르게 내려치며, 투구에 필요한 전신의 빠른 힘 발휘를 훈련하는 데 활용할 수 있습니다.",
+        "after": "이 운동은 다리와 몸통, 두 팔의 움직임을 연결해 메디신볼을 빠르게 내리치며, 전신이 짧은 시간에 힘을 내는 능력을 기르는 데 도움이 됩니다. 몸통과 팔을 함께 빠르게 움직이는 능력은 투구에서도 중요합니다.",
+        "verification": "Saved then detail closed/reopened and new description read back. All metadata read in edit form; retained.",
+        "retained": {
+          "target": [
+            "등",
+            "코어",
+            "전신"
+          ],
+          "intensity": "높음",
+          "difficulty": "초급",
+          "equipment": [
+            "메디신볼"
+          ],
+          "sets": 3,
+          "reps": 5,
+          "hold_seconds": null,
+          "rest_seconds": 180,
+          "per_side": false
+        },
+        "footage_observations": "Sampled start, overhead, receiving and exact 8.80000019 s end. End holds ball in both hands, facing forward; start holds ball lower. Overhead arms/ball outside upper picture around displayed 5 s. Not every frame reviewed, source file comparison and seam smoothness remain unverified.",
+        "sources": [
+          "https://pubmed.ncbi.nlm.nih.gov/39074186/",
+          "https://pubmed.ncbi.nlm.nih.gov/18296963/"
+        ],
+        "limits": "Related exercises/biomechanics; exact bilateral overhead slam effect on pitching velocity and optimal dose not established. Cropping source vs display unresolved. User decision pending."
+      }
     ]
   }
 ]
