@@ -1,3 +1,5 @@
+CURRENT P045: user requested simpler reading; full description rewritten with short instructions and clear stop/elasticity connection. Saved and reloaded. User review pending.
+
 CURRENT P045: how-to now cues active pressure and controlled stop, distinguishes snapdown deceleration from elastic recoil in subsequent rebound. Saved; user review pending.
 
 CURRENT P045: user requested concise start/end and plyometric mechanism. Trim source0.8-11.7s to10.9s preserving preparation/four reps; original retained. Explanation distinguishes landing force/elastic energy from snapdown stopping. User review pending.
