@@ -106,6 +106,11 @@ export type DaySlot = {
   /** 엔진 날 종류(규칙 이름)와 그 몫 — 칸 그림 · 시험이 읽는다 */
   rule: DayRule;
   rank: DayRank;
+  /**
+   * 그날 운동 엔진이 시간을 줄이는가(등판 다음 날 · 구원 짧게 — 날 종류의 shorten). 오늘 칸에만, 요청마다 엔진 판정으로 싣고 저장하지 않는다
+   * (lib/coach/refresh.ts withTodayCut). 계획기의 '등판 다음 날' 까닭은 계획한 경기로 정해서 실제로 던진 양을 모른다 — 그래서 시간 글은 이것만 본다.
+   */
+  cut?: true;
 };
 
 export type WeekInput = {

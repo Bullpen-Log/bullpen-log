@@ -9,6 +9,7 @@ import { ageOn, CONSENT_MIN_AGE } from '@/lib/analysis-consent';
 import { healthConsentFor } from '@/lib/analysis-consent-store';
 import { gatherFactsAndPlan } from '@/lib/report/gather';
 import { isHardOuting, type ReportFacts } from '@/lib/report/facts';
+import { dayKindOf } from '@/lib/engine/microcycle';
 import { outingOf } from '@/lib/engine/outing';
 import { YOUTH_AGE_THRESHOLD } from '@/lib/report/plan';
 import { BASELINE_WORKOUT_FREQ } from '@/lib/baseline';
@@ -72,6 +73,16 @@ export async function weekInputOf(user: CoachUser, saved: CoachSaved, healthOk: 
   };
 }
 
+/**
+ * 오늘 칸에 '그날 엔진이 시간을 줄인다'를 싣는다(DaySlot.cut — slotLine 이 '60분 → 45분'으로 보인다). 요청마다 셈하고 저장하지 않는다 — 계획기의
+ * '등판 다음 날' 까닭은 계획한 경기로 정해서, 실제로 던진 양(세게 던진 기록 · 기록 없는 '오늘 등판' 답)으로 줄이는 엔진과 다를 수 있다(2026-11-16 검토).
+ */
+export function withTodayCut(slots: DaySlot[], today: string, facts: ReportFacts): DaySlot[] {
+  const dk = dayKindOf(facts);
+  if (!dk.shorten || dk.rank === 'recovery') return slots;
+  return slots.map((s) => (s.date === today && s.rank !== 'recovery' ? { ...s, cut: true as const } : s));
+}
+
 /** 입력의 지문 — 날이 바뀐 것만으로는 다시 안 짠다(오늘 · 잠김 · 지난 틀 빼고) */
 const weekKey = (input: WeekInput) => createHash('sha1').update(JSON.stringify({ ...input, today: null, todayLocked: null, prev: null })).digest('hex').slice(0, 16);
 
@@ -117,8 +128,10 @@ export async function currentCoachWeek(
     healthConsentFor(user.id),
     prisma.trainingSession.findFirst({ where: { userId: user.id, date: dbDate(today) }, select: { id: true } }),
   ]);
-  const input: WeekInput = { ...(await weekInputOf(user, saved, consent.valid, facts)), todayLocked: started != null };
+  const f = facts ?? (await gatherFactsAndPlan(user, appNow())).facts;
+  const input: WeekInput = { ...(await weekInputOf(user, saved, consent.valid, f)), todayLocked: started != null };
   const limits = [...(input.limits ?? [])];
-  if (row && row.fingerprint === weekKey(input)) return { active: true, slots: stored, limits };
-  return { active: true, slots: await saveWeek(user.id, input), limits };
+  const slots = row && row.fingerprint === weekKey(input) ? stored! : await saveWeek(user.id, input);
+  /* 돌려주는 칸에만 오늘 시간 줄임을 싣는다 — 저장한 칸에는 없다(저장하는 곳은 모두 DB 의 칸을 읽어 고친다) */
+  return { active: true, slots: withTodayCut(slots, today, f), limits };
 }

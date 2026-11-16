@@ -32,6 +32,7 @@ import {
   type SessionTheme,
 } from '@/lib/report/theme';
 import { painEasingParts, rehabEasingParts } from '@/lib/report/prescription';
+import { dayKindOf, shortenedMinutes } from '@/lib/engine/microcycle';
 import type { TrainingLoad } from '@/lib/training-load';
 
 /**
@@ -273,6 +274,13 @@ export function decideAutoFence({
 
   let fixedGoal: string | null = null;
   let shorten = false;
+  /*
+   * 일정 만들기가 시간을 줄이는 날(날 종류의 shorten — 등판 다음 날 · 구원 '어제 실전 강도로 20구 넘게', lib/report/daily-plan.ts)은 여기서
+   * 더 줄이지 않는다. 회복날(effectiveMinutes)과 같은 원칙: 시간은 한 번만 줄인다(2026-11-16 검토 — 근육통 · 잠 · 부하로 한 단계 줄인 45분을
+   * 일정 만들기가 또 ×0.75 해서 30분이 됐다). 이유 글에는 실제로 할 시간을 적는다(아래 actualMinutes).
+   */
+  const dk = dayKindOf(facts);
+  const engineShort = dk.shorten && day.key !== 'recovery';
 
   if (!strengthDay) {
     /*
@@ -291,8 +299,8 @@ export function decideAutoFence({
 
   if (loadHigh || sleepDebt) {
     fixedGoal = CONDITIONING_GOAL;
-    /* 회복날은 이미 시간을 줄인다(effectiveMinutes). 두 번 줄이지 않는다. */
-    shorten = day.key !== 'recovery';
+    /* 회복날은 이미 시간을 줄인다(effectiveMinutes) · 등판 다음 날은 일정 만들기가 줄인다(engineShort). 두 번 줄이지 않는다. */
+    shorten = day.key !== 'recovery' && !engineShort;
     const tail = shorten
       ? `${CONDITIONING_GOAL}, 시간 한 단계 줄임`
       : CONDITIONING_GOAL;
@@ -321,6 +329,12 @@ export function decideAutoFence({
     rules.push(`체크인에서 ${preferred} 운동을 고르셔서 → ${fixedGoal}`);
   }
 
+  if (engineShort) {
+    rules.push(
+      `${dk.afterOuting ? '등판 다음 날' : '어제 실전 강도로 던진 다음 날'} → 일정 만들 때 시간 줄임(다른 신호로 더 줄이지 않음)`
+    );
+  }
+
   /*
    * 전신 근육통 '많이' — 시간을 한 단계 줄이고, 고를 수 있는 목표에서 파워 향상을 뺀다.
    *
@@ -347,7 +361,7 @@ export function decideAutoFence({
 
   let shortBySoreness = false;
   if (soreHigh) {
-    if (!shorten) {
+    if (!shorten && !engineShort) {
       /*
        * 실제로 줄어들 때만 줄였다고 한다. 기본 시간이 이미 맨 아래(45분)인 사람은 더 줄일 데가
        * 없다 — 그대로인데 '시간 한 단계 줄임' · '45분으로 줄였습니다'라고 적으면 없는 일을 말하게 된다.
@@ -380,7 +394,12 @@ export function decideAutoFence({
    * 보낸다(lib/engine/microcycle.ts R2).
    */
   let shortByEffort = false;
-  if (strengthDay && !shorten && facts.condition.trainingEffort?.spikeFlag === true) {
+  if (
+    strengthDay &&
+    !shorten &&
+    !engineShort &&
+    facts.condition.trainingEffort?.spikeFlag === true
+  ) {
     shortByEffort = goals.some((goal) => {
       const base = baseOf(goal);
       return oneStepDown(goal, base) < base;
@@ -474,8 +493,12 @@ export function decideAutoFence({
         weeklyLimited,
         preferred,
         hasHistory: workout.recentDays > 0,
-        /* 회복날은 고른 시간보다 짧게 한다 — 이유에는 실제로 할 시간을 적는다 */
-        actualMinutes: effectiveMinutes(day.key, draftMinutes),
+        /* 회복날 · 등판 다음 날은 고른 시간보다 짧게 한다 — 이유에는 실제로 할 시간을 적는다(일정 만들기와 같은 셈) */
+        actualMinutes: engineShort
+          ? shortenedMinutes(draftMinutes)
+          : effectiveMinutes(day.key, draftMinutes),
+        cutBy: day.key === 'recovery' ? 'recovery' : dk.afterOuting ? 'afterOuting' : 'relief',
+        afterOuting: dk.afterOuting && day.key !== 'recovery' ? { logged: dk.yesterday != null } : null,
       }),
     },
   };
@@ -501,6 +524,8 @@ function draftReason({
   preferred,
   hasHistory,
   actualMinutes,
+  cutBy,
+  afterOuting,
 }: {
   goal: string;
   minutes: number;
@@ -518,14 +543,26 @@ function draftReason({
   preferred: string | null;
   hasHistory: boolean;
   actualMinutes: number;
+  /** actualMinutes 가 minutes 보다 짧으면 그 까닭 — 회복날 · 등판 다음 날 · 구원 '어제 실전 강도로 20구 넘게' */
+  cutBy: 'recovery' | 'afterOuting' | 'relief';
+  /**
+   * 등판 다음 날의 근력 · 보조 날(회복 아님) — 어제 투구 기록이 있나. 어느 쪽(하체 · 상체)인지는 말하지 않는다: 일정 만들기가 하체 예산 · 빈 본운동으로
+   * 날을 바꿀 수 있고 화면 제목이 실제 날을 보인다(2026-11-16 검토 — '하체 위주로'가 상체 · 보조 날에도 남았다).
+   */
+  afterOuting: { logged: boolean } | null;
 }): string {
   /*
    * 시간 문장은 그 시간을 정한 것 하나만 말한다 — 회복날 줄이기 > 몸 신호로 한 단계 줄이기 > 한 주 위 끝 > 기본 시간.
    * 위 끝만 걸린 날 '시간은 60분이에요'로만 적으면 기본 시간을 90분으로 둔 사람에게 까닭 없이 짧아 보인다.
    */
+  const cutText = {
+    recovery: '회복날이라',
+    afterOuting: '등판 다음 날이라',
+    relief: '어제 실전 강도로 던져',
+  }[cutBy];
   const time =
     actualMinutes < minutes
-      ? `회복날이라 시간은 ${actualMinutes}분으로 줄였어요.`
+      ? `${cutText} 시간은 ${actualMinutes}분으로 줄였어요.`
       : shorten
         ? `시간은 ${minutes}분으로 줄였어요.`
         : weeklyLimited
@@ -564,6 +601,22 @@ function draftReason({
   }
   if (preferred === '파워' || preferred === '웨이트') {
     return `체크인에서 ${preferred} 운동을 고르셔서 목표를 ${withJosa(goal, '으로/로')} 잡았어요. ${time}`;
+  }
+  /*
+   * 등판 다음 날(2026-11-16) — 화면은 이 글을 일정 까닭(테마 이유)보다 먼저 보여서(training-page · training-today-data), 여기서 등판 다음 날이라는
+   * 것과 실제 시간을 말해야 한다. 예전에는 '특별히 바꿀 신호가 없어 … 60분'이 나갔다(실제는 45분).
+   */
+  if (afterOuting) {
+    const amount =
+      actualMinutes < minutes
+        ? `양을 줄여 ${actualMinutes}분으로 잡았어요.`
+        : `시간은 ${actualMinutes}분이에요.`;
+    const ask = afterOuting.logged ? '' : ' 투구 기록을 남기면 던진 양으로 다시 짤 수 있어요.';
+    return `등판 다음 날이라 ${amount} 목표는 ${withJosa(goal, '으로/로')} 두었어요.${ask}`;
+  }
+  /* 구원 '어제 실전 강도로 20구 넘게'(세게 던진 날은 아님) — 아래 '특별히 바꿀 신호가 없어'와 '줄였어요'를 한 글에 같이 말하지 않게 */
+  if (cutBy === 'relief' && actualMinutes < minutes) {
+    return `어제 실전 강도로 던져 오늘은 ${actualMinutes}분으로 짧게 잡았어요. 목표는 ${withJosa(goal, '으로/로')} 두었어요.`;
   }
   if (!hasHistory) {
     return `운동 기록이 아직 적어 ${withJosa(goal, '으로/로')} 시작해요. 기록이 쌓이면 더 맞춰 드려요. ${time}`;

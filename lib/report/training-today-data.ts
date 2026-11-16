@@ -17,7 +17,13 @@ import { readFrozenPlan } from '@/lib/workout/session-plan';
 import { summarizeSets, totalVolumeKg, type ExerciseSummary } from '@/lib/workout/summarize';
 import { recentAmounts, type PastAmount } from '@/lib/report/exercise-recent';
 import { MIN_CANDIDATES } from '@/lib/report/prescription';
-import { DEFAULT_WORKOUT_MINUTES, SLOT_LABELS, SLOT_ORDER, type SlotKey } from '@/lib/report/theme';
+import {
+  DEFAULT_WORKOUT_MINUTES,
+  SLOT_LABELS,
+  SLOT_ORDER,
+  cutLabelOf,
+  type SlotKey,
+} from '@/lib/report/theme';
 import { orderSession } from '@/lib/report/exercise-order';
 import { availableParts } from '@/lib/report/today-pick';
 import { exercisesByIds } from '@/lib/library-cache';
@@ -130,8 +136,8 @@ export type TodayPlan = {
   reasons: string[];
   /** 자동 맞춤이 통증을 의심했을 때만 — 웹 AutoNote 와 같은 글 */
   autoPain: { summary: string; reason: string; caution: string | null } | null;
-  /** 회복 데이라 줄인 시간 */
-  cut: { requested: number; minutes: number } | null;
+  /** 줄인 시간 — label 은 까닭('회복 데이라' · '양을 줄여', 2026-11-16 · 옛 서버 답에는 없다) */
+  cut: { requested: number; minutes: number; label?: string } | null;
   droppedForSafety: number;
   /** 장비를 한 번도 안 골라 전부 있다고 보고 골랐다 */
   noEquipment: boolean;
@@ -395,7 +401,11 @@ export async function loadTrainingToday(user: TodayUser, today: Date): Promise<T
                   : null,
                 cut:
                   savedPlan.minutes < savedPlan.requestedMinutes
-                    ? { requested: savedPlan.requestedMinutes, minutes: savedPlan.minutes }
+                    ? {
+                        requested: savedPlan.requestedMinutes,
+                        minutes: savedPlan.minutes,
+                        label: cutLabelOf(savedPlan.theme.key),
+                      }
                     : null,
                 droppedForSafety,
                 /* 가진 장비 설정을 없애 '장비를 안 골라…' 알림은 안 낸다(2026-10-20) — 오늘 고른 장비로 짠다 */

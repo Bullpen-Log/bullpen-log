@@ -456,7 +456,7 @@ export function PlanBody({
         ) : null}
         {plan.cut ? (
           <Text style={[s.tiny, { color: c.warn }]}>
-            회복 데이라 {plan.cut.requested}분 → {plan.cut.minutes}분
+            {plan.cut.label ?? '회복 데이라'} {plan.cut.requested}분 → {plan.cut.minutes}분
           </Text>
         ) : null}
         {plan.droppedForSafety > 0 ? (

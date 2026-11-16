@@ -1,5 +1,6 @@
 import type { DaySlot, ReasonCode, SlotItem, Weekday } from '@/lib/coach/week';
 import type { WeekAsk } from '@/lib/coach/week-ask';
+import { shortenedMinutes } from '@/lib/engine/shorten';
 
 /**
  * 코치 처음 질문의 답(CoachProfile.answers, docs/designs/ai-coach.md 10-4) — 서버(app/actions/coach.ts)와 앱 화면(native/src/coach/start)이 같이 쓴다.
@@ -139,10 +140,17 @@ export const REASON_TEXT: Record<ReasonCode, string> = {
   limit: '피할 동작',
 };
 
-function itemText(x: SlotItem): string {
+function itemText(x: SlotItem, cut = false): string {
   switch (x.kind) {
-    case 'train':
-      return `운동 ${coachMinutes(x.fence.minutes)}분${x.fence.light ? ' · 가볍게' : x.fence.heavyLower ? ' · 하체 무겁게' : ''}`;
+    case 'train': {
+      /*
+       * 엔진이 그날 시간을 줄이는 칸(slot.cut — 오늘 칸만, lib/coach/refresh.ts withTodayCut)은 '60분 → 45분'으로 실제 시간을 보인다(2026-11-16).
+       * 저장값(fence.minutes)은 줄이기 전 시간 그대로다(바꾸면 두 번 줄어든다 · 시간 바꾸기 단추가 그 값을 고른다).
+       */
+      const m = coachMinutes(x.fence.minutes);
+      const shown = cut && shortenedMinutes(m) < m ? `${m}분 → ${shortenedMinutes(m)}분` : `${m}분`;
+      return `운동 ${shown}${x.fence.light ? ' · 가볍게' : x.fence.heavyLower ? ' · 하체 무겁게' : ''}`;
+    }
     case 'program':
       return x.heavyLower ? '프로그램 · 하체 무겁게' : '프로그램';
     case 'armcare':
@@ -158,7 +166,8 @@ function itemText(x: SlotItem): string {
 
 /** 한 칸의 한 줄 — 무엇을(제안인 암케어는 뒤로) */
 export function slotLine(slot: DaySlot): string {
-  const main = slot.items.filter((x) => x.kind !== 'armcare').map(itemText);
-  const care = slot.items.filter((x) => x.kind === 'armcare').map(itemText);
+  const cut = slot.cut === true && slot.rank !== 'recovery';
+  const main = slot.items.filter((x) => x.kind !== 'armcare').map((x) => itemText(x, cut));
+  const care = slot.items.filter((x) => x.kind === 'armcare').map((x) => itemText(x));
   return [...main, ...care].join(' · ');
 }

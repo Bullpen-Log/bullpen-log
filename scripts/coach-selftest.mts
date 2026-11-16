@@ -427,6 +427,10 @@ check('⑤ 쉬는 날 · 팀 훈련 → 시작 없음', startsOf(slotOf(T, [{ ki
   const st = planWeek(input({ fixed: [{ date: shiftDateKey(MON, 2), kind: 'game' }] }));
   const after = st[3];
   check('⑧ 선발 다음 날 · 운동 날(큰 하체) · 까닭 등판 다음 날 · 회복 암케어', after.rule === 'afterOuting' && workouts([after]).length === 1 && heavy(after) && after.reasons.includes('after-outing') && after.items.some((x) => x.kind === 'armcare' && x.mode === 'recovery'), JSON.stringify(after));
+  /* 칸 글의 시간 줄임은 엔진 판정(오늘 칸만, slot.cut — lib/coach/refresh.ts withTodayCut)으로만 — 계획한 경기로 정한 '등판 다음 날' 까닭만으로는 줄여 보이지 않는다 */
+  check('⑧ 계획기 칸 자체에는 시간 줄임 표시가 없다(엔진이 실제로 줄일 때만 싣는다)', !slotLine(after).includes('→') && st.every((s) => s.cut == null), slotLine(after));
+  check('⑧ 엔진이 줄이는 오늘 칸(cut)은 실제 시간을 보인다 · 저장값은 그대로', slotLine({ ...after, cut: true }).startsWith('운동 60분 → 45분 · 하체 무겁게') && after.items.some((x) => x.kind === 'train' && x.fence.minutes === 60), slotLine({ ...after, cut: true }));
+  check('⑧ 회복 날에는 cut 이 있어도 줄여 보이지 않는다', st.filter((s) => s.rank === 'recovery').every((s) => !slotLine({ ...s, cut: true }).includes('→')));
   check('⑧ 선발 다음 날에는 메커니즘 · 강화 암케어를 안 넣는다', !after.items.some((x) => x.kind === 'mechanics' || (x.kind === 'armcare' && x.mode === 'strength')), JSON.stringify(after.items));
   check('⑧ 가벼운 회복 운동(선택) 칸은 이제 만들지 않는다', st.every((s) => !s.items.some((x) => x.kind === 'rest' && x.light)) && !slotLine(after).includes('가벼운 회복'));
 }

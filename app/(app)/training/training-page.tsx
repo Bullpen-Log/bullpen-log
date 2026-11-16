@@ -26,7 +26,7 @@ import { readFrozenPlan } from '@/lib/workout/session-plan';
 import { summarizeSets, totalVolumeKg } from '@/lib/workout/summarize';
 import { recentAmounts } from '@/lib/report/exercise-recent';
 import { MIN_CANDIDATES } from '@/lib/report/prescription';
-import { SLOT_ORDER } from '@/lib/report/theme';
+import { SLOT_ORDER, cutLabelOf } from '@/lib/report/theme';
 import { orderSession } from '@/lib/report/exercise-order';
 import { BackLink, Card, PageHeading } from '@/components/ui';
 import { PlanForm } from '@/components/training-forms';
@@ -788,7 +788,7 @@ export default async function TrainingPage({
               {savedPlan.auto?.painSuspected && <AutoNote auto={savedPlan.auto} />}
               {savedPlan.minutes < savedPlan.requestedMinutes && (
                 <p className="text-xs text-warn">
-                  회복 데이라 {savedPlan.requestedMinutes}분 → {savedPlan.minutes}분
+                  {cutLabelOf(savedPlan.theme.key)} {savedPlan.requestedMinutes}분 → {savedPlan.minutes}분
                 </p>
               )}
 

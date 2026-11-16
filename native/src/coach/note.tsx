@@ -35,7 +35,7 @@ export function CoachNote() {
     coach.owner === 'user'
       ? '오늘은 직접 만든 운동으로 해요. 코치는 내일부터 다시 맞춰요.'
       : coach.work
-        ? `코치 계획 · ${coach.line}. 만들면 이 시간에 맞춰요.`
+        ? `코치 계획 · ${coach.line}. 만들면 이 시간을 바탕으로 짜요.`
         : `코치 계획 · ${coach.line}. 그래도 만들면 오늘은 직접 하는 날이 돼요.`;
   return (
     <View style={[st.band, { backgroundColor: c.skyTint }]}>

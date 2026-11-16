@@ -18,6 +18,7 @@ import { COACH_LIMITS, REASON_TEXT, WEEKDAY_LABELS, savedOf, slotLine } from '@/
 import { slotProgressOf, slotStateOf } from '@/lib/coach/status';
 import { followupReasonText } from '@/lib/coach/followup';
 import { coachWeekBase } from '@/lib/coach/today';
+import { withTodayCut } from '@/lib/coach/refresh';
 import { loadTrainingDone } from '@/lib/training-week';
 import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { gatherFactsAndPlan } from '@/lib/report/gather';
@@ -187,7 +188,7 @@ async function contextOf(user: User, base: Awaited<ReturnType<typeof coachWeekBa
           why: health.valid ? [plan.theme.reason, ...(plan.auto?.reason ? [plan.auto.reason] : []), ...planReasonLines(plan)].filter(Boolean).slice(0, 4) : [],
         }
       : null,
-    week: slots.map((s, i) => ({
+    week: withTodayCut(slots, today, facts).map((s, i) => ({
       date: s.date,
       day: WEEKDAY_LABELS[i],
       plan: slotLine(s),

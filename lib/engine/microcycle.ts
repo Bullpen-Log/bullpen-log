@@ -102,8 +102,8 @@ export const FAR_OUTING_MIN_DAYS = 4;
 
 /** 구원 '어제 실전 강도로 20구 넘게 던졌으면 짧게' — 문턱(초과) · 몫 · 바닥(분) */
 export const RELIEF_SHORTEN_PITCHES = 20;
-export const SHORTEN_SHARE = 0.75;
-export const SHORTEN_MIN_MINUTES = 30;
+/* 몫 · 바닥 · 셈은 lib/engine/shorten.ts(코치 칸 글도 쓴다 — 앱 묶음에 이 파일을 딸려 보내지 않게) */
+export { SHORTEN_MIN_MINUTES, SHORTEN_SHARE, shortenedMinutes } from '@/lib/engine/shorten';
 
 export type DayKind = {
   rule: DayRule;
@@ -201,12 +201,6 @@ export function dayKindOf(facts: ReportFacts): DayKind {
     yesterday: yesterday ? { ...yesterday } : null,
     outing,
   };
-}
-
-/** 구원 '짧게' — 5분 단위로 내리고 바닥 30분(이미 그보다 짧으면 그대로). 회복 날에는 부르지 않는다(effectiveMinutes 가 줄인다) */
-export function shortenedMinutes(minutes: number): number {
-  const cut = Math.floor((minutes * SHORTEN_SHARE) / 5) * 5;
-  return Math.min(minutes, Math.max(SHORTEN_MIN_MINUTES, cut));
 }
 
 /**

@@ -315,7 +315,7 @@ export function plannedOuting(facts: ReportFacts): 'today' | 'tomorrow' | null {
 /** 등판 날 · 등판 전날의 이유 — 언제부터 다시 무게를 드는지까지 말한다(hardOutingReason 과 같은 틀) */
 function plannedOutingReason(when: 'today' | 'tomorrow'): string {
   return when === 'today'
-    ? '오늘 등판이에요. 가볍게 풀고 활성화만 해요. 무게는 내일 하체부터 다시 들어요.'
+    ? '오늘 등판이에요. 가볍게 풀고 활성화만 해요. 무게는 내일부터 다시 들어요.'
     : '내일 등판이라 무게 대신 코어와 보강을 해요. 등판 전날은 다리를 가볍게 둬요.';
 }
 
@@ -338,7 +338,7 @@ function outingPhrase(outing: HardOuting): string {
  * (날 종류 R5' afterOuting) 이 글은 던진 그날에만 쓴다.
  */
 function hardOutingReason(outing: HardOuting): string {
-  return `${outingPhrase(outing)}. 오늘은 가볍게 풀어요. 무게는 내일 하체부터 다시 들어요.`;
+  return `${outingPhrase(outing)}. 오늘은 가볍게 풀어요. 무게는 내일부터 다시 들어요.`;
 }
 
 /**
@@ -1591,6 +1591,14 @@ export function effectiveMinutes(theme: ThemeKey, requested: number): number {
   if (theme !== 'recovery') return requested;
   const scaled = Math.floor((requested * RECOVERY_SHARE) / 5) * 5;
   return Math.min(scaled, RECOVERY_MAX_MINUTES);
+}
+
+/**
+ * 고른 시간보다 짧게 한 날의 경고 줄 앞말(웹 training-page · 앱 오늘 운동) — 회복날이 아니어도 줄인다(등판 다음 날 · 구원 짧게, 2026-11-16).
+ * 예전에는 늘 '회복 데이라'였다.
+ */
+export function cutLabelOf(theme: ThemeKey): string {
+  return theme === 'recovery' ? '회복 데이라' : '양을 줄여';
 }
 
 /** 등판 창 안의 하체 날에 붙이는 한 줄 — 안전 거르기(prescription.ts 2-2)가 무거운 하체를 뺀 날 */

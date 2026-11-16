@@ -131,6 +131,9 @@ export function AdjustBar({ week, states, today, onDone }: { week: DaySlot[]; st
             })}
           </View>
         ) : null}
+        {step?.kind === 'minutes' && t?.cut ? (
+          <Text style={[TYPE.sub, { color: c.muted }]}>등판 다음 날이라 고른 시간보다 짧게 해요.</Text>
+        ) : null}
         {step?.kind === 'move' ? (
           <View style={{ gap: 6 }}>
             {movable

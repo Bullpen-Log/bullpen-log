@@ -321,6 +321,7 @@ import {
   compositionFor,
   decideTheme,
   effectiveMinutes,
+  cutLabelOf,
   estimateMinutes,
   hardOuting,
   mainCandidateCount,
@@ -967,9 +968,9 @@ console.log('\n[안전] 몸이 안 좋은 날 무거운 운동이 섞이지 않�
     outing(1).key
   );
   check(
-    '오늘 강도 9로 90구 → 이유에 내일 하체부터 다시 든다고 말한다',
+    '오늘 강도 9로 90구 → 이유에 내일부터 무게를 다시 든다고 말한다',
     outing(0).reason ===
-      '오늘 거의 전력으로 90구를 던지셨어요. 오늘은 가볍게 풀어요. 무게는 내일 하체부터 다시 들어요.',
+      '오늘 거의 전력으로 90구를 던지셨어요. 오늘은 가볍게 풀어요. 무게는 내일부터 다시 들어요.',
     outing(0).reason
   );
   check(
@@ -997,7 +998,7 @@ console.log('\n[안전] 몸이 안 좋은 날 무거운 운동이 섞이지 않�
       outing(1, 7).reason === '어제 90구를 던졌어요. 등판 다음 날은 하체 위주로 해요.' &&
       outing(0, 7).key === 'recovery' &&
       outing(0, 7).reason ===
-        '오늘 90구를 던져 팔 부담이 컸어요. 오늘은 가볍게 풀어요. 무게는 내일 하체부터 다시 들어요.',
+        '오늘 90구를 던져 팔 부담이 컸어요. 오늘은 가볍게 풀어요. 무게는 내일부터 다시 들어요.',
     `${outing(1, 7).key} — ${outing(1, 7).reason} / ${outing(0, 7).key} — ${outing(0, 7).reason}`
   );
   check(
@@ -4049,6 +4050,46 @@ console.log('\n[자동 맞춤] 규칙이 울타리를 치고 초안을 내는가
     JSON.stringify(plain.minutes)
   );
   check('신호가 없으면 초안은 기본 목표(근력 향상)', plain.draft.goal === DEFAULT_GOAL);
+
+  /*
+   * 등판 다음 날(2026-11-16 검토) — 어제 38구 × 90%(3,420)는 세게 던진 날. 화면은 자동 맞춤 이유를 일정 까닭보다 먼저 보여서, 이 글이 등판 다음
+   * 날과 실제 시간(일정 만들기가 ×0.75 로 줄인 45분)을 말해야 한다. 예전: '특별히 바꿀 신호가 없어 … 시간은 60분이에요.'
+   * 시간은 한 번만 줄인다 — 근육통 '많이'가 겹쳐도 자동 맞춤은 초안을 60분 그대로 두고(일정 만들기가 45분으로), 예전처럼 45 → 30 이 안 된다.
+   */
+  {
+    const af = fenceFor(factsWith({ intensity: 9 }));
+    const afSore = fenceFor(factsWith({ intensity: 9, soreness: 4 }));
+    check(
+      "등판 다음 날 자동 맞춤 — 하체 날 · 초안 60분 그대로 · 이유 '등판 다음 날이라 양을 줄여 45분으로 잡았어요. …'(쪽은 말하지 않는다 — 일정 만들기가 날을 바꿀 수 있다)",
+      af.day.key === 'lower' &&
+        af.draft.minutes === 60 &&
+        af.draft.reason ===
+          '등판 다음 날이라 양을 줄여 45분으로 잡았어요. 목표는 근력 향상으로 두었어요.',
+      `${af.day.key} · ${af.draft.minutes} · ${af.draft.reason}`
+    );
+    check(
+      '등판 다음 날 + 근육통 많이 — 자동 맞춤은 시간을 더 줄이지 않는다(초안 60분 · 실제 45분 한 번) · 이유의 시간도 45분',
+      afSore.draft.minutes === 60 &&
+        afSore.draft.reason.endsWith('등판 다음 날이라 시간은 45분으로 줄였어요.') &&
+        Object.values(afSore.minutes).every((ms) => Math.max(...ms) === 60),
+      `${afSore.draft.minutes} · ${afSore.draft.reason} · ${JSON.stringify(afSore.minutes)}`
+    );
+    /* 구원 '어제 실전 강도로 20구 넘게'(세게 던진 날 아님) — '특별히 바꿀 신호가 없어'와 '줄였어요'를 같이 말하지 않는다 */
+    const relief = fenceFor(factsWith({ pitches: [25, 0, 35, 0, 40, 0, 30], intensity: 9 }));
+    check(
+      "구원 짧게 날 자동 맞춤 이유 — '어제 실전 강도로 던져 오늘은 45분으로 짧게 잡았어요. …' · 초안 60분 그대로",
+      relief.draft.minutes === 60 &&
+        relief.draft.reason ===
+          '어제 실전 강도로 던져 오늘은 45분으로 짧게 잡았어요. 목표는 근력 향상으로 두었어요.',
+      `${relief.day.key} · ${relief.draft.minutes} · ${relief.draft.reason}`
+    );
+    check(
+      "경고 줄 앞말 — 회복날만 '회복 데이라', 그 밖에 줄인 날은 '양을 줄여'",
+      cutLabelOf('recovery') === '회복 데이라' &&
+        cutLabelOf('lower') === '양을 줄여' &&
+        cutLabelOf('assist') === '양을 줄여'
+    );
+  }
 
   /* 카드의 '오늘 할 부위'(2026-10-20 — 직접 고르기를 빼고 카드로 옮김, 열쇠를 preferredParts 에 담음) — 몸이 괜찮은 날 자동 맞춤이 그쪽으로 */
   {
@@ -12078,7 +12119,7 @@ console.log(
       'D2 (이유 글) 오늘 던진 날 — 평균 90% 이상은 "거의 전력으로", 경기 85구 70%(경기도 고른 강도대로)는 "팔 부담이 컸어요" → 회복. 어제 60구 50% 는 등판 다음 날의 하체 날',
       game.key === 'recovery' &&
         game.reason ===
-          '오늘 85구를 던져 팔 부담이 컸어요. 오늘은 가볍게 풀어요. 무게는 내일 하체부터 다시 들어요.' &&
+          '오늘 85구를 던져 팔 부담이 컸어요. 오늘은 가볍게 풀어요. 무게는 내일부터 다시 들어요.' &&
         near.key === 'recovery' &&
         near.reason.startsWith('오늘 거의 전력으로 40구를') &&
         light.key === 'lower' &&
@@ -12118,7 +12159,7 @@ console.log(
       'D2 (이유 글) 경기 25구 + 캐치볼 20구 → "오늘 45구를 던져 팔 부담이 컸어요"(그날 공의 합) · 85% 30구 → 회복 "오늘 30구를 던져 팔 부담이 컸어요", 다음 날은 "어제 45구 · 30구를 던졌어요" 하체 날',
       mixed.key === 'recovery' &&
         mixed.reason ===
-          '오늘 45구를 던져 팔 부담이 컸어요. 오늘은 가볍게 풀어요. 무게는 내일 하체부터 다시 들어요.' &&
+          '오늘 45구를 던져 팔 부담이 컸어요. 오늘은 가볍게 풀어요. 무게는 내일부터 다시 들어요.' &&
         pct85.key === 'recovery' &&
         pct85.reason.startsWith('오늘 30구를 던져 팔 부담이 컸어요') &&
         mixedAfter.key === 'lower' &&
@@ -17204,7 +17245,7 @@ console.log(
       [lowerRecent, lowerYesterday].map((t) => `${t.key} ${t.reason}`).join(' / ')
     );
   }
-  /* R3 · R4 의 글 — 오늘 등판 글은 2026-11-16 에 '무게는 내일 하체부터'로 바뀌었다(등판 다음 날이 운동 날이 돼서). 어제 85구는 R5' */
+  /* R3 · R4 의 글 — 오늘 등판 글은 2026-11-16 에 '무게는 내일부터 다시 들어요'로 바뀌었다(등판 다음 날이 운동 날이 돼서). 어제 85구는 R5' */
   const old3 = [
     themeOf({ today: { throwPlan: '오늘 등판' } }),
     themeOf({ today: { throwPlan: '내일 등판' } }),
@@ -17226,7 +17267,7 @@ console.log(
   check(
     "P4 날 종류 (나) R3 · R4 · R5' 의 테마 · 글 · 부딪힘 까닭",
     old3[0].reason ===
-      '오늘 등판이에요. 가볍게 풀고 활성화만 해요. 무게는 내일 하체부터 다시 들어요.' &&
+      '오늘 등판이에요. 가볍게 풀고 활성화만 해요. 무게는 내일부터 다시 들어요.' &&
       old3[0].key === 'recovery' &&
       old3[1].reason ===
         '내일 등판이라 무게 대신 코어와 보강을 해요. 등판 전날은 다리를 가볍게 둬요.' &&
@@ -17915,13 +17956,15 @@ console.log(
     const mcSrc = strip('lib/engine/microcycle.ts');
     const specs = [...mcSrc.matchAll(/from '([^']+)'/g)].map((m) => m[1]);
     check(
-      'P4 날 종류 (사) lib/engine/microcycle.ts 는 순수 — import 는 arm-load · day-state · outing · facts · prescription 다섯뿐(theme 없음), 날짜 함수 · 난수 · server-only · 글 없음',
+      'P4 날 종류 (사) lib/engine/microcycle.ts 는 순수 — import 는 arm-load · day-state · outing · shorten · facts · prescription 여섯뿐(theme 없음), 날짜 함수 · 난수 · server-only · 글 없음',
       /* P4 로 바뀜(커밋 F) — 왜: R2 · R3' 를 어제 팔 부담 한 곳(arm-load.ts)에서 읽는다(프로그램 · 암케어와 같은 함수). 중간 부하 문턱도 거기로 옮겨 다시 내보낸다 */
       json([...new Set(specs)].sort()) ===
         json([
           '@/lib/engine/arm-load',
           '@/lib/engine/day-state',
           '@/lib/engine/outing',
+          /* 2026-11-16 — 짧게 셈을 순수 파일로 떼어 다시 내보낸다(코치 칸 글이 앱 묶음에서 같이 쓴다) */
+          '@/lib/engine/shorten',
           '@/lib/report/facts',
           '@/lib/report/prescription',
         ]) &&
