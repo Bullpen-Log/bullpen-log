@@ -5,7 +5,7 @@
   "scope": "메커니즘 투구 드릴 전체 — 직접 촬영/참고/나중에 촬영 포함",
   "catalog_url": "https://dugout-baseball.com/library/mechanics",
   "base_ref": "aa9d89848bd2ee182ed2151653466c83ed3a9010",
-  "state": "사용자 검수 대기; 현재 영상 유지",
+  "state": "2번 사용자 확인 대기",
   "source_last_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
   "source_modified_time_semantics": "로컬 파일 실제 mtime. 이후 운영 공지 갱신을 포함할 수 있으며 영상 관찰/사용자 판정 시각이 아님.",
   "catalog_snapshot": {
@@ -49,134 +49,81 @@
     "identity_rule": "review_id는 로컬 검수 ID이며 DB ID가 아님. drill_id=null은 미확인. asset_id/path는 서명 없는 안전 식별자. 같은 영상의 다른 도구 드릴도 별개 항목."
   },
   "current": {
-    "number": 1,
-    "review_id": "mv-0457d3ca2b3a1169",
+    "number": 2,
+    "review_id": "mv-8eba0f8a515a6896",
+    "title": "P3 힌지 드라이브 스로우 (작은 메디신볼)",
     "category": "드리프트",
-    "title": "스텝백 스로우 드릴",
-    "kind": "직접 촬영 영상",
-    "kind_evidence": "현재 상세에 촬영 전/참고 영상 표시 없음, 자체 저장소 video 재생 확인",
+    "drill_id": "df6410d8-42aa-4443-9b94-3fb40573a604",
+    "kind": "참고 영상",
+    "kind_evidence": "Live UI filming-before/reference badge, REFERENCE source, no owned videoPath, reference YouTube played.",
     "status": "수정 저장 완료 · 사용자 확인 대기",
-    "drill_id": "54acde57-f93a-4012-a632-46221b7f23b8",
-    "asset_id": "95d8dd7e-6969-4d30-a207-afc89322912f",
-    "asset_path": "pitch-videos/library-720/95d8dd7e-6969-4d30-a207-afc89322912f.mp4",
-    "duration_seconds": 6.87,
-    "playback_last_observed": {
-      "observed_at": "2026-11-13T15:54:58+09:00",
-      "source": "production shared LibraryVideo visible UI",
-      "paused": false,
-      "loop": true,
-      "repeat_requested": true,
-      "repeat_applied": true,
-      "evidence": "Pause button visible; loop checkbox checked; screenshot shows loop ON",
-      "repeat_cycle_tested": false,
-      "repeat_cycle_test_required": false
-    },
-    "playback_observed_this_handoff": true,
-    "source": {
-      "source_id": "canonical_local_record",
-      "json_pointer": "/current"
-    },
-    "source_last_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
-    "last_user_decision": null,
-    "last_user_decision_note": "영상에 대한 오케이/다음 판정 기록 없음. 검수 방식 지시나 GPT 관찰을 완료로 계산하지 않음.",
-    "historical_playback_before_vp01": {
-      "time_seconds": 0,
-      "paused": true,
-      "loop": false,
-      "repeat_requested": true,
-      "repeat_applied": false
-    },
-    "setup_event": {
-      "at": "2026-11-13T15:54:58+09:00",
-      "scope": "current-item setup only",
-      "content_changed": false,
-      "review_advanced": false,
-      "user_decision_recorded": false,
-      "title_description_visible": true,
-      "owned_source_confirmed": true,
-      "right_panel_request": "queued because caller chat hidden; opens when chat shown",
-      "actual_user_panel_exposure_verified": false
-    },
-    "latest_assistant_inspection": {
-      "at": "2026-11-16T16:08:54.473319+09:00",
-      "coverage": "Partial scene inspection using shared-player seek; not continuous or frame-complete review.",
-      "visual": "Start standing, first-angle stride/throw, later-angle knee lift, and terminal follow-through viewed. Feet and full body visible in sampled frames. Terminal frame still in follow-through: human should assess end length.",
-      "description_candidates": [
-        "Explain drift and rocker in beginner Korean.",
-        "Clarify front/rear foot and throwing direction for right/left pitchers.",
-        "50-60 percent is perceived effort, not proportional elbow load; no drill-specific optimum established."
-      ],
-      "research": {
-        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6668195/",
-        "type": "2019 original study abstract in journal supplement",
-        "population_condition": "60 healthy high-school and collegiate pitchers; 120-foot long toss at perceived100/75/50 percent effort.",
-        "finding": "Measured torque and velocity fell less than the proportional perceived-effort decrease.",
-        "limit": "Indirect for step-back drill; does not prove optimal effort, reps/rest or training transfer."
-      },
-      "playback": "Repeat checkbox ON; returned Home and playing. No cycle test. Audio not verified.",
-      "user_status": "Awaiting first human video judgment; no next instruction.",
-      "applied_content_change": false
-    },
     "latest_applied_revision": {
-      "at": "2026-11-16T18:11:32.378083+09:00",
-      "drill_id": "54acde57-f93a-4012-a632-46221b7f23b8",
-      "title": "스텝백 스로우 드릴",
-      "before_description": "■ 어떤 운동인가\n던지는 방향의 반대쪽으로 한 발 물러섰다가, 그 반동으로 홈 쪽으로 나가며 던지는 드릴입니다.\n\n■ 이렇게 하세요\n1. 던지는 방향을 옆으로 보고 섭니다.\n2. 앞발을 뒷발 쪽으로 한 발 물러 딛습니다.\n3. 그 걸음에 실린 체중이 홈 쪽으로 흘러가기 시작할 때 다리를 듭니다.\n4. 멈추지 말고 이어서 홈 쪽으로 나가 던집니다.\n\n■ 왜 하나요\n물러서는 걸음이 무게중심을 먼저 움직여 드리프트를 쉽게 느끼게 합니다. 드리프트를 익히는 데 스텝백 드릴을 쓰고, 로커에서 하체 차례가 꼬이는 투수에게는 스텝백으로 바꿔 줍니다.\n\n■ 세기\n처음 몇 번은 느린 동작으로 감을 잡고, 50~60% 힘에서 시작해 익숙해지면 올립니다. 전력으로 던지는 드릴이 아닙니다.",
-      "after_description": "■ 어떤 운동인가\r\n뒤로 한 발 디디는 동시에 반대쪽 무릎을 들어, 멈추지 않고 앞으로 내딛으며 야구공을 던지는 드릴입니다. 영상의 오른손 투수는 오른발을 뒤로 딛는 순간 왼쪽 무릎을 들고 곧바로 투구로 이어갑니다.\r\n\r\n■ 이렇게 하세요\r\n아래는 영상과 같은 오른손 투수 기준입니다. 왼손 투수는 오른발과 왼발을 서로 바꿔 따라 합니다.\r\n\r\n1. 야구공을 들고, 왼쪽 어깨가 공을 던질 목표 쪽을 향하도록 섭니다. 발을 옮길 공간을 확보하고 목표 주변에 사람이 없는지 확인합니다.\r\n2. 왼발은 바닥에 둔 채, 오른발을 살짝 들어 뒤로 디딥니다. 여기서 뒤는 공을 던질 방향의 반대쪽입니다.\r\n3. 오른발이 바닥에 닿는 순간, 동시에 왼발을 들어 왼쪽 무릎을 올립니다.\r\n4. 멈추지 않고 몸을 목표 쪽으로 움직이며, 왼발을 앞으로 내딛어 곧바로 공을 던집니다.\r\n5. 공을 놓은 뒤에는 팔과 오른쪽 다리가 자연스럽게 따라 나오게 하고 균형을 잡습니다.\r\n6. 오른발 딛기와 왼쪽 무릎 들기, 앞으로 내딛으며 던지기를 하나의 흐름으로 연결합니다. 자세가 흐트러지면 쉬었다가 다시 하고, 통증이 생기면 중단합니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n투구에서는 다리를 들고 목표 방향으로 체중을 옮기는 움직임을, 내딛기와 공 던지기로 연결하는 것이 중요합니다.\r\n\r\n이 드릴은 뒤로 발을 딛는 동시에 반대쪽 무릎을 들면서 체중이 옮겨지는 감각을 익히고, 그 움직임을 앞으로 나가 던지는 동작으로 끊김 없이 연결하는 데 목적이 있습니다.\r\n\r\n■ 강도\r\n처음에는 공을 던지지 않고 느린 동작으로 발의 이동 순서를 익힙니다. 공을 던질 때는 본인이 느끼는 최대 힘의 약 50~60%에서 시작해 동작을 연결합니다. 힘껏 던지기보다 같은 흐름을 편안하게 반복할 수 있는 강도로 수행합니다.",
+      "at": "2026-11-16T18:42:54.913191+09:00",
+      "drill_id": "df6410d8-42aa-4443-9b94-3fb40573a604",
+      "before_title": "P3 힌지 드라이브 스로우 (작은 공)",
+      "after_title": "P3 힌지 드라이브 스로우 (작은 메디신볼)",
+      "before_description": "■ 어떤 운동인가\n엉덩이를 접은 자세에서 몸을 홈 쪽으로 보내며 던지는 동작입니다. 작은 메디신볼은 공보다 무거워 동작이 느려지고, 팔보다 몸으로 던지는 느낌을 찾기 좋습니다. 무거울수록 팔에 힘이 들어가기 쉬우니 팔은 느슨하게 둡니다.\n\n■ 이렇게 하세요\n1. 엉덩이를 접고 체중을 뒷다리에 싣습니다.\n2. 투구판을 끌어당기듯 뒷엉덩이로 몸을 홈 쪽으로 보냅니다.\n3. 앞발이 닿으면 골반부터 돌려 던집니다.\n4. 허벅지 앞쪽으로 밀어 몸이 위로 뜨지 않게 합니다.\n\n■ 왜 하나요\n뒷다리를 엉덩이로 써서 앞으로 가는 힘을 만드는 연습입니다. 투구판을 밀기보다 2루 쪽으로 끌어당기는 느낌이어야 힘이 위가 아니라 앞으로 갑니다.\n\n■ 세기\n처음 몇 번은 동작을 익히고, 몸에 익으면 빠르게 던집니다. 거리나 속도를 재 두면 힘이 느는지 볼 수 있습니다.",
+      "after_description": "■ 어떤 운동인가\r\n작은 메디신볼을 들고 양발을 넓게 벌린 뒤, 엉덩이를 뒤로 빼며 한쪽 다리에 체중을 싣고 목표 쪽으로 몸을 옮겨 던지는 드릴입니다. 힌지는 허리를 둥글게 숙이는 대신 엉덩이를 뒤로 빼며 고관절을 접는 동작을 뜻합니다.\r\n\r\n■ 이렇게 하세요\r\n아래는 영상처럼 오른쪽에서 왼쪽 다리로 체중을 옮기며 던지는 방향입니다. 왼손 투수는 좌우를 바꿔 자신의 투구 방향으로 수행합니다.\r\n\r\n1. 목표가 몸의 왼쪽에 오도록 서고, 양발을 어깨너비보다 넓게 벌립니다. 무릎을 가볍게 굽히고 작은 메디신볼을 양손으로 몸 앞에 잡습니다. 공을 던질 공간과 반발 방향에 사람이 없는지 확인합니다.\r\n2. 오른쪽 무릎을 굽히면서 오른쪽 엉덩이를 뒤로 뺍니다. 오른쪽 다리에 체중을 싣고, 허리를 둥글게 말거나 가슴을 바닥 쪽으로 떨어뜨리지 않습니다.\r\n3. 공을 몸 가까이에 두고, 오른쪽 다리에 실린 체중을 왼발 쪽으로 옮기며 몸을 목표 쪽으로 보냅니다. 위로 벌떡 일어서기보다 목표 쪽으로 이동하는 흐름을 이어갑니다.\r\n4. 왼발로 바닥을 딛고 골반과 몸통을 목표 쪽으로 돌리며 공을 던집니다. 팔만 먼저 휘두르지 말고 몸의 이동과 회전에 공 던지기를 연결합니다.\r\n5. 공을 놓은 뒤에는 팔과 오른쪽 다리가 자연스럽게 따라 나오게 하고 균형을 잡습니다. 다음 동작 전에 자세와 호흡을 정돈하고, 속도나 자세가 무너지면 충분히 쉽니다. 통증이 생기면 중단합니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n투구에서는 뒷다리로 지면에 힘을 가해 몸을 목표 쪽으로 이동시키고, 그 움직임을 골반과 몸통의 회전으로 연결합니다.\r\n\r\n이 드릴은 엉덩이를 접어 뒷다리에 체중을 실은 자세에서 앞으로 이동해 던지며, 하체의 움직임과 몸통 회전·공 던지기를 연결하는 감각을 연습하는 데 목적이 있습니다.\r\n\r\n■ 강도\r\n처음에는 공 없이 체중 이동과 회전을 익힌 뒤, 같은 동작을 편안하게 이어갈 수 있는 가벼운 메디신볼을 사용합니다. 공이 무거워 팔로 억지로 밀거나 동작이 끊기면 더 가벼운 공을 선택합니다. 동작이 익숙해지면 자세를 유지한 채 빠르게 던집니다.",
       "changed_fields": [
-        "description",
-        "thumbPath"
+        "title",
+        "description"
       ],
       "reasons": [
-        "Unified section headings and vocabulary with exercise review.",
-        "Clarified front/rear foot using target direction and right/left throwing hand.",
-        "Added preparation/space, finish, recovery and pain-stop cues.",
-        "Replaced drift/rocker coaching jargon with specific pitching coordination purpose.",
-        "Clarified existing50-60% as perceived effort; no optimal-dose claim.",
-        "Selected actual4.5-second side-view knee-lift frame showing full athlete."
+        "Specified small medicine ball in title.",
+        "Unified headings and explained hinge with plain Korean.",
+        "Specified wide stance, rear-hip loading, targetward transfer and rotation with safety/recovery cues.",
+        "Removed literal pull-the-rubber-backward requirement, unsupported heavy-ball claims and unnecessary distance/velocity testing instruction.",
+        "Added qualitative load selection without inventing optimal mass/dose."
       ],
+      "verification": "Admin save and displayed result plus independent full-row DB readback; title/description only changed.",
       "retained": {
-        "title": "스텝백 스로우 드릴",
-        "category": "스로잉 드릴",
+        "category": "메디신볼 드릴",
         "focusPoints": [
           "드리프트",
-          "스로잉"
+          "드롭"
         ],
         "stage": "통합",
         "equipment": [
-          "야구공"
+          "메디신볼"
         ],
         "sortOrder": 0,
-        "video_unchanged": true
+        "reason": "Medicine ball forward transfer plus hip loading and integrated throwing match retained category/focus/stage."
       },
-      "poster": {
-        "source_time_seconds": 4.5,
-        "crop": null,
-        "sha256": "04a4df207de037d64b65a87c671d9678ff67bfe3d49e605e973379c1a1d5fe15",
-        "source_and_prior_preserved": true,
-        "new_identity": true,
-        "asset_hash_and_db_verified": true,
-        "web_visible_verified": true,
-        "native_refresh_verified": false
+      "research": {
+        "url": "https://www.frontiersin.org/journals/sports-and-active-living/articles/10.3389/fspor.2022.975107/full",
+        "year": 2022,
+        "type": "Original research",
+        "population": "23 youth pitchers; motion capture/force platforms during fastballs",
+        "finding": "Drive leg advances center of mass; stride-leg braking and pelvis/trunk contribute to energy flow.",
+        "limit": "Indirect for this medicine-ball drill; no proven drill-specific velocity benefit or optimum load/reps/rest. No new domestic drill-specific study verified."
       },
-      "verification": "Actual production admin save, fresh description readback, DB diff only description/thumbPath, new poster upload hash, web poster display, playback+loopON.",
-      "human_status": "Pending; not advanced; completed0."
+      "footage_scope": "Reference sampled start wide stance/ball held in both hands, weight shift, pre-release rotation, follow-through and later setup; not whole continuous/frame-complete review. Exact hand-release detail not fully resolved; no invented fixed release instruction.",
+      "poster": "REFERENCE provider poster excluded from adjustments",
+      "human_status": "Pending"
     },
-    "latest_user_revision": {
-      "at": "2026-11-16T18:36:27.153690+09:00",
-      "review_id": "mv-0457d3ca2b3a1169",
-      "user_request": "오른발을 바닥에 디딘 다음, 이번에는 왼발을 들어 왼쪽 무릎을 올립니다. 보다는 오른발을 바닥에 딛는 순간 동시에 왼발을 들어 왼쪽무릎을 올리고 곧바로 투구를 한다는 식의 표현이 맞는 거 같아. 수정해",
-      "status": "applied_and_readback_verified",
-      "before": "■ 어떤 운동인가\r\n한 발을 뒤로 디딘 뒤, 반대쪽 다리를 들어 앞으로 내딛으며 야구공을 던지는 드릴입니다. 영상의 오른손 투수는 오른발을 먼저 뒤로 디디고, 그다음 왼쪽 무릎을 들어 던집니다.\r\n\r\n■ 이렇게 하세요\r\n아래는 영상과 같은 오른손 투수 기준입니다. 왼손 투수는 오른발과 왼발을 서로 바꿔 따라 합니다.\r\n\r\n1. 야구공을 들고, 왼쪽 어깨가 공을 던질 목표 쪽을 향하도록 섭니다. 발을 옮길 공간을 확보하고 목표 주변에 사람이 없는지 확인합니다.\r\n2. 왼발은 바닥에 둔 채, 오른발을 살짝 들어 뒤로 디딥니다. 여기서 뒤는 공을 던질 방향의 반대쪽입니다.\r\n3. 오른발을 바닥에 디딘 다음, 이번에는 왼발을 들어 왼쪽 무릎을 올립니다. 처음 뒤로 디딘 오른발은 바닥에서 몸을 받칩니다.\r\n4. 왼쪽 무릎을 든 상태에서 몸이 목표 쪽으로 나가기 시작하도록 합니다. 이어서 왼발을 목표 쪽으로 내딛으며 공을 던집니다.\r\n5. 공을 놓은 뒤에는 팔과 오른쪽 다리가 자연스럽게 따라 나오게 하고 균형을 잡습니다.\r\n6. 동작 순서는 오른발 뒤로 딛기 → 왼쪽 무릎 들기 → 왼발 앞으로 내딛으며 던지기입니다. 순서를 익힌 뒤에는 중간에 오래 멈추지 않고 연결합니다. 자세가 흐트러지면 쉬었다가 다시 하고, 통증이 생기면 중단합니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n투구에서는 다리를 들고 목표 방향으로 체중을 옮기는 움직임을, 내딛기와 공 던지기로 연결하는 것이 중요합니다.\r\n\r\n이 드릴은 뒤로 디딘 발로 몸을 받친 뒤 반대쪽 다리를 들어 올리는 과정을 통해 체중 이동을 느끼고, 앞으로 나가 던지는 동작을 이어서 연습하는 데 목적이 있습니다.\r\n\r\n■ 강도\r\n처음에는 공을 던지지 않고 느린 동작으로 발의 이동 순서를 익힙니다. 공을 던질 때는 본인이 느끼는 최대 힘의 약 50~60%에서 시작해 동작을 연결합니다. 힘껏 던지기보다 같은 흐름을 편안하게 반복할 수 있는 강도로 수행합니다.",
-      "after": "■ 어떤 운동인가\r\n뒤로 한 발 디디는 동시에 반대쪽 무릎을 들어, 멈추지 않고 앞으로 내딛으며 야구공을 던지는 드릴입니다. 영상의 오른손 투수는 오른발을 뒤로 딛는 순간 왼쪽 무릎을 들고 곧바로 투구로 이어갑니다.\r\n\r\n■ 이렇게 하세요\r\n아래는 영상과 같은 오른손 투수 기준입니다. 왼손 투수는 오른발과 왼발을 서로 바꿔 따라 합니다.\r\n\r\n1. 야구공을 들고, 왼쪽 어깨가 공을 던질 목표 쪽을 향하도록 섭니다. 발을 옮길 공간을 확보하고 목표 주변에 사람이 없는지 확인합니다.\r\n2. 왼발은 바닥에 둔 채, 오른발을 살짝 들어 뒤로 디딥니다. 여기서 뒤는 공을 던질 방향의 반대쪽입니다.\r\n3. 오른발이 바닥에 닿는 순간, 동시에 왼발을 들어 왼쪽 무릎을 올립니다.\r\n4. 멈추지 않고 몸을 목표 쪽으로 움직이며, 왼발을 앞으로 내딛어 곧바로 공을 던집니다.\r\n5. 공을 놓은 뒤에는 팔과 오른쪽 다리가 자연스럽게 따라 나오게 하고 균형을 잡습니다.\r\n6. 오른발 딛기와 왼쪽 무릎 들기, 앞으로 내딛으며 던지기를 하나의 흐름으로 연결합니다. 자세가 흐트러지면 쉬었다가 다시 하고, 통증이 생기면 중단합니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n투구에서는 다리를 들고 목표 방향으로 체중을 옮기는 움직임을, 내딛기와 공 던지기로 연결하는 것이 중요합니다.\r\n\r\n이 드릴은 뒤로 발을 딛는 동시에 반대쪽 무릎을 들면서 체중이 옮겨지는 감각을 익히고, 그 움직임을 앞으로 나가 던지는 동작으로 끊김 없이 연결하는 데 목적이 있습니다.\r\n\r\n■ 강도\r\n처음에는 공을 던지지 않고 느린 동작으로 발의 이동 순서를 익힙니다. 공을 던질 때는 본인이 느끼는 최대 힘의 약 50~60%에서 시작해 동작을 연결합니다. 힘껏 던지기보다 같은 흐름을 편안하게 반복할 수 있는 강도로 수행합니다.",
-      "reason": "User continuous-movement cue: right-foot contact and left-knee lift together, followed immediately by stride/throw. Align overview, steps3/4/6 and purpose; avoid implied pause. Simultaneous is a coaching cue, not a measured millisecond timing claim.",
-      "verification": "Production UI saved-result and live description readback.",
-      "advance_authorized": false
+    "playback_last_observed": {
+      "at": "2026-11-16T18:42:54.913191+09:00",
+      "playing": true,
+      "loop_enabled": true,
+      "muted": true,
+      "repeat_cycle_tested": false
     },
-    "foot_order_verified": "RHP: right-foot stepback/contact and left-knee lift as continuous movement -> immediate left-foot stride/throw; no pause. Mirror for LHP."
+    "reference_video_id": "gVnO1oHdnns"
   },
-  "completed": [],
-  "completed_count": 0,
+  "completed": [
+    {
+      "number": 1,
+      "review_id": "mv-0457d3ca2b3a1169",
+      "title": "스텝백 스로우 드릴",
+      "decision": {
+        "at": "2026-11-16T18:42:54.913191+09:00",
+        "original": "당므",
+        "interpreted": "다음",
+        "meaning": "Move on after current revisions; preserve notes. Not a blanket frame/rights/clinical approval."
+      }
+    }
+  ],
+  "completed_count": 1,
   "user_change_requests": [
     {
       "at": "2026-11-16T18:18:52.578870+09:00",
@@ -222,17 +169,13 @@
   "last_user_video_change_request": null,
   "user_decision_event_timestamps_available": false,
   "next": {
-    "number": 2,
-    "review_id": "mv-8eba0f8a515a6896",
+    "number": 3,
+    "review_id": "mv-2eddd3dec8d7418e",
+    "title": "P1 레터럴 셔플 스로우 (큰 공)",
     "category": "드리프트",
-    "title": "P3 힌지 드라이브 스로우 (작은 공)",
-    "kind": "참고 영상",
     "drill_id": null,
-    "status": "사용자 승인 전 이동 금지",
-    "source": {
-      "source_id": "canonical_local_record",
-      "json_pointer": "/queue/1"
-    }
+    "kind": "참고 영상",
+    "status": "사용자 다음 지시 전 이동 금지"
   },
   "assistant_findings_to_present_when_reached": [
     {
@@ -393,7 +336,16 @@
       "observation_time_note": "원본에 개별 관찰 시각 없음. 파일 수정 시각으로 대체하지 않음."
     }
   ],
-  "filming_needed": [],
+  "filming_needed": [
+    {
+      "number": 2,
+      "review_id": "mv-8eba0f8a515a6896",
+      "drill_id": "df6410d8-42aa-4443-9b94-3fb40573a604",
+      "title": "P3 힌지 드라이브 스로우 (작은 메디신볼)",
+      "status": "촬영 필요",
+      "available": "참고 영상만 있음"
+    }
+  ],
   "filming_needed_note": "현재 직접 촬영 1번은 제외. 빈 목록이 모든 영상 촬영 완료를 뜻하지 않음. 나머지는 차례에 확인.",
   "playback_policy": {
     "requested": "Repeat current item; advance only when explicitly directed by user.",
@@ -440,13 +392,10 @@
     "policy": "국가별 차이는 근거가 있을 때만 제안. 적용 판단 시 공식 자료 확인. 미확보 증빙·후보·확정 사실을 구분."
   },
   "pending_or_unverified": [
-    "1번 사용자 오케이/다음 판정 미수신",
-    "전체 영상 연속/프레임 전수검수 아님",
-    "다른 맥의 문서 수신·기록 일치·계정 로그인 미확인",
-    "9건 영상별 AI 후보와 1건 일반 후보 모두 사용자 수정 지시 아님",
-    "촬영자/출연 동의/음악 권리와 안전·효능 근거 검수 미완료; 적법성 판정 아님",
-    "DB drill_id 미확인, 120개 순서는 원본 기록 기준이며 현재 운영 변경 여부 미확인",
-    "2026-11-13 production current source/title/description/playback/loop ON verified; right-panel request queued, actual exposure in user chat not verified."
+    "2번 사용자 확인/다음 지시 대기",
+    "2번 참고 영상 일부 장면 확인; 전 구간/전 프레임 검수 아님",
+    "2번 직접 촬영 필요; 참고 영상 이용권 최종 검토 미완료",
+    "해당 메디신볼 드릴의 직접 훈련효과/최적 처방 근거 미확인"
   ],
   "approval_rules": {
     "advance": "Only explicit user OK/next authorizes advancement; setup does not.",
@@ -483,7 +432,7 @@
     "personal_health_information_copied": false,
     "signed_urls_copied": false
   },
-  "updated_at": "2026-11-16T18:11:32.378083+09:00",
+  "updated_at": "2026-11-16T18:42:54.913191+09:00",
   "current_workflow_document": "docs/shoot/video-review-current-workflow.md",
   "setup_event": {
     "at": "2026-11-13T15:54:58+09:00",

@@ -11,10 +11,15 @@
       "title": "스텝백 스로우 드릴",
       "kind": "직접 촬영 영상",
       "kind_evidence": "현재 상세에 촬영 전/참고 영상 표시 없음, 자체 저장소 video 재생 확인",
-      "status": "사용자 검수 대기",
+      "status": "사용자 다음 지시로 검수 진행",
       "drill_id": "54acde57-f93a-4012-a632-46221b7f23b8",
-      "user_decision": null,
-      "user_decided_at": null,
+      "user_decision": {
+        "at": "2026-11-16T18:42:54.913191+09:00",
+        "original": "당므",
+        "interpreted": "다음",
+        "meaning": "Move on after current revisions; preserve notes. Not a blanket frame/rights/clinical approval."
+      },
+      "user_decided_at": "2026-11-16T18:42:54.913191+09:00",
       "user_change_requests": [
         {
           "at": "2026-11-16T18:18:52.578870+09:00",
@@ -190,11 +195,11 @@
       "number": 2,
       "review_id": "mv-8eba0f8a515a6896",
       "category": "드리프트",
-      "title": "P3 힌지 드라이브 스로우 (작은 공)",
+      "title": "P3 힌지 드라이브 스로우 (작은 메디신볼)",
       "kind": "참고 영상",
-      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
-      "status": "미검수",
-      "drill_id": null,
+      "kind_evidence": "Live UI filming-before/reference badge, REFERENCE source, no owned videoPath, reference YouTube played.",
+      "status": "수정 저장 완료 · 사용자 확인 대기",
+      "drill_id": "df6410d8-42aa-4443-9b94-3fb40573a604",
       "user_decision": null,
       "user_decided_at": null,
       "user_change_requests": [],
@@ -206,11 +211,62 @@
       "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
       "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
       "filming_needed": {
-        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
-        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+        "status": "촬영 필요",
+        "reason": "Reference only; no OWN footage registered."
       },
       "content_change_approved": false,
-      "deployment_approved": false
+      "deployment_approved": false,
+      "latest_applied_revision": {
+        "at": "2026-11-16T18:42:54.913191+09:00",
+        "drill_id": "df6410d8-42aa-4443-9b94-3fb40573a604",
+        "before_title": "P3 힌지 드라이브 스로우 (작은 공)",
+        "after_title": "P3 힌지 드라이브 스로우 (작은 메디신볼)",
+        "before_description": "■ 어떤 운동인가\n엉덩이를 접은 자세에서 몸을 홈 쪽으로 보내며 던지는 동작입니다. 작은 메디신볼은 공보다 무거워 동작이 느려지고, 팔보다 몸으로 던지는 느낌을 찾기 좋습니다. 무거울수록 팔에 힘이 들어가기 쉬우니 팔은 느슨하게 둡니다.\n\n■ 이렇게 하세요\n1. 엉덩이를 접고 체중을 뒷다리에 싣습니다.\n2. 투구판을 끌어당기듯 뒷엉덩이로 몸을 홈 쪽으로 보냅니다.\n3. 앞발이 닿으면 골반부터 돌려 던집니다.\n4. 허벅지 앞쪽으로 밀어 몸이 위로 뜨지 않게 합니다.\n\n■ 왜 하나요\n뒷다리를 엉덩이로 써서 앞으로 가는 힘을 만드는 연습입니다. 투구판을 밀기보다 2루 쪽으로 끌어당기는 느낌이어야 힘이 위가 아니라 앞으로 갑니다.\n\n■ 세기\n처음 몇 번은 동작을 익히고, 몸에 익으면 빠르게 던집니다. 거리나 속도를 재 두면 힘이 느는지 볼 수 있습니다.",
+        "after_description": "■ 어떤 운동인가\r\n작은 메디신볼을 들고 양발을 넓게 벌린 뒤, 엉덩이를 뒤로 빼며 한쪽 다리에 체중을 싣고 목표 쪽으로 몸을 옮겨 던지는 드릴입니다. 힌지는 허리를 둥글게 숙이는 대신 엉덩이를 뒤로 빼며 고관절을 접는 동작을 뜻합니다.\r\n\r\n■ 이렇게 하세요\r\n아래는 영상처럼 오른쪽에서 왼쪽 다리로 체중을 옮기며 던지는 방향입니다. 왼손 투수는 좌우를 바꿔 자신의 투구 방향으로 수행합니다.\r\n\r\n1. 목표가 몸의 왼쪽에 오도록 서고, 양발을 어깨너비보다 넓게 벌립니다. 무릎을 가볍게 굽히고 작은 메디신볼을 양손으로 몸 앞에 잡습니다. 공을 던질 공간과 반발 방향에 사람이 없는지 확인합니다.\r\n2. 오른쪽 무릎을 굽히면서 오른쪽 엉덩이를 뒤로 뺍니다. 오른쪽 다리에 체중을 싣고, 허리를 둥글게 말거나 가슴을 바닥 쪽으로 떨어뜨리지 않습니다.\r\n3. 공을 몸 가까이에 두고, 오른쪽 다리에 실린 체중을 왼발 쪽으로 옮기며 몸을 목표 쪽으로 보냅니다. 위로 벌떡 일어서기보다 목표 쪽으로 이동하는 흐름을 이어갑니다.\r\n4. 왼발로 바닥을 딛고 골반과 몸통을 목표 쪽으로 돌리며 공을 던집니다. 팔만 먼저 휘두르지 말고 몸의 이동과 회전에 공 던지기를 연결합니다.\r\n5. 공을 놓은 뒤에는 팔과 오른쪽 다리가 자연스럽게 따라 나오게 하고 균형을 잡습니다. 다음 동작 전에 자세와 호흡을 정돈하고, 속도나 자세가 무너지면 충분히 쉽니다. 통증이 생기면 중단합니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n투구에서는 뒷다리로 지면에 힘을 가해 몸을 목표 쪽으로 이동시키고, 그 움직임을 골반과 몸통의 회전으로 연결합니다.\r\n\r\n이 드릴은 엉덩이를 접어 뒷다리에 체중을 실은 자세에서 앞으로 이동해 던지며, 하체의 움직임과 몸통 회전·공 던지기를 연결하는 감각을 연습하는 데 목적이 있습니다.\r\n\r\n■ 강도\r\n처음에는 공 없이 체중 이동과 회전을 익힌 뒤, 같은 동작을 편안하게 이어갈 수 있는 가벼운 메디신볼을 사용합니다. 공이 무거워 팔로 억지로 밀거나 동작이 끊기면 더 가벼운 공을 선택합니다. 동작이 익숙해지면 자세를 유지한 채 빠르게 던집니다.",
+        "changed_fields": [
+          "title",
+          "description"
+        ],
+        "reasons": [
+          "Specified small medicine ball in title.",
+          "Unified headings and explained hinge with plain Korean.",
+          "Specified wide stance, rear-hip loading, targetward transfer and rotation with safety/recovery cues.",
+          "Removed literal pull-the-rubber-backward requirement, unsupported heavy-ball claims and unnecessary distance/velocity testing instruction.",
+          "Added qualitative load selection without inventing optimal mass/dose."
+        ],
+        "verification": "Admin save and displayed result plus independent full-row DB readback; title/description only changed.",
+        "retained": {
+          "category": "메디신볼 드릴",
+          "focusPoints": [
+            "드리프트",
+            "드롭"
+          ],
+          "stage": "통합",
+          "equipment": [
+            "메디신볼"
+          ],
+          "sortOrder": 0,
+          "reason": "Medicine ball forward transfer plus hip loading and integrated throwing match retained category/focus/stage."
+        },
+        "research": {
+          "url": "https://www.frontiersin.org/journals/sports-and-active-living/articles/10.3389/fspor.2022.975107/full",
+          "year": 2022,
+          "type": "Original research",
+          "population": "23 youth pitchers; motion capture/force platforms during fastballs",
+          "finding": "Drive leg advances center of mass; stride-leg braking and pelvis/trunk contribute to energy flow.",
+          "limit": "Indirect for this medicine-ball drill; no proven drill-specific velocity benefit or optimum load/reps/rest. No new domestic drill-specific study verified."
+        },
+        "footage_scope": "Reference sampled start wide stance/ball held in both hands, weight shift, pre-release rotation, follow-through and later setup; not whole continuous/frame-complete review. Exact hand-release detail not fully resolved; no invented fixed release instruction.",
+        "poster": "REFERENCE provider poster excluded from adjustments",
+        "human_status": "Pending"
+      },
+      "playback_last_observed": {
+        "at": "2026-11-16T18:42:54.913191+09:00",
+        "playing": true,
+        "loop_enabled": true,
+        "muted": true,
+        "repeat_cycle_tested": false
+      }
     },
     {
       "number": 3,

@@ -1,3 +1,9 @@
+# Latest resume: item2/120, 2026-11-16
+
+Human said 당므 (next), moving from corrected Step-back1 to P3 Hinge Drive Throw small medicine ball2. Item1 notes/revisions preserved; count1 means next-directed review progression, not blanket quality/rights approval. Item2 actual title/description corrections saved and UI+DB read back; current human check pending. REFERENCE only, owned filming needed; poster excluded. Playing with loopON/muted. Next3 P1 lateral shuffle throw large ball only on user direction. Earlier item1 resume prose below is historical.
+
+---
+
 # Current mechanics review — 2026-11-16 alignment
 
 Current1/120 Step-back remains awaiting human review, completed0. Its description and OWN poster are now actually corrected/saved/read back; prior no-content-change statements below are historical. Use checkpoint current_exercise_parity_rules for mandatory pre-review corrections and before/after reporting. Headings: 어떤 운동인가 / 이렇게 하세요 / 투수에게 왜 필요한가 / 강도. OWN posters only, preserve source/prior; no per-poster approval. Exercise and mechanics share LibraryVideo and poster storage/consumption, but mechanics metadata lacks exercise prescription fields; do not fabricate schema parity. Video trim requests still wait until all mechanics reviews finish. No automatic next. Exact applied before/after and retained metadata are in video-records current entry.
