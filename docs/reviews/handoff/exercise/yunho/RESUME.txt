@@ -1,3 +1,5 @@
+LATEST 2026-11-16T13:12:26.798Z: P036 trim extended8.4->8.8s on user feedback; retain0.4s more landing follow-through. Content/metadata unchanged. User confirmation pending; remain here.
+
 LATEST 2026-11-16T12:40:59.990Z: P036 retained0–8.4s; jump/landing explanation and rotation context saved. Mandatory Driveline-first drill sourcing, Tread cross-check and GRF/cue distinction recorded. Metadata unchanged. User review pending; stay here.
 
 CURRENT P036 lateral jump stick landing: prior P047 user requested continue. Video one-foot takeoff, two-foot landing; description corrected, perSide false->true (5 total -> 5 per direction per set), high/intermediate/rest180 unchanged. Original video intact, own thumbnail updated. Await user review. Sources recorded in video record for later catalog consolidation.

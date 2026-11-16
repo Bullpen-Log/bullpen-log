@@ -17,7 +17,7 @@
   "current_title": "레터럴 점프 스틱 랜딩",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
-  "last_human_decision": "P036: user requested cut before forward loss of balance, clarify jump vs reactive plyometrics, and require Driveline sources before drill descriptions. Applied; user verification pending.",
+  "last_human_decision": "P036 end too abrupt: extend visible landing; applied8.4 to8.8 seconds.",
   "next_after_approval": {
     "title": "continuous lateral bound",
     "status": "Only on explicit user next"
@@ -764,7 +764,7 @@
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
   "latest_resume": {
     "current": "EX-Y-P-036",
-    "status": "Trim0–8.4s and jump/landing-focused description saved. Last forward loss-of-balance continuation removed. User review pending; do not advance."
+    "status": "User found8.4s abrupt. Re-edited to8.8s, adds0.4s of landing follow-through before forward recovery step. User review pending; no next approval."
   },
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
@@ -1128,5 +1128,5 @@
   "mandatory_plyometric_review_rule_20261116": "For every plyometric exercise, explain the actual movement, training purpose and role in plyometric progression where applicable, and a clear evidence-calibrated link to pitching; distinguish foundational drills from reactive training and indirect associations from proven direct effects. Apply common user-friendly terms, format, prescriptions, and evidence standards. Review each exercise individually.",
   "reference_catalog_rule": "Continue appending all actually consulted references and per-exercise use/limitations to docs/references/exercise-review-sources.json. EX-REF01 admin implementation deferred by user; do not start it during video review.",
   "standing_spacing_rule": "Mandatory: consistent readable blank lines between how-to steps and separate explanatory paragraphs for every subsequently reviewed exercise, preserving meaning and evidence.",
-  "updated_at_utc": "2026-11-16T12:40:59.990Z"
+  "updated_at_utc": "2026-11-16T13:12:26.798Z"
 }

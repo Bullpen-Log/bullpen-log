@@ -4436,6 +4436,26 @@
         },
         "verification": "Unique upload, conditional pointer update, editor save, exact DB description/media pointer readback verified. Browser review checked separately.",
         "human_status": "Pending. No next approval."
+      },
+      {
+        "at_utc": "2026-11-16T13:12:26.798Z",
+        "user_request": "Landing was cut too abruptly; adjust editing.",
+        "video_edit": {
+          "previous_retained_source_seconds": [
+            0,
+            8.4
+          ],
+          "new_retained_source_seconds": [
+            0,
+            8.8
+          ],
+          "added_landing_visibility_seconds": 0.4,
+          "selection": "Reviewed exact frames8.6–8.9; retain landing follow-through, exclude later forward recovery step. No fake frozen hold or speed change.",
+          "old_assets_preserved": true
+        },
+        "content_and_settings": "unchanged",
+        "verification": "Export status completed,8.8-second duration; new unique upload, conditional DB update and readback.",
+        "human_status": "Awaiting user confirmation; remain P036."
       }
     ]
   }
