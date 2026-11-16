@@ -1,0 +1,998 @@
+{
+ "927bb4c5-77ef-44b4-b81d-830e909249bc": {
+  "title": "인클라인 푸시업",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/e9360b0a-8a5c-4dc8-ba61-3db3f0d98aef.mp4",
+   "thumbPath": "library/d7c9b114-25a3-4674-a488-d9ee123c6865.jpg"
+  },
+  "new": {
+   "videoPath": "library/191b9c64-381f-4b04-8fe3-063fc3e8277e.mp4",
+   "thumbPath": "library/191b9c64-381f-4b04-8fe3-063fc3e8277e.jpg"
+  },
+  "crop": [
+   353,
+   299,
+   1180
+  ]
+ },
+ "3963d9a6-baf2-4866-a34a-8330c2bd8e38": {
+  "title": "벤치 지지 막대 흉추 스트레치",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/95be31aa-2898-4c88-8bd7-854f6531d6cc.mp4",
+   "thumbPath": "library/9db63f58-86b3-456a-a134-f88e2ee1c74d.jpg"
+  },
+  "new": {
+   "videoPath": "library/df6395fb-c0c4-458a-8490-75d7d43e9eef.mp4",
+   "thumbPath": "library/df6395fb-c0c4-458a-8490-75d7d43e9eef.jpg"
+  },
+  "crop": [
+   531,
+   378,
+   873
+  ]
+ },
+ "84b2db84-b873-4005-86a3-77294b59f077": {
+  "title": "덤벨 리스트 익스텐션",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/103eef2a-9b20-4979-8038-e7f97b465b67.mp4",
+   "thumbPath": "library/24697e17-2dad-4637-be5b-104eedf4fb9c.jpg"
+  },
+  "new": {
+   "videoPath": "library/c7162d21-81fe-417f-8f17-e2d8d7c5d36a.mp4",
+   "thumbPath": "library/c7162d21-81fe-417f-8f17-e2d8d7c5d36a.jpg"
+  },
+  "crop": [
+   269,
+   0,
+   1417
+  ]
+ },
+ "2da0ac06-0f71-452a-91c4-77c4baf01011": {
+  "title": "벤트오버 원판 로우 아이소 홀드",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/da6d8876-2a5e-4211-9429-dd6f03327838.mp4",
+   "thumbPath": "library/973d4476-c56a-488c-a59d-adbc8bcd3c0c.jpg"
+  },
+  "new": {
+   "videoPath": "library/bbad9169-95a6-43cb-b739-4b749712aad5.mp4",
+   "thumbPath": "library/bbad9169-95a6-43cb-b739-4b749712aad5.jpg"
+  },
+  "crop": [
+   281,
+   188,
+   1361
+  ]
+ },
+ "7c6c8872-8e17-4a08-a5d9-bfbcc9e7644e": {
+  "title": "베어 플랭크 숄더 탭",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/8353e2b6-d785-4e5f-ba5b-e43e0a984a62.mp4",
+   "thumbPath": "library/97718fd1-95a2-4c80-a663-5fec8a813a18.jpg"
+  },
+  "new": {
+   "videoPath": "library/5c1530be-a633-4a13-ba23-6d5ab09f1f3a.mp4",
+   "thumbPath": "library/5c1530be-a633-4a13-ba23-6d5ab09f1f3a.jpg"
+  },
+  "crop": [
+   198,
+   175,
+   1442
+  ]
+ },
+ "33d0383b-c476-4d57-a521-9a4fdcfd9e86": {
+  "title": "하프닐링 내전근 플랭크",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/fa821949-96b8-49b9-aa5d-1e5ffc9e3ba8.mp4",
+   "thumbPath": "library/bdd06556-2bf8-470b-ad53-b0d92130f293.jpg"
+  },
+  "new": {
+   "videoPath": "library/e7ad425a-f504-4555-9882-76464cabad8b.mp4",
+   "thumbPath": "library/e7ad425a-f504-4555-9882-76464cabad8b.jpg"
+  },
+  "crop": [
+   325,
+   165,
+   1346
+  ]
+ },
+ "cf9ac5c6-74f3-451e-9e10-8dbc67ad370f": {
+  "title": "차일드 포즈",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/e8f9db58-9a59-4541-9acc-d0263d0ba82b.mp4",
+   "thumbPath": "library/a336ca1b-3124-44f1-a8ae-fb044df0c311.jpg"
+  },
+  "new": {
+   "videoPath": "library/a782d57d-f79b-4904-bf0f-4cb2dd5e790b.mp4",
+   "thumbPath": "library/a782d57d-f79b-4904-bf0f-4cb2dd5e790b.jpg"
+  },
+  "crop": [
+   232,
+   145,
+   1427
+  ]
+ },
+ "ddaec37e-66e4-432e-a973-d867f1144f8f": {
+  "title": "스쿼트 로커 발목 모빌리티",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/96eb2c12-5e4e-4e26-9248-cf4bd29a38af.mp4",
+   "thumbPath": "library/848b2426-702a-44c2-8c53-d62c1a8613e5.jpg"
+  },
+  "new": {
+   "videoPath": "library/27d60565-af57-4a9d-88ae-bcd19501f302.mp4",
+   "thumbPath": "library/27d60565-af57-4a9d-88ae-bcd19501f302.jpg"
+  },
+  "crop": "follow"
+ },
+ "3321b1ea-e55b-4f7c-a948-134292dee3d5": {
+  "title": "쿼드러펫 T 레이즈",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/759999f6-cdb6-4561-9da0-f4785a24dc64.mp4",
+   "thumbPath": "library/d10ea500-73e0-46a7-a505-f03ae9c845cc.jpg"
+  },
+  "new": {
+   "videoPath": "library/ebd0a4aa-6fbc-4d37-85e8-d9f6789c78b2.mp4",
+   "thumbPath": "library/ebd0a4aa-6fbc-4d37-85e8-d9f6789c78b2.jpg"
+  },
+  "crop": [
+   241,
+   176,
+   1495
+  ]
+ },
+ "0dba32fc-2935-4b6a-9c2e-3cc426c09256": {
+  "title": "햄스트링 스윕",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/9b544b57-b511-469c-afa3-94cfa8e748bb.mp4",
+   "thumbPath": "library/9b544b57-b511-469c-afa3-94cfa8e748bb.jpg"
+  },
+  "new": {
+   "videoPath": "library/e531bdfb-3c5f-4dfa-96a8-1343f7ceae75.mp4",
+   "thumbPath": "library/e531bdfb-3c5f-4dfa-96a8-1343f7ceae75.jpg"
+  },
+  "crop": "follow"
+ },
+ "acfefd8f-fdd5-4ce0-9571-4fa74219ff61": {
+  "title": "워킹 쿼드 풀",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/7669d9ac-bf1a-4a5c-85db-cd874af880e8.mp4",
+   "thumbPath": "library/50457d03-c1b6-4ca2-9237-de9dc06be40d.jpg"
+  },
+  "new": {
+   "videoPath": "library/1fa2e9a1-22e5-4f08-b5a8-7bdca75f502b.mp4",
+   "thumbPath": "library/1fa2e9a1-22e5-4f08-b5a8-7bdca75f502b.jpg"
+  },
+  "crop": "follow"
+ },
+ "9e2980ce-e668-4347-8680-db1a9360a451": {
+  "title": "힙 플렉서 스트레치 (발 잡고)",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/b5182940-9f7d-4fd5-81b9-77f5e6f37a7e.mp4",
+   "thumbPath": "library/89618d4a-19ff-42b1-b205-45cff5d6e874.jpg"
+  },
+  "new": {
+   "videoPath": "library/cc3ebd36-d39d-4bda-8d93-3c336598b523.mp4",
+   "thumbPath": "library/cc3ebd36-d39d-4bda-8d93-3c336598b523.jpg"
+  },
+  "crop": [
+   339,
+   188,
+   1370
+  ]
+ },
+ "790c0e94-e2b3-4e90-a2b7-be47edb694aa": {
+  "title": "수파인 밴드 고관절 굴곡·신전",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/c73113dd-4871-4a11-b501-1c5e3f65cf4a.mp4",
+   "thumbPath": "library/98d957ec-07b7-4491-9993-f79e9f2d903d.jpg"
+  },
+  "new": {
+   "videoPath": "library/638898c8-cc20-47fc-954e-cba4ec9e3ac0.mp4",
+   "thumbPath": "library/638898c8-cc20-47fc-954e-cba4ec9e3ac0.jpg"
+  },
+  "crop": [
+   387,
+   253,
+   1451
+  ]
+ },
+ "3749cf55-0c72-4f9c-9ce7-22b6ca650b8e": {
+  "title": "랜드마인 로테이션",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/6393f5c6-709a-4f8c-a50d-ee8f6eb28382.mp4",
+   "thumbPath": "library/eeef5d60-2b43-48dc-bc4f-eb54bfba8239.jpg"
+  },
+  "new": {
+   "videoPath": "library/70acbb03-8af7-4a3c-83d5-1db3884134de.mp4",
+   "thumbPath": "library/70acbb03-8af7-4a3c-83d5-1db3884134de.jpg"
+  },
+  "crop": [
+   256,
+   154,
+   1440
+  ]
+ },
+ "4a63d7ac-ffe5-46bf-821c-e680b36b06ff": {
+  "title": "플라이오 푸시업",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/f9bc654a-8226-43cc-97ae-e95d85198ed5.mp4",
+   "thumbPath": "library/213fee60-3dfd-409f-898e-9a9cf28bad3b.jpg"
+  },
+  "new": {
+   "videoPath": "library/b0ca78be-47a6-48a1-971e-1abcc9097d18.mp4",
+   "thumbPath": "library/b0ca78be-47a6-48a1-971e-1abcc9097d18.jpg"
+  },
+  "crop": [
+   293,
+   170,
+   1485
+  ]
+ },
+ "c61dbb25-b509-4438-9072-ae52cb86642f": {
+  "title": "덤벨 트라이셉스 킥백",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/4be71423-d575-4039-958c-8743435ba6ce.mp4",
+   "thumbPath": "library/62625ea0-83bb-4826-8775-28d3b2a25d67.jpg"
+  },
+  "new": {
+   "videoPath": "library/f8135607-958f-4f33-945a-fdaee430dbf0.mp4",
+   "thumbPath": "library/f8135607-958f-4f33-945a-fdaee430dbf0.jpg"
+  },
+  "crop": [
+   227,
+   199,
+   1429
+  ]
+ },
+ "769edef3-506d-45d8-b6c8-553380b68fa0": {
+  "title": "제자리 수직 점프 (버티컬 점프)",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/d7a58d8c-449b-4763-95b4-f02e81cb23f0.mp4",
+   "thumbPath": "library/d7a58d8c-449b-4763-95b4-f02e81cb23f0.jpg"
+  },
+  "new": {
+   "videoPath": "library/6b860dbe-3ec0-46e0-9c91-e88ae5843c16.mp4",
+   "thumbPath": "library/6b860dbe-3ec0-46e0-9c91-e88ae5843c16.jpg"
+  },
+  "crop": [
+   52,
+   295,
+   783
+  ]
+ },
+ "7c125173-4fd4-4040-8f8a-f6ced2918ac6": {
+  "title": "덤벨 리스트 플렉션",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/5c5a68b8-d72b-447e-83b9-37f79bf02b06.mp4",
+   "thumbPath": "library/0cc98fb0-0e7e-46c9-b2ec-5f2937ab4656.jpg"
+  },
+  "new": {
+   "videoPath": "library/740df665-14d4-4405-a2f7-a4c63ea76649.mp4",
+   "thumbPath": "library/740df665-14d4-4405-a2f7-a4c63ea76649.jpg"
+  },
+  "crop": [
+   227,
+   0,
+   1372
+  ]
+ },
+ "2738872b-df7a-4092-85d7-a241338b054b": {
+  "title": "스플릿 스탠스 워터볼 찹",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/5f2edde5-ceb6-4bde-a921-7bfdf8212879.mp4",
+   "thumbPath": "library/ac4446fe-f568-4bb4-b7fb-cd3a04e1f217.jpg"
+  },
+  "new": {
+   "videoPath": "library/9cd53b18-477c-4838-be8e-8ead836982ae.mp4",
+   "thumbPath": "library/9cd53b18-477c-4838-be8e-8ead836982ae.jpg"
+  },
+  "crop": [
+   424,
+   271,
+   1075
+  ]
+ },
+ "c875882f-fae9-4a20-9bb3-5ba8ba1ccc5f": {
+  "title": "고관절 외전 사이드 플랭크",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/58797a74-3fd6-4e96-8961-be2f92f609a8.mp4",
+   "thumbPath": "library/fd0d10a2-9dd9-40e1-a2ce-9d30d75d61eb.jpg"
+  },
+  "new": {
+   "videoPath": "library/5f18ec28-be0c-4ebe-983d-48904c4ca747.mp4",
+   "thumbPath": "library/5f18ec28-be0c-4ebe-983d-48904c4ca747.jpg"
+  },
+  "crop": [
+   491,
+   282,
+   927
+  ]
+ },
+ "99021953-678a-4997-aa36-5431349dcae5": {
+  "title": "프론 Y 레이즈",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/8591e8e4-6506-417a-abbc-02097f9ae8de.mp4",
+   "thumbPath": "library/94a37cb3-c4ed-4e57-acbb-3cc1f38fc106.jpg"
+  },
+  "new": {
+   "videoPath": "library/8b52cc18-f055-483e-981a-ff7c57b1a8ce.mp4",
+   "thumbPath": "library/8b52cc18-f055-483e-981a-ff7c57b1a8ce.jpg"
+  },
+  "crop": [
+   161,
+   276,
+   1429
+  ]
+ },
+ "b1ea2faa-4799-49dc-a1a0-c2cbb6c3d5e4": {
+  "title": "쿼드러펫 Y 레이즈",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/1a0cdbf0-c14d-44a6-9571-82619a7ea1e3.mp4",
+   "thumbPath": "library/6f28bdc4-7fb4-49ba-a71e-bdaf810d391d.jpg"
+  },
+  "new": {
+   "videoPath": "library/cd7e875b-f7e6-4d73-8b95-a136729ab379.mp4",
+   "thumbPath": "library/cd7e875b-f7e6-4d73-8b95-a136729ab379.jpg"
+  },
+  "crop": [
+   120,
+   189,
+   1495
+  ]
+ },
+ "7081f9e6-246c-4c8b-aa90-41b94177631a": {
+  "title": "프론 슈퍼맨",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/3ac1a9cb-f9df-4ff3-b903-88fee0411778.mp4",
+   "thumbPath": "library/ce63af38-fb58-41c2-a2f4-e41cd97f7631.jpg"
+  },
+  "new": {
+   "videoPath": "library/2b1ee2a1-50d7-4e32-ab91-2e6369a412c4.mp4",
+   "thumbPath": "library/2b1ee2a1-50d7-4e32-ab91-2e6369a412c4.jpg"
+  },
+  "crop": [
+   377,
+   220,
+   1218
+  ]
+ },
+ "c8f2b021-00d1-49aa-907d-6c6c0ad6f8eb": {
+  "title": "프론 막대 스캡 홀드",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/cdf943b1-d27a-4231-b4f1-87f663a68d5e.mp4",
+   "thumbPath": "library/794852b7-70fa-4d16-a90f-551ca18e5a38.jpg"
+  },
+  "new": {
+   "videoPath": "library/96489122-5058-42b9-8e93-8020e4495270.mp4",
+   "thumbPath": "library/96489122-5058-42b9-8e93-8020e4495270.jpg"
+  },
+  "crop": [
+   354,
+   303,
+   1205
+  ]
+ },
+ "3de4717c-0e6e-4048-b560-0b804789a5be": {
+  "title": "피겨4 햄스트링 스트레치",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/e1b82de2-b79b-4b44-ba99-b6866cec18b2.mp4",
+   "thumbPath": "library/e1b82de2-b79b-4b44-ba99-b6866cec18b2.jpg"
+  },
+  "new": {
+   "videoPath": "library/db8b8fcf-22a0-4aa6-8df9-ddc66c5cc0b4.mp4",
+   "thumbPath": "library/db8b8fcf-22a0-4aa6-8df9-ddc66c5cc0b4.jpg"
+  },
+  "crop": [
+   169,
+   82,
+   1521
+  ]
+ },
+ "4f0c9140-6247-4856-a8c6-9d3ccec7ef04": {
+  "title": "하프닐링 워터볼 찹",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/5f1485c2-f8df-438f-8ccf-56afea4c66d9.mp4",
+   "thumbPath": "library/bdd95f6d-3ff5-4dff-8587-cc12c4c24de0.jpg"
+  },
+  "new": {
+   "videoPath": "library/c56c3608-bb5c-40fd-9325-4f0331931353.mp4",
+   "thumbPath": "library/c56c3608-bb5c-40fd-9325-4f0331931353.jpg"
+  },
+  "crop": [
+   576,
+   364,
+   909
+  ]
+ },
+ "47178d3f-15ad-40d6-b008-7aafaa4cbfbd": {
+  "title": "슬라이더 바디 소",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/c23926b6-1d61-416a-9e13-7e175c310060.mp4",
+   "thumbPath": "library/62e23101-6753-4f00-8158-01ca5d49ec7c.jpg"
+  },
+  "new": {
+   "videoPath": "library/b7ef1492-487d-41d3-a49d-fe27fdda58d4.mp4",
+   "thumbPath": "library/b7ef1492-487d-41d3-a49d-fe27fdda58d4.jpg"
+  },
+  "crop": [
+   418,
+   248,
+   1408
+  ]
+ },
+ "45f0177a-e1eb-454c-a9b3-359a05784d6c": {
+  "title": "워킹 런지",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/d966db95-2094-4f3b-80ac-641b5b294cef.mp4",
+   "thumbPath": "library/4eeadc2f-5669-498e-b984-966199ebfa7d.jpg"
+  },
+  "new": {
+   "videoPath": "library/cd698434-ff5f-4f02-8c77-813c65174959.mp4",
+   "thumbPath": "library/cd698434-ff5f-4f02-8c77-813c65174959.jpg"
+  },
+  "crop": "follow"
+ },
+ "0f9f8df6-2efb-4f85-b2db-84b966a1be94": {
+  "title": "박스 스쿼트",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/aa86b730-f9a5-4f1e-8974-62d41499ad57.mp4",
+   "thumbPath": "library/acc8c93a-e3b4-4b54-b2a9-eb15382933a0.jpg"
+  },
+  "new": {
+   "videoPath": "library/b940d22c-1eb1-40e6-b839-4cc4b37c94a3.mp4",
+   "thumbPath": "library/b940d22c-1eb1-40e6-b839-4cc4b37c94a3.jpg"
+  },
+  "crop": [
+   209,
+   188,
+   1399
+  ]
+ },
+ "c7fca9a6-2995-4f17-9a0a-695c474bcba6": {
+  "title": "싱글렉 뎁스 드롭",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/e85b9f69-fae0-4f31-96da-fd88db21582c.mp4",
+   "thumbPath": "library/e565f276-dd55-4440-b887-e130d6352232.jpg"
+  },
+  "new": {
+   "videoPath": "library/63dbd408-2867-4e26-91a3-ab058c609e07.mp4",
+   "thumbPath": "library/63dbd408-2867-4e26-91a3-ab058c609e07.jpg"
+  },
+  "crop": [
+   278,
+   71,
+   1434
+  ]
+ },
+ "dffb94cf-d900-462b-8595-9ae621a0168b": {
+  "title": "스트래들 스트레치",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/200d60c8-b244-49fc-96e0-a1a645eb1a05.mp4",
+   "thumbPath": "library/40e9e4b8-39b9-4f4a-92ba-c3094624eea9.jpg"
+  },
+  "new": {
+   "videoPath": "library/ae568b48-ee53-4b61-b118-f59ff0a63c09.mp4",
+   "thumbPath": "library/ae568b48-ee53-4b61-b118-f59ff0a63c09.jpg"
+  },
+  "crop": [
+   276,
+   163,
+   1449
+  ]
+ },
+ "2f46e036-af36-4344-8158-c7d92a394abb": {
+  "title": "랜드마인 RDL",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/c2cea608-9643-4427-9502-7a7b0aa96e7d.mp4",
+   "thumbPath": "library/d75bdf18-5487-4227-903b-84b989d59f30.jpg"
+  },
+  "new": {
+   "videoPath": "library/492ffb97-b1ae-405d-9c81-f6ff258ab3c3.mp4",
+   "thumbPath": "library/492ffb97-b1ae-405d-9c81-f6ff258ab3c3.jpg"
+  },
+  "crop": [
+   262,
+   143,
+   1333
+  ]
+ },
+ "269c7ca3-75ea-4739-9b05-60e60a1eeb5f": {
+  "title": "레터럴 베어크롤",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/ddc92383-df18-4768-b111-350936044fed.mp4",
+   "thumbPath": "library/9e2e1cbc-0236-4755-966e-76b4f47eb66e.jpg"
+  },
+  "new": {
+   "videoPath": "library/92ff82f1-2be4-4f3b-af3c-365ed2930733.mp4",
+   "thumbPath": "library/92ff82f1-2be4-4f3b-af3c-365ed2930733.jpg"
+  },
+  "crop": "follow"
+ },
+ "7364a9ac-15a6-47b2-aa0c-52854bf82e2e": {
+  "title": "싱글렉 고관절 회전 + 워터볼 프레스",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/e2bf1e46-12e8-497b-a0d6-8e9392272894.mp4",
+   "thumbPath": "library/8cf9a54c-cf7b-4052-9e7d-f64c8bd5a4d5.jpg"
+  },
+  "new": {
+   "videoPath": "library/45d26202-ce6a-4a5d-b8d7-c9eab06846ae.mp4",
+   "thumbPath": "library/45d26202-ce6a-4a5d-b8d7-c9eab06846ae.jpg"
+  },
+  "crop": [
+   503,
+   321,
+   1003
+  ]
+ },
+ "752f043d-e7a3-4044-a79e-1f404893e0eb": {
+  "title": "워킹 니 허그",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/d222a989-20ed-4804-b465-0122c4c8c4b1.mp4",
+   "thumbPath": "library/c616ec17-d201-45cb-a848-58b8e9991ae4.jpg"
+  },
+  "new": {
+   "videoPath": "library/074f9934-f570-40ab-b185-237d5dbee5cf.mp4",
+   "thumbPath": "library/074f9934-f570-40ab-b185-237d5dbee5cf.jpg"
+  },
+  "crop": "follow"
+ },
+ "130cd92f-3bdb-4b04-90dc-07eff60f538e": {
+  "title": "싱글렉 덤벨 데드스톱 RDL",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/652732e3-eab2-4584-8ac0-82b6b25a5ca1.mp4",
+   "thumbPath": "library/09d9223e-4172-4d4f-90a3-20df2088743c.jpg"
+  },
+  "new": {
+   "videoPath": "library/b0e7b7c3-2153-4c8b-a8c3-91e61be12c29.mp4",
+   "thumbPath": "library/b0e7b7c3-2153-4c8b-a8c3-91e61be12c29.jpg"
+  },
+  "crop": [
+   417,
+   58,
+   1455
+  ]
+ },
+ "14f96cdf-023f-4a2b-8733-1e830a41049b": {
+  "title": "프론 인클라인 리어델트 레이즈",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/a36411fb-79fa-4a50-b993-8d8d784ce720.mp4",
+   "thumbPath": "library/999e36d0-c154-43bc-8a36-700af456aa5a.jpg"
+  },
+  "new": {
+   "videoPath": "library/244a48d0-939a-4b21-9a37-329b0dce6a35.mp4",
+   "thumbPath": "library/244a48d0-939a-4b21-9a37-329b0dce6a35.jpg"
+  },
+  "crop": [
+   86,
+   205,
+   1438
+  ]
+ },
+ "13ef4542-c713-493b-a5a8-1773d23720fa": {
+  "title": "메디신볼 밀어 내리치기 (푸시 슬램)",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/f8584551-ecd9-4264-a4c7-cb772b7b21e2.mp4",
+   "thumbPath": "library/1f312a2b-ae64-4e67-a425-82664d2d414d.jpg"
+  },
+  "new": {
+   "videoPath": "library/1f98cc7b-9ac5-4287-aa16-e9567039609f.mp4",
+   "thumbPath": "library/1f98cc7b-9ac5-4287-aa16-e9567039609f.jpg"
+  },
+  "crop": [
+   305,
+   171,
+   1423
+  ]
+ },
+ "96b2bcd4-9307-4330-b915-7d2defa9ef27": {
+  "title": "P3 회전 무릎 슬램",
+  "table": "drill",
+  "old": {
+   "videoPath": "library/d71839ea-7eee-480c-8e7e-4f133049d9fa.mp4",
+   "thumbPath": "library/2f5cc908-eaa6-4c6b-93df-cbe51eefd47e.jpg"
+  },
+  "new": {
+   "videoPath": "library/d77c9cbe-baa8-4311-b458-1ea932ec3f90.mp4",
+   "thumbPath": "library/d77c9cbe-baa8-4311-b458-1ea932ec3f90.jpg"
+  },
+  "crop": [
+   447,
+   349,
+   1011
+  ]
+ },
+ "aee35d44-3887-40e7-8807-2ef944e4be26": {
+  "title": "오버헤드 메디신볼 스로우",
+  "table": "drill",
+  "old": {
+   "videoPath": "library/20c5ed56-c8b3-4c2e-b704-97978b9c924f.mp4",
+   "thumbPath": "library/023634a0-2a4d-4dd8-a13f-bffcc660659c.jpg"
+  },
+  "new": {
+   "videoPath": "library/756668c6-ac41-4158-95c7-d66c6a3462f6.mp4",
+   "thumbPath": "library/756668c6-ac41-4158-95c7-d66c6a3462f6.jpg"
+  },
+  "crop": [
+   375,
+   263,
+   1135
+  ]
+ },
+ "50ca932a-93cb-407a-bf94-49a0c8d00cfe": {
+  "title": "P1 스트레치 스로우 (작은 공)",
+  "table": "drill",
+  "old": {
+   "videoPath": "library/f34aeef1-842d-4fe9-ba10-37dcd9b32af2.mp4",
+   "thumbPath": "library/9d6205ed-c6a3-41e6-92ff-1b0349414d19.jpg"
+  },
+  "new": {
+   "videoPath": "library/4019732c-206d-4dd9-af6c-3a9b27486aa7.mp4",
+   "thumbPath": "library/4019732c-206d-4dd9-af6c-3a9b27486aa7.jpg"
+  },
+  "crop": [
+   516,
+   319,
+   1099
+  ]
+ },
+ "e0ad14f2-4545-4d17-9c44-6211951aced9": {
+  "title": "P2 힌지 홉 스로우 (작은 공)",
+  "table": "drill",
+  "old": {
+   "videoPath": "library/5e73428a-69aa-4a8d-938a-12c68e895a44.mp4",
+   "thumbPath": "library/07329373-12b4-442f-a60c-7fb045e18aac.jpg"
+  },
+  "new": {
+   "videoPath": "library/df33bfb2-6006-425a-a9d2-a177674fb7bd.mp4",
+   "thumbPath": "library/df33bfb2-6006-425a-a9d2-a177674fb7bd.jpg"
+  },
+  "crop": [
+   482,
+   297,
+   1246
+  ]
+ },
+ "c0bcd6e6-23fa-4396-995c-91e400918782": {
+  "title": "P5 회전 앞다리 슬램 (큰 공)",
+  "table": "drill",
+  "old": {
+   "videoPath": "library/96d42748-de8b-47b4-a18e-5b76988598af.mp4",
+   "thumbPath": "library/74ce3f7c-60d1-4654-adc3-f4fdfb8e2229.jpg"
+  },
+  "new": {
+   "videoPath": "library/2bff7640-589f-41e8-874a-6e97e319e2bb.mp4",
+   "thumbPath": "library/2bff7640-589f-41e8-874a-6e97e319e2bb.jpg"
+  },
+  "crop": [
+   526,
+   320,
+   1037
+  ]
+ },
+ "f71710df-9268-4c2d-8a0e-078356c0b7f6": {
+  "title": "P2 지지 레그 리프트 드리프트 → 힌지",
+  "table": "drill",
+  "old": {
+   "videoPath": "library/65d68376-c65b-4072-9331-75c56ad92c82.mp4",
+   "thumbPath": "library/c1d6f341-ffdd-4707-9fa7-4df47336592d.jpg"
+  },
+  "new": {
+   "videoPath": "library/2f027759-6af8-4961-bf22-aa224ec06aa8.mp4",
+   "thumbPath": "library/2f027759-6af8-4961-bf22-aa224ec06aa8.jpg"
+  },
+  "crop": [
+   518,
+   292,
+   1402
+  ]
+ },
+ "22160a0e-cf2e-4a3e-b6ea-e4b23e997678": {
+  "title": "P2 레그 리프트 드리프트 → 힌지",
+  "table": "drill",
+  "old": {
+   "videoPath": "library/2f1be058-9774-49cf-9c55-1b9e2e995c5d.mp4",
+   "thumbPath": "library/010cc314-d359-41dc-b17a-3eb4d450eaf6.jpg"
+  },
+  "new": {
+   "videoPath": "library/2d14a667-9bd4-4c7b-88fb-aedae6c4ace6.mp4",
+   "thumbPath": "library/2d14a667-9bd4-4c7b-88fb-aedae6c4ace6.jpg"
+  },
+  "crop": [
+   586,
+   338,
+   873
+  ]
+ },
+ "e3b9cb28-87c7-4ab1-a00c-41a6b23c4fca": {
+  "title": "P1 레그 리프트 드리프트",
+  "table": "drill",
+  "old": {
+   "videoPath": "library/52883c93-b74e-40f3-b7f5-390e9d7d2d39.mp4",
+   "thumbPath": "library/ca5936ed-8503-469d-a09b-80c7a3b0a2fe.jpg"
+  },
+  "new": {
+   "videoPath": "library/e5b41962-cb2e-4449-8436-d63004b77ffe.mp4",
+   "thumbPath": "library/e5b41962-cb2e-4449-8436-d63004b77ffe.jpg"
+  },
+  "crop": [
+   330,
+   298,
+   1152
+  ]
+ },
+ "10ec81d8-0a64-4c41-b446-7a328d188d46": {
+  "title": "P3 레그 리프트 드리프트 → 힌지 → 내회전",
+  "table": "drill",
+  "old": {
+   "videoPath": "library/7b985d1f-a549-460d-9f35-fb1e0bdd288c.mp4",
+   "thumbPath": "library/ab6b9661-b410-4ad8-8857-4687f3014bdf.jpg"
+  },
+  "new": {
+   "videoPath": "library/f3022c01-3f61-449f-83c3-9b21d0df58b9.mp4",
+   "thumbPath": "library/f3022c01-3f61-449f-83c3-9b21d0df58b9.jpg"
+  },
+  "crop": [
+   517,
+   325,
+   994
+  ]
+ },
+ "23860010-550b-48f1-ae81-78090b2561ae": {
+  "title": "P2 레터럴 힌지 + 흉추 회전",
+  "table": "drill",
+  "old": {
+   "videoPath": "library/8b63c41f-b2ed-48b5-b64d-73fab3a0df10.mp4",
+   "thumbPath": "library/566742d5-f35b-466d-8887-f3a06e525f1d.jpg"
+  },
+  "new": {
+   "videoPath": "library/33b183b0-7048-4220-8523-42eaaccaa8de.mp4",
+   "thumbPath": "library/33b183b0-7048-4220-8523-42eaaccaa8de.jpg"
+  },
+  "crop": [
+   392,
+   300,
+   1005
+  ]
+ },
+ "8efbb10e-b587-43ad-80df-e9ef58c113da": {
+  "title": "P4 힙 스위블",
+  "table": "drill",
+  "old": {
+   "videoPath": "library/d6107e58-3c73-4c6b-b91c-78dac7c3c6dc.mp4",
+   "thumbPath": "library/84c6e6bc-3374-468c-99a3-02248d92576d.jpg"
+  },
+  "new": {
+   "videoPath": "library/542321e2-6d49-47ae-8969-5b21832a20d3.mp4",
+   "thumbPath": "library/542321e2-6d49-47ae-8969-5b21832a20d3.jpg"
+  },
+  "crop": [
+   490,
+   323,
+   1011
+  ]
+ },
+ "4c16ddb7-0574-4e30-9af4-d27c774af36d": {
+  "title": "P2 힌지 홉",
+  "table": "drill",
+  "old": {
+   "videoPath": "library/b481bd31-a229-468f-836d-5288e6218952.mp4",
+   "thumbPath": "library/8ff69627-f230-4c63-895e-99a7ea5ee8a8.jpg"
+  },
+  "new": {
+   "videoPath": "library/5c5937ae-d952-4af0-b88b-6741622830e9.mp4",
+   "thumbPath": "library/5c5937ae-d952-4af0-b88b-6741622830e9.jpg"
+  },
+  "crop": [
+   644,
+   322,
+   971
+  ]
+ },
+ "26cf9890-11f0-4231-ae7c-7b12718df66f": {
+  "title": "P4 스플릿 스탠스 흉추 회전",
+  "table": "drill",
+  "old": {
+   "videoPath": "library/707376c1-b8b7-48b6-a517-6b6b0ff505b8.mp4",
+   "thumbPath": "library/e4375c0a-c244-4910-a9a0-34a26dac4783.jpg"
+  },
+  "new": {
+   "videoPath": "library/c413e0b9-ea8e-46d7-b772-12d200fec012.mp4",
+   "thumbPath": "library/c413e0b9-ea8e-46d7-b772-12d200fec012.jpg"
+  },
+  "crop": [
+   389,
+   298,
+   1220
+  ]
+ },
+ "373f6141-8831-4d0d-bd9c-60e30f1c40d5": {
+  "title": "P4 레터럴 힌지 + 고관절 굴곡근 신전",
+  "table": "drill",
+  "old": {
+   "videoPath": "library/85eef461-f117-4805-ac5b-6b3d485b4724.mp4",
+   "thumbPath": "library/ca75f6d5-1e56-423e-a799-ab2dab123736.jpg"
+  },
+  "new": {
+   "videoPath": "library/d621fa5c-ecc5-49d5-8c21-3661f1be9afa.mp4",
+   "thumbPath": "library/d621fa5c-ecc5-49d5-8c21-3661f1be9afa.jpg"
+  },
+  "crop": [
+   478,
+   355,
+   1009
+  ]
+ },
+ "46898061-36e2-4217-b2fe-9996dba729e3": {
+  "title": "P2 레그 리프트 드리프트 → 힌지 + 반대회전",
+  "table": "drill",
+  "old": {
+   "videoPath": "library/d9e2cfbf-df82-4035-b92a-0100f8f5bfbc.mp4",
+   "thumbPath": "library/bbef6a85-258a-4538-808a-97acb54f68d6.jpg"
+  },
+  "new": {
+   "videoPath": "library/7344b39d-cc97-49e8-a20c-2c187fd71cee.mp4",
+   "thumbPath": "library/7344b39d-cc97-49e8-a20c-2c187fd71cee.jpg"
+  },
+  "crop": [
+   479,
+   332,
+   873
+  ]
+ },
+ "758d684f-8c79-4e2c-8133-bf479ea4be45": {
+  "title": "P2 레터럴 맥스뎁스 힌지",
+  "table": "drill",
+  "old": {
+   "videoPath": "library/3ab661b2-996d-4f9f-bca6-e30fd2a4a858.mp4",
+   "thumbPath": "library/7c345465-667c-47df-84f0-46edea36c30f.jpg"
+  },
+  "new": {
+   "videoPath": "library/66d879dd-4e0f-4a50-b167-0ce124e7938e.mp4",
+   "thumbPath": "library/66d879dd-4e0f-4a50-b167-0ce124e7938e.jpg"
+  },
+  "crop": [
+   346,
+   255,
+   1227
+  ]
+ },
+ "e759318e-e89c-426b-a3d9-b41ea412be90": {
+  "title": "P1 스위치 풋 드롭 힌지 스로우 (작은 공)",
+  "table": "drill",
+  "old": {
+   "videoPath": "library/fa6eeea5-cff6-47b8-8a4c-425f45470481.mp4",
+   "thumbPath": "library/d91ff3ca-2919-4d15-adef-60b8ac596a04.jpg"
+  },
+  "new": {
+   "videoPath": "library/6743e8aa-7fd1-4d83-8258-75ccfbaf8897.mp4",
+   "thumbPath": "library/6743e8aa-7fd1-4d83-8258-75ccfbaf8897.jpg"
+  },
+  "crop": [
+   259,
+   241,
+   1357
+  ]
+ },
+ "7d115fa4-020e-4d84-ae09-11bad3d0d123": {
+  "title": "P1 스위치 풋 드롭 힌지 스로우 (큰 공)",
+  "table": "drill",
+  "old": {
+   "videoPath": "library/3732b5bf-00be-4188-9afc-140063ec656c.mp4",
+   "thumbPath": "library/6f303d1b-c4e8-4abe-ad08-a56d3bc7d109.jpg"
+  },
+  "new": {
+   "videoPath": "library/801880ef-49f0-4750-af8d-028d310fb010.mp4",
+   "thumbPath": "library/801880ef-49f0-4750-af8d-028d310fb010.jpg"
+  },
+  "crop": [
+   607,
+   323,
+   1083
+  ]
+ },
+ "58320c75-b59b-449a-a4d5-3b699f0300b4": {
+  "title": "P3 레그 리프트 드리프트 → 힌지 + 반대회전 → 내회전",
+  "table": "drill",
+  "old": {
+   "videoPath": "library/05c6e2e1-197e-4f39-b39b-091c547eebcd.mp4",
+   "thumbPath": "library/2088da29-5b01-44dc-a067-13415a118700.jpg"
+  },
+  "new": {
+   "videoPath": "library/963e2f9a-b707-4735-9c69-aebd7b79bce9.mp4",
+   "thumbPath": "library/963e2f9a-b707-4735-9c69-aebd7b79bce9.jpg"
+  },
+  "crop": [
+   528,
+   332,
+   873
+  ]
+ },
+ "a13f7ec8-c23d-4435-bd21-014070015578": {
+  "title": "P1 지지 레그 리프트 드리프트",
+  "table": "drill",
+  "old": {
+   "videoPath": "library/f11e518d-a406-43f8-a488-2017a467d9c7.mp4",
+   "thumbPath": "library/b05fc7b1-57f9-47c9-8596-2dc63841f475.jpg"
+  },
+  "new": {
+   "videoPath": "library/145153bb-e3cf-4d00-b1b2-5ac2041d1680.mp4",
+   "thumbPath": "library/145153bb-e3cf-4d00-b1b2-5ac2041d1680.jpg"
+  },
+  "crop": [
+   444,
+   259,
+   1391
+  ]
+ },
+ "e611b6aa-ed27-4604-a996-47b40c52b24a": {
+  "title": "P4 스플릿 스탠스 스로우 (작은 공)",
+  "table": "drill",
+  "old": {
+   "videoPath": "library/a34b450e-869b-484c-8580-abbc77f3476f.mp4",
+   "thumbPath": "library/5e2b60ea-169c-4881-8da9-0628bd179cd7.jpg"
+  },
+  "new": {
+   "videoPath": "library/be91834d-7f68-4f28-b91e-f4aede06d770.mp4",
+   "thumbPath": "library/be91834d-7f68-4f28-b91e-f4aede06d770.jpg"
+  },
+  "crop": [
+   557,
+   354,
+   1007
+  ]
+ },
+ "72ed979c-69bf-44f6-9c80-42309969a4d1": {
+  "title": "P2 레터럴 힌지 풋 스톰프",
+  "table": "drill",
+  "old": {
+   "videoPath": "library/ca7d05e7-a4c7-4027-8b4c-bb787bf86210.mp4",
+   "thumbPath": "library/fee3122a-2d86-4916-8d74-70268b05e7f7.jpg"
+  },
+  "new": {
+   "videoPath": "library/e0fcf13c-77d7-437b-a1cc-47b373a225be.mp4",
+   "thumbPath": "library/e0fcf13c-77d7-437b-a1cc-47b373a225be.jpg"
+  },
+  "crop": [
+   509,
+   346,
+   873
+  ]
+ }
+}

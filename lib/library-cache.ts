@@ -105,7 +105,8 @@ export const allExercises = unstable_cache(
   /* :v50 — 2026-11-16 워밍업 12 · 하체 10 · 상체 5 · 모빌리티 2를 더함(scripts/library-adds-2026-11-16.mjs) — 같은 날 v49 와 겹쳐 하나 더 올림. */
   /* :v51 — 2026-11-16 암케어 팔꿈치 후방 1 → 5: '나중에 촬영' 둘을 되돌리고 참고 영상 둘을 더함(scripts/library-elbow-back-2026-11-16.mjs). */
   /* :v52 — 2026-11-16 덤벨 벤트오버 로우를 더함(scripts/library-add-db-row-2026-11-16.mjs) — 덤벨만 있고 벤치가 없으면 '중간' 이상 로우가 0개였다. */
-  ['library:exercises:v52'],
+  /* :v53 — 2026-11-16 직접 찍은 영상 중 사람이 작은 운동 38개를 잘라 키운 판으로, 앞뒤 빈 시간이 긴 12개를 자른 판으로 경로 바꿈(scripts/shoot-trim/size/). */
+  ['library:exercises:v53'],
   { tags: [LIBRARY_TAG] }
 );
 
@@ -129,8 +130,9 @@ export const allGuides = unstable_cache(
    * :v9 — 같은 날 '스플릿 스탠스 발목 등척 밀기'를 운동 라이브러리 파워로 옮기고 '등척'을 '아이소메트릭'으로.
    * :v10 — 2026-10-14 드릴 37개를 '나중에 촬영'으로(scripts/drills-later-2026-10-14.mjs).
    * :v12 — 2026-10-16 주 요소 19묶음 · 새 분류 '근력 · 안정 드릴'(scripts/mechanics-reclass-2026-10-16.mjs).
+   * :v13 — 2026-11-16 직접 찍은 드릴 22개(대부분 야외)를 잘라 키운 판으로 경로 바꿈(scripts/shoot-trim/size/apply.mjs).
    */
-  ['library:guides:v12'],
+  ['library:guides:v13'],
   { tags: [LIBRARY_TAG] }
 );
 

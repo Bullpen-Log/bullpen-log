@@ -87,6 +87,62 @@ npm run training:test && npm run program:test && npm run shoot:test && npm run c
 아직 사용자가 정하지 않은 것(10-18): 목록 밖 도구 넷(막대 · 패드 · 폼롤러 · 보수볼)을 장비 목록에 넣을지 · 번갈아 하는 운동의 좌우 따로 기준 ·
 전완 수피네이션 아이소메트릭(막대) 설명을 영상 방식으로 바꿀지.
 
+## 4. 사람 크기만 다듬기 — 직접 찍은 영상 전부 (2026-11-16)
+
+사용자: "직접 촬영한 영상들 전부 검수하고 인물이 너무 작게 보이면 적절한 크기로 화면에 위치하게 편집, 신중하게". 앞뒤 시간은 건드리지 않고 화면만 잘라 키운다.
+도구는 `scripts/shoot-trim/size/`(맥 · Python 3.12 + `av opencv-python-headless pillow numpy rtmlib onnxruntime`, ffmpeg). 작업 폴더는 외장 디스크에.
+
+```bash
+node --env-file=.env scripts/shoot-trim/size/list.mjs <작업 폴더>        # 숨기지 않은 운동 · 드릴의 library/ 영상 · 썸네일(번들 원본이 있으면 링크)
+python scripts/shoot-trim/size/measure.py <작업 폴더> 4                 # probe.json + 사람 상자(YOLOX-s, 0.2초) · 움직임
+python scripts/shoot-trim/size/plan.py <작업 폴더>                      # plan.json — '작음'이면 판(crop)
+python scripts/shoot-trim/size/sheets.py <작업 폴더> grid               # 전부 한 칸씩(30개 한 장) — 눈으로 훑기
+python scripts/shoot-trim/size/sheets.py <작업 폴더> detail <id앞자리…> # 8장(위 원본 + 상자 · 판, 아래 판대로 자른 모습)
+python scripts/shoot-trim/size/follow.py plan <작업 폴더> <id앞자리>     # 이동하는 운동 — 따라가는 판(sheets/f-<id>.jpg)
+python scripts/shoot-trim/size/render.py <작업 폴더>                    # 고정 판 → out/<id>.mp4 · .720.mp4 · .jpg
+python scripts/shoot-trim/size/follow.py render <작업 폴더> <id앞자리>   # 따라가는 판 → 같은 세 파일
+python scripts/shoot-trim/size/thumbcheck.py <작업 폴더>                # 썸네일이 전체 화면이 아니면(차이 큼) 새 영상의 그 시각 장면으로 다시
+python scripts/shoot-trim/size/verify.py <작업 폴더> <id 목록.json> <이름> # 완성본(720p) 확인 그림
+python scripts/shoot-trim/size/densecheck.py <작업 폴더> 3 && python scripts/shoot-trim/size/densereport.py <작업 폴더>  # 모든 장면(초당 30장) — 판 밖 장면 0 이어야 올린다
+npm run backup && node --env-file=.env scripts/shoot-trim/size/apply.mjs <작업 폴더> --apply
+npm run library:bundle -- --hevc                                          # 새 앱용 HEVC 판(library-hevc/)
+```
+
+- **'작음'**: 사람 상자(시간 전체, 바깥 3~97%)가 화면 너비 · 높이 모두 62% 밑(10-17 규칙 60% 와 같은 뜻). 경계(62~66%)는 눈으로 보고 정한다.
+- **판**: 사람 상자 전부 + 여백(좌우 8% · 위 12%(머리 위로 든 도구) · 아래 8%), 화면 비율 그대로, 확대 1.15~2.2배. 2.2배는 앱(720p)에서 무난,
+  2.8배부터 흐렸다(시험 sheets/zoomtest). 색 형식(전 범위 · 보통 범위) · 장면 시각 · 장면 수는 원본 그대로(원본을 잘라 키운 것과 평균 차 1 미만).
+- **따라가기**: 걸어오거나 옆으로 기는 운동은 고정 판으로 못 키운다 — 사람 상자를 따라가며 확대 · 위치를 천천히 바꾼다(확대 σ2초 · 위치 σ1초로 다듬은 뒤
+  사람 + 여백이 늘 판 안인지 다시 확인). 끝에 카메라로 걸어오는 장면은 확대가 1로 돌아간다.
+- **사용자 규칙(2026-11-16): 운동하는 동안 사람이 화면 밖으로 나가게 편집하면 안 된다.** 판은 0.2초 간격 상자로 정하니, 올리기 전에 densecheck 로
+  모든 장면(초당 30장)을 다시 재 판 밖 장면이 0 인지 본다(원본 화면 끝에 이미 걸친 쪽은 따로 — 판 탓이 아님). 11-16 60개: 0장, 가장 빠듯한 고정 판 여유 1.3%.
+- **자주 틀리는 것**: 상자는 사람만 감싼다 — 막대 · 아령 · 바벨 끝 · 밴드 고정점이 판 가장자리에 걸리는지 아래 줄(자른 모습)에서 꼭 본다(`overrides.json` 의
+  `dy` · `dx` 로 옮기거나 `crop: "auto"` 로 경계 영상을 넣고 `skip` 으로 뺀다). 다른 사람이 이미 잘라 만든 썸네일은 다시 자르면 안 된다(thumbcheck).
+- **2026-11-16 결과**: 335개 검수 → 60개 바꿈(운동 38 · 드릴 22, 고정 54 · 따라가기 6: 스쿼트 로커 · 햄스트링 스윕 · 워킹 쿼드 풀 · 워킹 런지 · 레터럴 베어크롤 · 워킹 니 허그).
+  야외 드릴은 사람이 화면 높이의 30% 안팎이라 1.7~2.2배가 많다. A-스킵은 11-13 검수에서 이미 구도를 고쳐 그대로 뒀다. 판 · 예외는
+  `scripts/shoot-trim/size/overrides-2026-11-16.json`, 바꾼 목록 · 옛 경로는 `applied-2026-11-16.json`(되돌리기: 작업 폴더에 applied.json 으로 두고 `apply.mjs <폴더> --revert`).
+  캐시 `library:exercises:v53` · `library:guides:v13`. 백업 `db-2026-11-16-11-10.json`.
+
+### 앞뒤 빈 시간 (2026-11-16 같은 날)
+
+사용자: "운동 시작 · 끝 전후로 공백이 너무 긴 영상도 편집, 동작 전 1초 · 끝 1초 정도" → "(2초)까지는 괜찮아". 빈 시간이 **2초 넘을 때만** 잘라 동작 앞 · 뒤 1초를 남긴다.
+
+```bash
+python scripts/shoot-trim/size/motion.py <작업 폴더> 6        # 0.1초마다 사람 상자 안 움직임
+python scripts/shoot-trim/size/idle.py <작업 폴더>            # idle.json — 후보(움직임 처음 · 끝 앞뒤 2초 넘음)
+python scripts/shoot-trim/size/idlesheets.py <작업 폴더> <id 목록.json> <이름>  # 잘릴 장면(빨강) · 남는 장면(초록)
+python scripts/shoot-trim/size/edges.py <작업 폴더> <[[id, head|tail]…].json> <이름>  # 앞 · 뒤 5초(걸어오기 찾기)
+python scripts/shoot-trim/size/cutstrip.py <작업 폴더>        # trims.json 자르는 곳 앞뒤 0.25초 간격
+python scripts/shoot-trim/size/trim.py <작업 폴더>            # out-trim/ — 화면을 키운 영상은 같은 판으로 원본에서 한 번에
+npm run backup && node --env-file=.env scripts/shoot-trim/size/apply-trim.mjs <작업 폴더> --apply && npm run library:bundle -- --hevc
+```
+
+- **자르면 안 되는 것(눈으로 걸러 낸 것)**: 버티기 · 아이소메트릭(원판 핀치 홀드 · 톨닐링 포스처 홀드 · 엘보/리스트 아이소메트릭 프레스 · 프론 막대 스캡 홀드),
+  끝 자세 유지 스트레칭(밴드 가슴 스트레치 · 하프닐링 레터럴 힌지), 느린 에센트릭(리스트 플렉션 에센트릭), 좌우를 번갈아 하는 스트레칭, 캐리(걷기가 운동).
+  움직임이 작아 자동 판정은 이것들을 '빈 시간'으로 본다. 상자 키로 '카메라로 걸어옴'을 찾던 규칙도 헛것이 많아 뺐다(팔을 머리 위로 · 서 있다 눕기).
+- **11-16 결과**: 335개 → 12개 자름(앞 9 · 뒤 2 · 앞뒤 1 — 워킹 쿼드 풀 · 워킹 니 허그는 끝에 카메라로 걸어오는 2초 남짓을 자름).
+  자른 곳 `trims-2026-11-16.json`, 바꾼 목록 `applied-trim-2026-11-16.json`(되돌리기: 작업 폴더에 applied-trim.json 으로 두고 `apply-trim.mjs --revert`.
+  크기 판까지 되돌릴 때는 이것 먼저). 백업 `db-2026-11-16-12-25.json`.
+
 ## 참고 — 촬영 계획(version 4, 2026-10-18)
 
 2~4주차 완료, 남은 것은 5주차(A 넓은 공간 → 랙 공간 · B 케이블 공간이 동시에), 미룬 것은 '미룬 영상' 칸(8번). 워터볼 운동은 10-18 미룸으로 돌렸다.

@@ -1,0 +1,230 @@
+{
+ "da3a1867-9ca2-42b9-8bfe-e48f132ff6ce": {
+  "title": "수파인 고관절 내회전",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/21d0e1c1-aacf-451e-b846-02c0674b010a.mp4",
+   "thumbPath": "library/202a2623-db53-4e3b-abe5-2d852b07fcdb.jpg"
+  },
+  "new": {
+   "videoPath": "library/b1a2701d-d763-4346-8590-c6eba7ecd36c.mp4",
+   "thumbPath": "library/202a2623-db53-4e3b-abe5-2d852b07fcdb.jpg"
+  },
+  "trim": {
+   "start": 1.4,
+   "end": 20.8,
+   "a0": 2.4,
+   "a1": 20.9,
+   "dur": 20.802
+  }
+ },
+ "dde31619-0ed4-469a-a716-74f0770af32f": {
+  "title": "스콜피온",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/8d5d2b35-a668-4114-8101-34df93801606.mp4",
+   "thumbPath": "library/77e4f98c-3ef1-4a7b-a2eb-3fc0023f014b.jpg"
+  },
+  "new": {
+   "videoPath": "library/ae9a70f9-9183-4c1d-b558-da4a0a5201f1.mp4",
+   "thumbPath": "library/77e4f98c-3ef1-4a7b-a2eb-3fc0023f014b.jpg"
+  },
+  "trim": {
+   "start": 0,
+   "end": 22.2,
+   "a0": 1,
+   "a1": 20.9,
+   "dur": 23.798
+  }
+ },
+ "5e030c46-1d78-4f64-b998-b79719171857": {
+  "title": "스탠딩 숄더 CAR",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/44c0d947-4623-40cf-8ffe-041a31670df0.mp4",
+   "thumbPath": "library/d08c6e28-5289-4962-8050-aef3c52e11f9.jpg"
+  },
+  "new": {
+   "videoPath": "library/d37d16bc-9286-41bb-aed2-72c856e6b595.mp4",
+   "thumbPath": "library/d08c6e28-5289-4962-8050-aef3c52e11f9.jpg"
+  },
+  "trim": {
+   "start": 1.2,
+   "end": 26,
+   "a0": 2.2,
+   "a1": 25.5,
+   "dur": 26
+  }
+ },
+ "f55d1b91-9fde-44a9-a955-88acb699c3cc": {
+  "title": "덤벨 숄더 프레스",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/dcda2292-c876-4837-a1b4-3a9e63458a9f.mp4",
+   "thumbPath": "library/ca23856f-f00f-41cd-ba06-8d739c5b8487.jpg"
+  },
+  "new": {
+   "videoPath": "library/f30ca89f-eeb3-4f5d-bd36-567ded25a1e4.mp4",
+   "thumbPath": "library/ca23856f-f00f-41cd-ba06-8d739c5b8487.jpg"
+  },
+  "trim": {
+   "start": 1.1,
+   "end": 16.6,
+   "a0": 2.1,
+   "a1": 15.4,
+   "dur": 16.598
+  }
+ },
+ "f9a30be4-1c48-492f-9467-e9731c38ab0f": {
+  "title": "바벨 로우",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/13fb0e4b-d757-4c55-a9ee-81a6835eb310.mp4",
+   "thumbPath": "library/38fa9c49-9dc3-4af1-86d0-478a1ed93e4f.jpg"
+  },
+  "new": {
+   "videoPath": "library/4fa67cb9-63b1-4dae-b3a5-ded822eac803.mp4",
+   "thumbPath": "library/38fa9c49-9dc3-4af1-86d0-478a1ed93e4f.jpg"
+  },
+  "trim": {
+   "start": 1.1,
+   "end": 12.2,
+   "a0": 2.1,
+   "a1": 11.3,
+   "dur": 12.2
+  }
+ },
+ "198c22e8-cc94-476e-9be3-9322288f58b3": {
+  "title": "인클라인 벤치 프레스",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/4e58afac-5ab5-4da3-86db-ac94cb4542b1.mp4",
+   "thumbPath": "library/864a7b08-faec-44b3-aaa2-a623fc732bfd.jpg"
+  },
+  "new": {
+   "videoPath": "library/c8461fb1-62c5-476b-aaa2-001d8e1f784e.mp4",
+   "thumbPath": "library/864a7b08-faec-44b3-aaa2-a623fc732bfd.jpg"
+  },
+  "trim": {
+   "start": 1.6,
+   "end": 14.4,
+   "a0": 2.6,
+   "a1": 13,
+   "dur": 14.398
+  }
+ },
+ "927bb4c5-77ef-44b4-b81d-830e909249bc": {
+  "title": "인클라인 푸시업",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/191b9c64-381f-4b04-8fe3-063fc3e8277e.mp4",
+   "thumbPath": "library/191b9c64-381f-4b04-8fe3-063fc3e8277e.jpg"
+  },
+  "new": {
+   "videoPath": "library/49648bf2-30c9-4178-9274-3ef1d26fa16c.mp4",
+   "thumbPath": "library/49648bf2-30c9-4178-9274-3ef1d26fa16c.jpg"
+  },
+  "trim": {
+   "start": 1.4,
+   "end": 13.3,
+   "a0": 2.4,
+   "a1": 12.3,
+   "dur": 14.398
+  }
+ },
+ "fc08b2a7-6349-41d7-a1d8-31c429000181": {
+  "title": "쿼드러펫 외회전",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/9db4500e-7afe-4f80-b6fa-4f7f54eac60c.mp4",
+   "thumbPath": "library/e1af8d84-b296-4f88-b842-a5d07d4269e4.jpg"
+  },
+  "new": {
+   "videoPath": "library/acb83324-79a2-46ba-b985-92a876c34aaf.mp4",
+   "thumbPath": "library/e1af8d84-b296-4f88-b842-a5d07d4269e4.jpg"
+  },
+  "trim": {
+   "start": 1.4,
+   "end": 25,
+   "a0": 2.4,
+   "a1": 23.4,
+   "dur": 25
+  }
+ },
+ "3749cf55-0c72-4f9c-9ce7-22b6ca650b8e": {
+  "title": "랜드마인 로테이션",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/70acbb03-8af7-4a3c-83d5-1db3884134de.mp4",
+   "thumbPath": "library/70acbb03-8af7-4a3c-83d5-1db3884134de.jpg"
+  },
+  "new": {
+   "videoPath": "library/9b19fbd9-8bb3-4fac-8e60-95fd2594cae0.mp4",
+   "thumbPath": "library/9b19fbd9-8bb3-4fac-8e60-95fd2594cae0.jpg"
+  },
+  "trim": {
+   "start": 2.2,
+   "end": 16.2,
+   "a0": 3.2,
+   "a1": 16.3,
+   "dur": 16.2
+  }
+ },
+ "0f9f8df6-2efb-4f85-b2db-84b966a1be94": {
+  "title": "박스 스쿼트",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/b940d22c-1eb1-40e6-b839-4cc4b37c94a3.mp4",
+   "thumbPath": "library/b940d22c-1eb1-40e6-b839-4cc4b37c94a3.jpg"
+  },
+  "new": {
+   "videoPath": "library/223fba8b-5440-4ee8-9e7f-5d8eef814f66.mp4",
+   "thumbPath": "library/223fba8b-5440-4ee8-9e7f-5d8eef814f66.jpg"
+  },
+  "trim": {
+   "start": 2.2,
+   "end": 21,
+   "a0": 3.2,
+   "a1": 20.1,
+   "dur": 21
+  }
+ },
+ "acfefd8f-fdd5-4ce0-9571-4fa74219ff61": {
+  "title": "워킹 쿼드 풀",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/1fa2e9a1-22e5-4f08-b5a8-7bdca75f502b.mp4",
+   "thumbPath": "library/1fa2e9a1-22e5-4f08-b5a8-7bdca75f502b.jpg"
+  },
+  "new": {
+   "videoPath": "library/3507f336-ef12-448e-8d0f-96f2e45af653.mp4",
+   "thumbPath": "library/3507f336-ef12-448e-8d0f-96f2e45af653.jpg"
+  },
+  "trim": {
+   "start": 0,
+   "end": 22.8,
+   "a0": 0,
+   "a1": 21.8,
+   "dur": 23.998
+  }
+ },
+ "752f043d-e7a3-4044-a79e-1f404893e0eb": {
+  "title": "워킹 니 허그",
+  "table": "exercise",
+  "old": {
+   "videoPath": "library/074f9934-f570-40ab-b185-237d5dbee5cf.mp4",
+   "thumbPath": "library/074f9934-f570-40ab-b185-237d5dbee5cf.jpg"
+  },
+  "new": {
+   "videoPath": "library/c438ca73-6858-4966-af60-3ae041a639c7.mp4",
+   "thumbPath": "library/c438ca73-6858-4966-af60-3ae041a639c7.jpg"
+  },
+  "trim": {
+   "start": 0,
+   "end": 16.4,
+   "a0": 0,
+   "a1": 15.4,
+   "dur": 17.6
+  }
+ }
+}
