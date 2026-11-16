@@ -765,7 +765,7 @@
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
   "latest_resume": {
     "current": "EX-Y-P-025",
-    "status": "P050 final placement correction saved; P025 title/description/target corrected, metadata reviewed and saved/read back. Own clip playing, repeat enabled. User review pending."
+    "status": "Backward-fall warning and simpler how-to4 saved/reloaded. Actual0-4.1s trim applied, original retained/hash verified; edited web playback confirmed. Await user, no next."
   },
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
@@ -1076,6 +1076,10 @@
     "intensity_and_recovery_placement": {
       "instruction": "Keep equipment weight/resistance/height and suitable effort/distance selection in intensity. Put concrete recovery and rest-extension instructions in how-to; numerical rest in prescription. Remove unnecessary testing/measurement asides from basic execution explanation.",
       "source": "User P050 question then authorized agent judgment,2026-11-16"
+    },
+    "landing_cue_interpretation": {
+      "instruction": "Use observable plain-language landing cues. Do not infer jump ability from fall direction or recovery steps alone. P025 emphasizes falling backward/using hands, shorter target distance and balanced two-foot landing. Do not claim forward steps prove superior power or that backward falls are more frequent without evidence.",
+      "source": "User correction and biomechanics assessment,2026-11-16"
     }
   }
 }
