@@ -2926,5 +2926,40 @@
       "trim": "사용자 요청 후 7.65초 편집본 운영 영상 적용; 원본 보존; 재생 확인",
       "detail": "MACBOOK-BENCH-TRIM-2026-11-14.md, MACBOOK-BAND-SPEED-BENCH-2026-11-14.md"
     }
+  },
+  {
+    "review_id": "EX-Y-P-033",
+    "title_at_review": "메디신볼 머리 위 내리치기 (오버헤드 슬램)",
+    "category": "파워",
+    "media": {
+      "kind": "owned",
+      "library_database_id": null
+    },
+    "source_record": "MACBOOK-COMPLETE-HANDOFF-2026-11-14.md and MACBOOK-OVERHEAD-SLAM-2026-11-14.md",
+    "history_status": "Individual MacBook notes preserved; not a claim of final user approval.",
+    "resume_observations": [
+      {
+        "at_utc": "2026-11-16T06:13:22.855173+00:00",
+        "computer": "Mac mini",
+        "status": "Opened exact live title and playback advanced; repeat setting on. Displayed overhead frame shows ball outside upper frame. Source-versus-player comparison, full clip/edit, audio and user decision pending.",
+        "ui_metadata": {
+          "target": [
+            "등",
+            "코어",
+            "전신"
+          ],
+          "intensity": "높음",
+          "difficulty": "초급",
+          "equipment": [
+            "메디신볼"
+          ],
+          "sets": 3,
+          "reps": 5,
+          "rest_seconds": 180,
+          "display_per_side_suffix": false
+        },
+        "changes_this_resume": []
+      }
+    ]
   }
 ]

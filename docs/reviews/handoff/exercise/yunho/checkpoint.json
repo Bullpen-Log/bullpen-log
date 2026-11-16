@@ -760,8 +760,8 @@
   "reporting_preference": "Show before and after of each change and distinguish previous sessions from current edits.",
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
   "latest_resume": {
-    "current": "EX-Y-P-032",
-    "status": "메디신볼 밀어 내리치기. 제목·설명 수정 저장 확인. 직접 촬영 영상 전체 검수 및 사용자 판단 대기."
+    "current": "EX-Y-P-033",
+    "status": "2026-11-16 Mac mini received MacBook handoff and opened current edited clip. User decision and full-motion/edit review pending. Displayed frame shows ball leaving upper frame; source versus player unverified. Do not advance without user."
   },
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
@@ -1033,5 +1033,13 @@
     "received_report_ref": "b84af0e26b04b90b6c72c8196d0b17a55966cad8",
     "reply": "docs/reviews/handoff/exercise/yunho/MACBOOK-WORKFLOW-REPLY-2026-11-14.md",
     "status": "MacBook reports current playback; full motion and all field judgments remain unverified. Reply prepared; receipt of reply not yet verified."
+  },
+  "macmini_receipt_20261116": {
+    "received_remote_ref": "030c227b8fcf9245d026d86eb310223a3188a361",
+    "receipt": "docs/reviews/handoff/exercise/yunho/MACMINI-RECEIPT-2026-11-16.md",
+    "current_ui_playback": "confirmed",
+    "full_video_edit_review": "pending",
+    "audio_state": "unverified",
+    "user_next": "not yet given"
   }
 }
