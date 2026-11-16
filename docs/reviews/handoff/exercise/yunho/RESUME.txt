@@ -1,3 +1,5 @@
+CURRENT P035 lateral bound + medicine ball slam, renamed to easy Korean title. User next from P033. Title and description saved/read back; metadata high/intermediate 3x5 rest180 no per-side retained. Sampled lateral movements then final turn/slam; user review pending.
+
 LATEST P033 review: purpose wording saved/read back, all metadata checked and retained. Exact8.8s end holds ball; overhead crop confirmed, source-vs-display and smoothness unresolved. User review pending, no next instruction.
 
 LATEST 2026-11-16 MAC MINI: P033 메디신볼 머리 위 내리치기, MacBook handoff received; exact exercise opened, playback and repeat setting on; displayed overhead frame ball cropped at top. Source-vs-player, full clip/edit, audio state and user review pending; no next approval. See MACMINI-RECEIPT-2026-11-16.md.

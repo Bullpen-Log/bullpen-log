@@ -13,8 +13,8 @@
     "암케어",
     "회복 및 보강"
   ],
-  "current_review_id": "EX-Y-P-033",
-  "current_title": "메디신볼 머리 위 내리치기 (오버헤드 슬램)",
+  "current_review_id": "EX-Y-P-035",
+  "current_title": "옆으로 뛰고 메디신볼 내리치기 (레터럴 바운드 슬램)",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": {
@@ -760,8 +760,8 @@
   "reporting_preference": "Show before and after of each change and distinguish previous sessions from current edits.",
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
   "latest_resume": {
-    "current": "EX-Y-P-033",
-    "status": "Purpose saved/read back; metadata retained after edit-form check. Start/overhead/receiving/exact8.8s end sampled; upper-frame cropping remains. User judgment on framing/edit pending; no next approval."
+    "current": "EX-Y-P-035",
+    "status": "User next approved from P033; P035 easy title and full description saved/read back; metadata retained; user review pending."
   },
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
@@ -806,7 +806,7 @@
         "무릎 꿇고 메디신볼 체스트 패스",
         "메디신볼 밀어 내리치기 (푸시 슬램)",
         "오버헤드 메디신볼 슬램",
-        "레터럴 바운드 + 메디신볼 슬램"
+        "옆으로 뛰고 메디신볼 내리치기 (레터럴 바운드 슬램)"
       ],
       "점프·착지·반동": [
         "싱글렉 브로드 점프",
@@ -1041,5 +1041,13 @@
     "full_video_edit_review": "pending",
     "audio_state": "unverified",
     "user_next": "not yet given"
-  }
+  },
+  "movement_decisions": [
+    {
+      "from": "EX-Y-P-033",
+      "to": "EX-Y-P-035",
+      "user_instruction": "次へ / 다음",
+      "meaning": "Movement approval only; prior cropping and edit questions retained."
+    }
+  ]
 }

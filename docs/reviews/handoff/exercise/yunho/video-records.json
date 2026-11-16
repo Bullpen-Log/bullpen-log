@@ -2992,5 +2992,50 @@
         "limits": "Related exercises/biomechanics; exact bilateral overhead slam effect on pitching velocity and optimal dose not established. Cropping source vs display unresolved. User decision pending."
       }
     ]
+  },
+  {
+    "review_id": "EX-Y-P-035",
+    "category": "파워",
+    "media": {
+      "kind": "owned",
+      "library_database_id": null
+    },
+    "title_at_review": "레터럴 바운드 + 메디신볼 슬램",
+    "current_title": "옆으로 뛰고 메디신볼 내리치기 (레터럴 바운드 슬램)",
+    "application_updates": [
+      {
+        "at_utc": "2026-11-16T06:28:01.191264+00:00",
+        "before": {
+          "title": "레터럴 바운드 + 메디신볼 슬램",
+          "description": "■ 어떤 운동인가\n옆으로 뛰어 착지하면서 공을 바닥에 내려치는 운동입니다. 하체의 옆 방향 힘과 몸통으로 내리치는 힘을 한 동작에 이어 붙입니다.\n\n■ 이렇게 하세요\n1. 메디신볼을 들고 한쪽 발에 체중을 실어 섭니다.\n2. 옆으로 뛰어 반대쪽 발로 착지합니다.\n3. 착지하는 순간에 맞춰 공을 바닥으로 세게 내려칩니다.\n4. 착지와 내려치기가 따로 놀지 않고 한 박자에 이어지게 합니다."
+        },
+        "after_summary": "Easy title; lateral movements before final rotated slam; setup, safety, return and one combo equals one repetition, pitching direction, purpose and load selection added.",
+        "verification": "Saved, found by new title, reopened and read back. Metadata retained after reading edit form.",
+        "metadata_retained": {
+          "targets": [
+            "코어",
+            "고관절",
+            "햄스트링·둔근",
+            "전신"
+          ],
+          "intensity": "높음",
+          "difficulty": "중급",
+          "equipment": [
+            "메디신볼"
+          ],
+          "sets": 3,
+          "reps": 5,
+          "rest_seconds": 180,
+          "hold_seconds": null,
+          "per_side": false
+        },
+        "observations": "Short approx4s clip sampled across starting, lateral positions, turn and overhead slam near end. Full every-frame inspection, final catch/recovery and seam not confirmed. User decision pending.",
+        "sources": [
+          "https://pubmed.ncbi.nlm.nih.gov/39074186/",
+          "https://pubmed.ncbi.nlm.nih.gov/22344047/"
+        ],
+        "limits": "Related drills and pitcher ground reaction research, not exact combination proof or optimal prescription. Coaching direction and recovery cues need user/video confirmation."
+      }
+    ]
   }
 ]
