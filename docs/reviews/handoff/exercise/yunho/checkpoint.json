@@ -13,18 +13,19 @@
     "암케어",
     "회복 및 보강"
   ],
-  "current_review_id": "EX-Y-P-024",
-  "current_title": "발 넓게 벌려 제자리 멀리뛰기 (와이드 스탠스 브로드 점프)",
+  "current_review_id": "EX-Y-P-023",
+  "current_title": "제자리 수직 점프 (버티컬 점프)",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": {
-    "at_utc": "2026-11-16T08:56:03.013724+00:00",
-    "direction_summary": "Accept P0254.60s trim and proceed next."
+    "at_utc": "2026-11-16T09:19:34.111740+00:00",
+    "user_verbatim": "다음",
+    "meaning": "P024 next authorized to P023."
   },
   "next_after_approval": {
-    "review_id": "EX-Y-P-023",
-    "title": "버티컬 점프",
-    "status": "Only on user next/okay"
+    "review_id": "EX-Y-P-046",
+    "title": "더블렉 스냅다운",
+    "status": "Only on explicit human next/okay"
   },
   "order": {
     "basis": "이 대화에서 관찰한 파워57개 라이브러리 순서. 재개 시 실제 목록 변경 여부 대조; 새로 검수한 목록 아님.",
@@ -184,13 +185,15 @@
       },
       {
         "ordinal": 23,
-        "title": "버티컬 점프",
-        "status": "not_human_reviewed"
+        "title": "제자리 수직 점프 (버티컬 점프)",
+        "status": "content_applied_human_reverification_pending",
+        "previous_title": "버티컬 점프",
+        "library_database_id": "769edef3-506d-45d8-b6c8-553380b68fa0"
       },
       {
         "ordinal": 24,
         "title": "발 넓게 벌려 제자리 멀리뛰기 (와이드 스탠스 브로드 점프)",
-        "status": "content_applied_human_reverification_pending",
+        "status": "user_next_authorized_to_P023",
         "previous_title": "와이드 스탠스 브로드 점프",
         "library_database_id": "a676ba56-9ad6-4bff-b97c-68d42f7c2e51"
       },
@@ -765,8 +768,8 @@
   "reporting_preference": "Show before and after of each change and distinguish previous sessions from current edits.",
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
   "latest_resume": {
-    "current": "EX-Y-P-024",
-    "status": "Owned-only thumbnail batch complete14/14, refs18 unchanged; new current poster observed on web. Existing content/settings and current user-pending judgment retained; resume current wide-stance broad jump, no next."
+    "current": "EX-Y-P-023",
+    "status": "P024 next authorized. P023 title/description/target and portrait poster corrected/saved/live DB read back. high/beginner3x5/rest180 retained after assessment; source11.13s reviewed in samples, not trimmed. Await human review."
   },
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
@@ -779,7 +782,7 @@
   "ordered_review_plan": {
     "as_of": "2026-11-14 Asia/Seoul",
     "scope": "Visible library: power 57, core 38, arm care 89, recovery 19; later filming 65 is mixed/unassigned and not assumed in scope. User-owned category boundaries to be verified.",
-    "rules": "Grouped movement similarity. Verify stable IDs before edits. Current P024; next P023, then double-leg snapdown. Earlier approvals retained; numeric ordinals do not imply continuous completion.",
+    "rules": "Grouped movement similarity. Current P023; next double-leg snapdownP046, then single-leg snapdown. Preserve earlier approvals; numeric ordinals do not imply continuous completion.",
     "groups": {
       "상체 푸시업·폭발적 밀기": [
         "플라이오 푸시업",
@@ -819,7 +822,7 @@
         "박스 점프",
         "제자리 멀리뛰기 (브로드 점프)",
         "발 넓게 벌려 제자리 멀리뛰기 (와이드 스탠스 브로드 점프)",
-        "버티컬 점프",
+        "제자리 수직 점프 (버티컬 점프)",
         "더블렉 스냅다운",
         "싱글렉 스냅다운",
         "뎁스 드롭",
@@ -1071,6 +1074,12 @@
       "to": "EX-Y-P-024",
       "user_direction_summary": "Accept current4.60s version and next",
       "meaning": "Explicit next after reopened P025 trim2; not P024 approval."
+    },
+    {
+      "from": "EX-Y-P-024",
+      "to": "EX-Y-P-023",
+      "user_verbatim": "다음",
+      "meaning": "Follow grouped plan; current P023 pending."
     }
   ],
   "standing_review_conditions": {
@@ -1094,8 +1103,8 @@
       "authorization": "User authorizes thumbnail selection/correction without a gallery or per-poster approval; preserve source video and old posters, use new poster identity. Do not advance the current exercise during thumbnail work.",
       "verification": "Assess generated images, read back exact row, verify new asset integrity, preserve video/title/description/metadata. Confirm visible use where feasible and disclose client-cache limits.",
       "current_scope_counts": {
-        "reviewed_items_including_MacBook_handoff": 32,
-        "owned_posters_updated": 14,
+        "reviewed_items_including_MacBook_handoff": 33,
+        "owned_posters_updated": 15,
         "reference_posters_unchanged": 18
       },
       "future": "Include representative-thumbnail assessment and authorized correction in every owned-video review. Keep missing footage/reshoot and human decisions separate.",
