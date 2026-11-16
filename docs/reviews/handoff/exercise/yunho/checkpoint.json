@@ -761,7 +761,7 @@
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
   "latest_resume": {
     "current": "EX-Y-P-035",
-    "status": "User-requested trailing imbalance jump removed: 4.883s to3.6s; edit connected, original preserved and both hashes verified. Web playback confirmed; user review pending, no next."
+    "status": "User refined trim; original3.6s edit superseded by4.05s edit retaining post-slam follow-through until before corrective jump. Original and earlier edit preserved; upload hash, DB link and web playback verified; user decision pending."
   },
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",

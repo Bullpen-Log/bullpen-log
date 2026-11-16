@@ -3047,6 +3047,15 @@
         "verification": "Database points to edit; uploaded edit and old original independently downloaded and hash-verified against local copies; edited last frame inspected; production player shows about3s and playback advanced.",
         "backup": "npm run backup succeeded; private full-schema-known backup and target row/video kept outside repository. Recovery paths not published.",
         "limits": "App bundled copies, other devices and human loop-seam judgment not checked. No next authorization."
+      },
+      {
+        "at_utc": "2026-11-16T06:59:59.673623+00:00",
+        "user_request": "3.6초는 공이 바닥에 닿자마자 끊겨 잘 안 보임; 내리친 뒤 점프 시작 직전 프레임까지 남기기",
+        "supersedes": "Previous 3.6-second trim",
+        "before_seconds": 3.6,
+        "after_seconds": 4.05,
+        "action": "Re-rendered from preserved original, retain follow-through and stop before corrective takeoff; original and first edit preserved, revision uploaded to unique path and linked.",
+        "verification": "Foot frames around3.8-4.2 examined at60fps; new upload hash and DB link verified; production playback and terminal picture checked. Human decision pending."
       }
     ]
   }

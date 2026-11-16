@@ -1,3 +1,5 @@
+LATEST P035 trim revision: user found3.6s too short. New4.05s edit retains follow-through until before corrective jump; connected and web-verified, source and earlier edit preserved. Await user decision.
+
 LATEST P035: user-requested extra balance-correction jump removed; 4.883s to3.6s, new edit linked and production playback checked. Original preserved and hashes verified. Await user review, no next.
 
 CURRENT P035 lateral bound + medicine ball slam, renamed to easy Korean title. User next from P033. Title and description saved/read back; metadata high/intermediate 3x5 rest180 no per-side retained. Sampled lateral movements then final turn/slam; user review pending.
