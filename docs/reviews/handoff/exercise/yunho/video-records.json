@@ -4618,6 +4618,23 @@
       "https://www.nsca.com/globalassets/education/nsca-coach/nsca-coach-7.3.pdf",
       "https://pubmed.ncbi.nlm.nih.gov/31827344/"
     ],
-    "at_utc": "2026-11-16T13:36:34.040Z"
+    "at_utc": "2026-11-16T13:36:34.040Z",
+    "updates": [
+      {
+        "at_utc": "2026-11-16T13:53:36.673Z",
+        "user_request": "Cut the scene looking elsewhere after exercise ends.",
+        "video_edit": {
+          "retained_source_seconds": [
+            0,
+            7
+          ],
+          "previous_duration_seconds": 7.5,
+          "new_duration_seconds": 7,
+          "reason": "Retain final landing and standing, cut before head turns after finish.",
+          "prior_assets_preserved": true
+        },
+        "human_status": "User review pending"
+      }
+    ]
   }
 ]
