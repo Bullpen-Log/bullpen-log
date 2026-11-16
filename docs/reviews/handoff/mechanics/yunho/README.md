@@ -1,3 +1,9 @@
+# Latest resume: item3/120, 2026-11-16
+
+Human next advanced2 to3 P1 Lateral Shuffle Throw large medicine ball. Prior notes preserved; progression count2 is not blanket frame/rights approval. Item3 title/description actually saved and UI+DB read back: added away-from-target shuffle then targetward reversal. REFERENCE only, filming needed, provider poster excluded. Current human review pending; next4 only on direction. Older current-item prose below is historical.
+
+---
+
 # Latest resume: item2/120, 2026-11-16
 
 Human said 당므 (next), moving from corrected Step-back1 to P3 Hinge Drive Throw small medicine ball2. Item1 notes/revisions preserved; count1 means next-directed review progression, not blanket quality/rights approval. Item2 actual title/description corrections saved and UI+DB read back; current human check pending. REFERENCE only, owned filming needed; poster excluded. Playing with loopON/muted. Next3 P1 lateral shuffle throw large ball only on user direction. Earlier item1 resume prose below is historical.
