@@ -167,7 +167,7 @@ export function shotMinutes(x: ShootExercise): number {
 
 const BALLS = ['메디신볼', '플라이오볼', '워터볼', '워터백', '짐볼'];
 const MOVING =
-  /스킵|스트라이더|백 페달|워킹|토 워크|셔틀|조깅|걷기|템포 런|브로드|바운드|트랜스버스|마치/;
+  /스킵|스트라이더|백 페달|워킹|토 워크|셔틀|조깅|걷기|템포 런|브로드|바운드|트랜스버스|마치|카리오카|프랑켄슈타인/;
 
 export function stationOf(x: ShootExercise): Station {
   const e = x.equipment;
@@ -189,7 +189,8 @@ export function stationOf(x: ShootExercise): Station {
 
 export function bucketOf(x: ShootExercise): Bucket {
   const p = x.bodyParts;
-  if (x.category === '모빌리티') return '모빌리티';
+  /* 워밍업도 몸풀기 칸(isWarmupItem)으로 — 예전엔 어느 줄에도 안 걸려 '하체 뒤(힌지)'로 셌다 */
+  if (x.category === '모빌리티' || x.category === '워밍업') return '모빌리티';
   if (x.category === '코어') return '코어';
   if (x.category === '암케어') {
     if (

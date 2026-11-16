@@ -246,8 +246,8 @@ const deferredWeeks = plan.weeks.filter((w) => w.deferred);
    * 미룬 것은 미룬 영상 칸(3). 2주차는 19개, 미룬 영상 34개.
    */
   check(
-    '실내 1주(2주차) · 19개 + 미룬 영상 34개(version 6 — 찍은 것은 뺌)',
-    indoorPlan.weeks.map((w) => w.week).join() === '2' && weekItems(indoorPlan.weeks[0]).length === 19 && items.length === 53,
+    '실내 1주(2주차) · 48개 + 미룬 영상 34개(version 6 — 찍은 것은 뺌, version 8 — 2026-11-16 라이브러리에 더한 29개를 2주차에)',
+    indoorPlan.weeks.map((w) => w.week).join() === '2' && weekItems(indoorPlan.weeks[0]).length === 48 && items.length === 82,
     `${indoorPlan.weeks.map((w) => w.week).join(',')}주 · ${items.length}개`
   );
   invariants(indoorPlan, '고정 계획');

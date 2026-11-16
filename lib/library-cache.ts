@@ -102,7 +102,8 @@ export const allExercises = unstable_cache(
   /* :v43 — 검토 반영: 사이드라잉 외회전 리바운드 도구를 다시 덤벨로(장비 목록은 '모두 있어야 함'이라 원판이면 덤벨만 가진 사람의 어깨 후방이 빈다). */
   /* :v48 — 2026-11-13 김민 운동영상 검수: 모빌리티 설명·제목, 중복 참고 영상, A-스킵 구도. */
   /* :v49 — 2026-11-16 암케어 어깨 후방 · 전방에서 자세만 다른 변형 8개를 숨김(scripts/library-armcare-hide-2026-11-16.mjs). */
-  ['library:exercises:v49'],
+  /* :v50 — 2026-11-16 워밍업 12 · 하체 10 · 상체 5 · 모빌리티 2를 더함(scripts/library-adds-2026-11-16.mjs) — 같은 날 v49 와 겹쳐 하나 더 올림. */
+  ['library:exercises:v50'],
   { tags: [LIBRARY_TAG] }
 );
 

@@ -1495,7 +1495,8 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
       intensityLevel(ex.intensity) >= 4,
     /* 데드리프트 · RDL 이 큰 힌지다 — 힙 쓰러스트는 보조라 뒤로 */
     /* 원본(5×5 · 5/3/1)의 큰 힌지는 데드리프트 — RDL 은 그다음(2026-10-14) */
-    rank: (ex) => [/데드리프트/.test(ex.title) ? 0 : /RDL/.test(ex.title) ? 1 : 2, BARBELL_FIRST(ex)],
+    /* 트랩바 데드리프트(2026-11-16 라이브러리에 더함)는 일반 데드리프트 뒤 — 트랩바는 '바벨'로 쳐서 바벨만 있는 집에서도 후보가 된다 */
+    rank: (ex) => [/데드리프트/.test(ex.title) ? 0 : /RDL/.test(ex.title) ? 1 : 2, /트랩바/.test(ex.title) ? 1 : 0, BARBELL_FIRST(ex)],
   },
   /*
    * 밀기는 바벨 벤치 프레스를 먼저(2026-10-14 김민: "벤치를 덤벨 프레스로 바꿀 필요 없다 — 벤치도 중요하다". 예전엔 어깨 보호로 덤벨을 먼저 골랐다).
@@ -1513,6 +1514,8 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
       OVERHEAD_PRESS.test(ex.title) ? 1 : 0,
       ex.title.includes('에센트릭') ? 1 : 0,
       ex.title.includes('인클라인') ? 1 : 0,
+      /* 클로즈그립 벤치 프레스(2026-11-16)는 삼두 보조 — 본운동 벤치 프레스를 밀어내지 않게 */
+      ex.title.includes('클로즈그립') ? 1 : 0,
       BARBELL_FIRST(ex),
     ],
   },

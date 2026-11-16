@@ -1,6 +1,6 @@
 {
- "version": 7,
- "createdOn": "2026-11-14",
+ "version": 8,
+ "createdOn": "2026-11-16",
  "options": {
   "sessions": 4,
   "stationPenalty": 1.6,
@@ -1707,46 +1707,335 @@
   },
   {
    "week": 2,
-   "end": 71.9,
+   "end": 138.8,
    "stations": [
     {
-     "station": "넓은 바닥(이동)",
+     "station": "매트",
+     "warmup": true,
      "start": 15,
-     "end": 16.6,
+     "end": 36.1,
      "items": [
       {
-       "exerciseId": "f60ca4bb-9189-4034-aee8-1d4ac954351f",
+       "exerciseId": "031c6625-2acb-49af-997e-01db69f2ad2c",
        "no": "2-01",
-       "title": "박수 푸시업",
-       "station": "넓은 바닥(이동)",
-       "bucket": "하체 파워",
+       "title": "내전근 록백",
+       "station": "매트",
+       "bucket": "모빌리티",
        "equipment": [
         "맨몸"
        ],
        "at": 15,
        "minutes": 1.6,
-       "load": 2,
-       "cue": "3회",
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "97cb28a9-79b1-44a3-a80d-934d643663a0",
+       "no": "2-02",
+       "title": "레그 스윙 앞뒤",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 16.6,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "92e76d49-d807-4f68-99e7-c6167dadb755",
+       "no": "2-03",
+       "title": "레그 스윙 좌우",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 18.2,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "322817c1-52ce-41a1-a392-4a31f1df1b83",
+       "no": "2-04",
+       "title": "버트 킥",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 19.8,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "10초 버티기",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "1fd98de8-ddde-4b93-b408-411a61704743",
+       "no": "2-05",
+       "title": "손목 신근 스트레치",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 21.4,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "11688c75-8edd-4431-b081-1c4e03d1f24e",
+       "no": "2-06",
+       "title": "암 서클 앞뒤",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 23,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "adca4350-7368-4d1f-97a5-26caae35c749",
+       "no": "2-07",
+       "title": "인치웜",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 24.6,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "73e64d42-d40f-438d-bbd7-034b10cb3c9a",
+       "no": "2-08",
+       "title": "잭 점프",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 26.2,
+       "minutes": 1.9,
+       "load": 0.5,
+       "cue": "10초 버티기",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "fde1663c-0ba2-4c3a-8307-c127c82e5f1e",
+       "no": "2-09",
+       "title": "카리오카",
+       "station": "넓은 바닥(이동)",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 28.1,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "8e01b87a-c198-46d9-9b75-687cfd310ff0",
+       "no": "2-10",
+       "title": "크로스 바디 암 스윙",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 29.7,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "d51aa4fd-9880-45cc-9c2c-1d850098d81b",
+       "no": "2-11",
+       "title": "프랑켄슈타인 워크",
+       "station": "넓은 바닥(이동)",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 31.3,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "4eb42b69-a230-44b3-ac06-66b9aae7d25f",
+       "no": "2-12",
+       "title": "하이 니",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 32.9,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "10초 버티기",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "d0d64b03-4802-43db-ba34-0ad9378888f1",
+       "no": "2-13",
+       "title": "다운독 푸시업",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 34.5,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "2~3회 · 끝 자세 2초",
        "perSide": false,
        "breakAfter": false
       }
      ]
     },
     {
+     "station": "넓은 바닥(이동)",
+     "start": 39.1,
+     "end": 43.3,
+     "items": [
+      {
+       "exerciseId": "f60ca4bb-9189-4034-aee8-1d4ac954351f",
+       "no": "2-14",
+       "title": "박수 푸시업",
+       "station": "넓은 바닥(이동)",
+       "bucket": "하체 파워",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 39.1,
+       "minutes": 1.6,
+       "load": 2,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "e905e93a-9e7c-46fc-bc14-e67f38f78d35",
+       "no": "2-15",
+       "title": "덤벨 워킹 런지",
+       "station": "넓은 바닥(이동)",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 41.7,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      }
+     ]
+    },
+    {
+     "station": "박스",
+     "start": 46.3,
+     "end": 51.1,
+     "items": [
+      {
+       "exerciseId": "a26a8a36-f3ba-46b4-90d6-219d05be81bd",
+       "no": "2-16",
+       "title": "덤벨 래터럴 스텝업",
+       "station": "박스",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "덤벨",
+        "박스"
+       ],
+       "at": 46.3,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "8c7fc696-3bcd-4c41-8f8e-1f882a73cc33",
+       "no": "2-17",
+       "title": "고블렛 박스 스쿼트",
+       "station": "박스",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "덤벨",
+        "박스"
+       ],
+       "at": 47.9,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "b7914adf-d204-4d32-86c4-6e6b9a2963bc",
+       "no": "2-18",
+       "title": "래터럴 스텝다운",
+       "station": "박스",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "박스"
+       ],
+       "at": 49.5,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      }
+     ]
+    },
+    {
      "station": "랙 · 바벨 · 원판",
-     "start": 19.6,
-     "end": 31.1,
+     "start": 54.1,
+     "end": 78.2,
      "items": [
       {
        "exerciseId": "1f1dfe14-6d52-4a78-8e9d-01fbf09a8e06",
-       "no": "2-02",
+       "no": "2-19",
        "title": "랜드마인 펀치",
        "station": "랙 · 바벨 · 원판",
        "bucket": "하체 파워",
        "equipment": [
         "바벨"
        ],
-       "at": 19.6,
+       "at": 54.1,
        "minutes": 1.9,
        "load": 2,
        "cue": "3회 · 한쪽",
@@ -1755,14 +2044,14 @@
       },
       {
        "exerciseId": "ffbcc8f4-70a7-4671-bc5b-b9032f3da6c6",
-       "no": "2-03",
+       "no": "2-20",
        "title": "랜드마인 회전 펀치",
        "station": "랙 · 바벨 · 원판",
        "bucket": "하체 파워",
        "equipment": [
         "바벨"
        ],
-       "at": 21.5,
+       "at": 56,
        "minutes": 1.9,
        "load": 2,
        "cue": "3회 · 한쪽",
@@ -1770,15 +2059,31 @@
        "breakAfter": false
       },
       {
+       "exerciseId": "e628cd24-7cc1-4309-9f9f-dbd088d761ac",
+       "no": "2-21",
+       "title": "랜드마인 싱글암 로우",
+       "station": "랙 · 바벨 · 원판",
+       "bucket": "상체 당기기",
+       "equipment": [
+        "바벨"
+       ],
+       "at": 57.9,
+       "minutes": 1.9,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
        "exerciseId": "ad50e37b-9ff8-4266-9b2a-af03b19c249b",
-       "no": "2-04",
+       "no": "2-22",
        "title": "하프닐링 랜드마인 프레스",
        "station": "랙 · 바벨 · 원판",
        "bucket": "상체 밀기 · 어깨",
        "equipment": [
         "바벨"
        ],
-       "at": 23.4,
+       "at": 59.8,
        "minutes": 1.9,
        "load": 1,
        "cue": "3회 · 한쪽",
@@ -1787,7 +2092,7 @@
       },
       {
        "exerciseId": "72dfaa22-44ab-4c8d-8ef7-4a8de03d3068",
-       "no": "2-05",
+       "no": "2-23",
        "title": "바벨 스피드 벤치 프레스",
        "station": "랙 · 바벨 · 원판",
        "bucket": "하체 파워",
@@ -1795,7 +2100,56 @@
         "바벨",
         "벤치"
        ],
-       "at": 26.3,
+       "at": 62.7,
+       "minutes": 1.9,
+       "load": 2,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "324ae715-2f02-4b31-ba40-525fe1ea48b2",
+       "no": "2-24",
+       "title": "클로즈그립 벤치 프레스",
+       "station": "랙 · 바벨 · 원판",
+       "bucket": "상체 밀기 · 어깨",
+       "equipment": [
+        "바벨",
+        "벤치"
+       ],
+       "at": 64.6,
+       "minutes": 1.9,
+       "load": 2,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": true
+      },
+      {
+       "exerciseId": "92ec03d2-93e6-4d86-ae50-4ae590552a1b",
+       "no": "2-25",
+       "title": "인버티드 로우",
+       "station": "랙 · 바벨 · 원판",
+       "bucket": "상체 당기기",
+       "equipment": [
+        "바벨"
+       ],
+       "at": 71.5,
+       "minutes": 1.9,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "89813fa8-d852-46c3-9f09-1481f19b6a78",
+       "no": "2-26",
+       "title": "트랩바 데드리프트",
+       "station": "랙 · 바벨 · 원판",
+       "bucket": "하체 뒤(힌지)",
+       "equipment": [
+        "바벨"
+       ],
+       "at": 73.4,
        "minutes": 1.9,
        "load": 2,
        "cue": "3회",
@@ -1804,14 +2158,14 @@
       },
       {
        "exerciseId": "636f4f96-8e1e-47c6-b5b6-bc004d59a204",
-       "no": "2-06",
+       "no": "2-27",
        "title": "뎁스 드롭 플라이오 푸쉬업",
        "station": "랙 · 바벨 · 원판",
        "bucket": "하체 파워",
        "equipment": [
         "원판"
        ],
-       "at": 29.2,
+       "at": 76.3,
        "minutes": 1.9,
        "load": 2,
        "cue": "2~3회",
@@ -1822,19 +2176,51 @@
     },
     {
      "station": "덤벨 · 케틀벨",
-     "start": 34.1,
-     "end": 35.7,
+     "start": 81.2,
+     "end": 87,
      "items": [
       {
        "exerciseId": "206d5fa4-eb24-423f-aac9-7e928b93b4aa",
-       "no": "2-07",
+       "no": "2-28",
        "title": "덤벨 스플릿 스쿼트",
        "station": "덤벨 · 케틀벨",
        "bucket": "하체 앞(무릎)",
        "equipment": [
         "덤벨"
        ],
-       "at": 34.1,
+       "at": 81.2,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "96c84dca-1611-4b0e-8937-5cca4af68bfa",
+       "no": "2-29",
+       "title": "킥스탠드 RDL",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "하체 뒤(힌지)",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 82.8,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "02f4256a-ce06-4728-8c5c-78651bd3156c",
+       "no": "2-30",
+       "title": "바텀업 케틀벨 프레스",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "상체 밀기 · 어깨",
+       "equipment": [
+        "케틀벨"
+       ],
+       "at": 85.4,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회 · 한쪽",
@@ -1845,42 +2231,74 @@
     },
     {
      "station": "케이블",
-     "start": 38.7,
-     "end": 40.3,
+     "start": 90,
+     "end": 93.2,
      "items": [
       {
        "exerciseId": "a7d88c1e-91b7-4b73-9a4d-2b6a444a29b1",
-       "no": "2-08",
+       "no": "2-31",
        "title": "스탠딩 케이블 익스플로시브 로테이션",
        "station": "케이블",
        "bucket": "하체 파워",
        "equipment": [
         "케이블"
        ],
-       "at": 38.7,
+       "at": 90,
        "minutes": 1.6,
        "load": 2,
        "cue": "3회 · 한쪽",
        "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "49107c6e-8fd9-4856-99f0-2c016baa9ae3",
+       "no": "2-32",
+       "title": "케이블 풀 스루",
+       "station": "케이블",
+       "bucket": "하체 뒤(힌지)",
+       "equipment": [
+        "케이블"
+       ],
+       "at": 91.6,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
        "breakAfter": false
       }
      ]
     },
     {
      "station": "머신",
-     "start": 43.3,
-     "end": 56.1,
+     "start": 96.2,
+     "end": 110.6,
      "items": [
       {
+       "exerciseId": "b393c81a-a893-49fa-ad27-907ef70eef82",
+       "no": "2-33",
+       "title": "글루트 햄 레이즈",
+       "station": "머신",
+       "bucket": "하체 뒤(힌지)",
+       "equipment": [
+        "머신"
+       ],
+       "at": 96.2,
+       "minutes": 1.6,
+       "load": 2,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
        "exerciseId": "a74e638f-b231-4062-898b-191dc8fda4b7",
-       "no": "2-09",
+       "no": "2-34",
        "title": "레그 익스텐션",
        "station": "머신",
        "bucket": "하체 뒤(힌지)",
        "equipment": [
         "머신"
        ],
-       "at": 43.3,
+       "at": 97.8,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회",
@@ -1889,30 +2307,14 @@
       },
       {
        "exerciseId": "3d471200-8e15-4e65-8647-4cb0c3b021e5",
-       "no": "2-10",
+       "no": "2-35",
        "title": "레그 컬",
        "station": "머신",
        "bucket": "하체 뒤(힌지)",
        "equipment": [
         "머신"
        ],
-       "at": 44.9,
-       "minutes": 1.6,
-       "load": 1,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false
-      },
-      {
-       "exerciseId": "2c9c317f-e7da-4573-afc9-0464ea420b05",
-       "no": "2-11",
-       "title": "힙 어덕션",
-       "station": "머신",
-       "bucket": "하체 뒤(힌지)",
-       "equipment": [
-        "머신"
-       ],
-       "at": 46.5,
+       "at": 99.4,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회",
@@ -1921,14 +2323,14 @@
       },
       {
        "exerciseId": "5beea154-647b-4c90-9f37-5de8967144b2",
-       "no": "2-12",
+       "no": "2-36",
        "title": "레그 프레스",
        "station": "머신",
        "bucket": "하체 앞(무릎)",
        "equipment": [
         "머신"
        ],
-       "at": 48.1,
+       "at": 101,
        "minutes": 1.6,
        "load": 2,
        "cue": "3회",
@@ -1937,14 +2339,14 @@
       },
       {
        "exerciseId": "a74d3d28-91e7-459c-bdf2-d158b688f60c",
-       "no": "2-13",
+       "no": "2-37",
        "title": "핵 스쿼트",
        "station": "머신",
        "bucket": "하체 앞(무릎)",
        "equipment": [
         "머신"
        ],
-       "at": 49.7,
+       "at": 102.6,
        "minutes": 1.6,
        "load": 2,
        "cue": "3회",
@@ -1952,15 +2354,31 @@
        "breakAfter": false
       },
       {
+       "exerciseId": "2c9c317f-e7da-4573-afc9-0464ea420b05",
+       "no": "2-38",
+       "title": "힙 어덕션",
+       "station": "머신",
+       "bucket": "하체 뒤(힌지)",
+       "equipment": [
+        "머신"
+       ],
+       "at": 104.2,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
        "exerciseId": "09445a2f-7263-4738-8ef7-85f3cf82cf7c",
-       "no": "2-14",
+       "no": "2-39",
        "title": "힙 어브덕션",
        "station": "머신",
        "bucket": "하체 뒤(힌지)",
        "equipment": [
         "머신"
        ],
-       "at": 51.3,
+       "at": 105.8,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회",
@@ -1969,14 +2387,14 @@
       },
       {
        "exerciseId": "8a1aa457-756b-4169-9a35-4c4bf0f15623",
-       "no": "2-15",
+       "no": "2-40",
        "title": "45° 백 익스텐션",
        "station": "머신",
        "bucket": "하체 뒤(힌지)",
        "equipment": [
         "머신"
        ],
-       "at": 52.9,
+       "at": 107.4,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회",
@@ -1985,14 +2403,60 @@
       },
       {
        "exerciseId": "fc480738-044d-48eb-bb61-51089cd8abc7",
-       "no": "2-16",
+       "no": "2-41",
        "title": "랫 풀다운",
        "station": "머신",
        "bucket": "상체 당기기",
        "equipment": [
         "머신"
        ],
-       "at": 54.5,
+       "at": 109,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      }
+     ]
+    },
+    {
+     "station": "철봉 · TRX",
+     "start": 113.6,
+     "end": 115.2,
+     "items": [
+      {
+       "exerciseId": "4548baf3-371f-4d77-8859-eceb1b229400",
+       "no": "2-42",
+       "title": "뉴트럴 그립 풀업",
+       "station": "철봉 · TRX",
+       "bucket": "상체 당기기",
+       "equipment": [
+        "철봉"
+       ],
+       "at": 113.6,
+       "minutes": 1.6,
+       "load": 2,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      }
+     ]
+    },
+    {
+     "station": "공 · 워터백(벽 앞)",
+     "start": 118.2,
+     "end": 119.8,
+     "items": [
+      {
+       "exerciseId": "1a80560e-d281-4b18-993e-ecaa175135c5",
+       "no": "2-43",
+       "title": "짐볼 햄스트링 컬",
+       "station": "공 · 워터백(벽 앞)",
+       "bucket": "하체 뒤(힌지)",
+       "equipment": [
+        "짐볼"
+       ],
+       "at": 118.2,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회",
@@ -2003,42 +2467,19 @@
     },
     {
      "station": "밴드(고정 기둥)",
-     "start": 59.1,
-     "end": 60.7,
+     "start": 122.8,
+     "end": 132.6,
      "items": [
       {
        "exerciseId": "5fba8b53-85c7-4312-b6c8-a20aa4aeda6c",
-       "no": "2-17",
+       "no": "2-44",
        "title": "밴드 익스플로시브 힙 로테이션",
        "station": "밴드(고정 기둥)",
        "bucket": "하체 파워",
        "equipment": [
         "밴드"
        ],
-       "at": 59.1,
-       "minutes": 1.6,
-       "load": 1,
-       "cue": "3회 · 한쪽",
-       "perSide": true,
-       "breakAfter": false
-      }
-     ]
-    },
-    {
-     "station": "매트",
-     "start": 63.7,
-     "end": 71.9,
-     "items": [
-      {
-       "exerciseId": "e42b29c8-b783-48fb-a789-837a6565f2b5",
-       "no": "2-18",
-       "title": "코사크 스쿼트",
-       "station": "매트",
-       "bucket": "하체 앞(무릎)",
-       "equipment": [
-        "맨몸"
-       ],
-       "at": 63.7,
+       "at": 122.8,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회 · 한쪽",
@@ -2046,30 +2487,86 @@
        "breakAfter": true
       },
       {
-       "exerciseId": "adca4350-7368-4d1f-97a5-26caae35c749",
-       "no": "2-19",
-       "title": "인치웜",
+       "exerciseId": "ef791731-cfc1-4d4f-8c16-962436dc03cd",
+       "no": "2-45",
+       "title": "밴드 노 머니",
+       "station": "밴드(고정 기둥)",
+       "bucket": "모빌리티",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 129.4,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "2~3회 · 끝 자세 2초",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "47a4ee57-1b67-4ad0-b846-98a474ce40d8",
+       "no": "2-46",
+       "title": "밴드 Y · T · W",
+       "station": "밴드(고정 기둥)",
+       "bucket": "모빌리티",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 131,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "2~3회 · 끝 자세 2초",
+       "perSide": false,
+       "breakAfter": false
+      }
+     ]
+    },
+    {
+     "station": "매트",
+     "start": 135.6,
+     "end": 138.8,
+     "items": [
+      {
+       "exerciseId": "410ac32b-75b5-4a03-99c5-6570dfc04e32",
+       "no": "2-47",
+       "title": "스케이터 스쿼트",
        "station": "매트",
-       "bucket": "하체 뒤(힌지)",
+       "bucket": "하체 앞(무릎)",
        "equipment": [
         "맨몸"
        ],
-       "at": 70.3,
+       "at": 135.6,
        "minutes": 1.6,
-       "load": 0.2,
-       "cue": "3회",
-       "perSide": false,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "e42b29c8-b783-48fb-a789-837a6565f2b5",
+       "no": "2-48",
+       "title": "코사크 스쿼트",
+       "station": "매트",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 137.2,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
        "breakAfter": false
       }
      ]
     }
    ],
    "load": {
+    "모빌리티": 5.4,
     "하체 파워": 13,
-    "상체 밀기 · 어깨": 1,
-    "하체 앞(무릎)": 6,
-    "하체 뒤(힌지)": 5.2,
-    "상체 당기기": 1
+    "하체 앞(무릎)": 11,
+    "상체 당기기": 5,
+    "상체 밀기 · 어깨": 4,
+    "하체 뒤(힌지)": 12
    }
   },
   {

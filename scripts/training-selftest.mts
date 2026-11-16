@@ -26131,8 +26131,14 @@ console.log(
     const leveled = filterByLevel(usable.pool, level);
     const picked = selectCandidates({ facts, plan, library: leveled.pool });
     const cands = picked.halted ? [] : picked.candidates;
-    /* 최근 사흘 · 몇 세션 전 — 후보 안에서 결정적으로(열하나에 하나는 최근, 다섯에 하나는 기록) */
-    const recentIds = new Set(cands.filter((_, k) => k % 11 === 3).map((e) => e.id));
+    /*
+     * 최근 사흘 · 몇 세션 전 — 후보 안에서 결정적으로(열하나에 하나는 최근, 다섯에 하나는 기록). 여덟 조합에 하나는 후보의 셋에 둘을
+     * 최근으로 — 최근 사흘 운동은 맨 뒤라 후보가 넉넉하면 안 뽑히는데, 라이브러리가 늘자(2026-11-16 +29개) 160조합에서 한 번도 안 뽑혀
+     * '최근 사흘 운동에는 점수가 없다'를 못 보게 됐다. 후보를 모자라게 해 그 길을 늘 지나게 한다.
+     */
+    const recentIds = new Set(
+      cands.filter((_, k) => (i % 8 === 0 ? k % 3 !== 0 : k % 11 === 3)).map((e) => e.id)
+    );
     const sessionsAgo = new Map(
       cands.filter((_, k) => k % 5 === 1).map((e, k) => [e.id, k % 9] as const)
     );
