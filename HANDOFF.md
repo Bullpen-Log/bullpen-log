@@ -1,3 +1,11 @@
+## Kim Min — 2026-11-16 · GPT — Confirmed Dugout identity correction
+
+The user successfully registered Dugout as `com.mhk.dugout`; `com.dugout.app` was unavailable. The user supplied new App Store Connect numeric ID `6835459450`. Update the pending `ios-team-move` variant/workflow/fallback changes to this confirmed identifier before signing transition; do not retain the earlier proposed ID in shipping configuration. Kakao native-key creation for the confirmed ID is in progress. Active Apple signing secrets remain legacy; Geum's keys are staged under YUNHO_ names and not yet mapped to the workflow.
+
+## Reference review — 2026-11-16 · GPT — External links live verification
+
+EX-REF03 release60a270e7 passed independent owner-session production verification:14 external-video entries, actual YouTube source navigation, retained authenticated PDF viewer and anonymous401/no-store. Detailed evidence and limits are recorded in docs/work-orders/EX-REF03-gpt-review.md. Entire corpus review/translation continues; published487/1095 text pages and0 credited continuous video/audio remain accurate.
+
 ## Kim Min / reference review — 2026-11-16 · GPT — External original video links
 
 Reference video entries now open their verified original YouTube page. All14 corpus links were checked by Sub1. Video assets are rejected by the library schema and original proxy; existing authorized PDFs retain their private proxy. Corpus review/translation is ongoing, with published coverage487 text pages and0 credited continuous video/audio seconds. Integrated282 checks passed. Native/signing/schema/storage policy changes are absent. Details: docs/work-orders/EX-REF03-gpt-review.md.
