@@ -1,3 +1,5 @@
+LATEST 2026-11-16T12:40:59.990Z: P036 retained0–8.4s; jump/landing explanation and rotation context saved. Mandatory Driveline-first drill sourcing, Tread cross-check and GRF/cue distinction recorded. Metadata unchanged. User review pending; stay here.
+
 CURRENT P036 lateral jump stick landing: prior P047 user requested continue. Video one-foot takeoff, two-foot landing; description corrected, perSide false->true (5 total -> 5 per direction per set), high/intermediate/rest180 unchanged. Original video intact, own thumbnail updated. Await user review. Sources recorded in video record for later catalog consolidation.
 
 CURRENT P047 depth jump to box: P048 start trim accepted. Description revised for controlled rapid rebound, tendon elasticity and pitching link; own thumbnail selected. Very high/advanced/3x5/rest180 retained. 11.5s video untrimmed; user review pending.
