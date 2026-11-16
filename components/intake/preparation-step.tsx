@@ -29,6 +29,7 @@ export function PreparationVideo({
       src={chapter.video}
       poster={chapter.poster}
       title={chapter.title}
+      controlsTopUntil={chapter.controlsTopUntil}
       paused={paused}
     />
   );

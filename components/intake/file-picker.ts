@@ -51,27 +51,25 @@ export const FILE_FIRST_NOTE = '사진 앱에서 ‘무수정 원본 내보내�
 export const GUIDE_OPEN_LABEL = '원본 저장 방법 보기';
 
 /**
- * 원본 저장 안내 네 장 — 영상은 GPT05 가 개인정보를 가리고 소리 · 메타데이터를 뺀 파일만 쓴다(public/intake-guides/original-file-v1).
+ * 원본 저장 안내 네 장 — 영상은 GPT05 가 개인정보를 가리고 소리 · 메타데이터를 뺀 파일만 쓴다.
  * 영상이 없거나 못 틀어도 글만으로 따라 할 수 있게 쓴다.
  */
-export const GUIDE_BASE = '/intake-guides/original-file-v1';
-/** shape — 영상 모양. tall 은 세로 화면 녹화(590×1278), wide 는 메뉴를 크게 보이려고 잘라 낸 가로 영상(590×328) */
-export type GuideChapter = { id: string; title: string; body: string; note?: string; video: string; poster: string; shape: 'tall' | 'wide' };
-const media = (id: string, shape: 'tall' | 'wide' = 'tall') => ({ video: `${GUIDE_BASE}/${id}.mp4`, poster: `${GUIDE_BASE}/${id}.jpg`, shape });
+export const GUIDE_BASE = '/intake-guides/original-file-v4';
+export type GuideChapter = { id: string; title: string; body: string; note?: string; video: string; poster: string; shape: 'tall'; controlsTopUntil?: number };
+const media = (id: string) => ({ video: `${GUIDE_BASE}/${id}.mp4`, poster: `${GUIDE_BASE}/${id}.jpg`, shape: 'tall' as const });
 export const GUIDE_CHAPTERS: readonly GuideChapter[] = [
   {
     id: '01-open-share',
     title: '사진에서 공유 열기',
-    body: '사진 앱에서 촬영한 영상을 열고 공유 버튼을 누릅니다.',
+    body: '사진 앱에서 공유 → 옵션을 열고, 아래쪽의 ‘모든 사진 데이터’를 켭니다.',
     ...media('01-open-share'),
+    controlsTopUntil: 44 / 30, // 첫 장면의 공유 버튼은 화면 왼쪽 아래에 있다.
   },
   {
     id: '02-export-original',
     title: '무수정 원본 내보내기',
     body: '공유 목록을 아래로 내려 ‘무수정 원본 내보내기’를 누릅니다.',
     ...media('02-export-original'),
-    video: '/intake-guides/original-file-v3/02-export-original.mp4',
-    poster: '/intake-guides/original-file-v3/02-export-original.jpg',
   },
   {
     id: '03-save-files',
@@ -86,7 +84,5 @@ export const GUIDE_CHAPTERS: readonly GuideChapter[] = [
     body: `이 화면으로 돌아와 ‘${PICK_LABEL}’을 누르고 저장한 영상(.MOV)을 고릅니다. 감지된 fps를 확인하고 다음으로 넘어갑니다.`,
     note: '미리 보기가 나오지 않아도 보낼 수 있습니다.',
     ...media('04-pick-file'),
-    video: '/intake-guides/original-file-v2/04-pick-file.mp4',
-    poster: '/intake-guides/original-file-v2/04-pick-file.jpg',
   },
 ];

@@ -41,6 +41,7 @@ export function GuideBody({
           src={chapter.video}
           poster={chapter.poster}
           title={chapter.title}
+          controlsTopUntil={chapter.controlsTopUntil}
         />
       </div>
       <p className={styles.guideTask}>{chapter.body}</p>
