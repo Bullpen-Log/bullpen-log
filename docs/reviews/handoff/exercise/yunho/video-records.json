@@ -3117,6 +3117,112 @@
           "https://pubmed.ncbi.nlm.nih.gov/39446825/"
         ],
         "evidence_limits": "General pitching biomechanics and power associations; not direct evidence exact exercise increases ball velocity."
+      },
+      {
+        "at_utc": "2026-11-16T07:31:21.646733+00:00",
+        "user_direction": "그럼 너의 판단하에 수정하고 다음으로가",
+        "before_intensity_tail": "박스 높이만으로 점프 능력을 판단하지 않습니다. 다음 세트에서도 빠르게 뛰어오를 수 있도록 충분히 쉽니다.",
+        "after_intensity": "두 발을 박스 위에 충분히 올려 안정적으로 착지할 수 있는 높이부터 시작합니다. 착지하려고 무릎을 지나치게 가슴 쪽으로 끌어올려야 한다면 박스를 낮춥니다.",
+        "after_howto_added": "7. 표시된 휴식 시간이 지나도 다리에 힘이 돌아오지 않거나 빠르게 뛰기 어렵다면 더 쉰 뒤 다음 세트를 시작합니다.",
+        "reason": "Remove an unnecessary measurement aside. Recovery is an execution instruction, equipment height selection remains intensity.",
+        "verification": "Saved in admin UI, reloaded, new step and removal read back. Other fields unchanged."
+      }
+    ],
+    "user_decisions": [
+      {
+        "at_utc": "2026-11-16T07:31:21.646733+00:00",
+        "verbatim": "그럼 너의 판단하에 수정하고 다음으로가",
+        "meaning": "Apply the discussed placement correction and move to P025; no blanket future item approval."
+      }
+    ]
+  },
+  {
+    "review_id": "EX-Y-P-025",
+    "ordinal": 25,
+    "category": "파워",
+    "title_at_review": "브로드 점프",
+    "current_title": "제자리 멀리뛰기 (브로드 점프)",
+    "media": {
+      "kind": "owned",
+      "library_database_id": "7130118f-1f0d-46de-a44b-856425d28836"
+    },
+    "human_review_status": "Awaiting user decision on revised content and footage",
+    "application_updates": [
+      {
+        "at_utc": "2026-11-16T07:31:21.646733+00:00",
+        "authorization": "Standing user authorization: evidence review and necessary content corrections before human review; next from P050 explicitly authorized.",
+        "before_title": "브로드 점프",
+        "after_title": "제자리 멀리뛰기 (브로드 점프)",
+        "before_description": "■ 어떤 운동인가\n제자리에서 앞으로 멀리 뛰는 운동입니다. 하체가 앞으로 힘을 내는 능력을 재고 기르는 데 씁니다.\n\n■ 이렇게 하세요\n1. 발을 어깨너비로 벌리고 섭니다.\n2. 반쯤 앉으며 팔을 뒤로 크게 젖힙니다.\n3. 팔을 앞으로 휘두르며 앞으로 멀리 뜁니다.\n4. 두 발로 착지하며 무릎과 엉덩이를 굽혀 멈춥니다.\n\n■ 투수에게 왜 필요한가\n하체 파워를 재는 검사 종목입니다. 움직임을 빠르게 할 수 있어야 그 움직임을 할 줄 아는 것입니다.",
+        "after_description": "■ 어떤 운동인가\n제자리에서 두 발로 지면을 밀어 앞으로 뛰고, 두 발로 착지하는 운동입니다. 짧은 시간에 몸을 앞으로 밀어내는 하체 파워를 기르는 것이 목적입니다.\n\n■ 이렇게 하세요\n1. 미끄럽지 않은 평평한 바닥에서 앞쪽에 충분한 공간을 확보하고, 발을 어깨너비로 벌려 섭니다.\n2. 엉덩이를 뒤로 빼고 무릎을 편하게 굽히면서 팔을 뒤로 보냅니다.\n3. 팔을 앞으로 휘두르면서 두 발로 지면을 강하고 빠르게 밀어 앞으로 뜁니다.\n4. 두 발로 함께 착지하면서 무릎과 엉덩이를 굽혀 충격을 받아냅니다. 무릎이 안쪽으로 모이지 않게 하고, 몸이 앞으로 쏠려 발을 더 내딛지 않도록 멈춥니다.\n5. 착지를 마친 뒤 일어서서 다시 준비합니다. 한 번씩 자세를 다시 잡고 뛰며, 착지하자마자 연속으로 뛰지 않습니다.\n6. 운동 중 통증이 생기면 즉시 멈춥니다. 정상적으로 수행하던 중 착지를 제어하기 어렵거나 움직임이 눈에 띄게 느려지면 해당 세트를 멈추고 쉽니다.\n7. 표시된 휴식 시간이 지나도 다리에 힘이 돌아오지 않거나 빠르게 뛰기 어렵다면 더 쉰 뒤 다음 세트를 시작합니다.\n\n■ 투수에게 왜 필요한가\n투구에서는 다리로 지면을 강하고 빠르게 밀어 몸을 이동시키고, 그 움직임을 몸통과 팔의 빠른 동작으로 이어가는 능력이 중요합니다.\n\n브로드 점프는 짧은 시간에 몸을 앞으로 밀어내는 하체 파워를 기르는 데 도움이 됩니다. 투구에서 몸을 빠르게 이동시키고 전신을 강하고 빠르게 움직이기 위한 기초 능력을 키우는 것이 이 운동의 목적입니다.\n\n■ 강도\n추가 중량 없이 시작합니다. 두 발로 착지해 멈출 수 있는 거리에서 강하고 빠르게 뛰며, 착지하면서 몸이 앞으로 쏠려 발을 더 내딛어야 한다면 거리를 줄입니다.",
+        "target_change": {
+          "before": [
+            "고관절",
+            "햄스트링·둔근",
+            "전신"
+          ],
+          "after": [
+            "고관절",
+            "햄스트링·둔근",
+            "종아리·발목",
+            "전신"
+          ],
+          "reason": "Ankle plantarflexion contributes to takeoff; labels are exercise involvement, not muscle-specific proven effects."
+        },
+        "metadata_review": {
+          "intensity": {
+            "before": "높음",
+            "after": "높음",
+            "reason": "Rapid bodyweight horizontal propulsion and ground landing require meaningful load management. Controlled stable-landable distance, no added weight. Not a universal intensity for every execution."
+          },
+          "difficulty": {
+            "before": "중급",
+            "after": "중급",
+            "reason": "Requires basic two-foot takeoff and controlled landing."
+          },
+          "equipment": {
+            "before": [
+              "맨몸"
+            ],
+            "after": [
+              "맨몸"
+            ]
+          },
+          "sets": {
+            "before": 3,
+            "after": 3
+          },
+          "reps": {
+            "before": 5,
+            "after": 5
+          },
+          "rest_seconds": {
+            "before": 180,
+            "after": 180
+          },
+          "hold_seconds": {
+            "before": null,
+            "after": null
+          },
+          "per_side": {
+            "before": false,
+            "after": false
+          }
+        },
+        "video_review": {
+          "duration_seconds": 5.08,
+          "coverage": "Full-duration contact sheet sampled4fps, not every frame; on-page playback opened.",
+          "observation": "One standing double-leg forward jump, both-leg landing with deep hip/knee bend, returns upright. Setup and finish pauses present. Equipment/railing visible foreground right; athlete generally visible in sampled images.",
+          "editing": "No footage modification; user editing judgment pending.",
+          "repeat": "Player checked enabled; did not wait for actual repeat cycle."
+        },
+        "sources": [
+          "https://pubmed.ncbi.nlm.nih.gov/37389938/",
+          "https://www.nsca.com/education/articles/kinetic-select/plyometric-exercises/"
+        ],
+        "evidence_limits": "Pitching study concerns vertical jump associations, not broad-jump intervention or causal pitching-velocity gain. General plyometric guidance supports low reps/quality but exact3x5/rest180 is a starting prescription judgment, not an established optimum. Domestic exercise-specific evidence not independently verified in this turn.",
+        "verification": "Title, description and additional target saved through admin UI, reloaded and read back; existing3x5/rest180 confirmed on detail; owned video playback and loop-enabled control observed.",
+        "country_review": "KR/US/JP final legal and footage rights clearance not completed; no country-specific difference identified for this wording. No guaranteed velocity or injury-prevention claims."
       }
     ]
   }

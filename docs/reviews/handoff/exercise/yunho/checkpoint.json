@@ -13,17 +13,19 @@
     "암케어",
     "회복 및 보강"
   ],
-  "current_review_id": "EX-Y-P-050",
-  "current_title": "박스 점프",
+  "current_review_id": "EX-Y-P-025",
+  "current_title": "제자리 멀리뛰기 (브로드 점프)",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": {
-    "user_verbatim": "이건 양쪽 모두 수행하는 거로 하자. 월볼처럼 직접적으로 던지는 걸 제외하면 대부분의 파워운동은 양쪽을 다 하는 거로 하자. 이 부분 수정하고 다음으로",
-    "at_utc": "2026-11-14",
-    "meaning": "랜드마인 좌우 수행 확정 및 다음 이동; 직접 던지기 예외를 둔 대부분 파워 운동 양쪽 수행 기준"
+    "user_verbatim": "그럼 너의 판단하에 수정하고 다음으로가",
+    "at_utc": "2026-11-16T07:31:21.646733+00:00",
+    "meaning": "P050 wording placement correction authorized and next to P025. P025 human review pending."
   },
   "next_after_approval": {
-    "status": "P033 제목·설명 저장, 마지막 카메라 시선 제거 8.8초 편집본 연결·웹 재생 확인. 공 상단 잘림·반복 자연스러움·앱 및 다른 기기·사용자 판단 대기."
+    "review_id": "EX-Y-P-024",
+    "title": "와이드 스탠스 브로드 점프",
+    "status": "Only after explicit user next/okay"
   },
   "order": {
     "basis": "이 대화에서 관찰한 파워57개 라이브러리 순서. 재개 시 실제 목록 변경 여부 대조; 새로 검수한 목록 아님.",
@@ -193,8 +195,10 @@
       },
       {
         "ordinal": 25,
-        "title": "브로드 점프",
-        "status": "not_human_reviewed"
+        "title": "제자리 멀리뛰기 (브로드 점프)",
+        "status": "content_applied_human_reverification_pending",
+        "previous_title": "브로드 점프",
+        "library_database_id": "7130118f-1f0d-46de-a44b-856425d28836"
       },
       {
         "ordinal": 26,
@@ -322,7 +326,7 @@
       {
         "ordinal": 50,
         "title": "박스 점프",
-        "status": "not_human_reviewed"
+        "status": "user_next_after_applied_placement_correction"
       },
       {
         "ordinal": 51,
@@ -760,8 +764,8 @@
   "reporting_preference": "Show before and after of each change and distinguish previous sessions from current edits.",
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
   "latest_resume": {
-    "current": "EX-Y-P-050",
-    "status": "User why-needed correction saved and reloaded; standing purpose criterion added. Metadata unchanged; user review pending, no next."
+    "current": "EX-Y-P-025",
+    "status": "P050 final placement correction saved; P025 title/description/target corrected, metadata reviewed and saved/read back. Own clip playing, repeat enabled. User review pending."
   },
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
@@ -774,7 +778,7 @@
   "ordered_review_plan": {
     "as_of": "2026-11-14 Asia/Seoul",
     "scope": "Visible library: power 57, core 38, arm care 89, recovery 19; later filming 65 is mixed/unassigned and not assumed in scope. User-owned category boundaries to be verified.",
-    "rules": "Grouped movement similarity; titles are snapshot identifiers, verify stable ID before editing. Previous next approvals retained; no blanket content, rights, or complete-video approval. Finish remaining unreviewed within each group, do not automatically revisit reviewed. Current P018; next remaining in first group band assisted plyo pushup.",
+    "rules": "Grouped movement similarity. Verify stable IDs. Current P025; next remaining P024 then P023. Earlier approvals retained; historical numbers not continuous completion.",
     "groups": {
       "상체 푸시업·폭발적 밀기": [
         "플라이오 푸시업",
@@ -812,7 +816,7 @@
         "싱글렉 브로드 점프",
         "싱글렉 박스 점프",
         "박스 점프",
-        "브로드 점프",
+        "제자리 멀리뛰기 (브로드 점프)",
         "와이드 스탠스 브로드 점프",
         "버티컬 점프",
         "더블렉 스냅다운",
@@ -1054,6 +1058,12 @@
       "to": "EX-Y-P-050",
       "user_instruction": "이걸로 하고 다음 영상으로 넘어가자.",
       "meaning": "P0354.05s clip accepted; move by grouped plan, do not infer intervening ordinals completed."
+    },
+    {
+      "from": "EX-Y-P-050",
+      "to": "EX-Y-P-025",
+      "user_instruction": "그럼 너의 판단하에 수정하고 다음으로가",
+      "meaning": "Apply P050 placement changes then follow existing jump-group order."
     }
   ],
   "standing_review_conditions": {
@@ -1062,6 +1072,10 @@
       "instruction": "For every exercise, explain the relevant pitching demand, the physical quality this exercise develops, and how that quality supports pitching. For power drills explicitly connect strong/fast force production to relevant whole-body/pitching action when justified. Keep limb placement/landing how-to in instructions; do not merely repeat the movement or say it can be used for training. Use direct vs indirect evidence honestly; avoid guaranteed velocity or injury claims. Adapt to each exercise, not boilerplate.",
       "source": "User P050 correction, 2026-11-16",
       "example": "투구에서는 다리로 지면을 강하고 빠르게 밀어 몸을 이동시키고, 그 움직임을 몸통과 팔의 빠른 동작으로 이어가는 능력이 중요합니다.\n\n박스 점프는 두 다리로 짧은 시간에 힘을 내는 하체 파워를 기르는 데 도움이 됩니다. 투구할 때 몸을 빠르게 이동시키고 전신을 강하고 빠르게 움직이기 위한 기초 능력을 키우는 것이 이 운동의 목적입니다."
+    },
+    "intensity_and_recovery_placement": {
+      "instruction": "Keep equipment weight/resistance/height and suitable effort/distance selection in intensity. Put concrete recovery and rest-extension instructions in how-to; numerical rest in prescription. Remove unnecessary testing/measurement asides from basic execution explanation.",
+      "source": "User P050 question then authorized agent judgment,2026-11-16"
     }
   }
 }
