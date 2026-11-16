@@ -1,5 +1,5 @@
 {
- "version": 9,
+ "version": 10,
  "createdOn": "2026-11-16",
  "options": {
   "sessions": 4,
@@ -2842,24 +2842,8 @@
      "end": 60.3,
      "items": [
       {
-       "exerciseId": "04b9e472-706e-46fb-ba93-8dda88eab946",
-       "no": "3-10",
-       "title": "막대 흉추·광배 스트레치",
-       "station": "매트",
-       "bucket": "모빌리티",
-       "equipment": [
-        "맨몸"
-       ],
-       "at": 50.1,
-       "minutes": 1.7,
-       "load": 0.2,
-       "cue": "10초 버티기",
-       "perSide": false,
-       "breakAfter": false
-      },
-      {
        "exerciseId": "c6e68a49-e226-42f9-9b54-ea2fbbe32ba0",
-       "no": "3-11",
+       "no": "3-10",
        "title": "스플릿 스탠스 골반 회전 (손 지지)",
        "station": "매트",
        "bucket": "모빌리티",
@@ -2874,24 +2858,8 @@
        "breakAfter": false
       },
       {
-       "exerciseId": "45193b52-9390-4d2a-9ecf-b860c4853fe5",
-       "no": "3-12",
-       "title": "사이드라잉 윈드밀",
-       "station": "매트",
-       "bucket": "모빌리티",
-       "equipment": [
-        "맨몸"
-       ],
-       "at": 53.5,
-       "minutes": 1.7,
-       "load": 0.2,
-       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
-       "perSide": true,
-       "breakAfter": false
-      },
-      {
        "exerciseId": "4fddc686-0c88-47fe-9070-71e9a1e9ef4b",
-       "no": "3-13",
+       "no": "3-11",
        "title": "싱글렉 카프 레이즈",
        "station": "매트",
        "bucket": "하체 앞(무릎)",
@@ -2907,7 +2875,7 @@
       },
       {
        "exerciseId": "e4329d32-7532-4708-914b-6e2182fe8107",
-       "no": "3-14",
+       "no": "3-12",
        "title": "보수볼 싱글렉 RDL",
        "station": "매트",
        "bucket": "하체 뒤(힌지)",
@@ -2923,7 +2891,7 @@
       },
       {
        "exerciseId": "e2c9ee57-e7dd-4a8a-9245-ea68f9b79fb1",
-       "no": "3-15",
+       "no": "3-13",
        "title": "톨닐링 포스처 홀드",
        "station": "매트",
        "bucket": "코어",
@@ -2947,7 +2915,7 @@
      "items": [
       {
        "exerciseId": "3c5bef79-469f-4392-9b60-ff8e340a6f09",
-       "no": "3-16",
+       "no": "3-14",
        "title": "P3 핸드홀드 힌지 + 내회전 → 흉추 신전",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -2965,7 +2933,7 @@
       },
       {
        "exerciseId": "48f8ce53-0dde-49b5-bfed-f5430dc3714d",
-       "no": "3-17",
+       "no": "3-15",
        "title": "P4 핸드홀드 고관절 내회전",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -2983,7 +2951,7 @@
       },
       {
        "exerciseId": "4fceea7b-3a12-4395-a130-a8f15f79acfb",
-       "no": "3-18",
+       "no": "3-16",
        "title": "P2 레터럴 힌지 바운드",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -3001,7 +2969,7 @@
       },
       {
        "exerciseId": "9a3a9beb-a841-4343-b8bd-1ef59f79ee1d",
-       "no": "3-19",
+       "no": "3-17",
        "title": "P2 레터럴 힌지 바운드 + 정지",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -3019,7 +2987,7 @@
       },
       {
        "exerciseId": "0de90fb2-4f55-48bc-9702-b1b32d3af939",
-       "no": "3-20",
+       "no": "3-18",
        "title": "P3 레터럴 힌지 바운드 → 내회전",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -3037,7 +3005,7 @@
       },
       {
        "exerciseId": "dc437a06-1abc-4edb-af40-3db7199e4c12",
-       "no": "3-21",
+       "no": "3-19",
        "title": "P3 레터럴 힌지 풋 스톰프 → 내회전",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -3055,7 +3023,7 @@
       },
       {
        "exerciseId": "6d466ef3-e4c6-4004-aace-842079e6de43",
-       "no": "3-22",
+       "no": "3-20",
        "title": "P4 막대 스플릿 스탠스 분리 회전",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -3073,7 +3041,7 @@
       },
       {
        "exerciseId": "7f6fe5ab-efc9-4a76-97a6-49e8d5cf5352",
-       "no": "3-23",
+       "no": "3-21",
        "title": "P4 밴드 가슴 분리",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -3091,7 +3059,7 @@
       },
       {
        "exerciseId": "c10e7806-2033-436f-9f1f-c54353208448",
-       "no": "3-24",
+       "no": "3-22",
        "title": "P5 더블 밴드 TKE",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -3109,7 +3077,7 @@
       },
       {
        "exerciseId": "1ac92af0-f77c-4054-8340-efe4d1aec8a3",
-       "no": "3-25",
+       "no": "3-23",
        "title": "P5 어깨 밴드 앞다리 회전",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -3127,7 +3095,7 @@
       },
       {
        "exerciseId": "d7c63f0b-ece8-4762-aed9-a6b989e9bae1",
-       "no": "3-26",
+       "no": "3-24",
        "title": "P5 지지 홀드 TKE",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -3145,7 +3113,7 @@
       },
       {
        "exerciseId": "ac6b83fd-3186-42f1-ab43-1a90caff376c",
-       "no": "3-27",
+       "no": "3-25",
        "title": "밴드 보조·저항 앞다리 신전",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -3163,7 +3131,7 @@
       },
       {
        "exerciseId": "33c537bc-d20d-47f5-93ee-264d01d0c2ac",
-       "no": "3-28",
+       "no": "3-26",
        "title": "베이스 밴드 저항 고관절 내회전 + 슬라이드",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -3181,7 +3149,7 @@
       },
       {
        "exerciseId": "a833eef8-07a9-433d-9b16-c33997325814",
-       "no": "3-29",
+       "no": "3-27",
        "title": "베이스 밴드 저항 고관절 외회전 + 슬라이드",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -3199,7 +3167,7 @@
       },
       {
        "exerciseId": "8f9e6bed-c611-4a34-88aa-2dafdf5abeae",
-       "no": "3-30",
+       "no": "3-28",
        "title": "밴드 저항 어깨 외전 + 스트라이드",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -3217,7 +3185,7 @@
       },
       {
        "exerciseId": "019f2867-7701-4a54-9270-0f9cd49dd7f4",
-       "no": "3-31",
+       "no": "3-29",
        "title": "밴드 보조 레터럴 드라이브 + 워터볼",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -3235,7 +3203,7 @@
       },
       {
        "exerciseId": "21b42b35-4574-40b2-88b9-4fecb47512bd",
-       "no": "3-32",
+       "no": "3-30",
        "title": "리드암 외전 + 워터볼",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -3253,7 +3221,7 @@
       },
       {
        "exerciseId": "63b1fff9-be10-4f0a-99ad-8275b41e2038",
-       "no": "3-33",
+       "no": "3-31",
        "title": "워터볼 내로우 스쿼트",
        "station": "잔디 · 밴드 기둥",
        "bucket": "고관절 · 발목 보강",
@@ -3269,7 +3237,7 @@
       },
       {
        "exerciseId": "bdbe4522-b915-44fa-ab88-49687f1a9b64",
-       "no": "3-34",
+       "no": "3-32",
        "title": "워터볼 마치 홀드",
        "station": "잔디 · 밴드 기둥",
        "bucket": "고관절 · 발목 보강",
