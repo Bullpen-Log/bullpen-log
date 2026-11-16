@@ -155,6 +155,8 @@ export function sanitizeAdjusts(raw: unknown, week: readonly DaySlot[], today: s
     if (!a) continue;
     const dates = a.kind === 'minutes' || a.kind === 'skip' ? [a.date] : a.kind === 'move' ? [a.from, a.to] : [];
     if (!dates.every(ok)) continue;
+    /* 이미 그 시간인 날을 그 시간으로 — 눌러도 바뀌는 것이 없는 단추(Haiku 실제 호출에서 나왔다, 2026-11-16) */
+    if (a.kind === 'minutes' && week.find((d) => d.date === a.date)?.items.some((i) => i.kind === 'train' && i.fence.minutes === a.minutes)) continue;
     const key = JSON.stringify(a);
     if (seen.has(key)) continue;
     seen.add(key);

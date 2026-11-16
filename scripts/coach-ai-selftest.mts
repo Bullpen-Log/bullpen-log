@@ -123,6 +123,7 @@ check(
   JSON.stringify(s)
 );
 check('④ 배열이 아니면 빈 목록', sanitizeAdjusts('skip everything', week, T, locked).length === 0);
+check('④ 이미 60분인 날을 60분으로는 뺀다(누를 것이 없는 단추)', sanitizeAdjusts([{ ...nul, kind: 'minutes', date: '2026-11-04', minutes: 60 }], week, T, locked).length === 0);
 
 console.log(`coach-ai: ${pass}개 통과${fails.length ? `, ${fails.length}개 실패` : ''}`);
 for (const f of fails) console.log(`  - ${f}`);

@@ -8,10 +8,11 @@ import type { AiUsage } from '@/lib/coach/ai-price';
 /**
  * 코치 AI 부르기(docs/designs/ai-coach.md 10-6 U39 · U40) — 서버에서만(앱 → rpc → 서버 → Anthropic). 열쇠는 Vercel 환경변수 ANTHROPIC_API_KEY.
  * 대화: 답 글 + 바꿀 거리(0~3) 를 구조화 출력(zod)으로 받는다 — 모양이 늘 맞다. 도구 · 반복 고리 없음. 저장 · 적용은 하지 않는다(거르기 → 사용자 [적용]).
- * 거절(stop_reason 'refusal')을 먼저 본다. 대화는 fallbacks 'default'(베타 server-side-fallback-2026-07-01)로 다른 모델이 이어받는다.
- * 생각(thinking)은 Opus 5.5 에서 끌 수 없어 effort 'low' 로 줄이고, 생각 글은 보이지도 저장하지도 않는다. 대화 기록은 글만 다시 보낸다.
+ * 거절(stop_reason 'refusal')을 먼저 본다. 기본 모델은 Haiku 5.5(2026-11-16 김민: 값 — Opus 5.5 의 1/40). Haiku 는 서버 쪽 이어받기(fallbacks)가 없어
+ * 붙이지 않고, 거절이면 정해진 문장으로 간다. 환경변수로 Opus · Sonnet 을 고르면 fallbacks 'default'(베타 server-side-fallback-2026-07-01)를 붙인다.
+ * 생각(thinking)은 켜 둔 채 effort 'low' 로 줄이고, 생각 글은 보이지도 저장하지도 않는다. 대화 기록은 글만 다시 보낸다.
  */
-export const COACH_MODEL_CHAT = process.env.COACH_MODEL_CHAT || 'claude-opus-5-5';
+export const COACH_MODEL_CHAT = process.env.COACH_MODEL_CHAT || 'claude-haiku-5-5';
 
 export const aiKeyReady = () => Boolean(process.env.ANTHROPIC_API_KEY);
 
@@ -64,8 +65,7 @@ export async function chatTurn(history: readonly ChatLine[], context: string, te
       output_config: { effort: 'low', format: betaZodOutputFormat(ChatOut) },
       /* 시스템 글 + 지난 마디를 5분 안 다음 마디가 캐시로 읽는다(usage.cache_read_input_tokens 로 확인) */
       cache_control: { type: 'ephemeral' },
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
+      ...(model.includes('haiku') ? {} : { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const }),
     });
     const usage = r.usage as AiUsage;
     const ms = Date.now() - t0;
