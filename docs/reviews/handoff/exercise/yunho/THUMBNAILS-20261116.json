@@ -1,0 +1,172 @@
+{
+  "at_utc": "2026-11-16T09:05:07.694719+00:00",
+  "session": "gpt-01a1c08f-1592-76c1-95bd-ae309d0fcff9",
+  "scope": "Previously reviewed OWN exercise videos, including MacBook P031/P032 handoff items; references explicitly excluded.",
+  "counts": {
+    "updated_owned": 14,
+    "unchanged_reference": 18
+  },
+  "items": [
+    {
+      "library_database_id": "5a2480cc-db5b-4b65-ad0c-d1d8f5317d9e",
+      "title": "메디신볼 머리 위 내리치기 (오버헤드 슬램)",
+      "source_time_seconds": 2.5,
+      "crop_pixels": null,
+      "reason": "Ball visible in downward overhead-slam phase; avoid cropped overhead peak.",
+      "poster_sha256": "b6233712ab0b3551582425952128d87629593f9b4515566260ab0a9db90a1b91",
+      "status": "Applied and DB readback/upload hash verified; original/prior posters and video retained."
+    },
+    {
+      "library_database_id": "13ef4542-c713-493b-a5a8-1773d23720fa",
+      "title": "메디신볼 밀어 내리치기 (푸시 슬램)",
+      "source_time_seconds": 2.12,
+      "crop_pixels": null,
+      "reason": "Bent stance, ball and arms visible in push-slam.",
+      "poster_sha256": "4cf016c9ded0a6354628c7b9f691988837e0f247ae6470d74a56a725ab6549e2",
+      "status": "Applied and DB readback/upload hash verified; original/prior posters and video retained."
+    },
+    {
+      "library_database_id": "89b14e01-8ca7-4b08-a79b-bc043d6ff140",
+      "title": "무릎 꿇고 메디신볼 오버헤드 스로우",
+      "source_time_seconds": 2.1,
+      "crop_pixels": null,
+      "reason": "Kneeling base and ball wound behind overhead throw.",
+      "poster_sha256": "e91f0ca4f4a451e3286dae8c74e92884a0b49cea5180043bf51c0406015459fa",
+      "status": "Applied and DB readback/upload hash verified; original/prior posters and video retained."
+    },
+    {
+      "library_database_id": "cde9adcf-0e92-4930-b6ae-f5da3fe602ba",
+      "title": "무릎 꿇고 메디신볼 체스트 패스",
+      "source_time_seconds": 5.55,
+      "crop_pixels": null,
+      "reason": "Kneeling chest-pass extension with ball.",
+      "poster_sha256": "a4c0190565d6bb57188919c2c23a5fe73db1c1244f3d8ac1b9cd40016ec1a3ab",
+      "status": "Applied and DB readback/upload hash verified; original/prior posters and video retained."
+    },
+    {
+      "library_database_id": "5b19a6d2-a9e0-4e08-9a97-4044952fba8e",
+      "title": "박스 점프",
+      "source_time_seconds": 2.3,
+      "crop_pixels": null,
+      "reason": "Airborne athlete and full box distinguish box jump.",
+      "poster_sha256": "b9cd7a313636c20ee42d280fa723edd62ab56b60748afec8b583ce1a862e40d0",
+      "status": "Applied and DB readback/upload hash verified; original/prior posters and video retained."
+    },
+    {
+      "library_database_id": "a676ba56-9ad6-4bff-b97c-68d42f7c2e51",
+      "title": "발 넓게 벌려 제자리 멀리뛰기 (와이드 스탠스 브로드 점프)",
+      "source_time_seconds": 1.25,
+      "crop_pixels": [
+        1440,
+        810,
+        400,
+        130
+      ],
+      "reason": "Wide takeoff stance and forward arm drive.",
+      "poster_sha256": "4d9b253b879a05a64ec633333cc402241da9322b9e346c0a5822dfbb04123dc2",
+      "status": "Applied and DB readback/upload hash verified; original/prior posters and video retained."
+    },
+    {
+      "library_database_id": "00e3aa2c-052a-4b01-be1e-e96aa446d58d",
+      "title": "밴드 보조 플라이오 푸시업",
+      "source_time_seconds": 1.35,
+      "crop_pixels": null,
+      "reason": "Hands airborne with supporting band visible.",
+      "poster_sha256": "1c8dbb35d8e6bf47db333ebe724f083b9faa8740a217557280a5897080819f4d",
+      "status": "Applied and DB readback/upload hash verified; original/prior posters and video retained."
+    },
+    {
+      "library_database_id": "c0e39a5a-b78d-48ed-b1ba-f2fd7b265009",
+      "title": "밴드 스피드 벤치 프레스",
+      "source_time_seconds": 1.65,
+      "crop_pixels": [
+        1728,
+        972,
+        80,
+        80
+      ],
+      "reason": "Bench, band and extended arms visible.",
+      "poster_sha256": "3b3221f4e5bfb594eed39c0cca0abaf7f94ad2463e1fd6bda25886e1290d2bf7",
+      "status": "Applied and DB readback/upload hash verified; original/prior posters and video retained."
+    },
+    {
+      "library_database_id": "a2c755d9-8be0-4f24-b26c-293ebd7a46f3",
+      "title": "싱글렉 박스 점프",
+      "source_time_seconds": 1.6,
+      "crop_pixels": null,
+      "reason": "Single-leg jump and box visible.",
+      "poster_sha256": "ab2e318b1f0b8139a7921086b12258f7ae632e96679c5337231c0cab3be400eb",
+      "status": "Applied and DB readback/upload hash verified; original/prior posters and video retained."
+    },
+    {
+      "library_database_id": "2a9cc104-087c-4356-b146-1595a8dc7d43",
+      "title": "싱글렉 브로드 점프",
+      "source_time_seconds": 2.55,
+      "crop_pixels": null,
+      "reason": "Single-leg forward takeoff with trailing leg visible.",
+      "poster_sha256": "94e071b91ae549fb9a0b9f51ff01770366d76ec7d1aa5255c7af37dd6bbf66f5",
+      "status": "Applied and DB readback/upload hash verified; original/prior posters and video retained."
+    },
+    {
+      "library_database_id": "86ac9808-a5b5-4068-aa1a-1d35c8e2356f",
+      "title": "옆으로 뛰고 메디신볼 내리치기 (레터럴 바운드 슬램)",
+      "source_time_seconds": 3.2,
+      "crop_pixels": [
+        1600,
+        900,
+        160,
+        60
+      ],
+      "reason": "Lateral/split posture and raised ball identify bound/slam.",
+      "poster_sha256": "a520de1272292cbf3b4504d4f84f8565d0cf292b4ce85df9824ceb5cffab8e06",
+      "status": "Applied and DB readback/upload hash verified; original/prior posters and video retained."
+    },
+    {
+      "library_database_id": "6b204b36-d854-4b21-9619-da8a3dda0a52",
+      "title": "인클라인 플라이오 푸시업",
+      "source_time_seconds": 1.8,
+      "crop_pixels": [
+        1440,
+        810,
+        300,
+        270
+      ],
+      "reason": "Incline push-up bench and full athlete clear; crop excludes distracting reflected people without cutting head or feet. Existing video reshoot requirement remains.",
+      "poster_sha256": "1ab74401c3232c7ac53c3fcef17857fe5673a389602d43132aab2c8158ff3417",
+      "status": "Applied and DB readback/upload hash verified; original/prior posters and video retained."
+    },
+    {
+      "library_database_id": "7130118f-1f0d-46de-a44b-856425d28836",
+      "title": "제자리 멀리뛰기 (브로드 점프)",
+      "source_time_seconds": 2.8,
+      "crop_pixels": [
+        1440,
+        810,
+        200,
+        120
+      ],
+      "reason": "Two-foot forward flight distinguishes broad jump.",
+      "poster_sha256": "72bdd0f91250b5ff6ec4b758d64c07e19690295f55e29f91c821acdd66bd95d1",
+      "status": "Applied and DB readback/upload hash verified; original/prior posters and video retained."
+    },
+    {
+      "library_database_id": "4a63d7ac-ffe5-46bf-821c-e680b36b06ff",
+      "title": "플라이오 푸시업",
+      "source_time_seconds": 2.3,
+      "crop_pixels": [
+        1600,
+        900,
+        160,
+        160
+      ],
+      "reason": "Hands visibly clear of ground during plyo push-up.",
+      "poster_sha256": "8e5d69451ddcca8087f386d90719959cb44b7572b38d8b26e18c5dbe8733db22",
+      "status": "Applied and DB readback/upload hash verified; original/prior posters and video retained."
+    }
+  ],
+  "verification": "All14 images visually assessed; current live row pointers and uploaded image SHA256 verified. Before/after32-row comparison: only owned thumbPath changed. No video/description/title/prescription changes. Admin unchanged-save invalidated common library cache. New P024 poster visibly observed in web detail. No claim every native client refreshed.",
+  "source_preservation": "All old poster objects and source videos retained. Private before/after rows and full backup outside repository.",
+  "continuation": "Current P024 unchanged, user review pending.",
+  "retained_reshoot": "P018 original video still requires reshoot because another person appears; representative poster crop does not resolve full-video reshoot request.",
+  "mechanics": "Owned-only criterion sent to04 and its persisted rule scope confirmed; mechanics poster changes are not counted here."
+}

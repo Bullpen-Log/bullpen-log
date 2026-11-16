@@ -766,7 +766,7 @@
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
   "latest_resume": {
     "current": "EX-Y-P-024",
-    "status": "P0254.60s trim2 accepted. P024 title/description/target corrected and saved/read back, all metadata assessed. Source3.92s sampled4fps, unchanged footage. User review pending."
+    "status": "Owned-only thumbnail batch complete14/14, refs18 unchanged; new current poster observed on web. Existing content/settings and current user-pending judgment retained; resume current wide-stance broad jump, no next."
   },
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
@@ -1087,6 +1087,19 @@
     "landing_cue_interpretation": {
       "instruction": "Use observable plain-language landing cues. Do not infer jump ability from fall direction or recovery steps alone. P025 emphasizes falling backward/using hands, shorter target distance and balanced two-foot landing. Do not claim forward steps prove superior power or that backward falls are more frequent without evidence.",
       "source": "User correction and biomechanics assessment,2026-11-16"
+    },
+    "owned_thumbnail_selection": {
+      "scope": "Only our filmed OWN exercise and mechanics drill videos: all previously reviewed owned items and every future owned review. Reference/YouTube posters are excluded by latest user clarification.",
+      "criterion": "Choose an actual representative frame that identifies the movement/variation at a glance. Show relevant athlete posture, equipment and key limbs; prefer clear action/characteristic stance over idle setup/finish. Crop only to improve clarity while retaining relevant body/equipment, preserving aspect. No invented motion or artificial pose.",
+      "authorization": "User authorizes thumbnail selection/correction without a gallery or per-poster approval; preserve source video and old posters, use new poster identity. Do not advance the current exercise during thumbnail work.",
+      "verification": "Assess generated images, read back exact row, verify new asset integrity, preserve video/title/description/metadata. Confirm visible use where feasible and disclose client-cache limits.",
+      "current_scope_counts": {
+        "reviewed_items_including_MacBook_handoff": 32,
+        "owned_posters_updated": 14,
+        "reference_posters_unchanged": 18
+      },
+      "future": "Include representative-thumbnail assessment and authorized correction in every owned-video review. Keep missing footage/reshoot and human decisions separate.",
+      "mechanics_delivery": "Sent to04 mechanics session; its checkpoint read back confirms latest owned-only scope. This is delivery/standing-rule confirmation, not a claim its own posters were changed."
     }
   }
 }
