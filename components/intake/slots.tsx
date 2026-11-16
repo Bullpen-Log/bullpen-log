@@ -48,6 +48,7 @@ export function FileButton({
   disabled,
   describedBy,
   buttonRef,
+  onPrepare,
 }: {
   label: string;
   onFile: (file: File) => void;
@@ -55,6 +56,7 @@ export function FileButton({
   disabled?: boolean;
   describedBy?: string;
   buttonRef?: RefObject<HTMLButtonElement | null>;
+  onPrepare?: () => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
   return (
@@ -73,7 +75,8 @@ export function FileButton({
         }}
       />
       <button ref={buttonRef} type="button" className={className} disabled={disabled} aria-describedby={describedBy} onClick={() => {
-          if (input.current) openFilePicker(input.current);
+          if (onPrepare) onPrepare();
+          else if (input.current) openFilePicker(input.current);
         }}>
         {label}
       </button>
@@ -106,6 +109,7 @@ export function SlotCard({
   error,
   note,
   requested = false,
+  onPrepare,
   onPick,
 }: {
   view: IntakeView;
@@ -118,6 +122,7 @@ export function SlotCard({
   /** 고침 요청으로 다시 고르라고 한 칸 */
   requested?: boolean;
   onPick: (file: File) => void;
+  onPrepare?: () => void;
 }) {
   const arrived = asset != null && assetArrived(asset.status) && !requested;
   const transit = asset != null && assetInTransit(asset.status);
@@ -176,6 +181,7 @@ export function SlotCard({
           <FileButton
             label={picked || arrived ? REPICK_LABEL : PICK_LABEL}
             onFile={onPick}
+            onPrepare={onPrepare}
             className={`-ml-2 ${LINK_BUTTON}`}
             describedBy={error ? errorId : undefined}
           />

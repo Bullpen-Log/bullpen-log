@@ -1428,7 +1428,7 @@ eq(unhandled, 0, '처리되지 않은 거절이 없다');
     }
 
     ok(fp.GUIDE_CHAPTERS.length === 4 && fp.GUIDE_CHAPTERS.map((c) => c.id).join() === '01-open-share,02-export-original,03-save-files,04-pick-file', 'R08: 안내는 네 장, 차례대로');
-    ok(fp.GUIDE_CHAPTERS.every((c) => c.video === `/intake-guides/original-file-v1/${c.id}.mp4` && c.poster === `/intake-guides/original-file-v1/${c.id}.jpg`), 'R08: 영상 · 포스터 주소는 GPT 가 가린 파일 자리만');
+    ok(fp.GUIDE_CHAPTERS.every((c, i) => c.video === `/intake-guides/original-file-v${i === 3 ? 2 : 1}/${c.id}.mp4` && c.poster === `/intake-guides/original-file-v${i === 3 ? 2 : 1}/${c.id}.jpg`), '안내 영상 · 포스터는 검수한 자산만, 마지막 장은 파일 선택기만 보이는 v2');
     const all = fp.GUIDE_CHAPTERS.map((c) => `${c.title} ${c.body} ${c.note ?? ''}`).join(' ');
     ok(all.includes('무수정 원본 내보내기') && all.includes('수정되지 않은 원본 내보내기') && all.includes(`‘${fp.PICK_LABEL}’`), 'R08: 메뉴 이름 둘 · 실제 단추 이름을 말한다');
     ok(!/AirDrop|모든 사진 데이터|‘현재’|사진 보관함|카메라로/.test(all + fp.FILE_FIRST_NOTE), 'R08: 다른 길(AirDrop · 모든 사진 데이터 · 현재 · 보관함 · 카메라)을 가르치지 않는다');

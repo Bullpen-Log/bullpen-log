@@ -4,7 +4,7 @@
  * 앞으로 가기에도 줄어 '이전' 단추가 기록 대신 앞 단계(옆 · 뒤 영상)로 빠졌다.
  * 깊이가 0 이면(이 화면이 쌓기 전의 항목) '이전'은 브라우저 기록이 아니라 앞 단계로 간다.
  */
-export type IntakeHistoryState = { intakeStep?: string; reviewPanel?: string; intakeDepth?: number };
+export type IntakeHistoryState = { intakeStep?: string; reviewPanel?: string; intakeDepth?: number; preparation?: unknown };
 
 /** 새로 쌓을 항목 — 지금 깊이 + 1 */
 export const historyEntry = (depth: number, intakeStep: string, reviewPanel?: string): IntakeHistoryState => ({ intakeStep, reviewPanel, intakeDepth: depth + 1 });

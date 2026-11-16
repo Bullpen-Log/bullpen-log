@@ -83,7 +83,9 @@ export const GUIDE_CHAPTERS: readonly GuideChapter[] = [
     id: '04-pick-file',
     title: '접수 화면에서 파일 고르기',
     body: `이 화면으로 돌아와 ‘${PICK_LABEL}’을 누르고 저장한 영상(.MOV)을 고릅니다. 감지된 fps를 확인하고 다음으로 넘어갑니다.`,
-    note: '미리 보기가 나오지 않아도 보낼 수 있습니다. 영상 속 접수 화면은 이전 모습이라 단추 이름이 다를 수 있습니다.',
+    note: '미리 보기가 나오지 않아도 보낼 수 있습니다.',
     ...media('04-pick-file'),
+    video: '/intake-guides/original-file-v2/04-pick-file.mp4',
+    poster: '/intake-guides/original-file-v2/04-pick-file.jpg',
   },
 ];

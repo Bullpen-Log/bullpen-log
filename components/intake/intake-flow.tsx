@@ -3,8 +3,11 @@
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { CaptureGuide } from '@/components/intake/guides';
+import { PreparationStep } from '@/components/intake/preparation-step';
+import { isAppleTouch } from '@/components/intake/file-picker';
+import { clearPreparation, preparationOf, preparationForState, readPreparation, safePreparation, writePreparation, PREPARATION_STAGES, type Preparation, type PreparationReturn, type PreparationStage } from '@/components/intake/preparation-state';
 import { OriginalFileGuide } from '@/components/intake/original-file-guide';
-import { NameStep, VideoStep, WelcomeStep } from '@/components/intake/guided-steps';
+import { NameStep, WelcomeStep } from '@/components/intake/guided-steps';
 import { ReviewStep } from '@/components/intake/review-wizard';
 import { EnrollStep, LeaveDevice, UnlockStep, inviteeErrorsOf, type InviteeErrors, type UnlockReason } from '@/components/intake/invitee-steps';
 import { consentAnswers } from '@/components/intake/consent-block';
@@ -139,9 +142,12 @@ function Flow({ token }: { token: string }) {
   /* 세션이 끊긴 뒤 다시 들어오면 서버가 말하는 화면으로 옮길지('move') 지금 화면에 둘지('stay') */
   const resumeRef = useRef<'move' | 'stay' | null>(null);
   const [data, setData] = useState<PublicStateResponse | null>(null);
+  const submissionIdRef = useRef<string | null>(null);
   const [step, setStep] = useState<Step>('welcome');
   /* 보내기 전 확인의 지금 결정 화면(R04) — 앞뒤 단추 기록에도 남긴다 */
   const [panel, setPanel] = useState<string>('files');
+  const [preparation, setPreparation] = useState<Preparation | null>(null);
+  const preparationRef = useRef<Preparation | null>(null);
   const [picked, setPicked] = useState(NO_PICK);
   const [inspecting, setInspecting] = useState<IntakeView | null>(null);
   /* rejected: 촬영 속도로 막힌 파일 — 영상 단계의 '파일 진단'에만 쓴다(R07). 다른 칸 · 앞서 고른 파일은 건드리지 않는다 */
@@ -172,6 +178,7 @@ function Flow({ token }: { token: string }) {
       const r = await client.state({ signal });
       const before = shownDocs.current;
       shownDocs.current = r.consentDocs;
+      submissionIdRef.current = r.state.submissionId;
       setData(r);
       setBoot({ kind: 'ready' });
       setFormState((f) => {
@@ -202,6 +209,11 @@ function Flow({ token }: { token: string }) {
          * 이 기기에 파일이 없어도 서버에 올라온 파일이 있으면 소개를 건너뛰고 이름부터 받는다. 저장하면 서버가 다음 화면을 고른다.
          */
         const resume = next === 'welcome' && r.state.assetsOnFile;
+        const cached = readPreparation(r.state.submissionId)?.active ?? null;
+        const restored = preparationForState(cached, r.state, { side: pickedRef.current.side != null, rear: pickedRef.current.rear != null });
+        preparationRef.current = restored;
+        setPreparation(restored);
+        if (cached && !restored) clearPreparation(r.state.submissionId);
         setStep((next === 'side' || next === 'welcome') && both ? 'review' : resume ? 'name' : next);
       }
       return r;
@@ -280,6 +292,9 @@ function Flow({ token }: { token: string }) {
   const onDone = useCallback(
     (receipt: IntakeReceipt) => {
       setData((d) => (d ? { ...d, state: stateAfterReceipt(d.state, receipt) } : d));
+      if (submissionIdRef.current) clearPreparation(submissionIdRef.current);
+      preparationRef.current = null;
+      setPreparation(null);
       setStep('receipt');
       void refreshQuietly(() => load(true)).then((e) => {
         if (e && SESSION_CODES.has(e.code)) lockAgain(e.code, 'move');
@@ -302,15 +317,26 @@ function Flow({ token }: { token: string }) {
   /* 앞뒤 단추 — 안내 단계 사이만 오간다. 보내는 중이거나 접수 뒤에는 화면을 그대로 둔다 */
   useEffect(() => {
     const onPop = (e: PopStateEvent) => {
-      const st = e.state as { intakeStep?: LocalStep; reviewPanel?: string } | null;
+      const st = e.state as { intakeStep?: LocalStep; reviewPanel?: string; preparation?: unknown } | null;
       const target = st?.intakeStep;
-      if (!isLocal(step) || step === 'send') {
+      if ((!isLocal(step) && !['recovery', 'correction'].includes(step)) || step === 'send') {
         /* 화면을 그대로 둔다 — 지금 깊이의 항목을 다시 쌓는다 */
         window.history.pushState(historyEntry(depth.current - 1, step), '');
         return;
       }
+      /* 서버가 고침/복구를 요구하면 옛 일반 접수 기록으로 빠지지 않는다. */
+      if (['recovery', 'correction'].includes(step) && target !== step) {
+        window.history.pushState(historyEntry(depth.current - 1, step), '');
+        preparationRef.current = null;
+        setPreparation(null);
+        return;
+      }
       depth.current = depthOf(e.state);
-      const to = target ?? PREVIOUS[step] ?? 'welcome';
+      const to = target ?? PREVIOUS[step as LocalStep] ?? step;
+      const restored = preparationOf(st?.preparation);
+      preparationRef.current = restored;
+      setPreparation(restored);
+      if (restored && submissionIdRef.current) writePreparation(submissionIdRef.current, restored);
       if (to === 'review') setPanel(st?.reviewPanel ?? 'files');
       setStep(to);
     };
@@ -349,8 +375,31 @@ function Flow({ token }: { token: string }) {
     };
   }, [followServer, data?.state.submissionStatus, load, lockAgain]);
 
+  const defaultPreparation = (view: IntakeView, returnTo: PreparationReturn): Preparation => {
+    const cached = data ? readPreparation(data.state.submissionId)?.positions[view] : null;
+    const route = cached?.route ?? (isAppleTouch({ userAgent: navigator.userAgent, maxTouchPoints: navigator.maxTouchPoints }) ? 'apple' : 'other');
+    return safePreparation({ view, returnTo, route, stage: picked[view] ? 'confirm' : cached?.stage ?? (route === 'apple' ? 'share' : 'select') }, picked[view] != null);
+  };
+  const setPreparationPosition = (p: Preparation | null, push = true) => {
+    preparationRef.current = p;
+    setPreparation(p);
+    setPickError(null);
+    if (data && p) writePreparation(data.state.submissionId, p);
+    if (push) {
+      window.history.pushState({ ...historyEntry(depth.current, step, panel), preparation: p }, '');
+      depth.current += 1;
+    }
+  };
+  const openPreparation = (view: IntakeView, returnTo: PreparationReturn, start?: PreparationStage) => {
+    const p = defaultPreparation(view, returnTo);
+    setPreparationPosition({ ...p, stage: start ?? p.stage });
+    setGuide(null);
+  };
+
   const go = (next: LocalStep) => {
-    window.history.pushState(historyEntry(depth.current, next, next === 'review' ? 'files' : undefined), '');
+    const p = next === 'side' || next === 'rear' ? defaultPreparation(next, next) : null;
+    setPreparationPosition(p, false);
+    window.history.pushState({ ...historyEntry(depth.current, next, next === 'review' ? 'files' : undefined), preparation: p }, '');
     depth.current += 1;
     setStepError(null);
     setPickError(null);
@@ -397,7 +446,7 @@ function Flow({ token }: { token: string }) {
   };
 
   const pick = async (view: IntakeView, file: File, checkAgainst?: PublicAsset | null) => {
-    if (!data) return;
+    if (!data) return false;
     setInspecting(view);
     setPickError(null);
     const other = otherOf(view);
@@ -408,7 +457,7 @@ function Flow({ token }: { token: string }) {
       /* 이 칸의 전 선택도, 다른 칸의 선택도 그대로 둔다 */
       setPickError({ view, message: r.message, code: r.code, rejected: r.rejected });
       setInspecting(null);
-      return;
+      return false;
     }
     /* 고침에서 이미 보낸 그 영상을 다시 고르면 판이 안 바뀐다 — 보낸 뒤에 막연한 글을 보이지 않고 고를 때 말한다 */
     const sent = sentAssetOf(data.state, view);
@@ -416,7 +465,7 @@ function Flow({ token }: { token: string }) {
       URL.revokeObjectURL(r.picked.url);
       setPickError({ view, message: SAME_AS_SENT_TEXT });
       setInspecting(null);
-      return;
+      return false;
     }
     setPicked((p) => {
       const old = p[view];
@@ -447,6 +496,7 @@ function Flow({ token }: { token: string }) {
       setNotes((n) => ({ ...n, [view]: undefined }));
     }
     setInspecting(null);
+    return true;
   };
 
   const itemsOf = (views: readonly IntakeView[]): RunItem[] =>
@@ -459,6 +509,9 @@ function Flow({ token }: { token: string }) {
   const beginSend = (views: readonly IntakeView[], samePitchConfirmed: true | undefined, version?: number) => {
     if (!data) return;
     const { assets, receipt } = data.state;
+    if (data) clearPreparation(data.state.submissionId);
+    preparationRef.current = null;
+    setPreparation(null);
     setStep('send');
     send.start(itemsOf(views), {
       known: { side: assets.side?.id ?? null, rear: assets.rear?.id ?? null },
@@ -677,6 +730,9 @@ function Flow({ token }: { token: string }) {
     } catch (e) {
       if (!isSessionError(e)) throw e;
     }
+    if (data) clearPreparation(data.state.submissionId);
+    preparationRef.current = null;
+    setPreparation(null);
     resumeRef.current = 'move';
     setGateErrors({});
     setViewResult(false);
@@ -705,6 +761,44 @@ function Flow({ token }: { token: string }) {
   if (relock && (boot.kind === 'loading' || !data || !form)) return unlockScreen;
   if (boot.kind === 'loading') return <LoadingScreen />;
   if (!data || !form) return <LoadingScreen />;
+
+  const normalView = step === 'review' && (!picked.side || !picked.rear) ? (!picked.side ? 'side' : 'rear')
+    : step === 'side' || step === 'rear' ? (step === 'rear' && !picked.side ? 'side' : step) : null;
+  const candidate = preparation ?? (normalView ? defaultPreparation(normalView, normalView) : null);
+  const activePreparation = ['side', 'rear', 'review', 'recovery', 'correction'].includes(step) && !viewResult
+    ? preparationForState(candidate, data.state, { side: picked.side != null, rear: picked.rear != null }) : null;
+  const prepareFrom = (view: IntakeView) => openPreparation(view, step as PreparationReturn, 'share');
+  const prepBack = () => {
+    if (depth.current > 0) { window.history.back(); return; }
+    if (!activePreparation) return;
+    const index = PREPARATION_STAGES.indexOf(activePreparation.stage);
+    if (index > 0 && activePreparation.route === 'apple') setPreparationPosition({ ...activePreparation, stage: PREPARATION_STAGES[index - 1] }, false);
+    else if (normalView) { setPreparationPosition(null, false); setStep(PREVIOUS[normalView] ?? 'name'); }
+    else setPreparationPosition(null, false);
+  };
+  const preparedScreen = activePreparation && !relock ? <PreparationStep
+    preparation={activePreparation} picked={picked[activePreparation.view]} inspecting={inspecting != null}
+    error={pickError?.view === activePreparation.view ? pickError.message : null}
+    errorCode={pickError?.view === activePreparation.view ? pickError.code : null}
+    rejected={pickError?.view === activePreparation.view ? pickError.rejected : null}
+    limits={data.state.limits} hand={form.hand}
+    extra={<ModelConsentPart granted={data.state.consent.granted.model} onWithdraw={withdrawModel} />}
+    onStage={stage => setPreparationPosition({ ...activePreparation, stage })}
+    onRoute={route => setPreparationPosition({ ...activePreparation, route, stage: route === 'apple' ? 'share' : 'select' })}
+    onBack={prepBack}
+    onPick={async file => {
+      const context = activePreparation;
+      preparationRef.current = context;
+      const against = ['recovery', 'correction'].includes(context.returnTo) ? data.state.assets[context.view] : undefined;
+      const accepted = await pick(context.view, file, against);
+      if (accepted && preparationRef.current === context) setPreparationPosition({ ...context, stage: 'confirm' });
+    }}
+    onNext={() => {
+      if (!picked[activePreparation.view] || inspecting != null) return;
+      if (activePreparation.returnTo === activePreparation.view) go(activePreparation.view === 'side' ? 'rear' : 'review');
+      else setPreparationPosition(null);
+    }}
+  /> : null;
 
   const content = (() => {
 
@@ -805,27 +899,7 @@ function Flow({ token }: { token: string }) {
         );
       case 'side':
       case 'rear':
-        return (
-          <>
-            <VideoStep
-              key={shown}
-              view={shown}
-              picked={picked[shown]}
-              inspecting={inspecting === shown}
-              error={pickError?.view === shown ? pickError.message : null}
-              errorCode={pickError?.view === shown ? (pickError.code ?? null) : null}
-              rejected={pickError?.view === shown ? (pickError.rejected ?? null) : null}
-              limits={state.limits}
-              onPick={(f) => void pick(shown, f)}
-              onBack={() => back(shown)}
-              onNext={() => go(shown === 'side' ? 'rear' : 'review')}
-              onOriginal={() => setGuide('original')}
-              hand={form.hand}
-              extra={modelPart}
-            />
-            {guides}
-          </>
-        );
+        return null;
       case 'review':
         return (
           <ReviewStep
@@ -840,6 +914,7 @@ function Flow({ token }: { token: string }) {
             errors={errors}
             busy={busy}
             onPick={(view, f) => void pick(view, f)}
+            onPrepare={prepareFrom}
             onBack={() => back('review')}
             onSubmit={() => void submitReview()}
           />
@@ -867,8 +942,9 @@ function Flow({ token }: { token: string }) {
               notes={notes}
               changed={changed.side === true || changed.rear === true}
               onPick={(view, f) => void pick(view, f, state.assets[view])}
+              onPrepare={prepareFrom}
               onSend={(same) => beginSend(['side', 'rear'], same)}
-              onOriginal={() => setGuide('original')}
+              onOriginal={() => prepareFrom(!picked.side ? 'side' : 'rear')}
               extra={modelPart}
             />
             {guides}
@@ -890,9 +966,10 @@ function Flow({ token }: { token: string }) {
             error={stepError}
             consentEpoch={consentEpoch}
             onPick={(view, f) => void pick(view, f, state.assets[view])}
+            onPrepare={prepareFrom}
             onSubmit={(s) => void submitCorrection(s)}
             onViewResult={state.resultAvailable ? () => setViewResult(true) : undefined}
-            onOriginal={() => setGuide('original')}
+            onOriginal={() => prepareFrom(state.correction?.views[0] ?? 'side')}
             extra={tail}
           />
         );
@@ -952,7 +1029,8 @@ function Flow({ token }: { token: string }) {
     <>
       {unlockScreen}
       {/* 늘 같은 자리에 두어 다시 묻는 동안에도 단계 화면이 붙어 있게 한다 */}
-      <div style={{ display: relock ? 'none' : 'contents' }} aria-hidden={relock || undefined}>
+      {preparedScreen}
+      <div style={{ display: relock || activePreparation ? 'none' : 'contents' }} aria-hidden={relock || activePreparation != null || undefined}>
         {content}
       </div>
     </>

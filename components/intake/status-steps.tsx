@@ -261,6 +261,7 @@ export function RecoveryStep({
   notes,
   changed,
   onPick,
+  onPrepare,
   onSend,
   onOriginal,
   extra,
@@ -273,6 +274,7 @@ export function RecoveryStep({
   /** 처음 고른 파일과 다른 파일을 고른 칸이 있나 — 그 짝은 아직 같은 투구라고 확인받지 않았다 */
   changed: boolean;
   onPick: (view: IntakeView, file: File) => void;
+  onPrepare?: (view: IntakeView) => void;
   /** 같은 투구를 새로 확인받았으면 true */
   onSend: (samePitch: true | undefined) => void;
   onOriginal: () => void;
@@ -315,6 +317,7 @@ export function RecoveryStep({
           error={pickError?.view === view ? pickError.message : null}
           note={notes[view] ?? null}
           onPick={(f) => onPick(view, f)}
+          onPrepare={onPrepare ? () => onPrepare(view) : undefined}
         />
       ))}
       {askSame && (
@@ -412,6 +415,7 @@ export function CorrectionStep({
   error,
   consentEpoch,
   onPick,
+  onPrepare,
   onSubmit,
   onViewResult,
   onOriginal,
@@ -428,6 +432,7 @@ export function CorrectionStep({
   /** 동의 글이 바뀌었거나 서버가 동의를 다시 달라고 하면 오른다 — 옛 글에 누른 체크를 버린다 */
   consentEpoch: number;
   onPick: (view: IntakeView, file: File) => void;
+  onPrepare?: (view: IntakeView) => void;
   onSubmit: (s: CorrectionSubmit) => void;
   /** 공개 중인 결과가 있으면 — 고치는 동안에도 볼 수 있다 */
   onViewResult?: () => void;
@@ -608,6 +613,7 @@ export function CorrectionStep({
               slotNeedsRepick(state, view)
             }
             onPick={(f) => onPick(view, f)}
+            onPrepare={onPrepare ? () => onPrepare(view) : undefined}
           />
         );
       })}

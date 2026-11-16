@@ -35,6 +35,7 @@ function ReviewFile({
   inspecting,
   locked,
   onPick,
+  onPrepare,
 }: {
   view: IntakeView;
   picked: Picked;
@@ -42,6 +43,7 @@ function ReviewFile({
   inspecting: boolean;
   locked: boolean;
   onPick: (file: File) => void;
+  onPrepare?: () => void;
 }) {
   const card = useRef<HTMLElement>(null);
   useFocusOnPick(picked, card);
@@ -58,6 +60,7 @@ function ReviewFile({
         <FileButton
           label={inspecting ? '확인 중' : REPICK_LABEL}
           onFile={onPick}
+          onPrepare={onPrepare}
           className={LINK_BUTTON}
           disabled={locked}
         />
@@ -116,6 +119,7 @@ export function ReviewStep({
   errors,
   busy,
   onPick,
+  onPrepare,
   onPanel,
   onBack,
   onSubmit,
@@ -130,6 +134,7 @@ export function ReviewStep({
   errors: ReviewErrors;
   busy: boolean;
   onPick: (view: IntakeView, file: File) => void;
+  onPrepare?: (view: IntakeView) => void;
   /** 다음 결정 화면으로(앞뒤 단추 기록에 남긴다) */
   onPanel: (panel: ReviewPanel) => void;
   onBack: () => void;
@@ -267,6 +272,7 @@ export function ReviewStep({
                   inspecting={inspecting === view}
                   locked={inspecting != null}
                   onPick={(f) => onPick(view, f)}
+                  onPrepare={onPrepare ? () => onPrepare(view) : undefined}
                 />
               );
             })}

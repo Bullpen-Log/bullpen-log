@@ -26,6 +26,7 @@ export function Screen({
   actions,
   focusTitle = true,
   dense = false,
+  progress,
 }: {
   screenKey: string;
   title: string;
@@ -39,6 +40,7 @@ export function Screen({
   focusTitle?: boolean;
   /** 보내기 전 확인(요약 · 동의)처럼 한 화면에 다 들어와야 하는 화면 — 제목 · 간격을 조금 줄인다 */
   dense?: boolean;
+  progress?: string;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
 
@@ -66,16 +68,16 @@ export function Screen({
         ) : (
           <Wordmark className="text-xl text-ink" />
         )}
-        {step != null && (
+        {(step != null || progress) && (
           <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
             <span className="text-xs text-muted">
-              {step} / {GUIDED_STEPS}
-              <span className="sr-only"> 단계</span>
+              {progress ?? `${step} / ${GUIDED_STEPS}`}
+              {!progress && <span className="sr-only"> 단계</span>}
             </span>
             <div aria-hidden className="h-1 w-24 overflow-hidden rounded-full bg-line">
               <div
                 className="h-full rounded-full bg-sky transition-[width] duration-300 motion-reduce:transition-none"
-                style={{ width: `${(step / GUIDED_STEPS) * 100}%` }}
+                style={{ width: `${((step ?? 1) / GUIDED_STEPS) * 100}%` }}
               />
             </div>
           </div>

@@ -202,6 +202,8 @@ export function VideoStep({
   onBack,
   onNext,
   onOriginal,
+  onPrepare,
+  preparationProgress,
   hand = null,
   extra,
 }: {
@@ -219,6 +221,8 @@ export function VideoStep({
   onBack: () => void;
   onNext: () => void;
   onOriginal: () => void;
+  onPrepare?: () => void;
+  preparationProgress?: string;
   extra?: ReactNode;
 }) {
   const copy = VIDEO_COPY[view];
@@ -236,9 +240,10 @@ export function VideoStep({
   return (
     <Screen
       screenKey={`video-${view}`}
-      title={copy.title}
+      title={preparationProgress ? `${view === 'side' ? '옆' : '뒤'} 영상 확인` : copy.title}
       desc={copy.desc}
-      step={view === 'side' ? 2 : 3}
+      step={preparationProgress ? 5 : view === 'side' ? 2 : 3}
+      progress={preparationProgress}
       onBack={onBack}
       actions={
         picked ? (
@@ -272,6 +277,7 @@ export function VideoStep({
             buttonRef={pickButton}
             label={pickLabel}
             onFile={onPick}
+            onPrepare={onPrepare}
             className={`-ml-2 ${LINK_BUTTON}`}
             disabled={inspecting}
             describedBy={error ? errorId : undefined}
