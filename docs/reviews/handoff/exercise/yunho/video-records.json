@@ -3057,6 +3057,54 @@
         "action": "Re-rendered from preserved original, retain follow-through and stop before corrective takeoff; original and first edit preserved, revision uploaded to unique path and linked.",
         "verification": "Foot frames around3.8-4.2 examined at60fps; new upload hash and DB link verified; production playback and terminal picture checked. Human decision pending."
       }
+    ],
+    "user_decisions": [
+      {
+        "at_utc": "2026-11-16T07:09:33.188905+00:00",
+        "verbatim": "이걸로 하고 다음 영상으로 넘어가자.",
+        "decision": "4.05-second revision accepted; next approved."
+      }
+    ]
+  },
+  {
+    "review_id": "EX-Y-P-050",
+    "title_at_review": "박스 점프",
+    "category": "파워",
+    "media": {
+      "kind": "owned",
+      "library_database_id": "5b19a6d2-a9e0-4e08-9a97-4044952fba8e"
+    },
+    "application_updates": [
+      {
+        "at_utc": "2026-11-16T07:09:33.189048+00:00",
+        "before_description": "■ 어떤 운동인가\n바닥에서 박스 위로 뛰어오르는 운동입니다. 짧은 순간에 큰 힘을 내는 능력을 기르는 가장 기본적인 점프 운동입니다.\n\n■ 이렇게 하세요\n1. 박스에서 한 발짝 떨어져 어깨너비로 섭니다.\n2. 무릎과 엉덩이를 살짝 굽혔다가 팔을 흔들며 뛰어오릅니다.\n3. 박스 위에 두 발을 함께, 무릎을 살짝 굽힌 채 조용히 내려앉습니다.\n4. 뛰어내리지 말고 걸어서 내려옵니다. 착지 충격이 쌓이면 무릎에 부담이 됩니다.\n\n■ 투수에게 왜 필요한가\n스쿼트 점프 파워 같은 점프 기록은 구속을 내다보는 가장 큰 지표입니다. 높은 박스는 넘어질 위험만 더하니 낮은 박스로 합니다.",
+        "changes": "Replaced strongest-velocity-predictor claim with lower-body rapid force training purpose. Clear setup, takeoff, landing, stepdown/reset and stops. Moved box-height selection to intensity, no invented optimal height.",
+        "metadata_unchanged": {
+          "targets": [
+            "고관절",
+            "햄스트링·둔근",
+            "전신"
+          ],
+          "intensity": "높음",
+          "difficulty": "중급",
+          "equipment": [
+            "박스"
+          ],
+          "sets": 3,
+          "reps": 5,
+          "hold_seconds": null,
+          "rest_seconds": 180,
+          "per_side": false
+        },
+        "video_review": "Source duration7.88s; full-duration contact sheet sampled4fps, not every frame. Two double-leg box jumps; first descent visible, final stance on box. User editing judgment pending.",
+        "sources": [
+          "https://pubmed.ncbi.nlm.nih.gov/39446825/",
+          "https://pubmed.ncbi.nlm.nih.gov/38863787/",
+          "https://pubmed.ncbi.nlm.nih.gov/38900174/"
+        ],
+        "limits": "Associations for CMJ and pitching not direct proof this exact box jump improves velocity; category and3x5/rest180 are starting judgments, not proven optimal. Box height not measured.",
+        "verification": "Saved description then direct detail URL reopened and read back. No footage edit for P050."
+      }
     ]
   }
 ]
