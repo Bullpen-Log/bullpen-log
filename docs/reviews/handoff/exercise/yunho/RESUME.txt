@@ -1,3 +1,5 @@
+CURRENT P049: user requested impact/elasticity rationale position and natural video ending. Moved paragraphs to why-needed section, retained execution cues. Source18.6->18.4s, preserves final landing and rise; original retained. User review pending.
+
 CURRENT P049 depth drop: P045 explicit next. Prior12 plyometric descriptions revised and 33 reviewed descriptions spacing-checked (21 changed), user wants same spacing for future review. Current P049 saved/reloaded; high/intermediate/3x5/rest180 retained, own thumbnail changed, original18.6s source retained; user review pending. See records for before/after.
 
 CURRENT P045: user requested improved line breaks. Steps separated and impact/elasticity text preserved after numbered instructions. Saved/reloaded; user review pending.
