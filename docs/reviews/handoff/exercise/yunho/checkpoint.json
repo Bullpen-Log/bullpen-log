@@ -765,7 +765,7 @@
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
   "latest_resume": {
     "current": "EX-Y-P-049",
-    "status": "Impact/elasticity paragraphs moved from how-to end to rationale. Video 18.6->18.4s preserving final hold and stand. User review pending."
+    "status": "User requested further trim; 18.4->17.1s, ends during final landing hold before standing. Await user review."
   },
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
