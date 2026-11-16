@@ -4456,6 +4456,31 @@
         "content_and_settings": "unchanged",
         "verification": "Export status completed,8.8-second duration; new unique upload, conditional DB update and readback.",
         "human_status": "Awaiting user confirmation; remain P036."
+      },
+      {
+        "at_utc": "2026-11-16T13:17:25.779Z",
+        "user_request": "Cut extraneous movement between first and second jumps naturally.",
+        "video_edit": {
+          "source_segments": [
+            [
+              0,
+              4
+            ],
+            [
+              5.4,
+              8.8
+            ]
+          ],
+          "removed": [
+            4,
+            5.4
+          ],
+          "duration_seconds": 7.4,
+          "previous_duration_seconds": 8.8,
+          "old_assets_preserved": true
+        },
+        "verification": "Composition export completed; unique asset upload and conditional row update.",
+        "human_status": "Review pending; stay on current video."
       }
     ]
   }
