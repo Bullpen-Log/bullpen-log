@@ -13,15 +13,15 @@
     "암케어",
     "회복 및 보강"
   ],
-  "current_review_id": "EX-Y-P-045",
-  "current_title": "싱글렉 스냅다운",
+  "current_review_id": "EX-Y-P-049",
+  "current_title": "뎁스 드롭",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": "P023 power emphasis requested and applied; user review pending, do not advance without instruction.",
   "next_after_approval": {
-    "title": "depth drop",
-    "review_id": "EX-Y-P-049",
-    "status": "Only after explicit next"
+    "review_id": "EX-Y-P-048",
+    "title": "single-leg depth drop",
+    "status": "Only on explicit next"
   },
   "order": {
     "basis": "이 대화에서 관찰한 파워57개 라이브러리 순서. 재개 시 실제 목록 변경 여부 대조; 새로 검수한 목록 아님.",
@@ -764,8 +764,8 @@
   "reporting_preference": "Show before and after of each change and distinguish previous sessions from current edits.",
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
   "latest_resume": {
-    "current": "EX-Y-P-045",
-    "status": "Reformatted steps and retained full impact/elasticity explanation; saved/reloaded. User review pending."
+    "current": "EX-Y-P-049",
+    "status": "P045 next approved; 12 previous plyometrics revised, 33 reviewed descriptions checked and 21 spacing revisions applied. P049 description/thumbnail saved; awaiting human review."
   },
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
@@ -1113,5 +1113,6 @@
     }
   },
   "mandatory_plyometric_review_rule_20261116": "For every plyometric exercise, explain the actual movement, training purpose and role in plyometric progression where applicable, and a clear evidence-calibrated link to pitching; distinguish foundational drills from reactive training and indirect associations from proven direct effects. Apply common user-friendly terms, format, prescriptions, and evidence standards. Review each exercise individually.",
-  "reference_catalog_rule": "Continue appending all actually consulted references and per-exercise use/limitations to docs/references/exercise-review-sources.json. EX-REF01 admin implementation deferred by user; do not start it during video review."
+  "reference_catalog_rule": "Continue appending all actually consulted references and per-exercise use/limitations to docs/references/exercise-review-sources.json. EX-REF01 admin implementation deferred by user; do not start it during video review.",
+  "standing_spacing_rule": "Mandatory: consistent readable blank lines between how-to steps and separate explanatory paragraphs for every subsequently reviewed exercise, preserving meaning and evidence."
 }
