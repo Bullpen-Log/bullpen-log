@@ -5,6 +5,7 @@ import { ChevronLeft, CircleAlert, Loader2 } from '@/components/icon';
 import { Wordmark } from '@/components/logo';
 import { Button } from '@/components/ui';
 import styles from './experience.module.css';
+import { PagedContent } from './paged-content';
 
 /** 안내 단계 다섯 — 위의 가는 막대가 쓴다 */
 const GUIDED_STEPS = 5;
@@ -27,6 +28,8 @@ export function Screen({
   focusTitle = true,
   dense = false,
   progress,
+  fill = false,
+  headerAction,
 }: {
   screenKey: string;
   title: string;
@@ -41,6 +44,8 @@ export function Screen({
   /** 보내기 전 확인(요약 · 동의)처럼 한 화면에 다 들어와야 하는 화면 — 제목 · 간격을 조금 줄인다 */
   dense?: boolean;
   progress?: string;
+  fill?: boolean;
+  headerAction?: ReactNode;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
 
@@ -74,17 +79,23 @@ export function Screen({
               {progress ?? `${step} / ${GUIDED_STEPS}`}
               {!progress && <span className="sr-only"> 단계</span>}
             </span>
-            <div aria-hidden className="h-1 w-24 overflow-hidden rounded-full bg-line">
+            {!headerAction && (
               <div
-                className="h-full rounded-full bg-sky transition-[width] duration-300 motion-reduce:transition-none"
-                style={{ width: `${((step ?? 1) / GUIDED_STEPS) * 100}%` }}
-              />
-            </div>
+                aria-hidden
+                className="h-1 w-24 overflow-hidden rounded-full bg-line"
+              >
+                <div
+                  className="h-full rounded-full bg-sky transition-[width] duration-300 motion-reduce:transition-none"
+                  style={{ width: `${((step ?? 1) / GUIDED_STEPS) * 100}%` }}
+                />
+              </div>
+            )}
           </div>
         )}
+        {headerAction}
       </header>
 
-      <main key={screenKey} className="flex-1 pt-3 pb-6 motion-safe:animate-fade-in">
+      <main key={screenKey} className={styles.main}>
         <h1
           ref={heading}
           tabIndex={-1}
@@ -99,14 +110,19 @@ export function Screen({
             className="mt-2 text-[15px] leading-[1.6] text-muted"
           />
         )}
-        {children && (
-          <div className={dense ? 'mt-4 space-y-3' : 'mt-6 space-y-4'}>{children}</div>
-        )}
+        {children &&
+          (fill ? (
+            <div className={styles.filledContent}>{children}</div>
+          ) : (
+            <PagedContent className={styles.content} resetKey={screenKey}>
+              {children}
+            </PagedContent>
+          ))}
       </main>
 
       {actions && (
         <div
-          className={`${styles.actions} sticky bottom-[var(--kb,0px)] z-10 -mx-5 space-y-2 border-t border-line bg-page px-5 pt-3 pb-[max(env(safe-area-inset-bottom),1rem)] desk:-mx-[1.5rem] desk:px-[1.5rem]`}
+          className={`${styles.actions} z-10 -mx-5 shrink-0 space-y-2 border-t border-line bg-page px-5 pt-2 pb-[max(env(safe-area-inset-bottom),0.75rem)] desk:-mx-[1.5rem] desk:px-[1.5rem]`}
         >
           {actions}
         </div>
@@ -137,11 +153,22 @@ export function PrimaryButton({
 
 /** 큰 단추 밑의 둘째 단추 */
 export function SecondaryButton(props: React.ComponentProps<'button'>) {
-  return <Button variant="secondary" size="lg" className="h-12 w-full" type="button" {...props} />;
+  return (
+    <Button
+      variant="secondary"
+      size="lg"
+      className="h-12 w-full"
+      type="button"
+      {...props}
+    />
+  );
 }
 
 /** 글만 있는 도움 단추 */
-export function HelpButton({ className = '', ...props }: React.ComponentProps<'button'>) {
+export function HelpButton({
+  className = '',
+  ...props
+}: React.ComponentProps<'button'>) {
   return (
     <button
       type="button"
@@ -154,7 +181,11 @@ export function HelpButton({ className = '', ...props }: React.ComponentProps<'b
 /** 칸 바로 곁의 오류 — 색만으로 말하지 않게 그림과 글을 같이 둔다 */
 export function FieldError({ id, children }: { id?: string; children: ReactNode }) {
   return (
-    <p id={id} role="alert" className="flex items-start gap-1.5 text-footnote leading-5 text-danger">
+    <p
+      id={id}
+      role="alert"
+      className="flex items-start gap-1.5 text-footnote leading-5 text-danger"
+    >
       <CircleAlert aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
       <span className="break-keep whitespace-pre-line">{children}</span>
     </p>
@@ -162,11 +193,19 @@ export function FieldError({ id, children }: { id?: string; children: ReactNode 
 }
 
 /** 글만 있는 안내 상자 */
-export function NoteBox({ children, tone = 'plain' }: { children: ReactNode; tone?: 'plain' | 'warn' }) {
+export function NoteBox({
+  children,
+  tone = 'plain',
+}: {
+  children: ReactNode;
+  tone?: 'plain' | 'warn';
+}) {
   return (
     <div
       className={`rounded-2xl px-4 py-3 text-footnote leading-5 break-keep ${
-        tone === 'warn' ? 'border border-warn-line bg-warn-bg text-warn' : 'bg-ink/5 text-muted'
+        tone === 'warn'
+          ? 'border border-warn-line bg-warn-bg text-warn'
+          : 'bg-ink/5 text-muted'
       }`}
     >
       {typeof children === 'string' ? <Paras text={children} gap="mt-1" /> : children}
@@ -178,7 +217,15 @@ export function NoteBox({ children, tone = 'plain' }: { children: ReactNode; ton
  * 설명 글을 문단으로(R05) — 줄바꿈(\n)마다 한 문단. 글자는 그대로 두고 문단 사이만 조금 띄운다.
  * 한 문단 안의 줄바꿈은 브라우저가 단어 단위로 접는다(break-keep). 억지 줄바꿈 · 데스크톱 전용 줄바꿈은 쓰지 않는다.
  */
-export function Paras({ text, className = '', gap = 'mt-1.5' }: { text: string; className?: string; gap?: string }) {
+export function Paras({
+  text,
+  className = '',
+  gap = 'mt-1.5',
+}: {
+  text: string;
+  className?: string;
+  gap?: string;
+}) {
   const parts = text.split('\n').filter((t) => t.trim() !== '');
   return (
     <div className={className}>
@@ -192,9 +239,16 @@ export function Paras({ text, className = '', gap = 'mt-1.5' }: { text: string; 
 }
 
 /** 불러오는 동안 — 토큰을 읽기 전 서버가 그리는 화면이기도 하다 */
-export function LoadingScreen({ label = '접수 내용을 불러오는 중입니다' }: { label?: string }) {
+export function LoadingScreen({
+  label = '접수 내용을 불러오는 중입니다',
+}: {
+  label?: string;
+}) {
   return (
-    <div role="status" className="flex min-h-[var(--vvh,100dvh)] flex-col items-center justify-center gap-3 px-5 text-muted">
+    <div
+      role="status"
+      className="flex min-h-[var(--vvh,100dvh)] flex-col items-center justify-center gap-3 px-5 text-muted"
+    >
       <Loader2 aria-hidden className="h-6 w-6 motion-safe:animate-spin" />
       <p className="text-sm">{label}</p>
     </div>

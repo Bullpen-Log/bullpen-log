@@ -69,8 +69,9 @@ export const GUIDE_CHAPTERS: readonly GuideChapter[] = [
     id: '02-export-original',
     title: '무수정 원본 내보내기',
     body: '공유 목록을 아래로 내려 ‘무수정 원본 내보내기’를 누릅니다.',
-    note: 'iOS 버전에 따라 ‘수정되지 않은 원본 내보내기’로 보일 수 있습니다.',
-    ...media('02-export-original', 'wide'),
+    ...media('02-export-original'),
+    video: '/intake-guides/original-file-v3/02-export-original.mp4',
+    poster: '/intake-guides/original-file-v3/02-export-original.jpg',
   },
   {
     id: '03-save-files',

@@ -1,5 +1,7 @@
 'use client';
 
+import { PagedContent } from './paged-content';
+
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { Button, Input } from '@/components/ui';
@@ -136,11 +138,11 @@ export function ResultView({
 
   const box = `mx-auto w-full px-5 ${phase.kind === 'ready' ? 'max-w-6xl lg:px-8' : 'max-w-[32.5rem]'}`;
   return (
-    <>
+    <div className="flex h-full min-h-0 flex-col"><PagedContent>
       {notice && <div className={`${box} pt-6`}>{notice}</div>}
       {phase.kind === 'ready' ? <ResultBody result={phase.result} /> : <ResultPhase phase={phase} code={code} setCode={setCode} setPhase={setPhase} load={load} />}
       {footer && <div className={`${box} pb-8`}>{footer}</div>}
-    </>
+    </PagedContent></div>
   );
 }
 

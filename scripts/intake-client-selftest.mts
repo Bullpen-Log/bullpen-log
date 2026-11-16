@@ -1428,27 +1428,29 @@ eq(unhandled, 0, '처리되지 않은 거절이 없다');
     }
 
     ok(fp.GUIDE_CHAPTERS.length === 4 && fp.GUIDE_CHAPTERS.map((c) => c.id).join() === '01-open-share,02-export-original,03-save-files,04-pick-file', 'R08: 안내는 네 장, 차례대로');
-    ok(fp.GUIDE_CHAPTERS.every((c, i) => c.video === `/intake-guides/original-file-v${i === 3 ? 2 : 1}/${c.id}.mp4` && c.poster === `/intake-guides/original-file-v${i === 3 ? 2 : 1}/${c.id}.jpg`), '안내 영상 · 포스터는 검수한 자산만, 마지막 장은 파일 선택기만 보이는 v2');
+    ok(fp.GUIDE_CHAPTERS.every((c, i) => c.video === `/intake-guides/original-file-v${i === 1 ? 3 : i === 3 ? 2 : 1}/${c.id}.mp4` && c.poster === `/intake-guides/original-file-v${i === 1 ? 3 : i === 3 ? 2 : 1}/${c.id}.jpg`), '안내 영상 · 포스터는 검수한 자산만, 내보내기는 세로 v3 · 파일 선택기는 v2');
     const all = fp.GUIDE_CHAPTERS.map((c) => `${c.title} ${c.body} ${c.note ?? ''}`).join(' ');
-    ok(all.includes('무수정 원본 내보내기') && all.includes('수정되지 않은 원본 내보내기') && all.includes(`‘${fp.PICK_LABEL}’`), 'R08: 메뉴 이름 둘 · 실제 단추 이름을 말한다');
+    ok(all.includes('무수정 원본 내보내기') && !all.includes('iOS 버전') && all.includes(`‘${fp.PICK_LABEL}’`), 'R10: 원본 메뉴와 실제 단추 이름만 설명하고 버전 주석을 제거한다');
     ok(!/AirDrop|모든 사진 데이터|‘현재’|사진 보관함|카메라로/.test(all + fp.FILE_FIRST_NOTE), 'R08: 다른 길(AirDrop · 모든 사진 데이터 · 현재 · 보관함 · 카메라)을 가르치지 않는다');
     ok(fp.GUIDE_CHAPTERS.every((c) => [...c.body].length <= 90), 'R08: 장마다 본문이 짧다');
-    ok(fp.GUIDE_CHAPTERS.map((c) => c.shape).join() === 'tall,wide,tall,tall', 'R08 검수: 2장만 가로(590×328) 영상, 나머지는 세로(590×1278)');
+    ok(fp.GUIDE_CHAPTERS.every(c => c.shape === 'tall'), 'R10: 내보내기도 원본의 전체 세로 화면 비율을 유지한다');
     ok(fp.FILE_FIRST_NOTE === '사진 앱에서 ‘무수정 원본 내보내기’로 파일 앱에 저장한 뒤 선택해 주세요.' && !/만 고를|만 선택|확인합니다|보장/.test(fp.FILE_FIRST_NOTE), 'R08 검수: 고르기 전 한 줄은 할 일만 말하고, 출처를 막는다고 하지 않는다');
 
     const { GuideBody } = await import('@/components/intake/original-file-guide');
     const g0 = renderToStaticMarkup(React.createElement(GuideBody, { onClose() {} }));
     const vids = g0.match(/<video\b[^>]*>/g) ?? [];
-    ok(vids.length === 1 && /preload="none"/.test(vids[0]) && vids[0].includes('poster="/intake-guides/original-file-v1/01-open-share.jpg"') && /playsinline/i.test(vids[0]) && /controls/.test(vids[0]) && !/autoplay/i.test(vids[0]), 'R08: 한 번에 영상 하나 · preload none · poster · 조작 · 저절로 안 틂');
-    ok(!g0.includes('02-export-original.mp4') && !g0.includes('04-pick-file.mp4'), 'R08: 다른 장 영상은 붙이지 않는다');
-    ok((g0.match(/aria-current="step"/g) ?? []).length === 1 && g0.includes('>이전</button>') && g0.includes('>다음</button>') && /disabled=""[^>]*>이전/.test(g0), 'R08: 번호 이동 · 이전(첫 장은 잠김) · 다음');
-    ok(g0.includes(`‘${fp.PICK_LABEL}’`), 'R08: 준비된 사람은 창을 닫고 곧장 고를 수 있다고 말한다');
+    ok(vids.length === 1 && /preload="metadata"/.test(vids[0]) && vids[0].includes('poster="/intake-guides/original-file-v1/01-open-share.jpg"') && /playsinline/i.test(vids[0]) && !/ controls(?:=|\s|>)/.test(vids[0]) && /autoplay/i.test(vids[0]), 'R10: 안내 하나 · 자동 무음 인라인 재생 · 기본 조작부 없음');
+    ok(!g0.includes('02-export-original.mp4') && !g0.includes('04-pick-file.mp4'), 'R10: 현재 안내 영상만 붙인다');
+    ok(g0.includes('1 / 4') && g0.includes('>이전</button>') && g0.includes('>다음</button>') && /disabled=""[^>]*>이전/.test(g0), 'R10: 단계 · 이전(첫 장 잠김) · 다음');
+    ok((g0.match(/<button\b/g) ?? []).length === 4 && g0.includes('안내 영상 재생 위치') && g0.includes('안내 영상 전체화면') && !g0.includes('배속'), 'R10: 플레이어는 재생·전체화면 버튼 둘과 탐색만, 안내 이전·다음 둘');
     const g3 = renderToStaticMarkup(React.createElement(GuideBody, { onClose() {}, initial: 3 }));
-    ok(/aspect-\[590\/1278\]/.test(vids[0] ?? "") && !/aspect-\[590\/328\]/.test(vids[0] ?? ""), 'R08 검수: 세로 영상은 세로 비율 칸으로 글 옆에 선다');
     const g1 = renderToStaticMarkup(React.createElement(GuideBody, { onClose() {}, initial: 1 }));
-    const v1 = (g1.match(/<video\b[^>]*>/g) ?? [])[0] ?? '';
-    ok(/aspect-\[590\/328\]/.test(v1) && /w-full/.test(v1) && v1.includes('02-export-original.mp4'), 'R08 검수: 가로 영상(2장)은 폭을 다 쓴다');
-    ok(g3.includes('>닫기</button>') && g3.includes('04-pick-file.mp4') && g3.includes('미리 보기가 나오지 않아도'), 'R08: 마지막 장은 닫기 · 미리 보기 안내');
+    ok(!/aspect-\[590/.test(g0 + g1), 'R10: 파일 비율을 가정하거나 화면을 자르는 비율 클래스 없음');
+    ok(g1.includes('02-export-original.mp4') && !g1.includes('iOS 버전'), 'R10: 내보내기 안내 · 불필요한 버전 문구 없음');
+    ok(g3.includes('>닫기</button>') && g3.includes('04-pick-file.mp4'), 'R10: 마지막 안내는 닫기로 돌아온다');
+    const { guideSeek } = await import('@/components/intake/guide-player');
+    ok(guideSeek(-5, 10) === 0 && guideSeek(100, 10) === 10 && guideSeek(3.5, 10) === 3.5, 'R10: 탐색 위치는 영상 길이 안에서만');
+    ok(guideSeek(NaN, 10) === 0 && guideSeek(Infinity, 0) === 0, 'R10: 길이 미상·잘못된 탐색 값도 안전');
 
     const { SlotCard } = await import('@/components/intake/slots');
     const slotEmpty = renderToStaticMarkup(React.createElement(SlotCard, { view: 'side', asset: null, picked: null, inspecting: false, error: null, onPick() {} }));

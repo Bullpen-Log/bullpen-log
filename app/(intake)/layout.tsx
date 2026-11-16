@@ -1,3 +1,4 @@
+import { IntakeViewport } from '@/components/intake/viewport-frame';
 import type { Metadata } from 'next';
 
 /**
@@ -17,8 +18,8 @@ export const metadata: Metadata = {
 
 export default function IntakeLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div data-safe-area className="min-h-[var(--vvh,100dvh)] bg-page text-ink">
+    <IntakeViewport>
       {children}
-    </div>
+    </IntakeViewport>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Check } from '@/components/icon';
-import { Modal } from '@/components/modal';
+import { IntakeDialog as Modal } from './intake-dialog';
 import { HelpButton, Paras, SecondaryButton } from '@/components/intake/shell';
 import { consentCheckLabel } from '@/lib/intake/consent';
 import type { PublicConsentDoc } from '@/lib/intake/public-client';

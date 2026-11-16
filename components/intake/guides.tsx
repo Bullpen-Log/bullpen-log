@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { CircleCheck } from '@/components/icon';
-import { Modal } from '@/components/modal';
+import { IntakeDialog as Modal } from './intake-dialog';
 import { Segmented } from '@/components/segmented';
 import { ClothesArt, PlacementMap, RearFrame, SideFrame } from '@/components/intake/illustrations';
 import { Paras } from '@/components/intake/shell';
