@@ -3675,5 +3675,20 @@
         "verification": "New unique poster object linked by conditional expected media pointers, upload SHA256/readback verified. Old image/source preserved. No video change; native refresh untested."
       }
     ]
+  },
+  {
+    "review_id": "EX-Y-P-046",
+    "title": "더블렉 스냅다운",
+    "status": "edited; user review pending",
+    "user_direction": "Cut tail after exercise when looking at camera; revise description.",
+    "description_before": "■ 어떤 운동인가\n팔을 위로 뻗은 자세에서 빠르게 아래로 내리며 두 발로 바닥을 밟아 멈추는 운동입니다. 점프 운동을 시작하기 전에 '착지하는 자세'를 몸에 익히는 동작입니다.\n\n■ 이렇게 하세요\n1. 발을 어깨너비로 벌리고 팔을 머리 위로 뻗어 발끝으로 섭니다.\n2. 팔을 빠르게 내리면서 동시에 무릎과 엉덩이를 굽혀 앉습니다.\n3. 두 발이 바닥을 세게 밟는 느낌으로 멈추고 그대로 버팁니다.\n4. 발바닥 전체로 소리 없이 멈추는 것이 잘한 것입니다.",
+    "description_after": "■ 어떤 운동인가\n발끝으로 선 자세에서 몸을 빠르게 낮추고 두 발로 바닥을 딛어 멈추는 운동입니다. 몸이 아래로 움직일 때 다리와 몸통으로 그 움직임을 조절하는 연습입니다.\n\n■ 이렇게 하세요\n1. 미끄럽지 않은 평평한 바닥에서 발을 어깨너비로 벌리고 서서 팔을 머리 위로 뻗고 발뒤꿈치를 듭니다.\n2. 팔을 빠르게 내리며 발뒤꿈치를 바닥에 내리고 엉덩이를 뒤로 빼면서 무릎을 굽힙니다.\n3. 발바닥 전체로 바닥을 딛고 무릎이 발끝과 같은 방향을 향하도록 하며 몸이 흔들리지 않게 멈춥니다.\n4. 잠시 자세를 유지한 뒤 일어서서 다시 준비합니다. 동작을 한 번씩 나누어 반복합니다.\n5. 운동 중 통증이 생기면 멈춥니다. 정상적으로 수행하던 중 멈추는 자세를 유지하기 어려워지면 해당 세트를 멈추고 쉽니다.\n\n■ 투수에게 왜 필요한가\n투구에서는 몸이 빠르게 이동하는 가운데 발이 지면을 딛고 하체의 움직임을 조절하며 몸통과 팔의 움직임으로 이어갑니다.\n\n이 운동은 몸을 빠르게 낮춘 뒤 두 발로 지면을 딛고 멈추는 연습을 통해 하체로 몸의 움직임을 조절하는 기초를 익히는 데 도움이 됩니다.\n\n■ 강도\n추가 중량 없이 시작합니다. 몸을 빠르게 낮추되 멈춘 자세를 조절할 수 있는 범위에서 실시합니다. 다음 세트에서도 같은 동작을 할 수 있도록 충분히 쉽니다.",
+    "video_edit": "Source 11.398s; trimmed to 10.65s after last drop and held position, before looking aside. Original retained; backup completed. User end-point review pending.",
+    "thumbnail": "Own-video thumbnail changed to frame showing bottom snapdown position.",
+    "settings": "Intensity medium, beginner, bodyweight, 3 sets x 5 reps, 180 seconds rest, no hold/per-side retained. Default is initial judgment, not proven optimal dosage.",
+    "source": "https://www.nsca.com/education/videos/plyometric-implementation-setup-and-execution-of-jump-landing-positions-to-decrease-likelihood-of-injuries/",
+    "limitations": "Landing work is indirect support only; no claim of proven pitching transfer or injury prevention. Native offline playback not verified.",
+    "verification": "Saved; reloaded web displays revised text and playing with repeat enabled; video exported with AVFoundation.",
+    "at_utc": "2026-11-16T10:41:21.354631+00:00"
   }
 ]

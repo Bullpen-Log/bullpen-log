@@ -1,3 +1,5 @@
+CURRENT P046 double-leg snapdown: 11.398->10.65s ending trim after last drop hold, own thumbnail and description changed, intensity medium/beginner/3x5/rest180 retained. Web reloaded, playback and repeat enabled; user review pending. Next single-leg snapdown only on explicit next. See video record for before/after.
+
 CURRENT P023 POWER UPDATE: User requested focus on high jumps for power, replacing lowered-height/balance intensity text. How-to step3 and intensity description updated; intensity high -> very high for maximal effort, beginner/3x5/rest180 unchanged. Basic landing guidance retained. Two-jump 5.60s edit retained. Saved and reloaded; user review pending, no next. See P023 record for full before/after and source.
 
 CURRENT P023 TRIM2: only first2 jumps per user;8.75->5.60s, source2.35-7.95. End after second landing standing upright arms down, before third preparation. Airborne poster same pixels; original and prior edit retained/hash verified. Text/metadata/dose unchanged. User review pending, no next.
