@@ -1,4 +1,5 @@
 import type { DaySlot, ReasonCode, SlotItem, Weekday } from '@/lib/coach/week';
+import type { WeekAsk } from '@/lib/coach/week-ask';
 
 /**
  * 코치 처음 질문의 답(CoachProfile.answers, docs/designs/ai-coach.md 10-4) — 서버(app/actions/coach.ts)와 앱 화면(native/src/coach/start)이 같이 쓴다.
@@ -20,6 +21,8 @@ export type CoachSaved = {
   place?: CoachPlace;
   /** 피해야 할 동작 — 건강정보라 동의가 있을 때만 저장(U18). 계획기(큰 하체 · 메커니즘)와 오늘 운동 만들기(lib/coach/limits.ts)가 읽는다 */
   limits?: CoachLimit[];
+  /** 주마다 일정 묻기의 답 — 최근 두 주(lib/coach/week-ask.ts). 답한 주는 등판을 짐작하지 않는다 */
+  weekAsks?: WeekAsk[];
 };
 
 export const COACH_PRIORITIES = [
@@ -119,6 +122,8 @@ export const REASON_TEXT: Record<ReasonCode, string> = {
   'after-outing': '등판 다음 날',
   'outing-tomorrow': '내일 등판',
   'outing-near': '등판 3일 안',
+  standby: '불펜 대기',
+  'standby-tomorrow': '내일 불펜 대기',
   game: '경기',
   'team-practice': '팀 훈련',
   lesson: '레슨',
@@ -147,7 +152,7 @@ function itemText(x: SlotItem): string {
     case 'fixed':
       return x.what === 'game' ? '경기' : x.what === 'team' ? '팀 훈련' : '레슨';
     case 'rest':
-      return '쉬기';
+      return x.light ? '쉬기(가벼운 회복 운동은 선택)' : '쉬기';
   }
 }
 

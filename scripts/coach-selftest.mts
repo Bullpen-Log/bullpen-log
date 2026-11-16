@@ -16,6 +16,8 @@ import { COACH_MINUTES, coachMinutes } from '@/lib/coach/answers';
 import { minutesChoicesFor } from '@/lib/report/theme';
 import { buildReview, reviewWeekOf } from '@/lib/coach/review';
 import { dayRuleOf, planWeek, suggestProgram, weekdayOf, type CoachAnswers, type DaySlot, type WeekInput, type Weekday } from '@/lib/coach/week';
+import { applyWeekAsk, askWeekStart, mergePicks, prefillPicks, readWeekPicks, weekAskFor, withWeekAsk, type WeekAsk } from '@/lib/coach/week-ask';
+import { REASON_TEXT, slotLine } from '@/lib/coach/answers';
 
 let pass = 0;
 const fails: string[] = [];
@@ -377,6 +379,55 @@ check('⑤ 쉬는 날 · 팀 훈련 → 시작 없음', startsOf(slotOf(T, [{ ki
   const r2 = buildReview({ weekStart: ws, slots, states: ['missed', 'off', 'missed', 'off', 'done', 'off', 'off'], efforts: {}, discomfort: { [day(0)]: ['hinge'], [day(2)]: ['hinge'] } });
   check('⑦ 이틀 불편은 아직 · 못 한 날 많음 한 줄', !r2.repeated && r2.lines.some((l) => l.includes('못 한 날이 많았어요')), JSON.stringify(r2));
   check('⑦ 글에 줄표 없음', [...r.lines, ...r2.lines].every((l) => !l.includes('—')));
+}
+
+/* ─────────── ⑧ 주마다 일정 묻기(lib/coach/week-ask.ts) ─────────── */
+{
+  /* 2026-11-08 은 일요일 */
+  check('⑧ 물을 주 · 수요일은 이번 주', askWeekStart('2026-11-04', 20) === MON);
+  check('⑧ 물을 주 · 일요일 17시는 이번 주 · 18시부터 다음 주', askWeekStart('2026-11-08', 17) === MON && askWeekStart('2026-11-08', 18) === shiftDateKey(MON, 7));
+  check('⑧ 답 검사 · 요일 0~6 과 넷 중 하나만', JSON.stringify(readWeekPicks({ 1: 'relief', 3: 'start' })) === JSON.stringify({ 1: 'relief', 3: 'start' }));
+  check('⑧ 답 검사 · 틀린 모양은 null', [{ 7: 'start' }, { 1: 'game' }, ['start'], 'start', null].every((v) => readWeekPicks(v) === null));
+  const a1: WeekAsk = { weekStart: shiftDateKey(MON, -7), picks: { 1: 'relief', 5: 'team' } };
+  const a2: WeekAsk = { weekStart: MON, picks: { 3: 'start' } };
+  const a3: WeekAsk = { weekStart: shiftDateKey(MON, 7), picks: {}, skipped: true };
+  const kept = withWeekAsk(withWeekAsk([a1], a2), a3);
+  check('⑧ 최근 두 주만 남긴다 · 같은 주는 바꿔 끼움', kept.length === 2 && kept[0].weekStart === MON && withWeekAsk([a2], { ...a2, picks: {} })[0].picks[3] === undefined, JSON.stringify(kept));
+  check('⑧ 저장된 것이 엉망이어도 죽지 않는다', weekAskFor('x', MON) === null && weekAskFor([{ weekStart: MON, picks: { 9: 'start' } }], MON) === null);
+  const known = { games: [3] as Weekday[], teamDays: [5] as Weekday[] };
+  check('⑧ 미리 채움 · 그 주 답이 먼저', JSON.stringify(prefillPicks([a1, a2], MON, known)) === JSON.stringify({ picks: { 3: 'start' }, same: false }));
+  check('⑧ 미리 채움 · 지난주 답(지난주와 같아요)', JSON.stringify(prefillPicks([a1], MON, known)) === JSON.stringify({ picks: { 1: 'relief', 5: 'team' }, same: true }));
+  check('⑧ 미리 채움 · 없으면 달력 경기(선발) · 되풀이 팀 훈련', JSON.stringify(prefillPicks([], MON, known)) === JSON.stringify({ picks: { 3: 'start', 5: 'team' }, same: false }));
+  check('⑧ 건너뛴 지난주는 미리 채움에 안 쓴다', prefillPicks([{ ...a1, skipped: true }], MON, known).same === false);
+  check('⑧ 지난 날의 답은 지킨다(오늘 수요일)', JSON.stringify(mergePicks({ 1: 'start', 4: 'team' }, { 0: 'off', 5: 'relief' }, 2)) === JSON.stringify({ 1: 'start', 5: 'relief' }));
+
+  const base = { days: [0, 1, 2, 3, 4, 5] as Weekday[], fixed: [{ date: shiftDateKey(MON, 1), kind: 'game' as const }] };
+  check('⑧ 건너뛴 주 · 답 없는 주는 짐작 그대로(null)', applyWeekAsk(null, base) === null && applyWeekAsk(a3, base) === null);
+  /* 화 불펜 대기(달력에도 경기) · 목 선발 · 금 팀 훈련 · 토 못 하는 날 */
+  const ap = applyWeekAsk({ weekStart: MON, picks: { 1: 'relief', 3: 'start', 4: 'team', 5: 'off' } }, base)!;
+  check('⑧ 달력 경기를 불펜 대기로 골랐으면 불펜 대기', ap.fixed.filter((f) => f.date === shiftDateKey(MON, 1)).length === 1 && ap.fixed[0].relief === true, JSON.stringify(ap.fixed));
+  check('⑧ 선발은 확실한 경기 · 팀 훈련 요일 · 못 하는 날 빼기', ap.fixed.some((f) => f.date === shiftDateKey(MON, 3) && !f.relief) && JSON.stringify(ap.teamDays) === '[4]' && !ap.days.includes(5), JSON.stringify(ap));
+
+  const w = planWeek(input({ answers: answers({ days: ap.days, teamDays: ap.teamDays }), fixed: ap.fixed }));
+  const [mon, tue, wed, thu, fri, sat] = w;
+  check('⑧ 불펜 대기 날 · 경기 칸 · 운동 없음 · 까닭 불펜 대기', kinds(tue).includes('fixed') && workouts([tue]).length === 0 && tue.reasons.includes('standby') && !tue.reasons.includes('outing-soft'), JSON.stringify(tue));
+  check('⑧ 불펜 대기 전날 · 가볍게 · 까닭 내일 불펜 대기', mon.reasons.includes('standby-tomorrow') && !heavy(mon) && mon.items.every((x) => x.kind !== 'train' || x.fence.light), JSON.stringify(mon));
+  check('⑧ 불펜 대기 다음 날은 쉬기로 못 박지 않는다', wed.rule !== 'hard', wed.rule);
+  check('⑧ 선발 날 · 경기 칸 · 등판', kinds(thu).includes('fixed') && thu.rule === 'outingToday', JSON.stringify(thu));
+  check('⑧ 선발 다음 날(팀 훈련 날) · 회복 날 · 운동 없음', fri.rule === 'hard' && workouts([fri]).length === 0, JSON.stringify(fri));
+  check('⑧ 못 하는 날 · 운동 없음 · 까닭 못 하는 날', workouts([sat]).length === 0 && sat.reasons.includes('not-available'), JSON.stringify(sat));
+  check('⑧ 새 까닭 글', REASON_TEXT.standby === '불펜 대기' && REASON_TEXT['standby-tomorrow'] === '내일 불펜 대기');
+
+  /* 불펜 대기 날 실제로 세게 던졌으면(기록) 다음 날은 회복 — 기록이 이긴다 */
+  const threw = planWeek(input({ answers: answers({ days: ap.days }), fixed: ap.fixed, lastOuting: shiftDateKey(MON, 1), today: shiftDateKey(MON, 2) }));
+  check('⑧ 불펜 대기 날 세게 던진 기록이 있으면 다음 날 회복', threw[2].rule === 'hard', threw[2].rule);
+
+  /* 선발 다음 날 — 쉬기 + 가벼운 회복 운동(선택). 못 함으로 세지 않고, 맨 뒤 단추 */
+  const st = planWeek(input({ fixed: [{ date: shiftDateKey(MON, 2), kind: 'game' }] }));
+  const after = st[3];
+  check('⑧ 선발 다음 날 · 쉬기(가벼운 회복 운동은 선택) · 회복 암케어', after.items.some((x) => x.kind === 'rest' && x.light) && slotLine(after).includes('가벼운 회복 운동은 선택') && after.items.some((x) => x.kind === 'armcare'), slotLine(after));
+  check('⑧ 가벼운 회복 운동은 못 함이 아니다 · 단추는 맨 뒤', slotStateOf(after, undefined, shiftDateKey(MON, 5)) === 'off' && startsOf(after).at(-1)?.kind === 'recovery' && startsOf(after)[0].kind !== 'recovery', JSON.stringify(startsOf(after)));
+  check('⑧ 여느 쉬는 날에는 회복 운동 단추가 없다', st.filter((s) => s.rule !== 'hard').every((s) => !startsOf(s).some((x) => x.kind === 'recovery')));
 }
 
 console.log(`coach: ${pass}개 통과${fails.length ? `, ${fails.length}개 실패` : ''} (불변 입력 ${n}가지)`);

@@ -42,8 +42,11 @@ export type CoachAnswers = {
   teamDays: readonly Weekday[];
 };
 
-/** 달력 · 팀 일정 · 레슨의 확실한 날 */
-export type FixedDay = { date: string; kind: 'game' | 'team' | 'lesson' };
+/**
+ * 달력 · 팀 일정 · 레슨의 확실한 날. relief = 불펜 대기로 답한 경기 날(lib/coach/week-ask.ts) — 안 던지거나 짧게 던질 수 있어 다음 날을 쉬기로
+ * 못 박지 않는다(실제로 세게 던졌으면 기록이 lastOuting 으로 알려 준다). 그날 · 전날은 가볍게.
+ */
+export type FixedDay = { date: string; kind: 'game' | 'team' | 'lesson'; relief?: true };
 
 export type TrainFence = {
   minutes: number;
@@ -59,7 +62,8 @@ export type SlotItem =
   | { kind: 'armcare'; mode: 'strength' | 'recovery'; suggested: true }
   | { kind: 'mechanics' }
   | { kind: 'fixed'; what: FixedDay['kind'] }
-  | { kind: 'rest' };
+  /* light = 등판 다음 날의 쉬기 — 가벼운 회복 운동은 해도 된다(선택, 안 해도 못 함이 아니다. 그날 엔진이 회복 날 운동을 만든다) */
+  | { kind: 'rest'; light?: true };
 
 /** 칸의 까닭 — 화면 글은 정해진 문장(AI 없이도 설명, U7) */
 export type ReasonCode =
@@ -68,6 +72,9 @@ export type ReasonCode =
   | 'after-outing'
   | 'outing-tomorrow'
   | 'outing-near'
+  /* 불펜 대기로 답한 날 · 그 전날(주마다 일정 묻기) */
+  | 'standby'
+  | 'standby-tomorrow'
   | 'game'
   | 'team-practice'
   | 'lesson'
@@ -168,9 +175,12 @@ function daysFrom(a: string, b: string): number {
 
 /** 확실한 등판(경기 일정 · 체크인 답 · 지난 기록)과 짐작(선발 간격 · 보통 요일) — 짐작은 확실한 등판 앞뒤 하루와 겹치면 버린다 */
 function outingsOf(input: WeekInput, from: string, to: string): Outing[] {
-  const hard = new Set<string>(input.fixed.filter((f) => f.kind === 'game').map((f) => f.date));
+  const games = input.fixed.filter((f) => f.kind === 'game');
+  const hard = new Set<string>(games.filter((f) => !f.relief).map((f) => f.date));
   if (input.outingDate) hard.add(input.outingDate);
   if (input.lastOuting) hard.add(input.lastOuting);
+  /* 불펜 대기 — 그날 · 전날은 가볍게, 다음 날은 쉬기로 못 박지 않는다(짐작한 등판과 같은 몫). 그날 실제로 세게 던졌으면 위 lastOuting 이 이긴다 */
+  const relief = new Set<string>(games.filter((f) => f.relief && !hard.has(f.date)).map((f) => f.date));
   const near = (d: string) => [...hard].some((h) => Math.abs(daysFrom(h, d)) <= 1);
   const soft = new Set<string>();
   const { outingEvery, outingDays } = input.answers;
@@ -180,6 +190,7 @@ function outingsOf(input: WeekInput, from: string, to: string): Outing[] {
   } else if (outingDays.length) {
     for (let d = from; d <= to; d = shiftDateKey(d, 1)) if (outingDays.includes(weekdayOf(d)) && !near(d)) soft.add(d);
   }
+  for (const d of relief) soft.add(d);
   return [...[...hard].map((date) => ({ date, soft: false })), ...[...soft].map((date) => ({ date, soft: true }))];
 }
 
@@ -233,7 +244,9 @@ export function planWeek(input: WeekInput): DaySlot[] {
     if (answers.teamDays.includes(i as Weekday)) fixedKinds.add('team');
     const items: SlotItem[] = [...fixedKinds].map((what) => ({ kind: 'fixed' as const, what }));
     for (const what of fixedKinds) reasons.push(what === 'team' ? 'team-practice' : what);
-    const r = RULE_REASON[rule];
+    /* 불펜 대기로 답한 날 · 그 전날은 '등판 짐작'이 아니라 답한 그대로 말한다 */
+    const standby = (d: string) => input.fixed.some((f) => f.date === d && f.kind === 'game' && f.relief);
+    const r = rule !== 'softOutingNear' ? RULE_REASON[rule] : standby(date) ? 'standby' : standby(shiftDateKey(date, 1)) ? 'standby-tomorrow' : RULE_REASON[rule];
     if (r) reasons.push(r);
     return { date, items, reasons, owner: 'coach', rule, rank: DAY_RULE_RANK[rule], ...(!input.prev && date < input.today ? { late: true as const } : {}) };
   });
@@ -314,8 +327,9 @@ export function planWeek(input: WeekInput): DaySlot[] {
   /* 쉬는 날 */
   for (const i of free) {
     if (isWorkoutDay(slots[i]) || slots[i].items.some((x) => x.kind === 'fixed')) continue;
-    slots[i].items.unshift({ kind: 'rest' });
-    slots[i].reasons.push(answers.days.includes(i as Weekday) ? 'rest' : 'not-available');
+    const can = answers.days.includes(i as Weekday);
+    slots[i].items.unshift(can && slots[i].rule === 'hard' ? { kind: 'rest', light: true } : { kind: 'rest' });
+    slots[i].reasons.push(can ? 'rest' : 'not-available');
   }
   return slots;
 }

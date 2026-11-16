@@ -27,6 +27,8 @@ import { movementKeyOf } from '@/lib/engine/exercise-class';
 import { loadTrainingDone } from '@/lib/training-week';
 import { COACH_STEPS, WEEKDAY_LABELS, mergeStep, savedOf, slotLine, type CoachSaved, type CoachStep } from '@/lib/coach/answers';
 import { FOLLOWUP_NEXT, followupAskOf, followupLine, readFollowupWhy, type FollowupAnswer, type FollowupWhy } from '@/lib/coach/followup';
+import { askWeekStart, mergePicks, prefillPicks, readWeekPicks, weekAskFor, withWeekAsk } from '@/lib/coach/week-ask';
+import { isOutingTitle } from '@/lib/calendar-event';
 
 /**
  * 코치 시작 흐름(앱, docs/designs/ai-coach.md 10-4) — 관문(유료 · 만 14세 · 건강정보 동의) → 질문(화면마다 저장) → 첫 주 미리보기 → 시작.
@@ -167,6 +169,7 @@ export async function loadCoachWeek() {
   if (!(await coachPaid(user))) return { ok: true as const, week: null, states: null, checkedIn: false, review: null };
   const now = appNow();
   const today = toDateKey(now);
+  const hour = Number(zonedFormat('en-US', { hour: 'numeric', hourCycle: 'h23' }).format(now));
   const weekStart = shiftDateKey(today, -weekdayOf(today));
   const [{ active, slots: week }, checkin, done] = await Promise.all([
     currentCoachWeek(user),
@@ -180,9 +183,54 @@ export async function loadCoachWeek() {
     week,
     states: week ? week.map((s) => slotStateOf(s, done[s.date], today)) : null,
     checkedIn: checkin != null,
-    review: active ? await reviewOf(user.id, today, Number(zonedFormat('en-US', { hour: 'numeric', hourCycle: 'h23' }).format(now))) : null,
+    review: active ? await reviewOf(user.id, today, hour) : null,
     followup: active ? await followupFor(user.id, today, week, done) : null,
+    weekAsk: active ? await weekAskOf(user.id, today, hour) : null,
   };
+}
+
+/**
+ * 주마다 일정 묻기(lib/coach/week-ask.ts) — 물을 주(일요일 18시부터는 다음 주) · 이미 답했나 · 미리 채울 값(지난주 답 → 달력 경기 · 되풀이 팀 훈련).
+ * from = 이 요일부터 고를 수 있다(이번 주면 오늘, 다음 주면 월요일).
+ */
+async function weekAskOf(userId: string, today: string, hour: number) {
+  const weekStart = askWeekStart(today, hour);
+  const [profile, events] = await Promise.all([
+    prisma.coachProfile.findUnique({ where: { userId }, select: { answers: true } }),
+    prisma.calendarEvent.findMany({ where: { userId, date: { gte: dbDate(weekStart), lte: dbDate(shiftDateKey(weekStart, 6)) } }, select: { date: true, title: true } }),
+  ]);
+  const saved = savedOf(profile?.answers);
+  const games = events.filter((e) => isOutingTitle(e.title)).map((e) => weekdayOf(keyOfDbDate(e.date)));
+  return {
+    weekStart,
+    next: weekStart > today,
+    answered: weekAskFor(saved.weekAsks, weekStart) != null,
+    from: weekStart > today ? 0 : weekdayOf(today),
+    ...prefillPicks(saved.weekAsks, weekStart, { games, teamDays: saved.teamDays ?? [] }),
+  };
+}
+
+/**
+ * 주마다 일정 묻기의 답 — 이번 주 · 다음 주만. 'skip' 은 그 주를 건너뛰기(다시 안 묻고 짐작으로 짠다). 이번 주 답이면 고치지 않은 날을 곧바로 다시 맞춘다
+ * (지문이 달라진다 — currentCoachWeek). 다음 주 답은 월요일에 그 주 틀을 처음 지을 때 읽힌다.
+ */
+export async function answerCoachWeekAsk(weekStart: unknown, raw: unknown): Promise<{ ok: true } | { error: string }> {
+  const user = await requireUser();
+  if (!(await coachPaid(user))) return { error: '코치를 쓸 수 없어요.' };
+  const today = toDateKey(appNow());
+  const thisWeek = shiftDateKey(today, -weekdayOf(today));
+  const picks = raw === 'skip' ? {} : readWeekPicks(raw);
+  if (!picks || (weekStart !== thisWeek && weekStart !== shiftDateKey(thisWeek, 7))) return { error: '다시 골라 주세요.' };
+  const profile = await prisma.coachProfile.findUnique({ where: { userId: user.id }, select: { status: true, answers: true } });
+  if (profile?.status !== 'active') return { error: '코치를 시작한 뒤에 쓸 수 있어요.' };
+  const saved = savedOf(profile.answers);
+  const old = weekAskFor(saved.weekAsks, weekStart);
+  const merged = mergePicks(old && !old.skipped ? old.picks : null, picks, weekStart === thisWeek ? weekdayOf(today) : 0);
+  const weekAsks = withWeekAsk(saved.weekAsks, { weekStart, picks: merged, ...(raw === 'skip' ? { skipped: true as const } : {}) });
+  await prisma.coachProfile.update({ where: { userId: user.id }, data: { answers: { ...saved, weekAsks } as object } });
+  if (weekStart === thisWeek) await currentCoachWeek(user);
+  revalidatePath('/coach');
+  return { ok: true };
 }
 
 /** 어제 이어보기(lib/coach/followup.ts) — 어제 칸이 이번 주면 이미 읽은 것으로, 월요일이면 지난주 틀 · 기록을 읽는다 */

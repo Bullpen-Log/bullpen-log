@@ -18,6 +18,7 @@ import { isOutingTitle } from '@/lib/calendar-event';
 import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { planWeek, weekdayOf, type DaySlot, type FixedDay, type WeekInput } from '@/lib/coach/week';
 import { coachMinutes, savedOf, type CoachLimit, type CoachSaved } from '@/lib/coach/answers';
+import { applyWeekAsk, weekAskFor } from '@/lib/coach/week-ask';
 
 /**
  * 코치 한 주 틀 짓기 · 다시 맞추기(docs/designs/ai-coach.md 10-3 · 10-5 U24) — 코치 화면(app/actions/coach.ts)과 오늘 운동 만들기(training-setup.ts)가 같이 쓴다.
@@ -40,19 +41,22 @@ export async function weekInputOf(user: CoachUser, saved: CoachSaved, healthOk: 
   const outing = outingOf(facts);
   const lastHard = (facts.patterns.hardOutings ?? []).filter(isHardOuting).sort((a, b) => a.daysAgo - b.daysAgo)[0];
   const t = facts.condition.today;
-  const fixed: FixedDay[] = events.filter((e) => isOutingTitle(e.title)).map((e) => ({ date: keyOfDbDate(e.date), kind: 'game' }));
+  const calendar: FixedDay[] = events.filter((e) => isOutingTitle(e.title)).map((e) => ({ date: keyOfDbDate(e.date), kind: 'game' }));
   const freq = BASELINE_WORKOUT_FREQ.find((f) => f.name === user.baselineWorkoutFreq)?.sessionsPerWeek;
+  const days = saved.days ?? [0, 1, 2, 3, 4, 5];
+  /* 주마다 일정 묻기에 답한 주 — 등판을 짐작하지 않고 답한 그대로(선발 · 불펜 대기 · 팀 훈련 · 못 하는 날) */
+  const asked = applyWeekAsk(weekAskFor(saved.weekAsks, weekStart), { days, fixed: calendar });
   return {
     weekStart,
     today,
     answers: {
-      days: saved.days ?? [0, 1, 2, 3, 4, 5],
+      days: asked?.days ?? days,
       minutes: coachMinutes(saved.minutes ?? user.dailyWorkoutMinutes ?? 60),
-      outingDays: saved.outingDays ?? [],
-      outingEvery: saved.outingEvery ?? null,
-      teamDays: saved.teamDays ?? [],
+      outingDays: asked ? [] : (saved.outingDays ?? []),
+      outingEvery: asked ? null : (saved.outingEvery ?? null),
+      teamDays: asked?.teamDays ?? saved.teamDays ?? [],
     },
-    fixed,
+    fixed: asked?.fixed ?? calendar,
     outingDate: outing.nextDay != null ? shiftDateKey(today, outing.nextDay) : null,
     lastOuting: lastHard ? shiftDateKey(today, -lastHard.daysAgo) : null,
     youth: (facts.profile.age ?? 99) < YOUTH_AGE_THRESHOLD,
