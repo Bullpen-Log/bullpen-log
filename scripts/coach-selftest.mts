@@ -16,7 +16,8 @@ import { COACH_MINUTES, coachMinutes } from '@/lib/coach/answers';
 import { minutesChoicesFor } from '@/lib/report/theme';
 import { buildReview, reviewWeekOf } from '@/lib/coach/review';
 import { dayRuleOf, planWeek, suggestProgram, weekdayOf, type CoachAnswers, type DaySlot, type WeekInput, type Weekday } from '@/lib/coach/week';
-import { applyWeekAsk, askWeekStart, mergePicks, prefillPicks, readWeekPicks, weekAskFor, withWeekAsk, type WeekAsk } from '@/lib/coach/week-ask';
+import { applyWeekAsk, askWeekStart, mergePicks, prefillPicks, readWeekPicks, weekAskFor, weekAskOutings, withWeekAsk, WEEK_ASK_OUTING_TITLE, type WeekAsk } from '@/lib/coach/week-ask';
+import { isOutingTitle } from '@/lib/calendar-event';
 import { REASON_TEXT, slotLine } from '@/lib/coach/answers';
 
 let pass = 0;
@@ -428,6 +429,49 @@ check('⑤ 쉬는 날 · 팀 훈련 → 시작 없음', startsOf(slotOf(T, [{ ki
   check('⑧ 선발 다음 날 · 운동 날(큰 하체) · 까닭 등판 다음 날 · 회복 암케어', after.rule === 'afterOuting' && workouts([after]).length === 1 && heavy(after) && after.reasons.includes('after-outing') && after.items.some((x) => x.kind === 'armcare' && x.mode === 'recovery'), JSON.stringify(after));
   check('⑧ 선발 다음 날에는 메커니즘 · 강화 암케어를 안 넣는다', !after.items.some((x) => x.kind === 'mechanics' || (x.kind === 'armcare' && x.mode === 'strength')), JSON.stringify(after.items));
   check('⑧ 가벼운 회복 운동(선택) 칸은 이제 만들지 않는다', st.every((s) => !s.items.some((x) => x.kind === 'rest' && x.light)) && !slotLine(after).includes('가벼운 회복'));
+}
+
+/* ─────────── ⑨ 안전 쪽 검토 반영(2026-11-16) ─────────── */
+{
+  /* 주마다 답한 선발 · 불펜 대기를 엔진도 안다 — 코치 칸이 '등판 전날 · 가볍게'면 그날 엔진도 무게 없는 날(달력 일정처럼 짐작한 등판) */
+  const asks: WeekAsk[] = [
+    { weekStart: '2026-11-02', picks: { 3: 'start', 5: 'relief', 1: 'team' } },
+    { weekStart: '2026-10-26', picks: { 2: 'start' }, skipped: true },
+  ];
+  const ev = weekAskOutings(asks);
+  check('⑨ 답한 주의 선발 · 불펜 대기만 날짜로 · 건너뛴 주 빼고 · 엔진이 등판으로 읽는 이름', JSON.stringify(ev.map((e) => e.date)) === JSON.stringify(['2026-11-05', '2026-11-07']) && ev.every((e) => isOutingTitle(e.title)) && isOutingTitle(WEEK_ASK_OUTING_TITLE.relief), JSON.stringify(ev));
+  check('⑨ 엉망인 저장값은 빈 목록', weekAskOutings('x').length === 0 && weekAskOutings([{ weekStart: MON, picks: { 9: 'start' } }]).length === 0);
+  const withAsk = (picks: WeekAsk['picks']) =>
+    buildFacts({
+      nickname: '시험', age: 22, heightCm: 180, baselineDailyLoad: 100, today: TODAY, logs: [], checkins: [], memos: [],
+      calendarEvents: weekAskOutings([{ weekStart: MON, picks }]),
+    });
+  /* TODAY = 11-04(수) — 목 선발이면 오늘은 등판 전날, 토 불펜 대기면 3일 안 */
+  const eve = dayKindOf(withAsk({ 3: 'start' }));
+  const soon = dayKindOf(withAsk({ 5: 'relief' }));
+  const none = dayKindOf(withAsk({ 3: 'team' }));
+  check('⑨ 내일 선발로 답했으면 엔진도 무게 없는 날 · 큰 하체 없음', eve.rank === 'light' && !eve.heavyLowerAllowed, `${eve.rule} · ${eve.heavyLowerAllowed}`);
+  check('⑨ 3일 뒤 불펜 대기면 엔진도 큰 하체 없음', soon.rule === 'outingSoon' && !soon.heavyLowerAllowed, `${soon.rule}`);
+  check('⑨ 팀 훈련만 답한 날은 엔진이 등판으로 안 본다', none.rule === 'none', none.rule);
+
+  /* 날 바꾸기 — 메커니즘(던지기) 드릴은 등판 다음 날 · 등판 전날로 옮기지 않는다 */
+  const wk = planWeek(input({ fixed: [{ date: shiftDateKey(MON, 1), kind: 'game' }], mechanics: { perWeek: 2 } }));
+  const afterDay = wk[2];
+  const mechDay = wk.find((x) => x.date > afterDay.date && x.items.some((i) => i.kind === 'mechanics'));
+  check('⑨ 준비 — 화 경기 · 수 등판 다음 날 운동 · 메커니즘이 있는 뒷날', afterDay.reasons.includes('after-outing') && workouts([afterDay]).length === 1 && !!mechDay, JSON.stringify(wk.map(kinds)));
+  if (mechDay) {
+    const mechOnly = !mechDay.items.some((i) => i.kind === 'train' || i.kind === 'program');
+    const r = applyAdjust(wk, { kind: 'move', from: mechDay.date, to: afterDay.date }, () => false);
+    if (mechOnly) check('⑨ 메커니즘만 있는 날을 등판 다음 날로 옮기면 막는다', 'error' in r, JSON.stringify(r));
+    else check('⑨ 옮겨도 메커니즘은 제자리에 남는다', !('error' in r) && !r.week.find((x) => x.date === afterDay.date)!.items.some((i) => i.kind === 'mechanics'), JSON.stringify(r));
+    const back = applyAdjust(wk, { kind: 'move', from: afterDay.date, to: mechDay.date }, () => false);
+    check('⑨ 등판 다음 날 운동을 메커니즘 날로 옮기면 맞바꿔도 메커니즘은 등판 다음 날로 안 온다', !('error' in back) && !back.week.find((x) => x.date === afterDay.date)!.items.some((i) => i.kind === 'mechanics') && back.week.find((x) => x.date === mechDay.date)!.items.some((i) => i.kind === 'mechanics'), JSON.stringify(back));
+  }
+  const eveDay = wk[0];
+  if (mechDay && eveDay.rule === 'outingTomorrow') {
+    const r = applyAdjust(wk, { kind: 'move', from: mechDay.date, to: eveDay.date }, () => false);
+    check('⑨ 등판 전날로도 메커니즘을 옮기지 않는다', 'error' in r || !r.week[0].items.some((i) => i.kind === 'mechanics'), JSON.stringify(r));
+  }
 }
 
 console.log(`coach: ${pass}개 통과${fails.length ? `, ${fails.length}개 실패` : ''} (불변 입력 ${n}가지)`);

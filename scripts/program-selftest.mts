@@ -1192,12 +1192,13 @@ console.log('\n4-1) 경기 다음 날은 부하로(D3)');
       yesterdayArmLoad: arm,
     }).gameYesterday;
   check(
-    '어제 때문에 쉬는 신호 — 세게 던진 날 + 운동 힘듦 급증 · 중간 부하 + 급증만 참, 세게 던진 날만 · 기록 없는 등판 · 없음은 거짓',
+    '어제 때문에 쉬는 신호 — 세게 던진 날 · 기록 없는 등판 + 운동 힘듦 급증 · 중간 부하 + 급증만 참, 세게 던진 날만 · 기록 없는 등판만 · 없음은 거짓',
     yesterdaySignal({ kind: 'hard', spike: true }) === true &&
       yesterdaySignal({ kind: 'moderateSpike' }) === true &&
       yesterdaySignal({ kind: 'hard' }) === false &&
       yesterdaySignal({ kind: 'hard', spike: false }) === false &&
       yesterdaySignal({ kind: 'claimedNoLog' }) === false &&
+      yesterdaySignal({ kind: 'claimedNoLog', spike: true }) === true &&
       yesterdaySignal(null) === false
   );
   const pen = dayOf(factsOf(y1(40, 90, '불펜')));
@@ -1225,9 +1226,9 @@ console.log('\n4-1) 경기 다음 날은 부하로(D3)');
   const textOf = (facts: ReturnType<typeof factsOf>) =>
     restTextOf('gameYesterday', yesterdayArmLoadOf(facts)?.kind ?? null);
   check(
-    "P4 검토 — 쉬는 까닭 글: 어제 경기 85구(운동 힘듦 급증이 겹쳐 쉬는 날) '어제 던졌고 최근 운동도 힘들었어요' · 기록 없는 등판 '어제 등판한 다음 날이에요' · 까닭 모름은 예전 글",
+    "P4 검토 — 쉬는 까닭 글: 어제 경기 85구(운동 힘듦 급증이 겹쳐 쉬는 날) '어제 던졌고 최근 운동도 힘들었어요' · 기록 없는 등판 + 급증 '어제 등판했고 최근 운동도 힘들었어요' · 까닭 모름은 예전 글",
     textOf(factsOf(y1(85, 100, '경기'))) === '어제 던졌고 최근 운동도 힘들었어요' &&
-      textOf(factsOf([], '오늘 등판')) === '어제 등판한 다음 날이에요' &&
+      textOf(factsOf([], '오늘 등판')) === '어제 등판했고 최근 운동도 힘들었어요' &&
       restTextOf('gameYesterday') === REST_TEXT.gameYesterday &&
       restTextOf('gameToday', 'hard') === REST_TEXT.gameToday
   );

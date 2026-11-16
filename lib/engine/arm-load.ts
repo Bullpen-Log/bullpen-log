@@ -49,14 +49,15 @@ export type YesterdayArmLoadKind = 'hard' | 'moderateSpike' | 'claimedNoLog';
 export type YesterdayArmLoad =
   /**
    * 어제 던진 날의 재료(facts.patterns.hardOutings 의 daysAgo 1, 새 객체). spike 는 최근 운동 힘듦 급증이 겹쳤나 — moderateSpike 는 늘 참,
-   * hard 는 겹친 날만 참(restsAfterOuting 이 읽는다).
+   * hard · claimedNoLog 는 겹친 날만 참(restsAfterOuting 이 읽는다).
    */
   | { kind: 'hard' | 'moderateSpike'; outing: HardOuting; spike: boolean }
   /** 기록이 없어 재료가 없다 */
-  | { kind: 'claimedNoLog'; outing: null; spike: false };
+  | { kind: 'claimedNoLog'; outing: null; spike: boolean };
 
 /**
- * 등판 다음 날인데 운동까지 쉬는 날인가 — 어제 중간 부하 이상(세게 던진 날 포함)에 최근 운동 힘듦 급증이 겹친 날(날 종류 R2).
+ * 등판 다음 날인데 운동까지 쉬는 날인가 — 어제 중간 부하 이상(세게 던진 날 포함)에 최근 운동 힘듦 급증이 겹친 날(날 종류 R2). 어제 '오늘 등판'이라
+ * 답하고 기록이 없는 날도 급증이 겹치면 쉰다 — 부하를 모르는 날을 아는 날(세게 던진 날 + 급증 → 회복)보다 세게 짜지 않게(2026-11-16 검토).
  *
  * 2026-11-16(김민 결정)부터 등판 다음 날은 운동 날이다 — 어제 세게 던졌거나 기록 없는 등판 다음 날이어도 매일 일정은 하체 위주 근력 날
  * (날 종류 R5' afterOuting), 근력 프로그램은 그날 일차를 한다. 쉬는 것은 던진 것에 운동 피로까지 쌓인 이 경우뿐이다. 날 종류와 프로그램
@@ -65,7 +66,11 @@ export type YesterdayArmLoad =
 export function restsAfterOuting(
   a: Pick<YesterdayArmLoad, 'kind'> & { spike?: boolean } | null
 ): boolean {
-  return a != null && (a.kind === 'moderateSpike' || (a.kind === 'hard' && a.spike === true));
+  return (
+    a != null &&
+    (a.kind === 'moderateSpike' ||
+      ((a.kind === 'hard' || a.kind === 'claimedNoLog') && a.spike === true))
+  );
 }
 
 /**
@@ -88,6 +93,6 @@ export function yesterdayArmLoadOf(facts: ReportFacts): YesterdayArmLoad | null 
   )
     return { kind: 'moderateSpike', outing: { ...yesterday }, spike: true };
   if (outingOf(facts).claimedYesterdayNoLog)
-    return { kind: 'claimedNoLog', outing: null, spike: false };
+    return { kind: 'claimedNoLog', outing: null, spike };
   return null;
 }

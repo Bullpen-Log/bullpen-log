@@ -19,7 +19,13 @@ import type { OutingNextSource } from '@/lib/engine/outing';
 import { INTENSITY_CAP, intensityLevel, type BodyPart } from '@/lib/exercise-meta';
 import { YOUTH_AGE_THRESHOLD } from '@/lib/report/plan';
 import { BEGINNER_LEVEL_NAME } from '@/lib/report/personalize';
-import { belowUsualCondition, todayPrefsOf, type ReportFacts } from '@/lib/report/facts';
+import { yesterdayArmLoadOf } from '@/lib/engine/arm-load';
+import {
+  belowUsualCondition,
+  isHardOuting,
+  todayPrefsOf,
+  type ReportFacts,
+} from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
 
 /**
@@ -624,6 +630,34 @@ export function selectCandidates<T extends ExerciseLike>({
       `만 ${facts.profile.age}세(성장기) · 오늘 공을 쉬는 날 → 팔 플라이오 제외`
     );
     drop('쉬는 날 팔 플라이오(성장기)', (ex) => !isArmPlyo(ex));
+  }
+
+  /*
+   * 5-4) 오늘 등판 · 오늘 세게 던진 날 · 등판 다음 날 — 팔 플라이오를 뺀다(2026-11-16).
+   *
+   * 매일 일정은 같은 날 팔 플라이오를 이미 뺀다(lib/report/daily-plan.ts dropArm — 중재의 팔 예산 · 등판 다음 날). 그런데 운동 중 바꾸기 ·
+   * 운동 추가 창은 이 거르기만 읽어서(app/actions/workout.ts), 일정에서 뺀 메디신볼 던지기가 '비슷한 운동'으로 다시 나오고 주의 표시도 없었다.
+   * 여기서 빼면 그 창들은 이 운동을 주의(blockedIds)로 보인다(막지는 않는다 — 2026-10-19 '주의만'). 등판 다음 날은 날 종류
+   * (lib/engine/microcycle.ts DayKind.afterOuting)와 같은 판정이다 — 어제 세게 던졌거나 어제 '오늘 등판'에 기록이 없고, 오늘 또 세게 던진 날은
+   * 아니다(그날은 오늘 쪽이 잡는다). 날 규칙이라 근력 프로그램(partsOnly)은 건너뛴다 — 프로그램의 팔 던지기 변형은 중재가 뺀다
+   * (lib/engine/arbiter.ts afterOutingOf · armBudget). '그래도 하기'로도 안 풀린다(팔 예산과 같다).
+   */
+  if (!partsOnly) {
+    const hardToday = (facts.patterns.hardOutings ?? []).some(
+      (o) => o.daysAgo === 0 && isHardOuting(o)
+    );
+    const yesterdayArm = yesterdayArmLoadOf(facts)?.kind ?? null;
+    const armDay = hardToday
+      ? '오늘 많이 던진 날'
+      : outingOf(facts).nextDay === 0
+        ? '오늘 등판'
+        : yesterdayArm === 'hard' || yesterdayArm === 'claimedNoLog'
+          ? '등판 다음 날'
+          : null;
+    if (armDay) {
+      basis.push(`${armDay} → 팔 플라이오 제외`);
+      drop(`${armDay} 팔 플라이오`, (ex) => !isArmPlyo(ex));
+    }
   }
 
   /*

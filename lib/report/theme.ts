@@ -400,10 +400,14 @@ function dayKindWords(dk: DayKind): { reason: string; clash: string } | null {
     case 'outingToday':
       return { reason: plannedOutingReason('today'), clash: '오늘 등판이에요' };
     case 'moderateSpike': {
-      if (!dk.yesterday) return null;
-      const phrase = `어제 ${dk.yesterday.pitches}구를 던졌고 최근 운동도 힘들었어요`;
+      /* 어제 '오늘 등판' 답에 기록이 없는 날(yesterday 없음)도 급증이 겹치면 여기 온다(arm-load.ts restsAfterOuting) — 기록을 청한다 */
+      const phrase = dk.yesterday
+        ? `어제 ${dk.yesterday.pitches}구를 던졌고 최근 운동도 힘들었어요`
+        : '어제 등판했고 최근 운동도 힘들었어요';
       return {
-        reason: `${phrase}. 오늘은 가볍게 풀고, 내일부터 무게를 다시 올려요.`,
+        reason: dk.yesterday
+          ? `${phrase}. 오늘은 가볍게 풀고, 내일부터 무게를 다시 올려요.`
+          : `${phrase}. 오늘은 가볍게 풀고, 내일부터 무게를 다시 올려요. 투구 기록을 남기면 던진 양으로 다시 짤 수 있어요.`,
         clash: phrase,
       };
     }

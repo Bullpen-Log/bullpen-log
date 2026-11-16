@@ -2652,7 +2652,8 @@ export const REST_YESTERDAY_TEXT: Record<YesterdayArmLoadKind, string> = {
   /* 2026-11-16 부터 어제 세게 던진 날은 운동 힘듦 급증이 겹칠 때만 쉰다(restsAfterOuting) — moderateSpike 와 같은 까닭 */
   hard: '어제 던졌고 최근 운동도 힘들었어요',
   moderateSpike: '어제 던졌고 최근 운동도 힘들었어요',
-  claimedNoLog: '어제 등판한 다음 날이에요',
+  /* 2026-11-16 부터 기록 없는 등판 다음 날도 운동 힘듦 급증이 겹칠 때만 쉰다(restsAfterOuting) */
+  claimedNoLog: '어제 등판했고 최근 운동도 힘들었어요',
 };
 
 /** 쉬는 까닭 한 줄 — 어제 팔 부담이면 그 까닭대로, 아니면 REST_TEXT */

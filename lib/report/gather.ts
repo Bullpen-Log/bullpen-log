@@ -1,5 +1,6 @@
 import 'server-only';
 import { confirmedOutingEvents } from '@/lib/org/team-load';
+import { weekAskOutings } from '@/lib/coach/week-ask';
 import { requestCache as cache } from '@/lib/request-cache';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -84,6 +85,7 @@ const recentRecords = cache(async (userId: string, sinceIso: string, asOf: strin
      * 안 된다. 등판으로 읽는 이름인지는 buildFacts 가 가린다(lib/calendar-event.ts isOutingTitle).
      */
     /* 팀이 확정한 등판도 같은 출처로 더한다(2026-10-26 팀 3단계, lib/org/team-load.ts) — 체크인 답이 먼저라 덮지 않는다 */
+    /* 코치 주마다 일정 묻기에 답한 선발 · 불펜 대기 날도 같은 출처로(2026-11-16 검토, lib/coach/week-ask.ts weekAskOutings) */
     Promise.all([
       prisma.calendarEvent.findMany({
         where: { userId, date: { gte: calendarFrom, lte: calendarTo } },
@@ -91,7 +93,16 @@ const recentRecords = cache(async (userId: string, sinceIso: string, asOf: strin
         orderBy: { date: 'asc' },
       }),
       confirmedOutingEvents(userId, calendarFrom, calendarTo),
-    ]).then(([mine, team]) => [...mine, ...team].sort((a, b) => a.date.getTime() - b.date.getTime())),
+      prisma.coachProfile
+        .findUnique({ where: { userId }, select: { answers: true } })
+        .then((p) =>
+          weekAskOutings((p?.answers as { weekAsks?: unknown } | null)?.weekAsks)
+            .map((e) => ({ date: new Date(`${e.date}T00:00:00.000Z`), title: e.title }))
+            .filter((e) => e.date >= calendarFrom && e.date <= calendarTo)
+        ),
+    ]).then(([mine, team, coach]) =>
+      [...mine, ...team, ...coach].sort((a, b) => a.date.getTime() - b.date.getTime())
+    ),
     /*
      * 트레이닝 탭 카드의 답(체크인 3판, 2026-10-13 — 오늘 하고 싶은 운동 종류 · 부위). 체크인 줄의 같은 칸은 2판까지의 기록이라,
      * 날짜가 같은 카드 답이 있으면 그것이 이긴다(아래 checkins 매핑). 하루 한 줄 · 45일이라 가볍다.

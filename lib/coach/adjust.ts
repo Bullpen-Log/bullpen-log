@@ -42,6 +42,14 @@ const isMain = (x: SlotItem) => x.kind === 'train' || x.kind === 'program' || x.
 const isWork = (x: SlotItem) => x.kind === 'train' || x.kind === 'program';
 /** 큰 하체를 들 수 있는 날(dayRuleOf 의 heavyLower 와 같은 규칙) */
 const HEAVY_RULES = new Set<DayRule>(['none', 'outingFar', 'afterOuting']);
+/**
+ * 메커니즘(던지기) 드릴을 놓지 않는 날 — 계획기(lib/coach/week.ts)가 메커니즘을 빼는 날과 같다: 회복 날(등판 · 세게 던진 날) · 등판 다음 날 ·
+ * 등판 전날. 등판 다음 날이 2026-11-16 부터 회복이 아니라 운동 날(rank 'strength')이 되어, 날 바꾸기가 메커니즘을 그날로 옮겨 놓을 수 있었다
+ * (fold.ts 는 오늘 던진 날만 접어서 그날 던지기 드릴이 그대로 열렸다).
+ */
+const noThrowingDrills = (s: DaySlot) =>
+  s.rank === 'recovery' || s.rule === 'outingTomorrow' || s.reasons.includes('after-outing');
+
 /** 운동이 빠지면 그 운동을 설명하던 까닭도 뺀다 */
 const WORK_REASONS = new Set<ReasonCode>(['youth', 'lower-yesterday']);
 
@@ -106,16 +114,21 @@ export function applyAdjust(
       const toItems = b.items.filter(isMain);
       if (!fromItems.length) return { error: '옮길 운동이 없는 날이에요.' };
       if (b.rank === 'recovery' || (toItems.length && a.rank === 'recovery')) return { error: '등판 · 회복 날로는 운동을 옮길 수 없어요.' };
-      const restOf = (s: DaySlot, moved: SlotItem[]) => {
-        s.items = [...s.items.filter((x) => !isMain(x) && x.kind !== 'rest'), ...moved];
+      /* 메커니즘은 던지기 드릴을 안 하는 날로 가지 않고 제자리에 남는다(noThrowingDrills) */
+      const stays = (x: SlotItem, dest: DaySlot) => x.kind === 'mechanics' && noThrowingDrills(dest);
+      const goB = fromItems.filter((x) => !stays(x, b));
+      const goA = toItems.filter((x) => !stays(x, a));
+      if (!goB.length) return { error: '등판 전날 · 등판 다음 날로는 메커니즘 드릴을 옮길 수 없어요.' };
+      const restOf = (s: DaySlot, kept: SlotItem[], moved: SlotItem[]) => {
+        s.items = [...s.items.filter((x) => !isMain(x) && x.kind !== 'rest'), ...kept, ...moved];
         if (!s.items.some((x) => isMain(x) || x.kind === 'fixed')) s.items.unshift({ kind: 'rest' });
       };
-      restOf(a, toItems.map((x) => fitTo(x, a)));
-      restOf(b, fromItems.map((x) => fitTo(x, b)));
+      restOf(a, fromItems.filter((x) => !goB.includes(x)), goA.map((x) => fitTo(x, a)));
+      restOf(b, toItems.filter((x) => !goA.includes(x)), goB.map((x) => fitTo(x, b)));
       a.reasons = a.reasons.filter((r) => !WORK_REASONS.has(r) && r !== 'rest' && r !== 'moved');
       b.reasons = [...b.reasons.filter((r) => !WORK_REASONS.has(r) && r !== 'rest' && r !== 'moved'), 'moved'];
-      if (toItems.length) a.reasons.push('moved');
-      else if (!a.items.some((x) => x.kind === 'fixed')) a.reasons.push('rest');
+      if (goA.length) a.reasons.push('moved');
+      else if (!a.items.some((x) => x.kind === 'fixed' || isMain(x))) a.reasons.push('rest');
       break;
     }
   }

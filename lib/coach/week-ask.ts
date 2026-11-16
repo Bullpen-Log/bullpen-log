@@ -63,6 +63,29 @@ const listOf = (asks: unknown): WeekAsk[] =>
 /** 그 주의 답(건너뛴 주도 돌려준다 — 다시 안 묻게) */
 export const weekAskFor = (asks: unknown, weekStart: string): WeekAsk | null => listOf(asks).find((a) => a.weekStart === weekStart) ?? null;
 
+/**
+ * 엔진에 넘기는 등판 일정 — 답한 주(건너뛴 주 빼고)의 선발 · 불펜 대기 날. 계획기만 답을 읽으면 그날 운동 엔진은 등판을 몰라, 코치 칸은
+ * '등판 전날 · 가볍게'인데 실제 일정은 무거운 하체 날이 나올 수 있었다(2026-11-16 검토). 엔진은 이것을 달력 일정처럼 짐작한 등판(soft)으로
+ * 읽어 가볍게 하는 쪽에만 쓴다(lib/report/gather.ts — 팀이 확정한 등판과 같은 길). 이름에 '등판'이 들어가야 엔진이 등판으로 읽는다
+ * (lib/calendar-event.ts isOutingTitle).
+ */
+export const WEEK_ASK_OUTING_TITLE = {
+  start: '선발 등판(이번 주 일정)',
+  relief: '불펜 대기 등판(이번 주 일정)',
+} as const;
+
+export function weekAskOutings(asks: unknown): { date: string; title: string }[] {
+  const out: { date: string; title: string }[] = [];
+  for (const a of listOf(asks)) {
+    if (a.skipped) continue;
+    for (const [k, pick] of Object.entries(a.picks)) {
+      if (pick === 'start' || pick === 'relief')
+        out.push({ date: shiftDateKey(a.weekStart, Number(k)), title: WEEK_ASK_OUTING_TITLE[pick] });
+    }
+  }
+  return out.sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0));
+}
+
 /** 답을 넣고 최근 두 주만 남긴다 */
 export function withWeekAsk(asks: unknown, ask: WeekAsk): WeekAsk[] {
   return [...listOf(asks).filter((a) => a.weekStart !== ask.weekStart), ask].sort((a, b) => (a.weekStart < b.weekStart ? -1 : 1)).slice(-2);

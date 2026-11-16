@@ -9043,7 +9043,8 @@ console.log(
         nutrition: 'after',
         armcare: 'recovery',
         program: 'rest:hardToday',
-        safety: 'heavyArm',
+        /* 2026-11-16 로 바뀜 — 오늘 세게 던진 날은 안전 거르기도 팔 플라이오를 뺀다(prescription.ts 5-4, 바꾸기 · 추가 창이 주의로 보이게) */
+        safety: 'none',
       },
     },
     {
@@ -15965,12 +15966,17 @@ console.log(
     `${youthRest.load.zone} · ${json(youthRestPlan.today)}`
   );
   check(
-    `P4 팔 피로 규칙 (나) 15세 쉬는 날 → '${YOUTH_RULE}' · 팔 플라이오 0, 16세 같은 날은 규칙 없음 · 팔 플라이오가 남는다(D4 경계)`,
+    /*
+     * 2026-11-16 로 바뀜 — 어제 55구 × 70%(3,850)는 세게 던진 날이라 오늘은 등판 다음 날이다. 그래서 16세도 같은 날 팔 플라이오가 빠지는데,
+     * 성장기 규칙이 아니라 등판 다음 날 규칙(prescription.ts 5-4)으로다. 쉬는 날 '그대로 던지는' 16세를 만들 수 없어(쉬는 날은 늘 큰 등판 다음
+     * 날이다) 경계는 규칙 이름으로 본다.
+     */
+    `P4 팔 피로 규칙 (나) 15세 쉬는 날 → '${YOUTH_RULE}' · 팔 플라이오 0, 16세 같은 날은 성장기 규칙 없음(D4 경계) · 등판 다음 날 규칙으로만 빠진다`,
     hasRule(y15, YOUTH_RULE) &&
       !y15.candidates.some(isArmPlyo) &&
       y15.basis.includes('만 15세(성장기) · 오늘 공을 쉬는 날 → 팔 플라이오 제외') &&
       !hasRule(y16, YOUTH_RULE) &&
-      y16.candidates.some(isArmPlyo),
+      hasRule(y16, '등판 다음 날 팔 플라이오'),
     `15세 ${json(y15.excluded)} | 16세 플라이오 ${y16.candidates.filter(isArmPlyo).length}`
   );
   check(
@@ -16218,6 +16224,8 @@ console.log(
     yesterday?: OhDay | null;
     /** 근거 줄의 '언제'(걸리지 않으면 null) */
     when: string | null;
+    /** 등판 다음 날이라 팔 플라이오만 더 빠진다(prescription.ts 5-4, 2026-11-16) */
+    armAfter?: boolean;
   }[] = [
     { name: "오늘 '오늘 등판'", today: { throwPlan: '오늘 등판' }, when: '오늘' },
     { name: "오늘 '내일 등판'", today: { throwPlan: '내일 등판' }, when: '내일' },
@@ -16268,10 +16276,11 @@ console.log(
       when: null,
     },
     {
-      name: "오늘 답 없음 + 어제 '오늘 등판'(지난 등판이지 다음 등판이 아니다)",
+      name: "오늘 답 없음 + 어제 '오늘 등판'(지난 등판이지 다음 등판이 아니다 — 등판 다음 날이라 팔 플라이오만 빠진다)",
       today: { throwPlan: null },
       yesterday: { throwPlan: '오늘 등판' },
       when: null,
+      armAfter: true,
     },
     { name: '오늘 · 어제 답 칸 없음', today: {}, yesterday: {}, when: null },
     {
@@ -16281,31 +16290,44 @@ console.log(
       when: null,
     },
   ];
+  /*
+   * 2026-11-16 로 바뀜 — 오늘 등판 · 등판 다음 날은 안전 거르기가 팔 플라이오도 뺀다(prescription.ts 5-4). 그날은 무거운 하체에 더해 팔 플라이오만
+   * 더 빠지고, 근거에 그 줄이 하나 는다. 그 밖은 예전 그대로(창 안은 무거운 하체만, 창 밖은 글자 그대로).
+   */
   for (const c of cases) {
     const r = pick(ohFacts(c));
     const plain = pick(
       ohFacts({ today: stripAnswer(c.today), yesterday: stripAnswer(c.yesterday) })
     );
+    const armLine =
+      c.when === '오늘'
+        ? '오늘 등판 → 팔 플라이오 제외'
+        : c.armAfter
+          ? '등판 다음 날 → 팔 플라이오 제외'
+          : null;
+    const dropArm = (e: (typeof plain.candidates)[number]) => armLine != null && isArmPlyo(e);
     if (c.when != null) {
       const line = `${c.when} 등판 → 무거운 하체 제외`;
-      const expected = plain.candidates.filter((e) => !isHeavyLower(e));
-      const removed = plain.candidates.length - expected.length;
+      const expected = plain.candidates.filter((e) => !isHeavyLower(e) && !dropArm(e));
+      const removed = plain.candidates.filter(isHeavyLower).length;
       check(
-        `P4 등판 창 (가) ${c.name} → '${line}' · 답을 지운 날 후보에서 무거운 하체 ${removed}개만 빠진다`,
+        `P4 등판 창 (가) ${c.name} → '${line}' · 답을 지운 날 후보에서 무거운 하체 ${removed}개${armLine ? ' · 팔 플라이오' : ''}만 빠진다`,
         removed > 0 &&
           hasRule(r) &&
           ids(r.candidates) === ids(expected) &&
           r.excluded.find((x) => x.rule === RULE)?.count === removed &&
           r.basis.includes(line) &&
-          json(r.basis.filter((b) => b !== line)) === json(plain.basis),
+          (armLine == null || r.basis.includes(armLine)) &&
+          json(r.basis.filter((b) => b !== line && b !== armLine)) === json(plain.basis),
         `${plain.candidates.length} → ${r.candidates.length} · ${json(r.excluded)}`
       );
     } else {
       check(
-        `P4 등판 창 (가) ${c.name} → 규칙 없음 · 후보 · 근거가 답을 지운 날과 글자 그대로`,
+        `P4 등판 창 (가) ${c.name} → 무거운 하체 규칙 없음 · 후보 · 근거가 답을 지운 날과 같다${armLine ? '(팔 플라이오 줄만 더)' : '(글자 그대로)'}`,
         !hasRule(r) &&
-          ids(r.candidates) === ids(plain.candidates) &&
-          json(r.basis) === json(plain.basis) &&
+          ids(r.candidates) === ids(plain.candidates.filter((e) => !dropArm(e))) &&
+          json(r.basis.filter((b) => b !== armLine)) === json(plain.basis) &&
+          (armLine == null || r.basis.includes(armLine)) &&
           !r.basis.some((b) => b.includes('무거운 하체')),
         json(r.excluded)
       );
@@ -16515,6 +16537,12 @@ console.log(
       const b = selectCandidates({ facts: stripped, plan, library });
       const w = outingOf(facts).daysUntilNext;
       const windowed = w != null && w.max != null && w.max <= 3;
+      /*
+       * 2026-11-16 로 바뀜 — 답이 오늘 등판 · 등판 다음 날(어제 '오늘 등판' · 기록 없음)을 말하면 팔 플라이오도 빠진다(prescription.ts 5-4).
+       * 그 날은 팔 플라이오까지 더 빠질 수 있다.
+       */
+      const armDay =
+        outingOf(facts).nextDay === 0 || outingOf(facts).claimedYesterdayNoLog;
       const extra = b.candidates.filter(
         (e) => !a.candidates.some((x) => x.id === e.id)
       );
@@ -16525,8 +16553,10 @@ console.log(
       const ok =
         a.halted === b.halted &&
         subset &&
-        (windowed
-          ? extra.every(isHeavyLower)
+        (windowed || armDay
+          ? extra.every(
+              (e) => (windowed && isHeavyLower(e)) || (armDay && isArmPlyo(e))
+            )
           : extra.length === 0 && ids(a.candidates) === ids(b.candidates));
       if (!ok) missLoose.push(`p0-${i} ${extra.length}`);
     }
@@ -17432,6 +17462,7 @@ console.log(
       goal?: string;
       lastLowerKey?: string | null;
       lastUpperKey?: string | null;
+      seed?: string;
     } = {}
   ) => {
     const facts = mcFacts(p);
@@ -17444,7 +17475,7 @@ console.log(
       requestedMinutes: opts.minutes ?? 60,
       trainingGoal: opts.goal ?? '근력 향상',
       recentIds: new Set<string>(),
-      rotationSeed: 'p4-daykind',
+      rotationSeed: opts.seed ?? 'p4-daykind',
       lastLowerKey: opts.lastLowerKey === undefined ? null : opts.lastLowerKey,
       lastUpperKey: opts.lastUpperKey === undefined ? null : opts.lastUpperKey,
     });
@@ -17523,6 +17554,75 @@ console.log(
       isHalted(after) || isHalted(later)
         ? '멈춤'
         : `${after.theme.key} · ${after.minutes}분 · ${after.theme.reason} / ${later.minutes}분`
+    );
+  }
+  /*
+   * 안전 쪽 검토 반영(2026-11-16) — 등판 다음 날 · 오늘 등판 · 오늘 세게 던진 날은 팔 플라이오가 일정에도, 바꾸기 · 추가 창이 읽는 안전 거르기
+   * (selectCandidates — app/actions/workout.ts 가 이것으로 blockedIds 를 만든다)에도 없다. 파워 목표(팔 플라이오 칸이 있는 날)를 씨앗 여럿으로.
+   */
+  {
+    const yHard: McPerson = {
+      baseline: 2000,
+      logs: [{ daysAgo: 1, pitches: 85, pct: 100, sessionType: '경기' }],
+    };
+    const yClaimed: McPerson = {
+      baseline: 2000,
+      today: { throwPlan: null },
+      yesterday: { throwPlan: '오늘 등판' },
+    };
+    const leaks: string[] = [];
+    for (const [name, p] of [
+      ['어제 경기 85구', yHard],
+      ["어제 '오늘 등판' · 기록 없음", yClaimed],
+    ] as const) {
+      for (let k = 0; k < 12; k++) {
+        const b = mcBuild(p, { goal: '파워 향상', seed: `after-arm-${k}` });
+        if (isHalted(b)) leaks.push(`${name} 멈춤`);
+        else if (picksOf(b).some(isArmPlyo)) leaks.push(`${name} 씨앗 ${k}`);
+      }
+    }
+    const plainPower = Array.from({ length: 12 }, (_, k) =>
+      mcBuild({ baseline: 2000 }, { goal: '파워 향상', seed: `after-arm-${k}` })
+    ).filter((b) => !isHalted(b) && picksOf(b).some(isArmPlyo)).length;
+    check(
+      `등판 다음 날(세게 던진 날 · 기록 없는 등판) 파워 목표 24일정에 팔 플라이오 0 — 같은 씨앗 보통 날은 ${plainPower}/12 에 들어간다(검사가 비지 않게)`,
+      leaks.length === 0 && plainPower > 0,
+      leaks.slice(0, 4).join(' · ')
+    );
+    const safeOf = (p: McPerson, partsOnly = false) => {
+      const f = mcFacts(p);
+      return selectCandidates({ facts: f, plan: buildPitchPlan(f), library, partsOnly });
+    };
+    const twoDays: McPerson = {
+      baseline: 2000,
+      logs: [{ daysAgo: 2, pitches: 85, pct: 100, sessionType: '경기' }],
+    };
+    const hardTodayP: McPerson = {
+      baseline: 2000,
+      logs: [{ daysAgo: 0, pitches: 60, pct: 90, sessionType: '불펜' }],
+    };
+    const outingTodayP: McPerson = { today: { throwPlan: '오늘 등판' } };
+    check(
+      '안전 거르기(바꾸기 · 추가 창) — 등판 다음 날 · 기록 없는 등판 다음 날 · 오늘 세게 던진 날 · 오늘 등판은 팔 플라이오 0 · 근거 줄, 이틀 전 등판 · 근력 프로그램(partsOnly)은 그대로',
+      !safeOf(yHard).candidates.some(isArmPlyo) &&
+        safeOf(yHard).basis.includes('등판 다음 날 → 팔 플라이오 제외') &&
+        !safeOf(yClaimed).candidates.some(isArmPlyo) &&
+        !safeOf(hardTodayP).candidates.some(isArmPlyo) &&
+        safeOf(hardTodayP).basis.includes('오늘 많이 던진 날 → 팔 플라이오 제외') &&
+        !safeOf(outingTodayP).candidates.some(isArmPlyo) &&
+        safeOf(twoDays).candidates.some(isArmPlyo) &&
+        safeOf(yHard, true).candidates.some(isArmPlyo),
+      [yHard, yClaimed, hardTodayP, outingTodayP, twoDays].map((p) => json(safeOf(p).excluded)).join(' | ')
+    );
+    /* 기록 없는 등판 다음 날 + 운동 힘듦 급증 — 기록 있는 같은 상황(세게 던진 날 + 급증 → 회복)처럼 회복. 부하를 모르는 날을 더 세게 짜지 않는다 */
+    const claimedSpike = themeOf({ ...yClaimed, notes: SPIKE });
+    check(
+      "기록 없는 등판 다음 날 + 힘듦 급증 → R2 회복 · '어제 등판했고 최근 운동도 힘들었어요. …투구 기록을 남기면…' (예전: 하체 근력 날)",
+      dayKindOf(mcFacts({ ...yClaimed, notes: SPIKE })).rule === 'moderateSpike' &&
+        claimedSpike.key === 'recovery' &&
+        claimedSpike.reason ===
+          '어제 등판했고 최근 운동도 힘들었어요. 오늘은 가볍게 풀고, 내일부터 무게를 다시 올려요. 투구 기록을 남기면 던진 양으로 다시 짤 수 있어요.',
+      `${claimedSpike.key} · ${claimedSpike.reason}`
     );
   }
   const relief = (minutes: number, extra: McPerson = {}) =>
@@ -18200,8 +18300,10 @@ console.log(
            * 힘듦 급증이 겹친 날(중간 부하 + 급증, 세게 던진 날 + 급증 — 날 종류 R2)뿐이고, 그 밖의 세게 던진 날 · 기록 없는 등판 다음 날은
            * 등판 다음 날의 근력 날(R5' afterOuting)이다. 프로그램 신호 · 날 종류가 같은 날을 같게 말하는지 본다. 암케어의 회복은 그대로다.
            */
+          /* 기록 없는 등판 다음 날도 급증이 겹치면 쉰다(2026-11-16 검토 — 부하를 모르는 날을 아는 날보다 세게 짜지 않게) */
           const rests =
-            k === 'moderateSpike' || (k === 'hard' && notes === AF_SPIKE);
+            k === 'moderateSpike' ||
+            ((k === 'hard' || k === 'claimedNoLog') && notes === AF_SPIKE);
           const after = k === 'hard' || k === 'claimedNoLog';
           if (r.signals.gameYesterday !== rests) miss.program.push(name);
           /* 등판 다음 날 표시 — 오늘도 세게 던진 날(R1, '오늘 불펜 60 · 50%' + 어제 '오늘 등판' 답)이면 서지 않는다 */
@@ -18213,7 +18315,7 @@ console.log(
           )
             miss.ruleArm.push(`${name}: ${r.dk.rule} · ${k}`);
           /* 쉬는 날인데 날 종류가 R2 가 아니면 앞 차례(R3 오늘 등판 — 회복)여야 한다 */
-          if (rests && r.dk.rule !== 'moderateSpike' && r.dk.rule !== 'outingToday')
+          if (rests && !['moderateSpike', 'outingToday', 'hard'].includes(r.dk.rule))
             miss.ruleArm.push(`${name}: ${k} + 급증인데 ${r.dk.rule}`);
           /* 등판 다음 날인데 R5' 가 아니면 더 가볍게 가는 앞 차례(오늘 등판 · 내일 등판 · 등판 3일 안)여야 한다 */
           if (
@@ -20069,13 +20171,13 @@ console.log(
     const texts = kinds.map((k) => restTextOf('gameYesterday', k));
     check(
       /* 2026-11-16 로 바뀜 — 어제 세게 던진 날은 운동 힘듦 급증이 겹칠 때만 쉬므로 그 글도 '어제 던졌고 최근 운동도 힘들었어요'다 */
-      "검토 (라) 쉬는 까닭 글 — 세게 던진 날 · 중간 부하 + 힘듦 급증 '어제 던졌고 최근 운동도 힘들었어요' · 기록 없는 등판 '어제 등판한 다음 날이에요'",
+      "검토 (라) 쉬는 까닭 글 — 세게 던진 날 · 중간 부하 + 힘듦 급증 '어제 던졌고 최근 운동도 힘들었어요' · 기록 없는 등판 + 급증 '어제 등판했고 최근 운동도 힘들었어요'",
       json(kinds) === json(['hard', 'moderateSpike', 'claimedNoLog']) &&
         json(texts) ===
           json([
             '어제 던졌고 최근 운동도 힘들었어요',
             '어제 던졌고 최근 운동도 힘들었어요',
-            '어제 등판한 다음 날이에요',
+            '어제 등판했고 최근 운동도 힘들었어요',
           ]),
       json({ kinds, texts })
     );
