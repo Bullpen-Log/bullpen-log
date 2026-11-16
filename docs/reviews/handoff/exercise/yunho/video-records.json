@@ -2998,7 +2998,7 @@
     "category": "파워",
     "media": {
       "kind": "owned",
-      "library_database_id": null
+      "library_database_id": "86ac9808-a5b5-4068-aa1a-1d35c8e2356f"
     },
     "title_at_review": "레터럴 바운드 + 메디신볼 슬램",
     "current_title": "옆으로 뛰고 메디신볼 내리치기 (레터럴 바운드 슬램)",
@@ -3035,6 +3035,18 @@
           "https://pubmed.ncbi.nlm.nih.gov/22344047/"
         ],
         "limits": "Related drills and pitcher ground reaction research, not exact combination proof or optimal prescription. Coaching direction and recovery cues need user/video confirmation."
+      }
+    ],
+    "video_edits": [
+      {
+        "at_utc": "2026-11-16T06:56:52.390450+00:00",
+        "user_request": "마지막 운동 마무리 후 중심을 잃고 다른 쪽으로 한 번 뛰는 동작을 잘라 혼동 방지",
+        "before_seconds": 4.883333,
+        "after_seconds": 3.6,
+        "action": "Kept beginning through slam and removed trailing balance-correction jump. New video and thumbnail uploaded under unique paths; only current exercise video linked. Original preserved.",
+        "verification": "Database points to edit; uploaded edit and old original independently downloaded and hash-verified against local copies; edited last frame inspected; production player shows about3s and playback advanced.",
+        "backup": "npm run backup succeeded; private full-schema-known backup and target row/video kept outside repository. Recovery paths not published.",
+        "limits": "App bundled copies, other devices and human loop-seam judgment not checked. No next authorization."
       }
     ]
   }
