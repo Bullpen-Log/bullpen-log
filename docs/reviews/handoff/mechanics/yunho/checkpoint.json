@@ -55,8 +55,8 @@
     "title": "스텝백 스로우 드릴",
     "kind": "직접 촬영 영상",
     "kind_evidence": "현재 상세에 촬영 전/참고 영상 표시 없음, 자체 저장소 video 재생 확인",
-    "status": "사용자 검수 대기",
-    "drill_id": null,
+    "status": "수정 저장 완료 · 사용자 확인 대기",
+    "drill_id": "54acde57-f93a-4012-a632-46221b7f23b8",
     "asset_id": "95d8dd7e-6969-4d30-a207-afc89322912f",
     "asset_path": "pitch-videos/library-720/95d8dd7e-6969-4d30-a207-afc89322912f.mp4",
     "duration_seconds": 6.87,
@@ -116,6 +116,51 @@
       "playback": "Repeat checkbox ON; returned Home and playing. No cycle test. Audio not verified.",
       "user_status": "Awaiting first human video judgment; no next instruction.",
       "applied_content_change": false
+    },
+    "latest_applied_revision": {
+      "at": "2026-11-16T18:11:32.378083+09:00",
+      "drill_id": "54acde57-f93a-4012-a632-46221b7f23b8",
+      "title": "스텝백 스로우 드릴",
+      "before_description": "■ 어떤 운동인가\n던지는 방향의 반대쪽으로 한 발 물러섰다가, 그 반동으로 홈 쪽으로 나가며 던지는 드릴입니다.\n\n■ 이렇게 하세요\n1. 던지는 방향을 옆으로 보고 섭니다.\n2. 앞발을 뒷발 쪽으로 한 발 물러 딛습니다.\n3. 그 걸음에 실린 체중이 홈 쪽으로 흘러가기 시작할 때 다리를 듭니다.\n4. 멈추지 말고 이어서 홈 쪽으로 나가 던집니다.\n\n■ 왜 하나요\n물러서는 걸음이 무게중심을 먼저 움직여 드리프트를 쉽게 느끼게 합니다. 드리프트를 익히는 데 스텝백 드릴을 쓰고, 로커에서 하체 차례가 꼬이는 투수에게는 스텝백으로 바꿔 줍니다.\n\n■ 세기\n처음 몇 번은 느린 동작으로 감을 잡고, 50~60% 힘에서 시작해 익숙해지면 올립니다. 전력으로 던지는 드릴이 아닙니다.",
+      "after_description": "■ 어떤 운동인가\r\n목표 방향에 가까운 발을 뒤로 한 발 물러 디뎠다가, 그 발을 들어 목표 방향으로 내딛으며 야구공을 던지는 드릴입니다.\r\n\r\n■ 이렇게 하세요\r\n1. 야구공을 들고, 공을 던질 목표가 몸의 옆에 오도록 섭니다. 목표 주변에 사람이 없고, 발을 옮길 공간이 충분한지 확인합니다.\r\n2. 목표에 가까운 발을 반대쪽 발 쪽으로 한 발 물러 디디며 체중을 옮깁니다. 오른손 투수는 왼발, 왼손 투수는 오른발을 움직입니다.\r\n3. 물러 디딘 발을 들어 올리고, 몸이 목표 방향으로 나가기 시작하도록 이어갑니다.\r\n4. 든 발을 목표 방향으로 내딛으며 공을 던집니다. 다리 들기와 앞으로 나가기를 끊지 않고 연결합니다.\r\n5. 공을 놓은 뒤에는 팔과 뒷다리가 자연스럽게 따라 나오게 하고 균형을 잡습니다. 자세가 흐트러지면 쉬었다가 다시 하고, 통증이 생기면 중단합니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n투구에서는 다리를 들고 목표 방향으로 체중을 옮기는 움직임을, 내딛기와 공 던지기로 연결하는 것이 중요합니다.\r\n\r\n이 드릴은 뒤로 물러서는 걸음을 이용해 체중 이동을 느끼고, 다리를 든 뒤 목표 방향으로 나가 던지는 순서를 연습하는 데 목적이 있습니다.\r\n\r\n■ 강도\r\n처음에는 공을 던지지 않고 느린 동작으로 발의 이동 순서를 익힙니다. 공을 던질 때는 본인이 느끼는 최대 힘의 약 50~60%에서 시작해 동작을 연결합니다. 힘껏 던지기보다 같은 흐름을 편안하게 반복할 수 있는 강도로 수행합니다.",
+      "changed_fields": [
+        "description",
+        "thumbPath"
+      ],
+      "reasons": [
+        "Unified section headings and vocabulary with exercise review.",
+        "Clarified front/rear foot using target direction and right/left throwing hand.",
+        "Added preparation/space, finish, recovery and pain-stop cues.",
+        "Replaced drift/rocker coaching jargon with specific pitching coordination purpose.",
+        "Clarified existing50-60% as perceived effort; no optimal-dose claim.",
+        "Selected actual4.5-second side-view knee-lift frame showing full athlete."
+      ],
+      "retained": {
+        "title": "스텝백 스로우 드릴",
+        "category": "스로잉 드릴",
+        "focusPoints": [
+          "드리프트",
+          "스로잉"
+        ],
+        "stage": "통합",
+        "equipment": [
+          "야구공"
+        ],
+        "sortOrder": 0,
+        "video_unchanged": true
+      },
+      "poster": {
+        "source_time_seconds": 4.5,
+        "crop": null,
+        "sha256": "04a4df207de037d64b65a87c671d9678ff67bfe3d49e605e973379c1a1d5fe15",
+        "source_and_prior_preserved": true,
+        "new_identity": true,
+        "asset_hash_and_db_verified": true,
+        "web_visible_verified": true,
+        "native_refresh_verified": false
+      },
+      "verification": "Actual production admin save, fresh description readback, DB diff only description/thumbPath, new poster upload hash, web poster display, playback+loopON.",
+      "human_status": "Pending; not advanced; completed0."
     }
   },
   "completed": [],
@@ -354,7 +399,7 @@
   ],
   "approval_rules": {
     "advance": "Only explicit user OK/next authorizes advancement; setup does not.",
-    "content": "Current workflow supersedes historical memo-only rules: research and compare demonstration, concretize/save title/description/necessary prescription within user direction, read back and report for human confirmation. Ask about unclear actions/policy. No content edits during this setup.",
+    "content": "Independently inspect real footage/editing, source/title, description, relevant evidence and available metadata. Apply necessary authorized title/description/metadata corrections and OWN representative poster; save/readback and show actual result. Do not merely repeat candidates or request per-candidate permission. Ask only where the movement/facts/important policy cannot be determined.",
     "media": "Collect video editing requests until all videos have been reviewed; then process together within user direction. Media replacement, deletion and upload require separate specific direction.",
     "deployment": "Existing separate engine/product/deployment authorization boundaries remain."
   },
@@ -387,7 +432,7 @@
     "personal_health_information_copied": false,
     "signed_urls_copied": false
   },
-  "updated_at": "2026-11-13T15:54:58+09:00",
+  "updated_at": "2026-11-16T18:11:32.378083+09:00",
   "current_workflow_document": "docs/shoot/video-review-current-workflow.md",
   "setup_event": {
     "at": "2026-11-13T15:54:58+09:00",
@@ -445,9 +490,44 @@
     "backlog_audit": {
       "human_completed_items": 0,
       "human_decisions": 0,
-      "thumbnail_changes_applied": 0,
+      "thumbnail_changes_applied": 1,
       "prior_assistant_samples": "Partial footage observations only; thumbnail audit not done.",
-      "pending": "Current Step-back poster requires actual frame assessment and supported-path verification; all future items require thumbnail review."
+      "pending": "Current OWN Step-back poster corrected; all remaining items require their own actual review."
     }
+  },
+  "current_exercise_parity_rules": {
+    "instruction_source": "Human explicitly requested exercise-session re-handoff, parity confirmation, applying terminology/content/OWN poster corrections before reporting.",
+    "headings": [
+      "어떤 운동인가",
+      "이렇게 하세요",
+      "투수에게 왜 필요한가",
+      "강도"
+    ],
+    "terminology": "Replace equivalent inconsistent headings everywhere during each drill review: 세기 -> 강도; 왜 하나요/왜 필요한가 -> 투수에게 왜 필요한가. Consistent equipment/body-part vocabulary; plain Korean, explain necessary technical terms.",
+    "before_human_review": "Independently inspect real footage/editing, source/title, description, relevant evidence and available metadata. Apply necessary authorized title/description/metadata corrections and OWN representative poster; save/readback and show actual result. Do not merely repeat candidates or request per-candidate permission. Ask only where the movement/facts/important policy cannot be determined.",
+    "report": "Current item/state; actual before -> after with reasons; checked retained values and reason; OWN/reference/filming state; source/poster preservation; user viewing focus, evidence/app/cache limits. Never claim applied merely prepared.",
+    "purpose": "Explain relevant pitching demand, ability/coordination trained and how drill supports it; avoid repeating execution or guaranteed velocity/injury outcomes. Distinguish direct and indirect evidence.",
+    "placement": "Number preparation/movement/finish/safety in how-to. Weight/resistance/effort/distance/height in intensity. Numerical rest in prescription where available; recovery instructions in how-to.",
+    "metadata_mechanics": [
+      "title",
+      "category",
+      "focusPoints(primary/secondary)",
+      "stage",
+      "equipment",
+      "sortOrder",
+      "source/reference status",
+      "description workload/intensity guidance where applicable"
+    ],
+    "structural_difference": "MechanicsGuide has no exercise bodyParts/intensity/difficulty/sets/reps/rest/perSide metadata fields. Do not fabricate them or alter schema. Keep workload guidance descriptive/evidence-calibrated.",
+    "media": "OWN thumbnails: real representative frame, preserve original and prior poster, new path, only thumb pointer; verify image/hash/DB/web consumption. References excluded. Video trim/edit requests remain collected through all mechanics reviews.",
+    "advance": "Explicit human OK/next only. Applied content is not human approval."
+  },
+  "exercise_counterpart_confirmation": {
+    "handoff": "docs/reviews/handoff/exercise/yunho/MECHANICS-PARITY-HANDOFF-20261116.md",
+    "received": "2026-11-16",
+    "confirmed": "03 independently inspected both authenticated production routes and shared player/editor/source structure; confirms same content save/readback and OWN poster operation with model-specific metadata differences.",
+    "audit_timing": "03 audited old Step-back headings before04 saved new version;04 fresh production and DB readback supersede that historical old-heading observation.",
+    "shared_environment": "Production authenticated library, LibraryVideo -> OwnedExercisePlayer, existing upload/storage, conditional OWN thumbPath update, admin content save clearing cache, reload verification.",
+    "differences": "MechanicsGuide lacks ExerciseVideo prescription fields. Existing poster hides ThumbnailFixer and setGuideThumbnail deletes old asset, so preservation-first poster operation used instead. Native refresh unverified."
   }
 }

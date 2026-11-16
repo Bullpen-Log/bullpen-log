@@ -1,3 +1,9 @@
+# Current mechanics review — 2026-11-16 alignment
+
+Current1/120 Step-back remains awaiting human review, completed0. Its description and OWN poster are now actually corrected/saved/read back; prior no-content-change statements below are historical. Use checkpoint current_exercise_parity_rules for mandatory pre-review corrections and before/after reporting. Headings: 어떤 운동인가 / 이렇게 하세요 / 투수에게 왜 필요한가 / 강도. OWN posters only, preserve source/prior; no per-poster approval. Exercise and mechanics share LibraryVideo and poster storage/consumption, but mechanics metadata lacks exercise prescription fields; do not fabricate schema parity. Video trim requests still wait until all mechanics reviews finish. No automatic next. Exact applied before/after and retained metadata are in video-records current entry.
+
+---
+
 # 메커니즘 영상 검수 이어하기
 
 ## Exercise-review alignment: 2026-11-13
@@ -60,3 +66,5 @@ Use `docs/shoot/video-review-current-workflow.md` for the current research, cont
 Review a real representative frame for every owned drill video. Use the checkpoint thumbnail criteria; preserve originals/prior posters and create a new poster identity when correcting. No poster gallery or per-poster approval is required for authorized corrections. Provider-controlled YouTube posters must not be copied/re-edited or reported as custom-adjusted. Verify saved values and visible consumption; disclose app/cache limits. Human-completed backlog is0, corrections applied0. Prior assistant scene samples did not include poster audits. Current Step-back poster assessment and future items remain pending; current1 and all human judgments preserved.
 
 Latest thumbnail scope clarification (2026-11-16): adjustment applies ONLY to our OWN filmed videos, past and future. Reference/YouTube posters are excluded from adjustment and blocked backlog; no custom support is needed. Other source-preservation, real-frame, no per-poster approval and no advancement rules remain.
+
+03 independently confirmed actual production player/editor and current contract in `docs/reviews/handoff/exercise/yunho/MECHANICS-PARITY-HANDOFF-20261116.md`. Its old Step-back heading observation predates04 current save.04 new description/poster readback is the latest applied version. Shared web operation confirmed; metadata fields differ, native refresh unverified.
