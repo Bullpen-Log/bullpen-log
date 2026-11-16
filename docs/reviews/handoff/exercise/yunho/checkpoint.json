@@ -764,7 +764,7 @@
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
   "latest_resume": {
     "current": "EX-Y-P-046",
-    "status": "User requested clearer plyometric foundational purpose; description updated with loading, landing and progression. Saved and reloaded. User review pending."
+    "status": "User required plyometric review format for all exercises and pitching connection. P046 explanation saved and reloaded; rule recorded. User review pending."
   },
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
@@ -1110,5 +1110,6 @@
       "precedence": "Overrides old notes-only and per-candidate permission wording retained in historical records.04 newly authorized aligned content/posters; its source-video trims remain collected until full mechanics review, unlike03 immediate requested trims.",
       "handoff": "MECHANICS-PARITY-HANDOFF-20261116.md"
     }
-  }
+  },
+  "mandatory_plyometric_review_rule_20261116": "For every plyometric exercise, explain the actual movement, training purpose and role in plyometric progression where applicable, and a clear evidence-calibrated link to pitching; distinguish foundational drills from reactive training and indirect associations from proven direct effects. Apply common user-friendly terms, format, prescriptions, and evidence standards. Review each exercise individually."
 }
