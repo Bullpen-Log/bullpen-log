@@ -325,6 +325,10 @@ const good = (): Pitch3dV2Ok => {
     const a2 = ankleContact(ank, tt, { kneeUp: null, release: 30 });
     const a3 = ankleContact(ank.map((p) => [p[0], 0.2, 0]), tt.map((x, k) => (k < 10 ? x : x)), { kneeUp: 28, release: 30 });
     check(`착지: 앞발목이 디딘 높이 0.8% 안에 든 때에 가까운 장면(${a1} · 20) · 니업을 모르면 못 고름(${a2}) · 구간이 너무 짧으면 못 고름(${a3})`, a1 === 20 && a2 === null && a3 === null);
+    /* 2026-11-16 — 발을 바닥에 붙여 끄는 투수: 내딛는 내내 디딘 높이라 높이만 보면 가장 빠른 장면을 집는다. 발이 느려진 뒤(최고의 70% 밑)여야 닿음 */
+    const skim = Array.from({ length: 40 }, (_, k) => [k < 10 ? 0 : k < 22 ? (k - 10) * 0.03 : k < 24 ? 0.36 + (k - 22) * 0.008 : 0.376, 0, 0]);
+    const a4 = ankleContact(skim, tt, { kneeUp: 2, release: 34 });
+    check(`착지: 낮게 끄는 발은 발이 느려진 뒤에 닿음(${a4} · 22~24, 높이만 보면 10~12)`, a4 != null && a4 >= 22 && a4 <= 24);
     const old = { ...g, events: { kneeUp: 2, footPlant: 20, footContact: 8, release: 30 } };
     const hj = V2J.lHe;
     const aj = V2J.lAn;

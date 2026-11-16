@@ -694,6 +694,8 @@ export function heelContact(
 
 /** 첫 닿음 문턱(앞발목) — 디딘 높이에서 키의 이만큼 안(키 1.8m 에 2cm) */
 export const ANKLE_CONTACT_UP = 0.011;
+/** 닿았다고 보려면 앞발목 빠르기가 내딛는 중 최고의 이 몫 밑으로 — 발을 낮게 끌어 내딛는 투수는 가장 빠를 때 이미 디딘 높이다 */
+export const ANKLE_CONTACT_SLOW = 0.7;
 /**
  * '착지'(첫 닿음)를 앞발목으로 — 니업 뒤 앞발목이 가장 빠른 장면부터, 발목 높이가 디딘 높이(그 뒤 ~ 공 놓음의 가장 낮은 높이) + ANKLE_CONTACT_UP 안에
  * 처음 들어온 때(두 장면 사이는 선으로 나눔)에 가장 가까운 장면. ankle = 장면마다 앞발목 [앞, 위, 옆](키 = 1), t = 장면 시각(초). 니업을 모르면 null.
@@ -704,6 +706,9 @@ export const ANKLE_CONTACT_UP = 0.011;
  * 2cm 로 둔 까닭 — 리포트 판정(정답과 같은 칸 / 109, 괄호는 잘못 짚은 고칠 점)을 같이 봤다:
  *   뒤꿈치: 드롭 99(1) · 상하체 분리 81(4) · 브레이크 66(13) · 스로잉 64(15) / 1.4cm: 92(3) · 77(14) · 70(11) · 81(5) / 2cm: 94(3) · 81(10) · 72(7) · 78(7).
  *   닿는 순간이 늦을수록 상체가 열린 장면을 집어 '착지 때 상체'를 잘못 짚는다(몸통이 닿은 뒤 빨리 돈다) — 그 여유는 TRUNK_PLANT_ERR 가 맡는다.
+ * 2026-11-16: 높이만 보면 발을 바닥에 붙여 끄는 투수(야마모토 재구성 — 내딛는 내내 발목이 디딘 높이 2cm 안)는 가장 빠른 장면을 닿음으로 집었다
+ *   (손으로 찍은 닿음보다 0.125초 이름). 김민 "발이 멈추는 곳을 보면 안다" → 높이 + 빠르기가 최고의 70% 밑(ANKLE_CONTACT_SLOW)일 때만.
+ *   가상 촬영 91구는 그대로(가운데 0ms · 90% 19ms · 최대 36ms, 50% 밑도 같고 35% 밑부터 늦어진다), 야마모토는 장면 52 → 70(손으로 찍은 67).
  * 뒤꿈치 규칙은 뒤꿈치가 4cm 위에 있을 때 걸려 힘이 실리는 순간보다 일렀다. 발 묶임(footPlant)보다 뒤일 수 있다(발 묶임은 발목 높이로 고른 다른 장면).
  */
 export function ankleContact(
@@ -725,10 +730,12 @@ export function ankleContact(
     }
     return s / c;
   };
+  const speed = (k: number) =>
+    Math.hypot(sm(k + 1, 0) - sm(k - 1, 0), sm(k + 1, 1) - sm(k - 1, 1), sm(k + 1, 2) - sm(k - 1, 2)) / Math.max(t[k + 1] - t[k - 1], 1e-6);
   let ip = ku;
   let top = -1;
   for (let k = Math.max(ku, 1); k < Math.min(rl, n - 1); k++) {
-    const v = Math.hypot(sm(k + 1, 0) - sm(k - 1, 0), sm(k + 1, 1) - sm(k - 1, 1), sm(k + 1, 2) - sm(k - 1, 2)) / Math.max(t[k + 1] - t[k - 1], 1e-6);
+    const v = speed(k);
     if (v > top) {
       top = v;
       ip = k;
@@ -739,6 +746,8 @@ export function ankleContact(
   for (let k = Math.max(ip, 1); k <= rl; k++) {
     const b = sm(k, 1) - low;
     if (b >= ANKLE_CONTACT_UP) continue;
+    /* 아직 빠르게 가는 중이면 닿은 게 아니다(낮게 끄는 발) */
+    if (k < n - 1 && speed(k) > top * ANKLE_CONTACT_SLOW) continue;
     const a = sm(k - 1, 1) - low;
     const tc = a < ANKLE_CONTACT_UP || a === b ? t[k] : t[k - 1] + ((ANKLE_CONTACT_UP - a) / (b - a)) * (t[k] - t[k - 1]);
     return Math.abs(t[k - 1] - tc) < Math.abs(t[k] - tc) ? k - 1 : k;
