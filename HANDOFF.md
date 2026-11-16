@@ -1,3 +1,9 @@
+## Kim Min — 2026-11-16 · GPT — Apple and Kakao transition prepared locally
+
+The confirmed Dugout bundle ID is com.mhk.dugout, numeric Apple ID6835459450. The new Kakao native key was securely registered as repository secret DUGOUT_KAKAO_NATIVE_APP_KEY. Pending workflow changes select this key only for Dugout and select YUNHO_ Apple signing secrets for both applications. Sinker uses com.sinker.app and its RestActivity extension. Existing Expo project ownership remains as before. The local transition patch incorporates the five-file ios-team-move proposal with the corrected Dugout ID; do not merge its old identifier afterward.
+
+The user authorized publishing both apps to Geum's TestFlight; the transition is now being released. New-team TestFlight build, physical installation, notification delivery and new-ID Kakao map authentication still require verification. The user confirmed creating the relevant Kakao registrations and app records.
+
 ## Kim Min — 2026-11-16 · GPT — Confirmed Dugout identity correction
 
 The user successfully registered Dugout as `com.mhk.dugout`; `com.dugout.app` was unavailable. The user supplied new App Store Connect numeric ID `6835459450`. Update the pending `ios-team-move` variant/workflow/fallback changes to this confirmed identifier before signing transition; do not retain the earlier proposed ID in shipping configuration. Kakao native-key creation for the confirmed ID is in progress. Active Apple signing secrets remain legacy; Geum's keys are staged under YUNHO_ names and not yet mapped to the workflow.

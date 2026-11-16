@@ -21,7 +21,7 @@
     ],
     "userInterfaceStyle": "automatic",
     "ios": {
-      "bundleIdentifier": "com.bullpenlog.app",
+      "bundleIdentifier": "com.sinker.app",
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "구속 측정 · 투구와 운동 영상 · 음식 바코드를 찍는 데 카메라를 씁니다.",

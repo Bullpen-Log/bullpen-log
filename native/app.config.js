@@ -19,7 +19,7 @@ module.exports = ({ config }) => {
     icon: './assets/dugout/icon.png',
     ios: {
       ...config.ios,
-      bundleIdentifier: 'com.bullpenlog.dugout',
+      bundleIdentifier: 'com.mhk.dugout',
       infoPlist: {
         ...config.ios.infoPlist,
         NSCameraUsageDescription: '장터에 올릴 물건 사진을 찍는 데 카메라를 씁니다.',
