@@ -1,5 +1,9 @@
 # Exercise video review — MacBook handoff
 
+## Current pre-human-save authority -2026-11-16
+
+Research/inspect, concretize and save routine authorized title/content/terminology/safety/existing metadata/OWN poster corrections BEFORE human review; reload/read back and report before/after and reasons. Historical notes-only/per-candidate permission statements are superseded. Ambiguous motion, weak evidence or outside-scope decisions remain pending; do not invent facts. See MECHANICS-PARITY-HANDOFF-20261116.md for exact mechanics differences and preservation-first thumbnail operation.04 source trims are collected until full review under its latest user instruction; do not copy03 immediate trim timing into04. Current item/status is checkpoint-controlled.
+
 ## Latest standing thumbnail requirement -2026-11-16
 
 Apply thumbnail corrections ONLY to videos we filmed (OWN), for previously reviewed and all future exercises/drills. Reference/YouTube posters are excluded. Choose a real representative source frame showing the movement/variation, athlete, relevant equipment and key limbs at a glance; avoid idle setup/finish, unnecessary blur, occlusion and cropping critical body parts. Preserve original video and old posters, upload a new poster identity and update thumbnail only. No gallery/per-poster approval is needed. Verify saved values and visible use where feasible; distinguish native/cache limits. Keep human review/current item unchanged.14 reviewed owned exercise posters have been updated; details in THUMBNAILS-20261116.json. The mechanics session received and persisted this owned-only rule. Resume from checkpoint.json/latest RESUME, not the historical item below.

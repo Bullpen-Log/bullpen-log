@@ -1100,6 +1100,11 @@
       },
       "future": "Include representative-thumbnail assessment and authorized correction in every owned-video review. Keep missing footage/reshoot and human decisions separate.",
       "mechanics_delivery": "Sent to04 mechanics session; its checkpoint read back confirms latest owned-only scope. This is delivery/standing-rule confirmation, not a claim its own posters were changed."
+    },
+    "pre_human_correction": {
+      "instruction": "Research and inspect actual footage, then concretize/save/reload routine authorized title, description, terminology, safety, suitable existing metadata and OWN representative-poster corrections BEFORE human review. Do not request permission per routine candidate or leave authorized changes as notes only. Uncertain motion, unsupported claims or outside-scope important choices remain labeled pending; ask only about that part. Human next is required to advance.",
+      "precedence": "Overrides old notes-only and per-candidate permission wording retained in historical records.04 newly authorized aligned content/posters; its source-video trims remain collected until full mechanics review, unlike03 immediate requested trims.",
+      "handoff": "MECHANICS-PARITY-HANDOFF-20261116.md"
     }
   }
 }
