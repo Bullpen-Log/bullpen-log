@@ -536,7 +536,7 @@
     "personal_health_information_copied": false,
     "signed_urls_copied": false
   },
-  "updated_at": "2026-11-16T12:38:37.327Z",
+  "updated_at": "2026-11-16T12:40:47.095Z",
   "current_workflow_document": "docs/shoot/video-review-current-workflow.md",
   "setup_event": {
     "at": "2026-11-13T15:54:58+09:00",
@@ -652,7 +652,9 @@
       "관련 공식 근거를 찾지 못하면 미확인으로 남기고 다른 제공자 영상을 Driveline 공식 드릴로 표기하지 않는다.",
       "뒷다리로 세게 밀기만 강조하는 큐 대신 드릴 목적에 맞는 뒷엉덩이 로딩·체중 이동·골반 회전·앞다리 받침의 연결을 설명한다.",
       "뒷발만 강제로 돌리라는 큐로 치환하지 않는다. 추진력 자체가 없거나 밀기 표현 전부가 틀렸다고 단정하지 않는다.",
-      "1~3번도 재점검 대상으로 유지하며 사용자 확정 발 순서는 보존한다. 다음 영상은 사용자 지시 후 이동한다."
+      "1~3번도 재점검 대상으로 유지하며 사용자 확정 발 순서는 보존한다. 다음 영상은 사용자 지시 후 이동한다.",
+      "자료별 URL·확인일·실제 적용 내용·근거 한계를 기록한다. Tread 관련 주장은 Tread 공식 원자료도 대조한다.",
+      "뒷고관절 힘 유지, 골반 회전과 이동, 앞다리 지지 및 몸통·팔 연결을 실제 드릴 목적에 맞춘다. 개인 사례·코칭 자료를 보편적인 연구 결론으로 확대하지 않는다."
     ],
     "sources": [
       {
@@ -670,6 +672,25 @@
         "finding": "공개 강좌 소개: 메디신볼로 회전 기술과 파워 표현 연습.",
         "limit": "공개 소개만 확인. 유료 강의 미열람; 현재 Paradigm P3 드릴의 공식 지침으로 사칭하지 않음."
       }
-    ]
+    ],
+    "counterpart_update": {
+      "received_at": "2026-11-16T12:40:47.095Z",
+      "source": "03 운동영상 검수 공통 기준 전달",
+      "additional_sources": [
+        {
+          "url": "https://drivelinebaseball.com/blogs/blog/making-movement-changes-weight-room",
+          "status": "페이지 접근 확인; 세부 적용 전 본문 검토 필요"
+        },
+        {
+          "url": "https://drivelinebaseball.com/blogs/blog/analyzing-front-and-back-leg-ground-forces-in-pitchers-using-force-plates",
+          "status": "페이지 접근 확인; 세부 적용 전 본문 검토 필요"
+        },
+        {
+          "url": "https://treadathletics.com/plane-of-rotation/",
+          "status": "상대 검수자 전달 출처. 이번 직접 열람은 시간 초과; 내용 독립 확인 전 근거로 사용하지 않음"
+        }
+      ],
+      "advance_authorized": false
+    }
   }
 }
