@@ -6,7 +6,7 @@ import { addOutingLog, isHardOuting, type OutingTotals } from '@/lib/report/fact
  * 사용자 말 앞에 붙이는 오늘 맥락 덩이(코드 · 숫자만). 이름 · 이메일 · 생년월일 · 사용자 id · 체크인 메모 원문 · 영상 · 위치는 넣지 않는다 —
  * 맥락 타입에 그런 칸이 아예 없다. 순수 파일.
  */
-export const COACH_PROMPT_V = 3;
+export const COACH_PROMPT_V = 4;
 
 export const COACH_SYSTEM = `너는 야구 투수용 앱 '싱커'의 트레이닝 코치 도우미다. 이 사람의 이번 주 7칸 일정(운동 · 프로그램 · 쉬기 · 암케어 제안 · 메커니즘 드릴 · 팀 훈련 · 경기)을 보고, 사용자의 말에 맞춰 일정을 어떻게 바꾸면 좋을지 제안하고 짧게 답한다.
 
@@ -33,6 +33,7 @@ export const COACH_SYSTEM = `너는 야구 투수용 앱 '싱커'의 트레이�
 맥락 덩이의 읽는 법:
 - week 의 각 줄: 날짜 · 요일 · 계획(운동 N분 · 프로그램 · 쉬기 · 암케어 · 메커니즘 드릴 · 팀 훈련 · 경기) · 까닭 · 상태 · 한 것 · 안 한 것(오늘은 남은 것) · 계획 밖에 한 것 · 잠김 여부.
 - 상태 낱말: 다 함 · 일부만 함 · 못 함 · 쉰 날 · 오늘 · 아직 안 함 · 뒤. 암케어는 제안이라 '계획 밖에 한 것'에 적힌다. 암케어만 한 날을 계획한 운동을 다 한 날로 말하지 않는다.
+- '못 한 까닭(사용자 답)'은 덜 한 날에 사용자가 고른 답이다(시간이 없었어요 · 피곤했어요 · 아팠어요 · 장비 · 장소가 없었어요 · 그냥 못 했어요). 같은 까닭이 이어지면 그에 맞춰 시간 줄이기 · 날 옮기기를 제안할 수 있다. 아팠다는 답에는 체크인과 전문가 상담만 권한다.
 - 못 한 운동을 다음 날에 몰아서 하자고 하지 않는다. 남은 날을 그대로 가거나, 사용자가 원하면 옮기기(move) 하나만 제안한다.
 - 까닭 낱말: 등판 · 등판 짐작 · 등판 다음 날 · 내일 등판 · 등판 3일 안 · 경기 · 팀 훈련 · 레슨 · 못 하는 날 · 쉬기 · 어제 하체 · 성장기 · 최근 힘들었음 · 팔 통증 · 쉬기로 함 · 옮긴 날 · 바쁜 주라 줄임 · 피할 동작.
 - signals 는 오늘 체크인 신호다. '모름(오늘 체크인 안 함)'이면 몸 상태를 모르는 것이지 괜찮다는 뜻이 아니다. 괜찮다고 말하지 말고 체크인을 권한다. '모름(건강정보 동의 없음)'이면 몸 상태를 묻지도 짐작하지도 않는다. pain:none 은 오늘 체크인에서 어깨 · 팔꿈치 통증이 없다고 한 것이다.
@@ -53,7 +54,7 @@ export type CoachAiContext = {
   ageBand: '14-16' | '17-19' | '20+';
   role: string | null;
   priority: string | null;
-  week: { date: string; day: string; plan: string; reasons: string[]; state: SlotState; did: string[]; left: string[]; extra: string[]; locked: boolean }[];
+  week: { date: string; day: string; plan: string; reasons: string[]; state: SlotState; did: string[]; left: string[]; extra: string[]; why?: string | null; locked: boolean }[];
   nextOutingInDays: number | null;
   /**
    * 오늘 체크인 신호(건강정보) — 셋을 가른다: 'no-consent' 건강 동의 없음(읽지 않음) · 'missing' 동의는 있는데 오늘 체크인을 안 함 ·
@@ -101,6 +102,7 @@ function weekLine(d: CoachAiContext['week'][number]): string {
     if (d.did.length) parts.push(`한 것: ${d.did.join(', ')}`);
     if (d.left.length) parts.push(`${d.state === 'today' ? '남은 것' : '안 한 것'}: ${d.left.join(', ')}`);
     if (d.extra.length) parts.push(`계획 밖에 한 것: ${d.extra.join(', ')}`);
+    if (d.why) parts.push(`못 한 까닭(사용자 답): ${d.why}`);
   }
   if (d.locked) parts.push('잠김');
   return parts.join(' | ');

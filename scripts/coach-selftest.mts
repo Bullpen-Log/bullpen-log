@@ -11,6 +11,7 @@ import { shiftDateKey } from '@/lib/pitch-stats';
 import { slotStateOf, startsOf } from '@/lib/coach/status';
 import { applyAdjust, readAdjust, ADJUST_MINUTES } from '@/lib/coach/adjust';
 import { limitedBy } from '@/lib/coach/limits';
+import { FOLLOWUP_NEXT, followupAskOf, followupLine, followupReasonText, readFollowupWhy } from '@/lib/coach/followup';
 import { COACH_MINUTES, coachMinutes } from '@/lib/coach/answers';
 import { minutesChoicesFor } from '@/lib/report/theme';
 import { buildReview, reviewWeekOf } from '@/lib/coach/review';
@@ -320,6 +321,30 @@ check('⑤ 쉬는 날 · 팀 훈련 → 시작 없음', startsOf(slotOf(T, [{ ki
     }
   }
   check('⑥ 옮긴 뒤 이틀 잇는 큰 하체 없음', consec === 0, String(consec));
+}
+
+/* ─────────── ⑥-2 어제 이어보기(2026-11-16) ─────────── */
+{
+  const y = '2026-11-03';
+  const both = slotOf(y, [{ kind: 'train', fence: { minutes: 60, heavyLower: false, light: false } }, { kind: 'mechanics' }]);
+  const careOnly = followupAskOf(both, { workout: false, drill: false, armcare: true });
+  check('⑥-2 암케어만 한 날 → 묻는다(운동 · 드릴 남음)', careOnly?.left.join() === '운동,메커니즘 드릴' && careOnly.did.length === 0, JSON.stringify(careOnly));
+  check('⑥-2 다 한 날 → 안 묻는다', followupAskOf(both, { workout: true, drill: true, armcare: false }) === null);
+  check('⑥-2 쉬는 날 · 암케어 제안만 → 안 묻는다', followupAskOf(slotOf(y, [{ kind: 'rest' }, { kind: 'armcare', mode: 'strength', suggested: true }]), undefined) === null);
+  check('⑥-2 이미 답한 날 → 안 묻는다', followupAskOf({ ...both, followup: { why: 'time', at: 'x' } }, undefined) === null);
+  check('⑥-2 사용자가 가져간 날 → 안 묻는다', followupAskOf({ ...both, owner: 'user' }, undefined) === null);
+  const half = followupAskOf(both, { workout: true, drill: false, armcare: false })!;
+  check('⑥-2 한 줄: 일부', followupLine(half, '화') === '어제(화) 운동은 했고 메커니즘 드릴은 못 했어요.', followupLine(half, '화'));
+  check('⑥-2 한 줄: 하나도 못 함', followupLine(careOnly!, '화') === '어제(화) 계획한 운동 · 메커니즘 드릴을 못 했어요.', followupLine(careOnly!, '화'));
+  check('⑥-2 답 읽기: 모르는 값 거름 · 넘어가기 받음', readFollowupWhy('time') === 'time' && readFollowupWhy('skip') === 'skip' && readFollowupWhy('drop table') === null);
+  check('⑥-2 다음 걸음 글: 해요체 · 줄표 없음 · 몰아서 하자는 말 없음', Object.values(FOLLOWUP_NEXT).every((n) => n.text.endsWith('요.') && !n.text.includes('—') && !/몰아서 해|두 배|더 하/.test(n.text)));
+  check('⑥-2 아팠어요 → 체크인 · 전문가, 진단 없음', FOLLOWUP_NEXT.pain.action?.kind === 'checkin' && FOLLOWUP_NEXT.pain.text.includes('전문가'));
+  check('⑥-2 AI 맥락 글: 넘어가기 · 없음은 null', followupReasonText('skip') === null && followupReasonText(undefined) === null && followupReasonText('gear') === '장비 · 장소가 없었어요');
+  /* 주중 다시 맞춤이 지난 날의 답을 지우지 않는다 */
+  const first = planWeek(input({ baselineFreq: 3 }));
+  const answered = first.map((s, i) => (i === 1 ? { ...s, followup: { why: 'time' as const, at: 'x' } } : s));
+  const again = planWeek(input({ baselineFreq: 3, today: '2026-11-04', prev: answered, painArm: true }));
+  check('⑥-2 다시 맞춰도 어제 답은 남는다', again[1].followup?.why === 'time');
 }
 
 /* ─────────── ⑦ 주간 리뷰 ─────────── */
