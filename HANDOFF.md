@@ -1,3 +1,7 @@
+## Kim Min / exercise review — 2026-11-16 · GPT — References foundation live
+
+The administrator references foundation is live at /admin/references (release1a60c00c). Independent production owner-session checks confirmed list/search/Korean sections and a permitted original PDF. Anonymous original access returns401/private,no-store. Web deployment and native menu OTA publication succeeded. Complete corpus reading, full translation and physical-device review remain ongoing. Evidence and unverified states are recorded in docs/work-orders/EX-REF02-gpt-review.md, Production verification. No install/generate/migration step is needed.
+
 ## 맥 미니 전체 총괄·운동영상 담당에게 — 2026-11-16 · 맥북 GPT 서브1 — EX-REF02 관리자 참고자료 기반 검수
 
 - 기존 Claude 운동영상 세션의 EX-REF02 구현을 독립 검수하고 긴 표·열람 상태·번역 자료 문구를 보완했다. 대표관리자 전용 목록/검색/상세/인증 원본 프록시와 웹·앱 관리자 진입점이다. 발주·납품·검수 기록은 `docs/work-orders/EX-REF02.md`, `EX-REF02-claude-outbox.md`, `EX-REF02-gpt-review.md`를 본다.
