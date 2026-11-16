@@ -1,3 +1,10 @@
+## 현재 진행 — 2026-11-16
+
+- 3번에서 사용자의 “다음” 지시를 받아 4번으로 진행했다. 기존 수정 요청과 관찰 한계는 유지한다.
+- 4번 P3 힌지 드라이브 스로우 (큰 메디신볼): 제목과 설명을 수정·저장하고 대조 확인했으며 사용자 직접 확인 대기. 참고 영상만 있어 촬영 필요.
+- 번호 단계 사이 빈 줄과 공통 용어를 적용했다. 발의 세부 이동은 일부 장면만 확인했으므로 사용자 영상 검수에서 함께 확인한다.
+- 다음 영상은 사용자 지시 후 진행한다. 영상 편집 요청은 전체 검수 종료 후 모아서 처리한다.
+
 # Latest readability rule — 2026-11-16
 
 Numbered steps in 이렇게 하세요 must be separated by one blank line. Applied to reviewed/current mechanics1-3 and verified; apply to each future drill when reviewed. No advance authorized. Previous current3 and decisions preserved.
