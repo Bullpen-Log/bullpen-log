@@ -1,3 +1,9 @@
+# Latest readability rule — 2026-11-16
+
+Numbered steps in 이렇게 하세요 must be separated by one blank line. Applied to reviewed/current mechanics1-3 and verified; apply to each future drill when reviewed. No advance authorized. Previous current3 and decisions preserved.
+
+---
+
 # Latest resume: item3/120, 2026-11-16
 
 Human next advanced2 to3 P1 Lateral Shuffle Throw large medicine ball. Prior notes preserved; progression count2 is not blanket frame/rights approval. Item3 title/description actually saved and UI+DB read back: added away-from-target shuffle then targetward reversal. REFERENCE only, filming needed, provider poster excluded. Current human review pending; next4 only on direction. Older current-item prose below is historical.
