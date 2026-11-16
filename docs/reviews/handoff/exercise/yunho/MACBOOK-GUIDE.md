@@ -38,3 +38,8 @@ The separate visible “나중에 촬영” group of 65 has mixed/unknown owners
 7. Current implementation work (including EX-RX01) belongs to its existing implementation owner. Do not treat this handoff as permission to change schema, ship code, or deploy; do not disrupt their changes. Continue the separately authorized individual exercise-content edits.
 
 User-facing communication is Korean. All inter-agent handoff instructions are English; the quoted Korean user direction above is preserved verbatim. Report the exact received ref and that you actually opened the current item when those actions have happened, rather than claiming receipt in advance.
+
+
+## Standing purpose-writing condition — user reaffirmed 2026-11-16
+
+For each “투수에게 왜 필요한가”, explain (1) the relevant pitching demand, (2) the quality this exercise develops and (3) how it supports pitching. Power-exercise text should connect strong and fast force production to relevant pitching action when supported. Repeating the exercise movement or landing how-to, or simply saying it can be used for training, does not answer why. Keep execution/landing instructions under “이렇게 하세요”. Adapt to the actual exercise and evidence strength; do not apply a generic power claim to all exercises or guarantee velocity gains. P050's generic jumping and landing paragraph was replaced and reloaded; exact before/after is in its video record. Apply this check on all subsequent reviews and when revisiting existing exercises.

@@ -3104,6 +3104,19 @@
         ],
         "limits": "Associations for CMJ and pitching not direct proof this exact box jump improves velocity; category and3x5/rest180 are starting judgments, not proven optimal. Box height not measured.",
         "verification": "Saved description then direct detail URL reopened and read back. No footage edit for P050."
+      },
+      {
+        "at_utc": "2026-11-16T07:15:58.806728+00:00",
+        "user_direction": "Explain why previous why-needed wording needs correction using earlier user criteria, revise and persist the condition.",
+        "before_why": "투구에서는 다리로 지면을 밀어 몸을 이동시키며 짧은 시간에 힘을 내는 능력이 중요합니다.\n\n이 운동은 두 다리로 지면을 빠르게 밀어내는 능력을 기르는 데 도움이 됩니다. 착지에서는 무릎과 엉덩이를 함께 굽혀 몸의 움직임을 조절하는 연습도 합니다.",
+        "after_why": "투구에서는 다리로 지면을 강하고 빠르게 밀어 몸을 이동시키고, 그 움직임을 몸통과 팔의 빠른 동작으로 이어가는 능력이 중요합니다.\n\n박스 점프는 두 다리로 짧은 시간에 힘을 내는 하체 파워를 기르는 데 도움이 됩니다. 투구할 때 몸을 빠르게 이동시키고 전신을 강하고 빠르게 움직이기 위한 기초 능력을 키우는 것이 이 운동의 목적입니다.",
+        "reason": "Previous wording mostly restated movement and landing instruction without sufficiently explicit pitching connection. Keep execution cues in how-to; connect force/speed quality to pitching purpose.",
+        "verification": "Saved through admin UI, reloaded and new why text read back. No other fields changed.",
+        "sources": [
+          "https://pubmed.ncbi.nlm.nih.gov/9474404/",
+          "https://pubmed.ncbi.nlm.nih.gov/39446825/"
+        ],
+        "evidence_limits": "General pitching biomechanics and power associations; not direct evidence exact exercise increases ball velocity."
       }
     ]
   }

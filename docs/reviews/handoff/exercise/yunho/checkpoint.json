@@ -761,7 +761,7 @@
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
   "latest_resume": {
     "current": "EX-Y-P-050",
-    "status": "P0354.05s revision accepted and next approved. Jump group first unreviewed box jump opened; description saved/read back; metadata retained. User decision pending."
+    "status": "User why-needed correction saved and reloaded; standing purpose criterion added. Metadata unchanged; user review pending, no next."
   },
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
@@ -1055,5 +1055,13 @@
       "user_instruction": "이걸로 하고 다음 영상으로 넘어가자.",
       "meaning": "P0354.05s clip accepted; move by grouped plan, do not infer intervening ordinals completed."
     }
-  ]
+  ],
+  "standing_review_conditions": {
+    "why_needed": {
+      "name": "Pitching purpose must explain why, not repeat execution",
+      "instruction": "For every exercise, explain the relevant pitching demand, the physical quality this exercise develops, and how that quality supports pitching. For power drills explicitly connect strong/fast force production to relevant whole-body/pitching action when justified. Keep limb placement/landing how-to in instructions; do not merely repeat the movement or say it can be used for training. Use direct vs indirect evidence honestly; avoid guaranteed velocity or injury claims. Adapt to each exercise, not boilerplate.",
+      "source": "User P050 correction, 2026-11-16",
+      "example": "투구에서는 다리로 지면을 강하고 빠르게 밀어 몸을 이동시키고, 그 움직임을 몸통과 팔의 빠른 동작으로 이어가는 능력이 중요합니다.\n\n박스 점프는 두 다리로 짧은 시간에 힘을 내는 하체 파워를 기르는 데 도움이 됩니다. 투구할 때 몸을 빠르게 이동시키고 전신을 강하고 빠르게 움직이기 위한 기초 능력을 키우는 것이 이 운동의 목적입니다."
+    }
+  }
 }

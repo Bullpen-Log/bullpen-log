@@ -1,3 +1,5 @@
+LATEST P050 why-needed paragraph revised per user; saved and reloaded. Standing condition: pitching demand -> trained quality -> practical pitching relevance; execution cues stay in how-to, evidence strength controls claims. See checkpoint standing_review_conditions and guide. User review pending.
+
 CURRENT P050 BOX JUMP, jump group first remaining item. P0354.05s edit accepted by user. P050 description saved/read back, metadata high/intermediate3x5 rest180 retained, source7.88s sampled across clip. User review pending.
 
 LATEST P035 trim revision: user found3.6s too short. New4.05s edit retains follow-through until before corrective jump; connected and web-verified, source and earlier edit preserved. Await user decision.
