@@ -25,7 +25,7 @@ import { plantFrame, type Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import { mechChecks, DROP_RISE_MAX, type MechChecks } from '@/lib/pitch-3d/v2/mech-checks';
 import { BLOCK_IMPLAUSIBLE_SINK_DEG, MECH_CONF_MIN, TRUNK_PLANT_ERR, TRUNK_PLANT_NORM } from '@/lib/pitch-3d/v2/mech-judge';
 
-type ElementName = (typeof FOCUS_POINTS)[number];
+export type ElementName = (typeof FOCUS_POINTS)[number];
 type DrillStage = (typeof DRILL_STAGE_NAMES)[number];
 
 /** 기준 판 — 문턱 · 기준표 · 글을 바꾸면 올린다(리포트 요약이 옛 판이면 다시 셈) */
@@ -172,6 +172,8 @@ export type ReportItem = {
   foot: string | null;
   /** 좋아요가 되는 값 '22° 위' — 처방 목표 */
   goal: string | null;
+  /** 좋아요가 되는 값 — 평가한 칸이면 늘(goal 은 처방할 칸에만 남는다). 화면의 '좋아요 기준'(2026-11-16, 옛 서버 응답에는 없다) */
+  good?: string | null;
   gauge: ReportGauge | null;
   /** '그 순간' 장면 */
   frame: number | null;
@@ -366,8 +368,8 @@ export const FAULT_TEXT: Record<FaultKey, string> = {
 };
 
 /** 요소가 왜 중요한지 한 줄 */
-const WHY_SHORT: Record<ElementName, string> = {
-  드리프트: '홈 쪽으로 먼저 흘러가야 앞으로 가는 힘을 처음부터 만들지 않아요.',
+export const WHY_SHORT: Record<ElementName, string> = {
+  드리프트: '몸이 홈 쪽으로 먼저 나가야 앞으로 가는 힘이 처음부터 생겨요.',
   드롭: '뒷엉덩이에 앉으며 감아 둔 힘이 앞으로 가는 힘이 돼요.',
   '상하체 분리': '상체가 늦게 열려야 골반이 먼저 돌며 꼬임이 생겨요.',
   브레이크: '앞다리가 버텨야 몸이 멈추고 그 힘이 몸통으로 넘어가요.',
@@ -476,6 +478,7 @@ function judged(
     valueLabel,
     foot: status === 'good' || !goal ? feet[status] : `${feet[status]} · 좋아요는 ${goal}`,
     goal: goal ?? null,
+    good: goal ?? null,
     gauge,
     frame,
   };
@@ -565,7 +568,7 @@ export function judgeElements(
         '착지 때 상체(어깨선)',
         { ...b, value: v },
         frames.plant,
-        `${Math.round(Math.abs(b.fairEnd))}° 닫힘보다 닫힘`
+        `${Math.round(Math.abs(b.fairEnd))}° 넘게 닫힘`
       );
     }
   }
@@ -742,6 +745,7 @@ export function judgeElements(
       gauge: invalid ? null : d.gauge,
       foot: status === 'note' ? NOTE_LIMIT[why as keyof typeof NOTE_LIMIT] : why ? null : d.foot,
       goal: prescriptionEligible ? d.goal : null,
+      good: status === 'unsure' || status === 'note' ? null : (d.good ?? null),
       /* 지표 정의는 수치를 보인 칸에만 — 확인하지 못한 칸에 '각도를 확인해요'가 붙으면 잰 것처럼 읽힌다 */
       metricNote: status === 'unsure' ? null : (METRIC_NOTES[name] ?? null),
       obs: status === 'unsure' ? null : obs,
@@ -752,9 +756,9 @@ export function judgeElements(
 }
 
 const METRIC_NOTES: Partial<Record<ElementName, string>> = {
-  '상하체 분리': '착지 때 어깨선이 열린 각도를 확인해요. 상하체 분리 전체를 평가한 값은 아니에요.',
-  '몸통 회전': '릴리스 때 몸통의 앞 기울기를 확인해요. 몸통 회전량이나 회전 속도를 평가한 값은 아니에요.',
-  스로잉: '앞발이 처음 닿는 순간 손이 어깨보다 얼마나 위에 있는지 확인해요. 닿는 순간을 0.01초쯤 다르게 잡으면 3cm 안팎 달라질 수 있어요.',
+  '상하체 분리': '착지 때 어깨선이 열린 각도만 봐요.',
+  '몸통 회전': '릴리스 때 몸통이 앞으로 기운 각도만 봐요. 도는 양 · 빠르기는 아니에요.',
+  스로잉: '앞발이 닿는 순간을 0.01초 다르게 잡으면 3cm쯤 달라져요.',
 };
 
 /** 확인하지 못한 까닭(짧게) — 판독 줄의 둘째 줄 · measurementText */
@@ -801,12 +805,9 @@ export function prescriptionMessage(report: PitchReport): string {
     return '기초 단계 드릴을 찾지 못해 개선 드릴을 보여 드리지 못했어요. 요소별 드릴에서 찾아 주세요.';
   const c = report.coverage;
   const lines = [
-    c.evaluated
-      ? `평가한 ${c.evaluated}개 지표에 고칠 점이 없어 따로 권할 드릴이 없어요.`
-      : '평가할 수 있는 지표가 없어 드릴을 권하지 않아요.',
-    c.reference ? '참고 지표의 수치로는 드릴을 권하지 않아요.' : null,
-    c.unavailable ? '확인하지 못한 항목은 여섯 요소 판독에서 까닭을 볼 수 있어요.' : null,
-    c.evaluated === c.total ? '이 결과가 투구 동작 전체를 평가한 것은 아니에요.' : null,
+    c.evaluated ? '고칠 점이 없어 따로 권할 드릴이 없어요.' : '평가한 동작이 없어 드릴을 권하지 않아요.',
+    c.reference ? '참고 수치로는 드릴을 권하지 않아요.' : null,
+    c.unavailable ? '확인하지 못한 동작은 눌러서 까닭을 볼 수 있어요.' : null,
   ];
   return lines.filter(Boolean).join(' ');
 }
@@ -1033,7 +1034,7 @@ export type FocusProgress = { done: number; total: number; skill?: { label: stri
 export type RxAction = { kind: 'progress' | 'retake' | 'drills'; label: string; note: string };
 
 /** 개선 드릴 카드의 맺음 한 줄 — 한 번 해서는 동작이 안 바뀐다 */
-export const RX_PRACTICE_NOTE = '며칠에 걸쳐 몇 번 해 보고, 같은 자리에서 다시 찍으면 지난번과 숫자를 견줘 보여 드려요.';
+export const RX_PRACTICE_NOTE = '며칠 연습한 뒤 같은 자리에서 다시 찍으면 숫자를 견줘 줘요.';
 
 /**
  * 개선 드릴 카드 맨 아래 단추(웹 · 앱 같은 판단) — 내 리포트면 '추천 훈련 보기'(요소별 드릴 — 보기만, 프로그램을 바꾸지 않는다), 남의 것이면 드릴 영상 보기. 2026-10-26 전에 시작한 3주 처방이 진행 중이면 진행 · 다시 찍기.

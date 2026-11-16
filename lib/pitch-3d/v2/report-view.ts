@@ -2,7 +2,7 @@
  * 리포트 화면(웹 app/(app)/videos/lab/[id]/report-parts.tsx · 앱 native/src/lab/report.tsx)이 같이 쓰는 고르기(순수, 2026-10-27 리포트 개편).
  * 판정 · 수치 · 글의 원본은 report.ts — 여기서는 맨 위 한 가지 · 판독 줄 · 처방이 없을 때 이어 갈 길만 고른다.
  */
-import { HARD_REASON, type PitchReport, type ReportItem } from '@/lib/pitch-3d/v2/report';
+import { HARD_REASON, type ElementName, type PitchReport, type ReportItem } from '@/lib/pitch-3d/v2/report';
 
 /** 맨 위 한 가지 — 처방할 주 문제가 있으면 그 수치 · 장면, 없으면 확인 범위(고칠 점을 만들어 내지 않는다) */
 export type ReportLead = { kind: 'finding'; item: ReportItem } | { kind: 'scope'; title: string; note: string | null };
@@ -47,4 +47,41 @@ export function nextStepsOf(r: PitchReport): ReportNextStep[] {
       elementKey: ref.key,
     });
   return out;
+}
+
+/* ───────────────────────────── 한눈 요약 · 쉬운 말(2026-11-16 김민: "문구가 AI 같고 조잡해 정보가 안 들어온다") ───────────────────────────── */
+
+/** 요소 이름 옆 쉬운 말 — 드리프트 · 드롭 · 브레이크 같은 낯선 이름이 무엇을 보는지 */
+export const ELEMENT_PLAIN: Record<ElementName, string> = {
+  드리프트: '다리 들 때 홈 쪽으로 나가기',
+  드롭: '내딛으며 몸 낮추기',
+  '상하체 분리': '앞발 닿을 때 상체 닫아 두기',
+  브레이크: '앞다리로 버티기',
+  '몸통 회전': '공 놓을 때 몸통 숙이기',
+  스로잉: '앞발 닿을 때 손 올리기',
+};
+
+/** 맨 위 숫자 셋 — 좋아요 · 보통 · 고칠 점(경계 포함), 그리고 평가하지 못한 수(참고 · 확인 어려움) */
+export type ReportTally = { good: number; fair: number; bad: number; unseen: number; total: number };
+export function reportTally(r: PitchReport): ReportTally {
+  const n = (f: (i: ReportItem) => boolean) => r.items.filter(f).length;
+  return {
+    good: n((i) => i.status === 'good'),
+    fair: n((i) => i.status === 'fair'),
+    bad: n((i) => i.status === 'improve' || i.status === 'edge'),
+    unseen: n((i) => i.status === 'note' || i.status === 'unsure'),
+    total: r.items.length,
+  };
+}
+
+/** 요소 한 줄 — 평가한 칸은 평가 말("다리를 들 때 몸이 투구판 위에 머물러요."), 참고는 관찰, 확인 못 한 칸은 그 까닭 */
+export const itemSay = (i: ReportItem): string => i.line || i.obs || '';
+
+/** 좋아요 기준 '18cm 위' — 새 서버는 good, 옛 서버는 처방 칸의 goal 또는 띠 밑 줄 끝('… · 좋아요는 18cm 위') */
+export function itemGood(i: ReportItem): string | null {
+  if (i.status === 'note' || i.status === 'unsure') return null;
+  if (i.good) return i.good;
+  if (i.goal) return i.goal;
+  const at = i.foot?.lastIndexOf('좋아요는 ') ?? -1;
+  return at >= 0 ? i.foot!.slice(at + 5) : null;
 }

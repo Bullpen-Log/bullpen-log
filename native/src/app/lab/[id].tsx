@@ -36,7 +36,7 @@ import { useLoad } from '~/community/parts';
 import { Lab3D, type Lab3DHandle, type LabTransport } from '~/lab/lab-3d';
 import { GuideLink } from '~/lab/parts';
 import { LabProgress, type LabAction, type LabPhase } from '~/lab/progress';
-import { CompareCard, ElementGrid, KeyFinding, RxCard, STAGE_BG } from '~/lab/report';
+import { CompareCard, ElementList, RxCard, STAGE_BG, Summary } from '~/lab/report';
 import { rpc, RpcError } from '~/lib/rpc';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
@@ -51,7 +51,7 @@ import { READABLE_WIDE, TwoColumns } from '~/lib/layout';
  * 화면이 보이고 앱이 앞에 있는 동안 5초마다, 그리고 돌아올 때(화면 · 앱) 바로 checkPitch3dV2 를 부른다. 답은 지금 작업 번호와 견줘 다른 작업의 늦은 답을
  * 버린다. 묻기 실패는 분석 실패가 아니다(마지막 상태를 두고 '상태 다시 확인'). 끝나도 결과로 저절로 넘기지 않는다 — '결과 보기'를 누를 때.
  *
- * 결과가 있으면 차례(시안 결과 최신본): 머리(촬영 정보 · 이번 한 구 기준) → 핵심 결과(KeyFinding) → 3D → 원본과 비교 → 요소별 분석(2열 고르기 카드) →
+ * 결과가 있으면 차례: 머리(촬영 정보) → 한눈 요약(Summary) → 3D → 원본과 비교 → 동작 여섯 줄(ElementList) →
  * 추천 훈련 또는 다음 행동 → 지난번과 견주기 → 분석 상세. 3D 칸만 사이트 app/embed/lab/[id] 웹뷰(~/lab/lab-3d.tsx) — 판정 · 숫자는 서버 loadAppLabDetail.
  *
  * 원본은 처음엔 하나도 만들지 않는다(재생기 · 받기 · 시계 맞추기 0). '원본과 비교'를 누르면 고른 쪽(옆 또는 뒤) 하나만 붙이고, 바꾸면 앞의 것을 떼고
@@ -588,13 +588,13 @@ function ResultView({ c, data, active, doneAgain, onReload }: { c: Palette; data
           ) : null;
         })()}
         <Text style={[s.small, { color: c.muted }]}>
-          {viewerFailed ? '3D 없이 원본만 보고 있어요. 재생 · 멈춤 · 탐색 · 속도는 영상 조작으로 바꿔요.' : '3D와 같은 순간 · 같은 속도로 따라가요. 한 번에 원본 하나만 열어요.'}
+          {viewerFailed ? '3D 없이 원본만 보고 있어요.' : '3D와 같이 움직여요.'}
         </Text>
       </View>
     );
 
   /* 머리는 투구 이름(올린 때), 밑줄에 찍은 때 · 촬영 조건 · '이번 한 구 기준' */
-  const sub = [data.when, report.ground === 'flat' ? '평지' : '마운드', report.hand === 'L' ? '왼손' : '오른손', '이번 한 구 기준'].filter(Boolean).join(' · ');
+  const sub = [data.when, report.ground === 'flat' ? '평지' : '마운드', report.hand === 'L' ? '왼손' : '오른손'].filter(Boolean).join(' · ');
   return (
     <View style={[s.fill, { backgroundColor: c.page }]}>
       {/* 왼쪽 끝에서 3D 를 돌리면 아이폰 '뒤로 쓸기'가 먼저 잡아 화면이 넘어갔다(2026-10-21 김민) — 이 화면은 쓸어 닫기를 끈다(‹ 단추로 나감) */}
@@ -624,7 +624,7 @@ function ResultView({ c, data, active, doneAgain, onReload }: { c: Palette; data
             <TwoColumns
               left={(boxW) => (
                 <View style={{ gap: 12 }}>
-                  <KeyFinding c={c} report={report} onScene={onScene} />
+                  <Summary c={c} report={report} onScene={onScene} />
                   <Text accessibilityRole="header" style={[TYPE.card, { color: c.ink, marginTop: 8, paddingHorizontal: 4 }]}>
                     3D 동작
                   </Text>
@@ -653,7 +653,7 @@ function ResultView({ c, data, active, doneAgain, onReload }: { c: Palette; data
               )}
               right={
                 <>
-                  <ElementGrid c={c} report={report} onPick={(it) => jump(it.frame, false)} onScene={onScene} />
+                  <ElementList c={c} report={report} onPick={(it) => jump(it.frame, false)} onScene={onScene} />
                   <RxCard c={c} report={report} mine={r.mine} focus={r.focus} resultId={data.id} />
                   {r.mine ? <LabPracticeCard key={data.id} id={data.id} suggestedGoal={report.rx[0]?.cue ?? ''} /> : null}
                   {r.previous ? <CompareCard c={c} prev={r.previous} /> : null}
@@ -704,7 +704,7 @@ function Details({
           {r.stale && !active && <Text style={[s.small, { color: c.ink }]}>엔진이 나아졌어요. 다시 분석하면 새 엔진으로 볼 수 있어요.</Text>}
           {active && <Text style={[s.small, { color: c.ink }]}>다시 분석 중이에요. 끝날 때까지 이전 결과를 보여 줘요.</Text>}
           {!active ? <RequestPanel id={id} req={req} onStarted={onStarted} c={c} /> : null}
-          <Text style={[s.small, { color: c.muted }]}>3D 보기용 각도와 분석에 쓴 측정값은 다를 수 있어요. 아래는 분석에 쓴 값이에요. 누르면 그 순간으로 가요.</Text>
+          <Text style={[s.small, { color: c.muted }]}>누르면 그 장면으로 가요.</Text>
           <View>
             {r.rows.map((m, i) => (
               <Pressable

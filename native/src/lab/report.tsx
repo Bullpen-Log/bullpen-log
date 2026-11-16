@@ -5,8 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   REPORT_STATUS_TEXT,
   REPORT_CRITERIA,
-  measurementText,
-  coverageText,
+  WHY_SHORT,
   prescriptionMessage,
   rxAction,
   type ElementRx,
@@ -16,7 +15,7 @@ import {
   type ReportItem,
   type ReportStatus,
 } from '@/lib/pitch-3d/v2/report';
-import { itemObs, itemSub, nextStepsOf, reportLead, sceneLabel, showsGauge, type ReportNextStep } from '@/lib/pitch-3d/v2/report-view';
+import { ELEMENT_PLAIN, itemGood, itemSay, nextStepsOf, reportLead, reportTally, sceneLabel, showsGauge, type ReportNextStep } from '@/lib/pitch-3d/v2/report-view';
 import { compareDeltaText, compareRangeText, prevDateText, PREV_CONFIRM, type PreviousComparison } from '@/lib/pitch-3d/v2/compare-view';
 import { TYPE, type Palette } from '~/lib/ui';
 import { type Href, router } from 'expo-router';
@@ -24,8 +23,9 @@ import { leaveTo } from '~/shell/web-nav';
 import { canOpen, noticeLocked, pushOpen } from '~/shell/release';
 
 /**
- * 투구 진단 리포트 조각(앱, 2026-10-27 개편 — 장면 → 근거 → 해석 → 다음 선택) — 웹 app/(app)/videos/lab/[id]/report-parts.tsx 와 같은 차례 · 같은 글
- * (고르기는 lib/pitch-3d/v2/report-view.ts). 이번 투구의 핵심 · 여섯 요소 판독 · 개선 드릴 · 지난번과 견주기. 3D 무대 · 원본 영상은 app/lab/[id].tsx.
+ * 투구 진단 리포트 조각(앱) — 한눈 요약(좋아요 · 보통 · 고칠 점 수 + 먼저 고칠 것 하나) · 동작 여섯 줄(눌러 펴기) · 추천 훈련 · 지난번과 견주기.
+ * 2026-11-16 김민: "문구가 AI 같고 조잡해 정보가 안 들어온다" → 한 칸에 말 하나 · 숫자 하나, 범위 · 제한 설명은 편 칸 안으로.
+ * 고르기 · 쉬운 말은 lib/pitch-3d/v2/report-view.ts. 3D 무대 · 원본 영상은 app/lab/[id].tsx.
  * 색은 sky · warn · ok 셋, 상태는 색 · 모양 · 글 셋으로 가른다.
  */
 
@@ -79,7 +79,7 @@ function StatusTag({ c, status }: { c: Palette; status: ReportStatus }) {
   );
 }
 
-/** 기준 띠 — 고칠 점 · 경계 · 보통 · 좋아요 네 칸 + 내 값 점 + 판정 기준(고칠 점이 시작되는 값). 평가한 칸에만 그린다(report-view showsGauge) */
+/** 기준 띠 — 고칠 점 · 경계 · 보통 · 좋아요 네 칸 + 내 값 점, 양 끝에 어느 쪽이 좋은지. 평가한 칸에만 그린다(report-view showsGauge) */
 function Gauge({ c, g }: { c: Palette; g: ReportGauge }) {
   const x = (v: number) => Math.max(0, Math.min(100, ((v - g.lo) / (g.hi - g.lo)) * 100));
   const a = x(g.cut);
@@ -92,28 +92,33 @@ function Gauge({ c, g }: { c: Palette; g: ReportGauge }) {
   );
   const bad = `${c.warn}70`;
   const edge = `${c.warn}26`;
-  const good = `${c.ok}4d`;
+  const good = `${c.ok}66`;
   return (
-    <View style={{ height: 36 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      <View style={[s.track, { backgroundColor: c.page }]}>
-        {g.up ? (
-          <>
-            {seg(0, a, bad)}
-            {seg(a, b, edge)}
-            {seg(b, cc, c.line)}
-            {seg(cc, 100, good)}
-          </>
-        ) : (
-          <>
-            {seg(a, 100, bad)}
-            {seg(b, a, edge)}
-            {seg(cc, b, c.line)}
-            {seg(0, cc, good)}
-          </>
-        )}
+    <View style={{ gap: 4 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <View style={{ height: 20, justifyContent: 'center' }}>
+        <View style={[s.track, { backgroundColor: c.line }]}>
+          {g.up ? (
+            <>
+              {seg(0, a, bad)}
+              {seg(a, b, edge)}
+              {seg(b, cc, c.line)}
+              {seg(cc, 100, good)}
+            </>
+          ) : (
+            <>
+              {seg(a, 100, bad)}
+              {seg(b, a, edge)}
+              {seg(cc, b, c.line)}
+              {seg(0, cc, good)}
+            </>
+          )}
+        </View>
+        <View style={[s.marker, { left: `${x(g.value)}%`, backgroundColor: c.ink, borderColor: c.card }]} />
       </View>
-      <View style={[s.marker, { left: `${x(g.value)}%`, backgroundColor: c.ink, borderColor: c.card }]} />
-      <Text style={[s.cut, { left: `${a}%`, color: c.warn }]}>판정 기준</Text>
+      <View style={s.row}>
+        <Text style={[s.cap, { color: g.up ? c.warn : c.ok }]}>{g.up ? '고칠 점' : '좋아요'}</Text>
+        <Text style={[s.cap, { color: g.up ? c.ok : c.warn }]}>{g.up ? '좋아요' : '고칠 점'}</Text>
+      </View>
     </View>
   );
 }
@@ -137,49 +142,91 @@ function SceneButton({ c, item, onScene }: { c: Palette; item: ReportItem; onSce
   );
 }
 
-/* ───────────────────────────── 이번 투구의 핵심 ───────────────────────────── */
+/* ───────────────────────────── 한눈 요약 ───────────────────────────── */
 
-/**
- * 맨 위 한 가지 — 처방할 주 문제면 그 수치 · 관찰 · 근거 · 장면, 없으면 확인 범위(report-view reportLead). 고칠 점을 만들어 내지 않는다.
- * 요소의 일반 설명(headline.why)은 이 투구에서 확인한 사실이 아니라 쓰지 않는다.
- */
-export function KeyFinding({ c, report, onScene }: { c: Palette; report: PitchReport; onScene: (item: ReportItem) => void }) {
-  const lead = reportLead(report);
-  if (lead.kind === 'scope')
-    return (
-      <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 8 }]}>
-        <Text style={[TYPE.sub, { color: c.muted }]}>이번 투구에서 확인한 범위</Text>
-        <Text style={[TYPE.card, { color: c.ink, lineHeight: 24 }]}>{lead.title}</Text>
-        {lead.note ? <Text style={[TYPE.body, { color: c.muted }]}>{lead.note}</Text> : null}
-        <Text style={[TYPE.sub, { color: c.muted }]}>{coverageText(report.coverage)}</Text>
-      </View>
-    );
-  const it = lead.item;
+const toneOf = (c: Palette, st: ReportStatus) => (st === 'improve' || st === 'edge' ? c.warn : st === 'good' ? c.ok : c.muted);
+
+function Stat({ c, n, label, color }: { c: Palette; n: number; label: string; color: string }) {
   return (
-    <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 12 }]}>
-      <View style={[s.row, { justifyContent: 'flex-start', flexWrap: 'wrap' }]}>
-        <StatusTag c={c} status={it.status} />
-        <Text style={[TYPE.sub, { color: c.muted }]}>먼저 볼 것 · {it.element}</Text>
-      </View>
-      <View style={{ gap: 2 }}>
-        <Text style={[TYPE.sub, { color: c.muted }]}>{it.valueLabel}</Text>
-        <Text style={[TYPE.num, { fontSize: 34, color: c.ink }]}>{it.value}</Text>
-      </View>
-      <Text style={[TYPE.body, { color: c.ink, fontSize: 16, lineHeight: 23 }]}>{itemObs(it)}</Text>
-      {it.foot ? <Text style={[TYPE.sub, { color: c.muted }]}>{it.foot}</Text> : null}
-      {it.frame != null ? <SceneButton c={c} item={it} onScene={onScene} /> : null}
+    <View style={{ flex: 1, gap: 2 }} accessible accessibilityLabel={`${label} ${n}개`}>
+      <Text style={[TYPE.num, { fontSize: 32, color: n > 0 ? color : c.lineStrong }]}>{n}</Text>
+      <Text style={[TYPE.sub, { color: c.muted }]}>{label}</Text>
     </View>
   );
 }
 
-/* ───────────────────────────── 요소별 분석 ───────────────────────────── */
+/** 지금 값 → 좋아요 기준 */
+function NowGoal({ c, now, good }: { c: Palette; now: string; good: string | null }) {
+  return (
+    <View style={[s.measure, { backgroundColor: c.page }]}>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={[TYPE.sub, { color: c.muted }]}>지금</Text>
+        <Text style={[TYPE.num, { fontSize: 24, color: c.ink }]}>{now}</Text>
+      </View>
+      {good ? (
+        <>
+          <Text style={{ color: c.lineStrong, fontSize: 18 }} accessibilityElementsHidden importantForAccessibility="no">
+            →
+          </Text>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={[TYPE.sub, { color: c.muted }]}>좋아요 기준</Text>
+            <Text style={[TYPE.num, { fontSize: 24, color: c.ok }]}>{good}</Text>
+          </View>
+        </>
+      ) : null}
+    </View>
+  );
+}
 
 /**
- * 여섯 요소 — 2열 × 3행 고르기 카드(이름 · 상태), 고른 요소의 관찰 · 측정값 · 판정 기준 · 확인 제한은 그 밑 상세 한 장(2026-10-29 확정 시안 results).
- * 상태 이름은 서버 구분 그대로(REPORT_STATUS_TEXT — 고칠 점 · 경계 · 보통 · 좋아요 · 참고 · 확인 어려움). 값이 없으면 0 이 아니라 '측정값 없음'.
- * 고르면 3D 를 그 장면에 세운다(onPick — 스크롤은 하지 않는다, 장면 단추가 무대로 간다).
+ * 맨 위 한 장 — 숫자 셋(좋아요 · 보통 · 고칠 점)과 먼저 고칠 것 하나(말 한 줄 · 지금 → 좋아요 기준 · 장면). 고칠 점이 없으면 그 사실만.
+ * 고칠 점을 만들어 내지 않는다(report-view reportLead). 평가한 동작이 하나도 없으면 까닭 한 줄.
  */
-export function ElementGrid({
+export function Summary({ c, report, onScene }: { c: Palette; report: PitchReport; onScene: (item: ReportItem) => void }) {
+  const lead = reportLead(report);
+  const t = reportTally(report);
+  const judged = t.good + t.fair + t.bad;
+  const it = lead.kind === 'finding' ? lead.item : null;
+  return (
+    <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 16 }]}>
+      {judged > 0 ? (
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Stat c={c} n={t.good} label="좋아요" color={c.ok} />
+          <Stat c={c} n={t.fair} label="보통" color={c.ink} />
+          <Stat c={c} n={t.bad} label="고칠 점" color={c.warn} />
+          {t.unseen > 0 ? <Stat c={c} n={t.unseen} label="확인 못 함" color={c.muted} /> : null}
+        </View>
+      ) : null}
+      {it ? (
+        <View style={[{ gap: 10 }, judged > 0 && { paddingTop: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }]}>
+          <View style={[s.row, { justifyContent: 'flex-start', flexWrap: 'wrap' }]}>
+            <Text style={[TYPE.section, { color: c.ink }]}>{it.element}</Text>
+            <StatusTag c={c} status={it.status} />
+          </View>
+          <Text style={[TYPE.reading, { color: c.ink }]}>{itemSay(it)}</Text>
+          {it.value != null ? <NowGoal c={c} now={it.value} good={itemGood(it)} /> : null}
+          {it.frame != null ? <SceneButton c={c} item={it} onScene={onScene} /> : null}
+        </View>
+      ) : judged > 0 ? (
+        <Text style={[TYPE.card, { color: c.ink }]}>{t.bad === 0 ? '고칠 점이 없어요.' : lead.kind === 'scope' ? lead.title : ''}</Text>
+      ) : (
+        <View style={{ gap: 6 }}>
+          <Text style={[TYPE.card, { color: c.ink, lineHeight: 24 }]}>{lead.kind === 'scope' ? lead.title : ''}</Text>
+          {lead.kind === 'scope' && lead.note ? <Text style={[TYPE.body, { color: c.muted }]}>{lead.note}</Text> : null}
+        </View>
+      )}
+    </View>
+  );
+}
+
+/* ───────────────────────────── 동작 여섯 가지 ───────────────────────────── */
+
+/**
+ * 여섯 줄 — 이름 · 쉬운 말 · 내 숫자 · 상태가 한 줄에 다 보인다(누르지 않아도 여섯 개를 훑는다). 누르면 그 줄이 펴져 말 한 줄 · 기준 띠 ·
+ * 좋아요 기준 · 왜 중요한지 · 장면 단추. 한 번에 하나만 편다. 처음엔 다 접혀 있다(먼저 고칠 것은 위 요약 장에 이미 있다).
+ * 누르면 3D 를 그 장면에 세운다(onPick — 스크롤은 하지 않는다, 장면 단추가 무대로 간다). 값이 없으면 0 이 아니라 '–'.
+ */
+export function ElementList({
   c,
   report,
   onPick,
@@ -190,67 +237,65 @@ export function ElementGrid({
   onPick: (item: ReportItem) => void;
   onScene: (item: ReportItem) => void;
 }) {
-  const [sel, setSel] = useState<string>(report.primary ?? report.items[0]?.element ?? '');
-  const it = report.items.find((i) => i.element === sel) ?? report.items[0];
-  if (!it) return null;
+  const [open, setOpen] = useState<string | null>(null);
+  if (report.items.length === 0) return null;
   return (
-    <View style={{ gap: 10 }}>
-      <View style={[s.row, s.secLabel, { flexWrap: 'wrap' }]}>
-        <Text accessibilityRole="header" style={[TYPE.card, { color: c.ink }]}>
-          요소별 분석
-        </Text>
-        <Text style={[TYPE.sub, { color: c.muted }]}>{coverageText(report.coverage)}</Text>
-      </View>
-      <View accessibilityRole="radiogroup" style={s.grid}>
-        {report.items.map((i) => {
-          const on = i.element === it.element;
-          const tone = i.status === 'improve' || i.status === 'edge' ? c.warn : i.status === 'good' ? c.ok : c.muted;
+    <View style={{ gap: 8 }}>
+      <Text accessibilityRole="header" style={[TYPE.card, s.secLabel, { color: c.ink }]}>
+        동작 여섯 가지
+      </Text>
+      <View style={[s.list, { backgroundColor: c.card, boxShadow: c.float }]}>
+        {report.items.map((it, n) => {
+          const on = it.element === open;
+          const tone = toneOf(c, it.status);
+          const good = itemGood(it);
           return (
-            <Pressable
-              key={i.element}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: on }}
-              accessibilityLabel={`${i.element} ${REPORT_STATUS_TEXT[i.status]}`}
-              onPress={() => {
-                void Haptics.selectionAsync();
-                setSel(i.element);
-                onPick(i);
-              }}
-              style={({ pressed }) => [
-                s.gridCard,
-                { backgroundColor: on ? c.skyTint : c.card, borderColor: on ? c.sky : 'transparent', boxShadow: c.float, opacity: pressed ? 0.75 : 1 },
-              ]}
-            >
-              <Text numberOfLines={1} style={[TYPE.body, { color: c.ink, fontWeight: '600' }]}>
-                {i.element}
-              </Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Dot c={c} status={i.status} />
-                <Text style={[TYPE.sub, { color: tone }]} accessibilityElementsHidden importantForAccessibility="no">
-                  {REPORT_STATUS_TEXT[i.status]}
-                </Text>
-              </View>
-            </Pressable>
+            <View key={it.element} style={n > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ expanded: on }}
+                accessibilityLabel={`${it.element}, ${ELEMENT_PLAIN[it.element] ?? ''}, ${it.value ?? '측정값 없음'}, ${REPORT_STATUS_TEXT[it.status]}`}
+                onPress={() => {
+                  void Haptics.selectionAsync();
+                  setOpen(on ? null : it.element);
+                  if (!on) onPick(it);
+                }}
+                style={({ pressed }) => [s.item, pressed && { opacity: 0.6 }]}
+              >
+                <Dot c={c} status={it.status} />
+                <View style={{ flex: 1, gap: 1 }}>
+                  <Text style={[TYPE.card, { color: c.ink }]}>{it.element}</Text>
+                  <Text numberOfLines={1} style={[TYPE.sub, { color: c.muted }]}>
+                    {ELEMENT_PLAIN[it.element] ?? ''}
+                  </Text>
+                </View>
+                <View style={{ alignItems: 'flex-end', gap: 1 }}>
+                  <Text style={[TYPE.num, { fontSize: 20, color: it.value != null ? c.ink : c.lineStrong }]}>{it.value ?? '–'}</Text>
+                  <Text style={[TYPE.sub, { color: tone, fontWeight: '600' }]}>{REPORT_STATUS_TEXT[it.status]}</Text>
+                </View>
+              </Pressable>
+              {on ? (
+                <View style={s.itemBody} accessibilityLiveRegion="polite">
+                  <Text style={[TYPE.body, { color: c.ink, fontSize: 16, lineHeight: 23 }]}>{itemSay(it)}</Text>
+                  {showsGauge(it) ? <Gauge c={c} g={it.gauge!} /> : null}
+                  {good && it.status !== 'good' ? (
+                    <Text style={[TYPE.body, { color: c.ink }]}>
+                      좋아요 기준 <Text style={[TYPE.numInline, { color: c.ok }]}>{good}</Text>
+                    </Text>
+                  ) : null}
+                  {it.status !== 'unsure' ? <Text style={[TYPE.sub, { color: c.muted }]}>{WHY_SHORT[it.element]}</Text> : null}
+                  {it.status === 'note' && it.foot ? <Text style={[TYPE.sub, { color: c.muted }]}>{it.foot}</Text> : null}
+                  {it.valueLabel || it.metricNote ? (
+                    <Text style={[TYPE.sub, { color: c.muted }]}>
+                      {[it.valueLabel ? `잰 것 · ${it.valueLabel}` : null, it.metricNote].filter(Boolean).join('\n')}
+                    </Text>
+                  ) : null}
+                  {it.frame != null ? <SceneButton c={c} item={it} onScene={onScene} /> : null}
+                </View>
+              ) : null}
+            </View>
           );
         })}
-      </View>
-      <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 10 }]} accessibilityLiveRegion="polite">
-        <View style={s.row}>
-          <Text style={[TYPE.card, { color: c.ink, flexShrink: 1 }]}>{it.element}</Text>
-          <StatusTag c={c} status={it.status} />
-        </View>
-        <Text style={[TYPE.body, { color: c.ink }]}>{itemObs(it)}</Text>
-        <View style={[s.measure, { backgroundColor: c.page }]}>
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text style={[TYPE.sub, { color: c.muted }]}>{it.valueLabel ?? itemSub(it)}</Text>
-            <Text style={[TYPE.sub, { color: c.muted }]}>{measurementText(it)}</Text>
-          </View>
-          <Text style={[TYPE.num, { color: it.value != null ? c.ink : c.muted, fontSize: it.value != null ? 24 : 15 }]}>{it.value ?? '측정값 없음'}</Text>
-        </View>
-        {showsGauge(it) ? <Gauge c={c} g={it.gauge!} /> : null}
-        {it.foot ? <Text style={[TYPE.sub, { color: c.muted }]}>{it.foot}</Text> : null}
-        {it.metricNote ? <Text style={[TYPE.sub, { color: c.muted }]}>{it.metricNote}</Text> : null}
-        {it.frame != null ? <SceneButton c={c} item={it} onScene={onScene} /> : null}
       </View>
     </View>
   );
@@ -258,7 +303,7 @@ export function ElementGrid({
 
 /* ───────────────────────────── 처방 ───────────────────────────── */
 
-/** 추천 훈련 한 요소 — 목적(관찰 기반 한 줄)과 대표 드릴(전체에서 많아야 2개). 주차별 계획은 훈련 상세에서 */
+/** 추천 훈련 한 요소 — 목적(코칭 한 줄)과 대표 드릴(전체에서 많아야 2개) */
 function RxBlock({
   c,
   rx,
@@ -280,9 +325,7 @@ function RxBlock({
           <Text style={[TYPE.sub, { color: c.warn }]}>{improve ? '고칠 점' : '경계'}</Text>
         </View>
       </View>
-      <View style={[s.cue, { borderLeftColor: improve ? c.warn : c.lineStrong }]}>
-        <Text style={[TYPE.body, { color: c.ink, fontSize: 16, lineHeight: 22 }]}>{rx.cue}</Text>
-      </View>
+      <Text style={[TYPE.reading, { color: c.ink, fontWeight: '600' }]}>{rx.cue}</Text>
       {drills.map((d) => (
         <View key={d.title} style={[s.drill, { borderTopColor: c.line }]}>
           {d.thumbUrl ? (
@@ -290,12 +333,7 @@ function RxBlock({
           ) : (
             <View style={[s.thumb, { backgroundColor: c.page }]} />
           )}
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text style={[TYPE.body, { color: c.ink }]}>{d.title}</Text>
-            <Text style={[TYPE.sub, { color: c.muted }]}>
-              {d.stage} · {d.dose}
-            </Text>
-          </View>
+          <Text style={[TYPE.body, { color: c.ink, flex: 1 }]}>{d.title}</Text>
         </View>
       ))}
       {find ? (
@@ -306,11 +344,11 @@ function RxBlock({
       ) : null}
       {rx.target ? (
         <View style={[s.target, { backgroundColor: c.page }]}>
-          <Text style={[TYPE.sub, { color: c.muted }]}>다음에 볼 숫자 · {rx.target.label}</Text>
+          <Text style={[TYPE.sub, { color: c.muted }]}>목표 · {rx.target.label}</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', gap: 8 }}>
-            <Text style={[TYPE.numInline, { color: c.muted, fontSize: 16 }]}>{rx.target.now}</Text>
-            <Text style={{ color: c.muted }}>→</Text>
-            <Text style={[TYPE.numInline, { color: c.ok, fontSize: 16 }]}>{rx.target.goal}</Text>
+            <Text style={[TYPE.num, { color: c.ink, fontSize: 20 }]}>{rx.target.now}</Text>
+            <Text style={{ color: c.lineStrong }}>→</Text>
+            <Text style={[TYPE.num, { color: c.ok, fontSize: 20 }]}>{rx.target.goal}</Text>
           </View>
         </View>
       ) : null}
@@ -359,7 +397,7 @@ export function RxCard({
     return (
       <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 10 }]}>
         <Text accessibilityRole="header" style={[TYPE.card, { color: c.ink }]}>
-          다음 행동
+          추천 훈련
         </Text>
         <Text style={[TYPE.body, { color: c.muted }]}>{prescriptionMessage(report)}</Text>
         {steps.map((st) => (
@@ -410,17 +448,14 @@ export function RxCard({
     return [...acc, { rx, drills }];
   }, []);
   return (
-    <View style={{ gap: 8 }}>
-      <View style={[s.row, s.secLabel]}>
-        <Text accessibilityRole="header" style={[TYPE.card, { color: c.ink }]}>
-          추천 훈련
-        </Text>
-        <Text style={[TYPE.sub, { color: c.muted }]}>확인된 항목 기준</Text>
-      </View>
-      <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 18 }]}>
-        {blocks.map((b) => (
+    <View style={{ gap: 12 }}>
+      <Text accessibilityRole="header" style={[TYPE.card, s.secLabel, { color: c.ink }]}>
+        추천 훈련
+      </Text>
+      {/* 요소마다 카드 한 장(2026-11-16 김민: "같은 칸 안에 있으니 하나 같다") */}
+      {blocks.map((b) => (
+        <View key={b.rx.element} style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
           <RxBlock
-            key={b.rx.element}
             c={c}
             rx={b.rx}
             drills={b.drills}
@@ -433,26 +468,23 @@ export function RxCard({
                 : null
             }
           />
-        ))}
-        {report.later.length > 0 ? <Text style={[TYPE.sub, { color: c.muted }]}>다음 차례 · {report.later.join(' · ')}</Text> : null}
-        {ctaOpen ? (
-          <View style={{ gap: 8 }}>
-            <Pressable
-              onPress={() => {
-                void Haptics.selectionAsync();
-                goRx(cta.kind, main.key);
-              }}
-              accessibilityRole="button"
-              style={({ pressed }) => [s.cta, { backgroundColor: c.action, opacity: pressed ? 0.85 : 1 }]}
-            >
-              <Text style={s.ctaText}>{cta.label}</Text>
-            </Pressable>
-            {cta.note ? <Text style={[TYPE.sub, { color: c.muted, textAlign: 'center' }]}>{cta.note}</Text> : null}
-          </View>
-        ) : (
-          <Text style={[TYPE.sub, { color: c.muted }]}>추천 훈련 화면은 준비 중이에요. 위 드릴을 참고해 연습해 보세요.</Text>
-        )}
-      </View>
+        </View>
+      ))}
+      {report.later.length > 0 ? <Text style={[TYPE.sub, s.secLabel, { color: c.muted }]}>다음 차례 · {report.later.join(' · ')}</Text> : null}
+      {ctaOpen ? (
+        <Pressable
+          onPress={() => {
+            void Haptics.selectionAsync();
+            goRx(cta.kind, main.key);
+          }}
+          accessibilityRole="button"
+          style={({ pressed }) => [s.cta, { backgroundColor: c.action, opacity: pressed ? 0.85 : 1, marginTop: 4 }]}
+        >
+          <Text style={s.ctaText}>{cta.label}</Text>
+        </Pressable>
+      ) : (
+        <Text style={[TYPE.sub, s.secLabel, { color: c.muted }]}>추천 훈련 화면은 준비 중이에요. 위 드릴을 참고해 연습해 보세요.</Text>
+      )}
     </View>
   );
 }
@@ -464,7 +496,12 @@ export function CompareCard({ c, prev }: { c: Palette; prev: PreviousComparison 
   const [same, setSame] = useState(false);
   return (
     <View style={{ gap: 8 }}>
-      <Text style={[TYPE.sub, s.secLabel, { color: c.muted }]}>지난번 리포트와 견주기 · {prevDateText(prev.requestedAt)}</Text>
+      <View style={[s.row, s.secLabel]}>
+        <Text accessibilityRole="header" style={[TYPE.card, { color: c.ink }]}>
+          지난번과 견주기
+        </Text>
+        <Text style={[TYPE.sub, { color: c.muted }]}>{prevDateText(prev.requestedAt)}</Text>
+      </View>
       <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 12 }]}>
         {!prev.compared ? (
           <Text style={[TYPE.body, { color: c.muted }]}>{prev.reason ?? '양쪽에서 견줄 수 있는 지표가 없어요.'}</Text>
@@ -517,16 +554,15 @@ const s = StyleSheet.create({
   chev: { fontSize: 20, width: 12, textAlign: 'center' },
   dot: { width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   dotCore: { width: 6, height: 6, borderRadius: 3 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  gridCard: { width: '48%', flexGrow: 1, minHeight: 72, borderRadius: 18, borderWidth: 1.5, paddingHorizontal: 14, paddingVertical: 12, gap: 6 },
+  item: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 68, paddingHorizontal: 18, paddingVertical: 12 },
+  itemBody: { paddingHorizontal: 18, paddingBottom: 18, paddingTop: 2, gap: 12 },
+  cap: { fontSize: 12, fontWeight: '600' },
   measure: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   scene: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', minHeight: 44, borderRadius: 22, paddingHorizontal: 16 },
   step: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
-  track: { position: 'absolute', left: 0, right: 0, top: 10, height: 6, borderRadius: 3, overflow: 'hidden' },
-  marker: { position: 'absolute', top: 5, width: 16, height: 16, marginLeft: -8, borderRadius: 8, borderWidth: 3 },
-  cut: { position: 'absolute', top: 20, fontSize: 11, transform: [{ translateX: -24 }] },
-  cue: { borderLeftWidth: 2, paddingLeft: 12 },
+  track: { height: 8, borderRadius: 4, overflow: 'hidden' },
+  marker: { position: 'absolute', top: 1, width: 18, height: 18, marginLeft: -9, borderRadius: 9, borderWidth: 3 },
   drill: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth },
   thumb: { width: 44, height: 44, borderRadius: 10 },
   target: { gap: 4, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12 },

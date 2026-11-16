@@ -107,7 +107,7 @@ const edgeHand = base();
 edgeHand.arm = { ...edgeHand.arm, handRise: -0.05, handRiseCm: -3 };
 assert.equal(item(report(edgeHand), '스로잉').status, 'edge');
 assert.match(prescriptionMessage(normal), /고칠 점이 없어 따로 권할 드릴이 없어요/);
-assert.match(prescriptionMessage(report(base(), { youth: true })), /참고 지표의 수치로는 드릴을 권하지 않아요/);
+assert.match(prescriptionMessage(report(base(), { youth: true })), /참고 수치로는 드릴을 권하지 않아요/);
 assert.doesNotMatch(prescriptionMessage(normal), /자동 처방|다시 촬영|다시 찍/);
 
 /* 큰 브레이크 값은 이제 평가 · 개선 드릴(크게 굽는 실제 동작 — 실험실 c4d8 · f046 이 50~70°) */
@@ -196,7 +196,7 @@ for (const i of one.items.filter((x) => x.status === 'unsure')) {
 }
 assert.match(item(one, '드롭').line, /니업과 착지 때 골반 · 다리가/);
 assert.match(item(one, '스로잉').line, /착지 때 던지는 팔 · 손이/);
-assert.match(prescriptionMessage(one), /확인하지 못한 항목은 여섯 요소 판독에서 까닭을/);
+assert.match(prescriptionMessage(one), /확인하지 못한 동작은 눌러서 까닭을/);
 assert.doesNotMatch(one.headline.title, /크게 고칠 곳이 없/);
 partial.drift.conf = 0;
 assert.equal(report(partial).coverage.unavailable, 6);

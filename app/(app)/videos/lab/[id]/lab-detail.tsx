@@ -10,7 +10,7 @@ import { isV2JobActive, v2WaitingText, type Pitch3dV2Ok } from '@/lib/pitch-3d/v
 import { labHandNote, labWhenText, metricRows, type LabMetricRow } from '@/lib/pitch-3d/v2/lab-summary';
 import { buildReport, type FocusProgress, type ReportDrill, type ReportItem } from '@/lib/pitch-3d/v2/report';
 import { V2EmptyWell, V2RequestRow, V2StatusBadge } from './analysis-v2';
-import { CompareCard, FlowCard, KeyFinding, RxCard } from './report-parts';
+import { CompareCard, FlowCard, Summary, RxCard } from './report-parts';
 import type { PreviousComparison } from '@/lib/pitch-3d/v2/compare-view';
 import type { Body3DHandle, Transport } from './body-3d';
 import { useV2Analysis } from './use-v2-analysis';
@@ -292,7 +292,7 @@ export function LabDetail({
         <BackLink href="/videos/lab">3D 동작 분석</BackLink>
         <PageHeading
           title="투구 진단"
-          description={[when, ground === 'flat' ? '평지' : '마운드', hand === 'L' ? '왼손' : '오른손', '이 한 구 기준'].filter(Boolean).join(' · ')}
+          description={[when, ground === 'flat' ? '평지' : '마운드', hand === 'L' ? '왼손' : '오른손'].filter(Boolean).join(' · ')}
           action={<V2StatusBadge job={v2.job} now={now} />}
           inlineAction
         />
@@ -303,7 +303,7 @@ export function LabDetail({
       {/* 좁은 화면은 핵심이 무대 위 — PC 는 오른쪽 칸 맨 위(같은 부품 둘, 하나만 보인다) */}
       {report && (
         <div className="desk:hidden">
-          <KeyFinding report={report} onScene={onScene} />
+          <Summary report={report} onScene={onScene} />
         </div>
       )}
 
@@ -364,7 +364,7 @@ export function LabDetail({
         <div className="stack-block">
           {report && (
             <div className="hidden desk:block">
-              <KeyFinding report={report} onScene={onScene} />
+              <Summary report={report} onScene={onScene} />
             </div>
           )}
           {report && <FlowCard report={report} onPick={onScene} />}
