@@ -13,13 +13,13 @@
     "암케어",
     "회복 및 보강"
   ],
-  "current_review_id": "EX-Y-P-BOUND-d800582b",
-  "current_title": "연속 레터럴 바운드",
+  "current_review_id": "EX-Y-P-POGO-258c0eee",
+  "current_title": "로우 포고 홉",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
-  "last_human_decision": "User queried plyometric classification and requested Driveline-based description; corrected and awaiting review.",
+  "last_human_decision": "User advanced from lateral bound to low pogo hops.",
   "next_after_approval": {
-    "title": "continuous lateral bound",
+    "title": "싱글렉 로우 포고 홉",
     "status": "Only on explicit user next"
   },
   "order": {
@@ -763,8 +763,8 @@
   "reporting_preference": "Show before and after of each change and distinguish previous sessions from current edits.",
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
   "latest_resume": {
-    "current": "EX-Y-P-BOUND-d800582b",
-    "status": "User corrected rebound classification. Description saved as lateral jump with paused landing; Driveline general lateral bound guidance distinguished from rotational variant. User review pending."
+    "current": "EX-Y-P-POGO-258c0eee",
+    "status": "Low pogo hops description and thumbnail updated; settings retained. User review pending."
   },
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
