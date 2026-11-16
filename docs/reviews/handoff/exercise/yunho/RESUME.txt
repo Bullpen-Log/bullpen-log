@@ -1,3 +1,5 @@
+CURRENT P045: user corrected oversimplification; impact, gravity and elastic recoil explanation restored in how-to, with snapdown stopping distinguished from later jump landing/rebound. Saved, user review pending.
+
 CURRENT P045: user requested simpler reading; full description rewritten with short instructions and clear stop/elasticity connection. Saved and reloaded. User review pending.
 
 CURRENT P045: how-to now cues active pressure and controlled stop, distinguishes snapdown deceleration from elastic recoil in subsequent rebound. Saved; user review pending.
