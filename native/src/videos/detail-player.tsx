@@ -46,7 +46,11 @@ export function DetailPlayer({
   const settled = useScreenSettled();
   const [k] = useState(() => keepOf(path));
   const [rate, setRate] = useState(k.rate);
-  const player = useVideoPlayer(settled && src.uri ? src.uri : null, (p) => playerCall.setup(p, k.rate));
+  const player = useVideoPlayer(settled && src.uri ? src.uri : null, (p) => {
+    playerCall.setup(p, k.rate);
+    // On iOS, setting playbackRate also sets AVPlayer.rate.
+    playerCall.pause(p);
+  });
   usePauseWhenHidden(player, false);
   const [status, setStatus] = useState<string>('idle');
   const [time, setTime] = useState(0);
@@ -104,8 +108,15 @@ export function DetailPlayer({
     ActionSheetIOS.showActionSheetWithOptions({ options, cancelButtonIndex: options.length - 1, title: '재생 속도' }, (i) => {
       const r = RATES[i];
       if (r == null) return;
+      let wasPlaying: boolean;
+      try {
+        wasPlaying = player.playing;
+      } catch {
+        return; // The detail closed while the native action sheet was open.
+      }
       setRate(r);
       playerCall.rate(player, r);
+      if (!wasPlaying) playerCall.pause(player);
     });
   };
   const [full, setFull] = useState(false);

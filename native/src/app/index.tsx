@@ -472,7 +472,8 @@ export default function SiteScreen() {
   const sportRoot =
     path === '/hitting' || path.startsWith('/hitting/')
       ? '/hitting'
-      : path === '/videos' || path.startsWith('/videos/') || path.startsWith('/pitch-log/')
+      : path === '/videos' || path.startsWith('/videos/') || path.startsWith('/pitch-log/') ||
+          (path === RECORDS_PATH && !tabs.some((t) => t.href === RECORDS_PATH))
         ? '/videos'
         : null;
   const atSportRoot = sportRoot != null && path === sportRoot && new URLSearchParams(search).get('view') == null;

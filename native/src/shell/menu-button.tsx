@@ -92,6 +92,7 @@ function Launcher({ anchor, onClosed }: { anchor: Rect; onClosed: () => void }) 
    * 걷힘 — 움직임이 끝나면 Modal 을 내리고, 다 내려간 뒤(onDismiss) 고른 곳으로. onDismiss 를 못 받는 경우(안드로이드)를 위해 0.5초 뒤 한 번 더 —
    * 둘 중 먼저 온 것만 쓴다
    */
+  const closing = useRef(false);
   const finished = useRef(false);
   const dismissed = () => {
     if (finished.current) return;
@@ -106,7 +107,9 @@ function Launcher({ anchor, onClosed }: { anchor: Rect; onClosed: () => void }) 
     setTimeout(dismissed, 500);
   };
   const close = (then?: () => void) => {
-    if (then) after.current = then;
+    if (closing.current) return;
+    closing.current = true;
+    after.current = then ?? null;
     p.set(withTiming(0, { duration: reduce ? 0 : 170, easing: Easing.in(Easing.quad) }, (done) => done && runOnJS(hide)()));
   };
 
