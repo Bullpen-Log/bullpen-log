@@ -58,3 +58,5 @@ Use `docs/shoot/video-review-current-workflow.md` for the current research, cont
 ## Thumbnail review: 2026-11-16
 
 Review a real representative frame for every owned drill video. Use the checkpoint thumbnail criteria; preserve originals/prior posters and create a new poster identity when correcting. No poster gallery or per-poster approval is required for authorized corrections. Provider-controlled YouTube posters must not be copied/re-edited or reported as custom-adjusted. Verify saved values and visible consumption; disclose app/cache limits. Human-completed backlog is0, corrections applied0. Prior assistant scene samples did not include poster audits. Current Step-back poster assessment and future items remain pending; current1 and all human judgments preserved.
+
+Latest thumbnail scope clarification (2026-11-16): adjustment applies ONLY to our OWN filmed videos, past and future. Reference/YouTube posters are excluded from adjustment and blocked backlog; no custom support is needed. Other source-preservation, real-frame, no per-poster approval and no advancement rules remain.

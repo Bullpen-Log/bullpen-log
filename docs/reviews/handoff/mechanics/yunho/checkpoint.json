@@ -436,11 +436,11 @@
     "status": "Future review principle; source interpretation and applicability must be checked for each drill. No blanket changes."
   },
   "thumbnail_review_requirement_2026_11_16": {
-    "scope": "All past and future mechanics drill reviews, including current Step-back. Earlier assistant scene samples are not human completed reviews or completed thumbnail inspections.",
+    "scope": "Thumbnail adjustment ONLY for videos filmed by us (OWN), past and future mechanics reviews, including current owned Step-back. References/YouTube are excluded, not blocked backlog.",
     "criterion": "Use a real source frame immediately identifying the drill/variation, athlete, relevant equipment and key limb/action positions. Avoid idle start/end, blur, occlusion, cropped key limbs and distracting people.",
     "permission": "Authorized owned-source thumbnail corrections do not require a thumbnail gallery or per-poster approval. Preserve original/prior posters, use new poster identity and change thumbnail only.",
     "verification": "Read back saved values and verify visible consumption where feasible. Explicitly report app/cache and unverified limits.",
-    "reference_only": "Provider-controlled YouTube posters: do not copy or re-edit third-party images; do not claim custom adjustment unsupported by the product.",
+    "reference_only": "Do not change reference/YouTube posters. No custom reference-poster support design needed. Exclude reference items from adjustment backlog.",
     "boundaries": "No source-video edits, product code, schema or deployment expansion. Keep mechanics records separate and current order.",
     "backlog_audit": {
       "human_completed_items": 0,
