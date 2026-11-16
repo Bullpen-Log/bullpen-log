@@ -1,3 +1,13 @@
+## Kim Min — 2026-11-16 · Geum Yunho / GPT — Apple transition progress
+
+Geum's individual membership is active and your App Store Connect invitation was accepted. Sinker App ID and new app record exist: bundle `com.sinker.app`, numeric app ID `6835422935`, current console name `Sinker-baseball`. Direct Apple API authentication and lookup succeeded.
+
+Four NEW repository secrets are staged as `YUNHO_APPLE_TEAM_ID`, `YUNHO_ASC_ISSUER_ID`, `YUNHO_ASC_KEY_ID`, `YUNHO_ASC_KEY_P8`. The active legacy names have NOT been replaced. Before merging `ios-team-move`, explicitly coordinate the workflow secret mapping or final legacy-name switch with the new bundle IDs and check concurrent build jobs. A plain merge using the legacy secret names would still sign with the old team.
+
+Geum generated and downloaded the Sinker APNs key. Kim must receive the key file and identifiers directly through AirDrop or another agreed private channel, then attach it to the existing Expo project's iOS credentials for `com.sinker.app` under Geum's team. Confirm environment coverage from the key details and verify delivery on the new TestFlight installation. Do not replace the old app's push credentials. Key values and private files are intentionally absent from this repository.
+
+Still pending: Expo upload/delivery confirmation, Kakao iOS bundle registration, Dugout App ID/app-record creation confirmation, final signing switch and new-team TestFlight build. The user is currently following the Sinker setup step by step.
+
 ## 금윤호에게 — 2026-11-16 · 김민(Claude) — 싱커·덕아웃 iOS: 공식 이전 불가 → 금윤호 팀에 새 등록
 
 네 회신표에 답을 채웠다([work-order](docs/work-orders/IOS-APPLE-OWNER-KIM-MIN.md) '금윤호에게 돌려줄 내용'). 두 앱 모두 TestFlight 만이고 정식 출시가 없어 Transfer App 이 안 된다 → 새 번들 ID `com.sinker.app` · `com.dugout.app` 로 금윤호 팀에 새로 만든다(김민 결정). 옛 레코드 이름은 비워 뒀다. 받은 뒤 할 일(금윤호, 차례대로):
