@@ -18,14 +18,13 @@
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": {
-    "user_verbatim": "그럼 너의 판단하에 수정하고 다음으로가",
-    "at_utc": "2026-11-16T07:31:21.646733+00:00",
-    "meaning": "P050 wording placement correction authorized and next to P025. P025 human review pending."
+    "at_utc": "2026-11-16T08:30:10.271894+00:00",
+    "direction_summary": "Pause next; extend previous broad-jump post-landing finish."
   },
   "next_after_approval": {
     "review_id": "EX-Y-P-024",
     "title": "와이드 스탠스 브로드 점프",
-    "status": "Only after explicit user next/okay"
+    "status": "Wait for new explicit next after P025 trim2 review."
   },
   "order": {
     "basis": "이 대화에서 관찰한 파워57개 라이브러리 순서. 재개 시 실제 목록 변경 여부 대조; 새로 검수한 목록 아님.",
@@ -765,7 +764,7 @@
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
   "latest_resume": {
     "current": "EX-Y-P-025",
-    "status": "Backward-fall warning and simpler how-to4 saved/reloaded. Actual0-4.1s trim applied, original retained/hash verified; edited web playback confirmed. Await user, no next."
+    "status": "User paused next and requested more post-landing finish. New4.60s trim replaces4.10s; source and first edit retained/hash verified. Await user review. P024 source inspected in preparation only, no content edits/opening."
   },
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",

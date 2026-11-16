@@ -3250,6 +3250,37 @@
         "metadata": "No target/intensity/difficulty/equipment/prescription changes this turn.",
         "verification": "Final backward-fall warning saved, reloaded and read back; live DB final-row privately preserved.",
         "human_decision": "Pending; no next approval."
+      },
+      {
+        "at_utc": "2026-11-16T08:30:10.271894+00:00",
+        "user_direction_summary": "Show more of the pose after landing in the previous broad-jump video.",
+        "video_edit": {
+          "version": "P025 trim2 4.60s",
+          "previous_end_seconds": 4.1,
+          "new_end_seconds": 4.6,
+          "source_interval_seconds": [
+            0,
+            4.6
+          ],
+          "change": "Add0.50s at finish from preserved source, retain landing and standing recovery. No speed change or frozen frames.",
+          "source_and_prior_edit_preserved": true,
+          "verification": "New distinct video/thumbnail linked. New edit, first edit and original storage downloads matched local SHA256; full decode276frames/4.60s/1920x1080/60fps; finish contact sheet3.1-4.6s inspected. Admin unchanged-save invalidated library cache; page reloaded, current exercise and active playback/repeat-enabled observed. No repeat-cycle wait.",
+          "limits": "User decision on4.60s finish and native/other-device playback pending."
+        },
+        "other_content": "Title, description, targets and prescription unchanged.",
+        "human_review_status": "Await user decision; no automatic next."
+      }
+    ],
+    "user_decisions": [
+      {
+        "at_utc": "2026-11-16T08:30:10.271894+00:00",
+        "direction_summary": "Accept current version and move next.",
+        "status": "Superseded before next item edits by request for longer P025 finish."
+      },
+      {
+        "at_utc": "2026-11-16T08:30:10.271894+00:00",
+        "direction_summary": "Pause; show the post-landing pose longer in the previous video.",
+        "status": "P025 reopened for trim revision, next item not opened or modified."
       }
     ]
   }
