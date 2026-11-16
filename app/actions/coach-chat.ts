@@ -16,6 +16,7 @@ import { aiKeyReady, chatTurn, type ChatLine } from '@/lib/coach/ai';
 import { sanitizeAdjusts, type CoachAdjust } from '@/lib/coach/adjust';
 import { COACH_LIMITS, REASON_TEXT, WEEKDAY_LABELS, savedOf, slotLine } from '@/lib/coach/answers';
 import { slotProgressOf, slotStateOf } from '@/lib/coach/status';
+import { followupReasonText } from '@/lib/coach/followup';
 import { coachWeekBase } from '@/lib/coach/today';
 import { loadTrainingDone } from '@/lib/training-week';
 import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
@@ -193,6 +194,8 @@ async function contextOf(user: User, base: Awaited<ReturnType<typeof coachWeekBa
       reasons: s.reasons.map((r) => REASON_TEXT[r]),
       state: slotStateOf(s, done[s.date], today),
       ...slotProgressOf(s, done[s.date]),
+      /* 어제 이어보기의 답 — 아팠어요는 지금도 건강 동의가 있을 때만 */
+      why: s.followup?.why === 'pain' && !health.valid ? null : followupReasonText(s.followup?.why),
       locked: locked(s.date),
     })),
   };

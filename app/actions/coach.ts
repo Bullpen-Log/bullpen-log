@@ -25,7 +25,8 @@ import { readFrozenPlan } from '@/lib/workout/session-plan';
 import { visibleExercises } from '@/lib/library-cache';
 import { movementKeyOf } from '@/lib/engine/exercise-class';
 import { loadTrainingDone } from '@/lib/training-week';
-import { COACH_STEPS, mergeStep, savedOf, slotLine, type CoachSaved, type CoachStep } from '@/lib/coach/answers';
+import { COACH_STEPS, WEEKDAY_LABELS, mergeStep, savedOf, slotLine, type CoachSaved, type CoachStep } from '@/lib/coach/answers';
+import { FOLLOWUP_NEXT, followupAskOf, followupLine, readFollowupWhy, type FollowupAnswer, type FollowupWhy } from '@/lib/coach/followup';
 
 /**
  * 코치 시작 흐름(앱, docs/designs/ai-coach.md 10-4) — 관문(유료 · 만 14세 · 건강정보 동의) → 질문(화면마다 저장) → 첫 주 미리보기 → 시작.
@@ -180,7 +181,47 @@ export async function loadCoachWeek() {
     states: week ? week.map((s) => slotStateOf(s, done[s.date], today)) : null,
     checkedIn: checkin != null,
     review: active ? await reviewOf(user.id, today, Number(zonedFormat('en-US', { hour: 'numeric', hourCycle: 'h23' }).format(now))) : null,
+    followup: active ? await followupFor(user.id, today, week, done) : null,
   };
+}
+
+/** 어제 이어보기(lib/coach/followup.ts) — 어제 칸이 이번 주면 이미 읽은 것으로, 월요일이면 지난주 틀 · 기록을 읽는다 */
+async function followupFor(userId: string, today: string, week: DaySlot[] | null, done: Awaited<ReturnType<typeof loadTrainingDone>>) {
+  const yesterday = shiftDateKey(today, -1);
+  let slot = week?.find((s) => s.date === yesterday);
+  let dayDone = done[yesterday];
+  if (!slot) {
+    const row = await prisma.coachWeek.findUnique({
+      where: { userId_weekStart: { userId, weekStart: dbDate(shiftDateKey(yesterday, -weekdayOf(yesterday))) } },
+      select: { slots: true },
+    });
+    slot = (row?.slots as unknown as DaySlot[] | undefined)?.find((s) => s.date === yesterday);
+    if (slot) dayDone = (await loadTrainingDone(userId, yesterday, yesterday))[yesterday];
+  }
+  const ask = followupAskOf(slot, dayDone);
+  return ask ? { ...ask, line: followupLine(ask, WEEKDAY_LABELS[weekdayOf(yesterday)]) } : null;
+}
+
+/**
+ * 어제 이어보기 답 — 어제 칸에만 한 번. '아팠어요'는 건강정보라 건강 동의가 없으면 까닭은 남기지 않는다('skip' 으로). 다음 걸음 글은 고른 답 그대로 돌려준다.
+ * ponytail: 칸 JSON 을 읽고 고쳐 쓴다(잠금 없음) — 한 사람이 같은 칸을 동시에 고칠 일만 걱정, 겹치면 나중 것이 이긴다. 여럿이 쓰게 되면 조건부 갱신으로
+ */
+export async function answerCoachFollowup(date: unknown, why: unknown): Promise<{ ok: true; next: (typeof FOLLOWUP_NEXT)[FollowupWhy] | null } | { error: string }> {
+  const user = await requireUser();
+  if (!(await coachPaid(user))) return { error: '코치를 쓸 수 없어요.' };
+  const answer = readFollowupWhy(why);
+  const yesterday = shiftDateKey(toDateKey(appNow()), -1);
+  if (!answer || date !== yesterday) return { error: '다시 골라 주세요.' };
+  const weekStart = dbDate(shiftDateKey(yesterday, -weekdayOf(yesterday)));
+  const [row, consent] = await Promise.all([
+    prisma.coachWeek.findUnique({ where: { userId_weekStart: { userId: user.id, weekStart } }, select: { slots: true } }),
+    healthConsentFor(user.id),
+  ]);
+  if (!row || !(row.slots as unknown as DaySlot[]).some((s) => s.date === yesterday)) return { error: '어제 일정이 없어요.' };
+  const kept: FollowupAnswer = answer === 'pain' && !consent.valid ? 'skip' : answer;
+  const slots = (row.slots as unknown as DaySlot[]).map((s) => (s.date === yesterday ? { ...s, followup: { why: kept, at: new Date().toISOString() } } : s));
+  await prisma.coachWeek.update({ where: { userId_weekStart: { userId: user.id, weekStart } }, data: { slots: slots as unknown as object } });
+  return { ok: true, next: answer === 'skip' ? null : FOLLOWUP_NEXT[answer] };
 }
 
 /** 주간 리뷰(U37) — 일요일 18시 ~ 월요일, [확인] 전까지. 칸 상태는 기록에서, 힘듦 · 불편 동작은 그날 기록 줄에서(불편은 건강 동의가 있을 때만) */

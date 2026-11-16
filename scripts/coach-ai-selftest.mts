@@ -81,6 +81,7 @@ check('③ 투구 기록 없음은 기록 없음으로', block.includes('오늘 
   const line = (p: ReturnType<typeof slotProgressOf>, state: 'done' | 'missed' | 'today') => contextBlock({ ...ctx, week: [{ date: '2026-11-03', day: '화', plan: '운동 60분 · 메커니즘 드릴', reasons: [], state, ...p, locked: true }] });
   check("③ 덩이: 암케어만 한 날은 '못 함'으로 적힌다(slotStateOf 는 '한 것')", line(careOnly, 'done').includes('| 못 함 | 안 한 것: 운동, 메커니즘 드릴 | 계획 밖에 한 것: 암케어'), line(careOnly, 'done'));
   check("③ 덩이: 일부만 한 날", line(half, 'done').includes('| 일부만 함 | 한 것: 운동 | 안 한 것: 메커니즘 드릴'), line(half, 'done'));
+  check('③ 덩이: 어제 이어보기 답', contextBlock({ ...ctx, week: [{ date: '2026-11-03', day: '화', plan: '운동 60분', reasons: [], state: 'missed', did: [], left: ['운동'], extra: [], why: '시간이 없었어요', locked: true }] }).includes('| 못 함 | 안 한 것: 운동 | 못 한 까닭(사용자 답): 시간이 없었어요'));
   check("③ 덩이: 오늘은 '남은 것'", line(half, 'today').includes('| 오늘 · 일부만 함 | 한 것: 운동 | 남은 것: 메커니즘 드릴'), line(half, 'today'));
 }
 check('③ 맥락 타입에 이름 · 이메일 · 생일 · 메모 칸이 없다', !/name|email|birth|memo|note|userId/i.test(Object.keys(ctx).join(',')));

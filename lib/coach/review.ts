@@ -44,7 +44,8 @@ export function buildReview(input: {
   discomfort: Readonly<Record<string, readonly string[]>>;
 }): WeekReview {
   const { slots, states } = input;
-  const plannedAt = slots.map((s) => s.items.some((x) => PLANNED.has(x.kind)));
+  /* 틀이 생기기 전에 지난 날(late)은 계획한 날로 세지 않는다 */
+  const plannedAt = slots.map((s) => !s.late && s.items.some((x) => PLANNED.has(x.kind)));
   const planned = plannedAt.filter(Boolean).length;
   const done = slots.filter((_, i) => plannedAt[i] && states[i] === 'done').length;
   const extra = slots.filter((_, i) => !plannedAt[i] && states[i] === 'done').length;

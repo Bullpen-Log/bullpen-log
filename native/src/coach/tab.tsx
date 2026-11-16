@@ -21,6 +21,7 @@ import { useFocusRefresh } from '~/shell/tab-pager';
 import { toast } from '~/shell/toast';
 import { openCheckin } from '~/shell/web-nav';
 import { AdjustBar } from './adjust';
+import { FollowupCard, type FollowupData } from './followup';
 
 /**
  * 코치 소개 — 2026-11-04 사용자 결정: 관리자 승인 유지, 앱 안 이용 문의와 권한 재확인 제공.
@@ -51,7 +52,7 @@ const REVIEWS = [
   { view: 'training', label: '트레이닝 분석' },
 ] as const;
 
-type CoachWeekData = { today: string; weekStart?: string; week: DaySlot[] | null; states: SlotState[] | null; checkedIn: boolean; review?: WeekReview | null };
+type CoachWeekData = { today: string; weekStart?: string; week: DaySlot[] | null; states: SlotState[] | null; checkedIn: boolean; review?: WeekReview | null; followup?: FollowupData | null };
 
 /**
  * 코치 탭(하단 탭 둘째, docs/designs/ai-coach.md 10-1 · 10-5) — 무료면 소개, 유료면 코치 메인: 오늘 계획(크게) → 이번 주 7칸(한 것 · 못 함) → 리뷰 → 답 고치기.
@@ -161,6 +162,7 @@ export function CoachMainTab({ bottom }: { bottom: number }) {
               <View style={{ flex: 1 }}><Text style={[st.kicker, { color: c.link }]}>{weekLabel(week)} · 오늘</Text><Text accessibilityRole="header" style={[TYPE.hero, { color: c.ink }]}>오늘의 계획</Text></View>
               <TextLink label="한 주 보기" onPress={() => openWeek()} c={c} />
             </View>
+            {data.followup ? <FollowupCard key={data.followup.date} ask={data.followup} onAdjust={() => openWeek()} onDone={loadWeek} /> : null}
             {todayAt >= 0 ? <TodayCard slot={week[todayAt]} state={data.states?.[todayAt] ?? 'today'} checkedIn={data.checkedIn} onDone={loadWeek} onAdjust={() => openWeek()} /> : <ErrorState title="오늘 계획을 확인할 수 없어요" detail="이번 주 계획을 다시 불러와 주세요." onRetry={retryWeek} c={c} />}
             <SectionHead title="이번 주 한눈에" action="전체 일정" onAction={() => openWeek()} />
             <WeekRail week={week} states={data.states} todayAt={todayAt} selectedDay={todayAt} onSelect={openWeek} c={c} />
