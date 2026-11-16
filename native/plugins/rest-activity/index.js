@@ -4,7 +4,7 @@
  * Swift 는 ./ios, 앱 쪽 시작 · 고침 · 끝은 modules/bullpen-native(startRest · endRest).
  *
  * 묶음 ID: 앱은 $(BP_APP_ID), 확장은 $(BP_APP_ID).RestActivity. 폰에 다른 ID 로 굽을 때는 PRODUCT_BUNDLE_IDENTIFIER 가 아니라
- * BP_APP_ID=com.bullpenlog.app.dev 처럼 덮는다(PRODUCT_BUNDLE_IDENTIFIER 를 덮으면 확장도 같은 ID 가 돼 굽기가 막힌다).
+ * BP_APP_ID=com.sinker.app.dev 처럼 덮는다(PRODUCT_BUNDLE_IDENTIFIER 를 덮으면 확장도 같은 ID 가 돼 굽기가 막힌다).
  */
 const fs = require('fs');
 const path = require('path');
@@ -38,7 +38,7 @@ const withRestActivity = (config) => {
 
   config = withXcodeProject(config, (c) => {
     const proj = c.modResults;
-    const appId = c.ios?.bundleIdentifier ?? 'com.bullpenlog.app';
+    const appId = c.ios?.bundleIdentifier ?? 'com.sinker.app';
     const objects = proj.hash.project.objects;
     const configsOf = (listId) =>
       objects.XCConfigurationList[listId].buildConfigurations.map((b) => objects.XCBuildConfiguration[b.value]);

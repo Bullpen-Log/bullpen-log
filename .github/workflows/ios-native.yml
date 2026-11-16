@@ -4,7 +4,7 @@
 #
 # ■ main 에 올리면 새 앱에 저절로 들어간다(2026-10-20 김민: "모든 세션 · 금윤호의 푸시가 네이티브 앱에, 웹앱처럼 바로")
 #
-# 새 앱이 정식 '불펜로그'(com.bullpenlog.app)다. 앱에 드는 코드(native/ · 앱이 같이 쓰는 lib/)가 바뀐 main 푸시마다 —
+# 새 앱이 정식 '불펜로그'(com.sinker.app)다. 앱에 드는 코드(native/ · 앱이 같이 쓰는 lib/)가 바뀐 main 푸시마다 —
 #   1. plan    바닥 판(runtimeVersion = 지문, app.json policy fingerprint)을 셈하고 그 판 앱을 구운 적 있는지 사이트에 묻는다
 #   2. publish 화면 코드를 내보내 업데이트로 올린다(3~5분, Supabase 공개 버킷 app-updates) — 그 바닥 판 앱은 다시 켤 때 받는다(/api/app-update)
 #   3. build   바닥 판이 새것일 때만(스위프트 · 네이티브 패키지 · 설정이 바뀜) 굽고 TestFlight 에 올린 뒤 '구웠음'을 적는다
@@ -33,7 +33,7 @@
 #
 # ■ 덕아웃 앱(같은 native/ 의 APP_VARIANT=dugout — app.config.js)은 손으로만(Run workflow 에서 '굽을 앱' dugout · both)
 #   굽기 · 검사 · 시뮬레이터에서 켜 보기(스크린숏을 산출물 dugout-simulator 로)를 하고, '올리기' 스위치를 켜면 TestFlight 에 올린다
-#   (App Store Connect 앱 '덕아웃 DUGOUT' · 6826576447). 화면 코드 업데이트(publish)는 아직 싱커만 — 덕아웃은 새로 구워야 바뀐다. 푸시로는 안 돈다.
+#   (App Store Connect 앱 '덕아웃 DUGOUT' — 금윤호 계정에 새로 만듦). 화면 코드 업데이트(publish)는 아직 싱커만 — 덕아웃은 새로 구워야 바뀐다. 푸시로는 안 돈다.
 #
 # 결과는 주석(annotation)으로 남긴다 — 공개 저장소의 주석은 로그인 없이 읽힌다(Checks API).
 name: 새 앱(Expo) 굽기
@@ -231,7 +231,7 @@ jobs:
           test -f "$APP/Assets.car"                          # 아이콘 · 시작 화면
           test -f "$APP/main.jsbundle"                       # Release 는 화면 코드(JS)를 앱 안에 넣는다 — 없으면 켜자마자 빈 화면
           plist NSCameraUsageDescription > /dev/null
-          test "$(plist CFBundleIdentifier)" = "com.bullpenlog.app"
+          test "$(plist CFBundleIdentifier)" = "com.sinker.app"
           test "$(plist CFBundleVersion)" = "$BUILD"
           MSG="앱이 만들어졌다 — $(plist CFBundleDisplayName) $(plist CFBundleShortVersionString) ($BUILD) · $(plist CFBundleIdentifier) · 최소 iOS $(plist MinimumOSVersion) · $(lipo -archs "$APP/Sinker") · $(du -sh "$APP" | cut -f1)"
           echo "::notice title=굽기 성공::$MSG"
@@ -288,7 +288,7 @@ jobs:
           xcrun simctl bootstatus "$UDID" -b > /dev/null
           xcrun simctl install "$UDID" "$SIMAPP"
           step "설치 끝, 켜 본다"
-          xcrun simctl launch --console "$UDID" com.bullpenlog.app > "$RUNNER_TEMP/sim-console.log" 2>&1 &
+          xcrun simctl launch --console "$UDID" com.sinker.app > "$RUNNER_TEMP/sim-console.log" 2>&1 &
           CONSOLE_PID=$!
           sleep 25
           APP_PID=$(grep -Eo 'com\.bullpenlog\.app: [0-9]+' "$RUNNER_TEMP/sim-console.log" | head -n 1 | awk '{print $2}' || true)
@@ -548,7 +548,7 @@ jobs:
           if strings -a "$APP/main.jsbundle" | grep -qF './velocity.tsx'; then echo "::error title=싱커 화면이 묶였다::덕아웃 앱에 싱커 화면(src/app)이 들어갔다"; exit 1; fi
           # .strings 는 Xcode 가 이진 plist 로 바꿔 담을 수 있어 plutil 로 읽는다
           plutil -p "$APP/ko.lproj/InfoPlist.strings" | grep -q '덕아웃'
-          test "$(plist CFBundleIdentifier)" = "com.bullpenlog.dugout"
+          test "$(plist CFBundleIdentifier)" = "com.dugout.app"
           test "$(plist CFBundleVersion)" = "$BUILD"
           MSG="덕아웃 앱이 만들어졌다 — $(plist CFBundleShortVersionString) ($BUILD) · $(plist CFBundleIdentifier) · 최소 iOS $(plist MinimumOSVersion) · $(du -sh "$APP" | cut -f1)"
           echo "::notice title=굽기 성공::$MSG"
@@ -598,11 +598,11 @@ jobs:
           xcrun simctl bootstatus "$UDID" -b > /dev/null
           xcrun simctl install "$UDID" "$SIMAPP"
           xcrun simctl spawn "$UDID" log stream --style compact --level debug \
-            --predicate 'process == "Dugout" OR eventMessage CONTAINS[c] "com.bullpenlog.dugout"' > "$OUT/app.log" 2>&1 &
+            --predicate 'process == "Dugout" OR eventMessage CONTAINS[c] "com.dugout.app"' > "$OUT/app.log" 2>&1 &
           LOG_PID=$!
           sleep 2
           # --console 은 쓰지 않는다 — 파일로 돌리면 출력이 버퍼에 남아 꺼져도 아무것도 안 보였다(두 번째 실행)
-          LAUNCH=$(xcrun simctl launch "$UDID" com.bullpenlog.dugout 2>&1) || true
+          LAUNCH=$(xcrun simctl launch "$UDID" com.dugout.app 2>&1) || true
           echo "$LAUNCH" > "$OUT/launch.txt"
           APP_PID=$(echo "$LAUNCH" | grep -Eo ': [0-9]+' | grep -Eo '[0-9]+' | head -n 1 || true)
           GONE=""
@@ -681,7 +681,7 @@ jobs:
           fi
           echo "ready=true" >> "$GITHUB_OUTPUT"
 
-      # 서명은 여기서만(아카이브는 서명 없이) — 자동 서명이 com.bullpenlog.dugout 배포 프로필을 만든다(번들 ID · 앱은 2026-10-24 등록)
+      # 서명은 여기서만(아카이브는 서명 없이) — 자동 서명이 com.dugout.app 배포 프로필을 만든다(번들 ID · 앱은 금윤호 계정에 등록)
       - name: 배포 도장을 찍어 TestFlight 에 올리기
         id: upload
         if: inputs.upload && steps.signing.outputs.ready == 'true'
