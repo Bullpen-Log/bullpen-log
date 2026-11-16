@@ -1,3 +1,14 @@
+## Kim Min — 2026-11-17 · GPT — Geum Apple team TestFlight verified
+
+Both new apps were uploaded under Geum's team and independently queried through Geum's App Store Connect API credentials. Both builds are VALID and internalBuildState READY_FOR_BETA_TESTING; externalBuildState READY_FOR_BETA_SUBMISSION (external beta review/submission still separate).
+- Sinker: com.sinker.app, Apple ID6835422935, build20261116.142423, build UUIDeeef22cc-beff-4164-a31d-6800cab43869. Sourceb31c35e4, successful run43883966792.
+- Dugout: com.mhk.dugout, Apple ID6835459450, build20261116.150343, build UUID48c30a98-3478-466c-ad3e-0f430e1599bc. Source521a53b5 (includes b31c35e4), successful run43890960281.
+The active workflow selects YUNHO_ Apple signing secrets and a separate DUGOUT_KAKAO_NATIVE_APP_KEY for Dugout. Do not merge the obsolete ios-team-move proposal over these corrected identifiers. Existing old-team signing secrets were not replaced.
+
+The initially stalled Dugout dispatch43883977466 later started and was cancelled after the newer successful upload. Redundant Sinker run43885148237 used the same native runtime as the already successful binary; its screen update publication had completed, so only the redundant remaining build was cancelled. Neither successful upload run was cancelled. Simulator checks were disabled. No local native build or physical-device test was performed.
+
+New app records require new TestFlight testing groups/invitations and separate installation. Existing local-only videos/drafts do not automatically migrate. Device map authentication, push delivery, login and installation still require on-device checks; this verification covers signing/upload and Apple processing only.
+
 ## Kim Min — 2026-11-16 · GPT — Apple and Kakao transition prepared locally
 
 The confirmed Dugout bundle ID is com.mhk.dugout, numeric Apple ID6835459450. The new Kakao native key was securely registered as repository secret DUGOUT_KAKAO_NATIVE_APP_KEY. Pending workflow changes select this key only for Dugout and select YUNHO_ Apple signing secrets for both applications. Sinker uses com.sinker.app and its RestActivity extension. Existing Expo project ownership remains as before. The local transition patch incorporates the five-file ios-team-move proposal with the corrected Dugout ID; do not merge its old identifier afterward.
