@@ -23,7 +23,7 @@ export type ReleaseStage = 'restricted_beta' | 'released';
 export const RELEASE_STAGE_DEFAULT: ReleaseStage = 'restricted_beta';
 
 /** 정책 판 — 허용 목록 · 경로 표를 바꾸면 올린다. 앱이 들고 있는 정책을 이 값으로 갈라 버린다(계정 · 판이 다르면 다시 묻는다) */
-export const RELEASE_POLICY_VERSION = '2026-11-06.1';
+export const RELEASE_POLICY_VERSION = '2026-11-16.1';
 
 /**
  * 기능(사용자가 쓰는 한 덩어리 일). 경로 · 서버 동작 · API 가 모두 이 이름으로 묶인다.
@@ -71,8 +71,13 @@ export type Capability =
 /* 2026-11-01 금윤호: "트레이닝과 기록은 막을 필요가 없으니까 열어둬" · "알림과 고객센터도 열어둬" */
 export const BETA_ALLOWED: ReadonlySet<Capability> = new Set(['home', 'pitch3d', 'account', 'appInfra', 'legal', 'training', 'records', 'notifications', 'support']);
 
-/** 사람 — 로그인하지 않았으면 null */
-export type AccessSubject = { role: string | null | undefined } | null;
+/**
+ * 사람 — 로그인하지 않았으면 null.
+ * pilot: 코치 권한(Entitlement 'coach')이 켜진 사람(2026-11-16 김민: 코치 파일럿 — "권한 켠 사람만 · 전부 열기"). 코치가 체크인 · 투구 기록 · 달력 ·
+ * 암케어 · 메커니즘에 기대는데 그 다섯이 베타에 잠겨 있어, 손으로 고른 파일럿 사용자는 베타 잠금을 안 받고 정식 출시와 같은 화면을 쓴다.
+ * 관리 업무는 기존 권한 표대로(일반은 없음). 서버가 DB 에서 읽은 값만 쓴다(lib/dal.ts) — 앱이 보낸 값으로 정하지 않는다.
+ */
+export type AccessSubject = { role: string | null | undefined; pilot?: boolean } | null;
 
 export type AccessReason = 'allowed' | 'locked_beta' | 'setup_required' | 'permission_denied';
 
@@ -100,7 +105,7 @@ export type DecideOptions = {
 export function decideAccess(subject: AccessSubject, capability: Capability, opts: DecideOptions): AccessDecision {
   const role = subject?.role ?? null;
   /* 베타 동안 관리 업무는 대표관리자만 — 준관리자의 기존 권한(구속 측정 관리 · ABS · 촬영 · 녹화)도 쓰지 않는다 */
-  if (capability === 'admin' && opts.stage === 'restricted_beta' && role !== 'ADMIN') return { allowed: false, reason: 'locked_beta', capability };
+  if (capability === 'admin' && isBetaRestricted(subject, opts.stage)) return { allowed: false, reason: 'locked_beta', capability };
   if (capability === 'admin') {
     const ok = opts.perm ? can(role, opts.perm) : role === 'ADMIN';
     return ok
@@ -108,7 +113,8 @@ export function decideAccess(subject: AccessSubject, capability: Capability, opt
       : { allowed: false, reason: 'permission_denied', capability };
   }
   if (role === 'ADMIN') return { allowed: true, reason: 'allowed', capability, via: 'owner' };
-  if (opts.stage === 'released') {
+  /* 파일럿 사용자는 정식 출시와 같은 판정 — 관리 업무도 기존 권한 표대로(일반 사용자는 권한이 없어 그대로 거부, 준관리자는 제 권한만) */
+  if (opts.stage === 'released' || subject?.pilot) {
     if (capability === 'unclassified') return { allowed: true, reason: 'allowed', capability, via: 'released' };
     return opts.setupLocked
       ? { allowed: false, reason: 'setup_required', capability }
@@ -120,7 +126,7 @@ export function decideAccess(subject: AccessSubject, capability: Capability, opt
 
 /** 이 사람이 지금 베타 제한을 받나 — 대표관리자 · 정식 출시면 아니다 */
 export function isBetaRestricted(subject: AccessSubject, stage: ReleaseStage): boolean {
-  return stage === 'restricted_beta' && subject?.role !== 'ADMIN';
+  return stage === 'restricted_beta' && subject?.role !== 'ADMIN' && !subject?.pilot;
 }
 
 /* ───────────── 경로 → 기능 ───────────── */

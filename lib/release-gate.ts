@@ -118,7 +118,7 @@ export const BETA_HOME = '/today';
  * 사람을 읽은 직후(lib/dal.ts getCurrentUser) 부른다. 지나가면 그대로, 아니면 화면은 베타 홈으로 보내고 동작 · RPC · API 는 FeatureLockedError.
  * 베타 제한을 안 받는 사람(대표관리자 · 정식 출시)은 바로 지나간다.
  */
-export async function enforceRelease(user: { role: string | null | undefined }): Promise<void> {
+export async function enforceRelease(user: { role: string | null | undefined; pilot?: boolean }): Promise<void> {
   const stage = releaseStage();
   if (!isBetaRestricted(user, stage)) return;
   const s = gate.getStore();

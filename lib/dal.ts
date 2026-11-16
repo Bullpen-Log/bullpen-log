@@ -7,6 +7,7 @@ import { readSession, passwordFingerprint } from '@/lib/session';
 import { ensureSim } from '@/lib/clock-server';
 import { can, type Permission } from '@/lib/permissions';
 import { allowAdmin, enforceRelease, isRestrictedNow } from '@/lib/release-gate';
+import { activeEntitlementWhere } from '@/lib/coach-access';
 
 /**
  * 세션의 사용자 — 출시 단계 관문을 거치지 않는다. 관문 자신(RPC 입구가 미리 판정할 때)만 쓴다. 화면 · 동작은 getCurrentUser.
@@ -68,6 +69,8 @@ export const loadSessionUserUnchecked = cache(async () => {
         nutritionProfile: { select: { onboardedAt: true } },
         /* 개편 전에 가입한 계정은 영양을 잠그지 않는다(lib/feature-locks.ts NUTRITION_LOCK_SINCE) */
         createdAt: true,
+        /* 켜진 코치 권한 — 있으면 파일럿 사용자(아래 pilot). 한 줄만 읽는다 */
+        entitlements: { where: activeEntitlementWhere(new Date()), select: { id: true }, take: 1 },
         /* 표의 비밀번호 지문과 견주는 데만 쓴다 — 돌려주지 않는다(아래) */
         password: true,
       },
@@ -75,13 +78,14 @@ export const loadSessionUserUnchecked = cache(async () => {
   ]);
   if (!user) return null;
 
-  const { password, ...rest } = user;
+  const { password, entitlements, ...rest } = user;
   /*
    * 비밀번호를 바꾸면 그 전에 받은 표(다른 기기의 로그인)는 끝난다 — 지문이 다르다. 지문이 없는 옛 표는 기한까지
    * 통한다(lib/jwt.ts SessionPayload.pw).
    */
   if (session.pw && session.pw !== passwordFingerprint(password)) return null;
-  return rest;
+  /* pilot — 코치 권한이 켜진 사람은 출시 전 베타 잠금을 안 받는다(lib/release-access.ts AccessSubject) */
+  return { ...rest, pilot: entitlements.length > 0 };
 });
 
 /**

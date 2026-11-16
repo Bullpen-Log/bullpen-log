@@ -76,6 +76,17 @@ eq(BETA_LOCK_TITLE, '준비 중인 기능입니다.', '잠긴 기능 안내 글'
 for (const c of [...BETA_ALLOWED, ...LOCKED]) ok(decideAccess(ADMIN, c, BETA).allowed, `대표관리자 예외: ${c}`);
 ok(!isBetaRestricted(ADMIN, 'restricted_beta'), '대표관리자는 제한 밖');
 ok(isBetaRestricted(USER_MASTER, 'restricted_beta'), 'USER + MASTER 는 대표 예외가 아니다');
+/* 코치 파일럿(2026-11-16 김민) — 코치 권한이 켜진 사람은 베타 잠금 밖(정식 출시와 같은 판정 — 관리 업무도 기존 권한 표대로) */
+const PILOT = { role: 'USER', pilot: true };
+const PILOT_MANAGER = { role: 'MANAGER', pilot: true };
+ok(!isBetaRestricted(PILOT, 'restricted_beta') && !releaseAccessOf(PILOT, 'restricted_beta').restricted, '파일럿은 제한 밖');
+for (const c of [...BETA_ALLOWED, ...LOCKED]) ok(decideAccess(PILOT, c, BETA).allowed, `파일럿 베타: ${c} 열림`);
+ok(decidePath(PILOT, '/coach', BETA).allowed && decidePath(PILOT, '/checkin', BETA).allowed && decidePath(PILOT, '/pitch-log/2026-11-16', BETA).allowed, '파일럿: 코치 · 체크인 · 투구 기록 화면');
+ok(!decideAccess(PILOT, 'admin', BETA).allowed && !decideAccess(PILOT, 'admin', { ...BETA, perm: 'velocityAdmin' }).allowed, '파일럿 일반 사용자에게 관리 업무는 그대로 거부(권한 없음)');
+eq(releaseAccessOf(PILOT, 'restricted_beta').adminPerms, [], '파일럿 일반 사용자 요약에 관리 도구 없음');
+ok(decideAccess(PILOT_MANAGER, 'admin', { ...BETA, perm: 'velocityAdmin' }).allowed && !decideAccess(PILOT_MANAGER, 'admin', BETA).allowed, '파일럿 준관리자는 출시 뒤처럼 제 권한만(대표 전용은 거부)');
+ok(isBetaRestricted({ role: 'USER', pilot: false }, 'restricted_beta') && !decidePath(USER, '/coach', BETA).allowed, '권한이 안 켜진 사람은 그대로 잠김');
+ok(decideAccess(PILOT, 'checkin', { ...BETA, setupLocked: true }).reason === 'setup_required', '파일럿은 출시 뒤처럼 첫 설정 잠금을 받는다');
 /* 일반 사용자에게 관리 업무는 베타면 베타 잠금, 출시 뒤면 권한 거부 */
 for (const perm of ['adminHome', 'shoot', 'velocityAdmin', 'recording', 'abs', 'dev3d'] as const) {
   ok(decideAccess(USER, 'admin', { ...BETA, perm }).reason === 'locked_beta', `일반 관리 업무 베타 잠금 ${perm}`);

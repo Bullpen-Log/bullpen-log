@@ -214,8 +214,9 @@ const base = {
   createdAt: new Date('2026-10-28T00:00:00Z'),
   password: 'hash',
 };
-const as = (role, accountType = 'PLAYER') => {
-  g.user = { ...base, id: `u-${role.toLowerCase()}`, role, accountType };
+const as = (role, accountType = 'PLAYER', pilot = false) => {
+  /* entitlements — 켜진 코치 권한(lib/dal.ts 가 pilot 으로 읽는다) */
+  g.user = { ...base, id: `u-${role.toLowerCase()}`, role, accountType, entitlements: pilot ? [{ id: 'e1' }] : [] };
   g.session = { userId: g.user.id, pw: 'fp' };
 };
 const reset = () => {
@@ -328,6 +329,18 @@ for (const acct of ['PLAYER', 'MASTER']) {
 }
 
 /* ───────── 4. 대표관리자 · 정식 출시 ───────── */
+/* ───────── 코치 파일럿(2026-11-16) — 코치 권한이 켜진 일반 사용자는 베타 잠금 밖, 관리 업무는 권한이 없어 그대로 거부 ───────── */
+as('USER', 'PLAYER', true);
+r = await rpc('nutrition.setWeight', ['2026-10-29', 80]);
+check(!locked(r), '파일럿: 잠겼던 영양 RPC 가 베타 잠금에 안 걸린다');
+r = await rpc('app.loadAppCheckin');
+check(!locked(r), '파일럿: 체크인 읽기 RPC 열림');
+r = await rpc('app-admin.loadAppAdmin');
+check(r.body.result?.ok !== true && sideEffects() === 0, '파일럿 일반 사용자: 관리 첫 화면은 그대로 거부');
+as('USER');
+r = await rpc('app.loadAppCheckin');
+check(locked(r), '권한이 안 켜진 일반 사용자: 체크인 읽기는 그대로 잠김');
+
 as('ADMIN');
 for (const a of ['nutrition.setWeight', 'swing-lab.saveSwingSample', 'app.loadAppHome', 'velocity.loadVelocityStart'])
   check(!locked(await rpc(a, [])), `대표관리자: ${a} 는 베타 잠금 없음`);
