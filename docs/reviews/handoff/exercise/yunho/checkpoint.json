@@ -17,7 +17,7 @@
   "current_title": "레터럴 점프 스틱 랜딩",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
-  "last_human_decision": "P036: shorten transition between first and second jumps; cut applied; user verification pending.",
+  "last_human_decision": "P036: soften abrupt cut between jumps; dissolve applied; user review pending.",
   "next_after_approval": {
     "title": "continuous lateral bound",
     "status": "Only on explicit user next"
@@ -764,7 +764,7 @@
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
   "latest_resume": {
     "current": "EX-Y-P-036",
-    "status": "User requested remove extraneous movement between jumps. Cut source4.0–5.4s; retained0–4.0 and5.4–8.8, duration7.4s. Await human review."
+    "status": "User requested softer transition between jumps; applied0.2s dissolve overlapping source around4.0 and5.4s, duration7.2s. Await user review."
   },
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",

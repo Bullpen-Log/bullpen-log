@@ -4481,6 +4481,27 @@
         },
         "verification": "Composition export completed; unique asset upload and conditional row update.",
         "human_status": "Review pending; stay on current video."
+      },
+      {
+        "at_utc": "2026-11-16T13:18:43.404Z",
+        "user_request": "Use a natural transition instead of abrupt cut.",
+        "video_edit": {
+          "source_segments": [
+            [
+              0,
+              4
+            ],
+            [
+              5.4,
+              8.8
+            ]
+          ],
+          "transition": "0.2 second cross dissolve",
+          "duration_seconds": 7.2,
+          "old_assets_preserved": true
+        },
+        "verification": "Export completed; unique asset upload and conditional row update.",
+        "human_status": "Review pending."
       }
     ]
   }

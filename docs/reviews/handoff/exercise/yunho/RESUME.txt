@@ -1,3 +1,5 @@
+LATEST 2026-11-16T13:18:43.404Z: P036 0.2s dissolve between jumps, duration7.2s. User review pending.
+
 LATEST 2026-11-16T13:17:25.779Z: P036 cut source4.0–5.4s between jumps; duration7.4s. User review pending.
 
 LATEST 2026-11-16T13:12:26.798Z: P036 trim extended8.4->8.8s on user feedback; retain0.4s more landing follow-through. Content/metadata unchanged. User confirmation pending; remain here.
