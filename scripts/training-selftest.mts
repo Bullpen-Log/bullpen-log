@@ -935,6 +935,9 @@ console.log('\n[안전] 몸이 안 좋은 날 무거운 운동이 섞이지 않�
    * 이틀 뒤부터 무게를 다시 든다. 예전에는 투구 휴식표를 따라 90구 뒤 나흘째에야 무게가 나왔다 —
    * 5일 로테이션이면 다음 등판 전날이다.
    *
+   * 2026-11-16 김민 결정으로 다시 바뀜 — 등판 다음 날은 운동 날이다(날 종류 R5' afterOuting): 던진 그날만 회복, 다음 날은 하체 위주
+   * 근력 날. 센 운동을 등판 바로 뒤에 붙이면 다음 등판까지 쉴 날이 가장 길다.
+   *
    * 평소 부하(문진)를 넉넉히 둔다. 그래야 부하 지수(주의 · 위험 구간)가 아니라 이 규칙만 본다.
    */
   const outing = (daysAgo: number, intensity = 9, count = 90) => {
@@ -959,9 +962,15 @@ console.log('\n[안전] 몸이 안 좋은 날 무거운 운동이 섞이지 않�
     outing(0).reason
   );
   check(
-    '어제 강도 9로 90구 → 회복·재생 데이',
-    outing(1).key === 'recovery',
+    '어제 강도 9로 90구 → 하체 스트렝스 데이(등판 다음 날은 운동 날 — 2026-11-16)',
+    outing(1).key === 'lower',
     outing(1).key
+  );
+  check(
+    '오늘 강도 9로 90구 → 이유에 내일 하체부터 다시 든다고 말한다',
+    outing(0).reason ===
+      '오늘 거의 전력으로 90구를 던지셨어요. 오늘은 가볍게 풀어요. 무게는 내일 하체부터 다시 들어요.',
+    outing(0).reason
   );
   check(
     '이틀 전 강도 9로 90구 → 평소대로 스트렝스',
@@ -969,9 +978,8 @@ console.log('\n[안전] 몸이 안 좋은 날 무거운 운동이 섞이지 않�
     outing(2).key
   );
   check(
-    '어제 강도 9로 90구 → 이유에 언제부터 무게를 드는지 말한다',
-    outing(1).reason ===
-      '어제 거의 전력으로 90구를 던지셨어요. 오늘은 가볍게 풀고, 내일부터 무게를 다시 올려요.',
+    '어제 강도 9로 90구 → 이유에 어제 던진 것과 하체 위주를 말한다',
+    outing(1).reason === '어제 90구를 던졌어요. 등판 다음 날은 하체 위주로 해요.',
     outing(1).reason
   );
   check(
@@ -984,11 +992,13 @@ console.log('\n[안전] 몸이 안 좋은 날 무거운 운동이 섞이지 않�
    * 투구수 × 체감 강도(90구 × 70% = 6,300 ≥ 2,700)라 많이 던진 날도 세게 던진 날이다. 이유 글은 '거의 전력'이 아니라 팔 부담.
    */
   check(
-    '어제 강도 7로 90구 → 회복·재생 데이(투구수 × 체감 강도 6,300 — 2판 D2)',
-    outing(1, 7).key === 'recovery' &&
-      outing(1, 7).reason ===
-        '어제 90구를 던져 팔 부담이 컸어요. 오늘은 가볍게 풀고, 내일부터 무게를 다시 올려요.',
-    `${outing(1, 7).key} — ${outing(1, 7).reason}`
+    '어제 강도 7로 90구 → 등판 다음 날의 하체 날(투구수 × 체감 강도 6,300 — 2판 D2 의 세게 던진 날), 오늘 던졌으면 회복',
+    outing(1, 7).key === 'lower' &&
+      outing(1, 7).reason === '어제 90구를 던졌어요. 등판 다음 날은 하체 위주로 해요.' &&
+      outing(0, 7).key === 'recovery' &&
+      outing(0, 7).reason ===
+        '오늘 90구를 던져 팔 부담이 컸어요. 오늘은 가볍게 풀어요. 무게는 내일 하체부터 다시 들어요.',
+    `${outing(1, 7).key} — ${outing(1, 7).reason} / ${outing(0, 7).key} — ${outing(0, 7).reason}`
   );
   check(
     '어제 강도 7로 35구 → 평소대로(2,450 — 문턱 2,700 밑)',
@@ -996,7 +1006,8 @@ console.log('\n[안전] 몸이 안 좋은 날 무거운 운동이 섞이지 않�
     outing(1, 7, 35).key
   );
 
-  // 경기도 고른 강도대로 본다(2026-10-18 사용자) — 강도 5 로 40구는 2,000 이라 세게 던진 날이 아니고, 강도 9 면 3,600 이라 회복.
+  // 경기도 고른 강도대로 본다(2026-10-18 사용자) — 강도 5 로 40구는 2,000 이라 세게 던진 날이 아니고, 강도 9 면 3,600 이라 세게 던진 날
+  // (2026-11-16 부터 그 다음 날은 회복이 아니라 등판 다음 날의 하체 날 — 이유 글로 가른다).
   const gameAt = (intensity: number) =>
     planFor({
       person: {
@@ -1008,9 +1019,11 @@ console.log('\n[안전] 몸이 안 좋은 날 무거운 운동이 섞이지 않�
       },
     }).theme;
   check(
-    '어제 경기 40구 — 강도 5(2,000)는 회복 아님, 강도 9(3,600)는 회복·재생 데이',
-    gameAt(5).key !== 'recovery' && gameAt(9).key === 'recovery',
-    `${gameAt(5).key} · ${gameAt(9).key}`
+    '어제 경기 40구 — 강도 5(2,000)는 등판 다음 날이 아님, 강도 9(3,600)는 등판 다음 날의 하체 날',
+    !gameAt(5).reason.includes('등판 다음 날') &&
+      gameAt(9).key === 'lower' &&
+      gameAt(9).reason === '어제 40구를 던졌어요. 등판 다음 날은 하체 위주로 해요.',
+    `${gameAt(5).key} · ${gameAt(9).key} — ${gameAt(9).reason}`
   );
 }
 {
@@ -6012,12 +6025,14 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
   );
   /*
    * 세게 던진 다음 날 가볍게 캐치볼을 해도, 일정의 까닭은 세게 던진 그 등판이다(2026-10-03 부터 운동 일정은
-   * '세게 던진 날' 규칙을 따른다 — 강도가 낮은 캐치볼은 그 목록에 안 든다).
+   * '세게 던진 날' 규칙을 따른다 — 강도가 낮은 캐치볼은 그 목록에 안 든다). 2026-11-16 부터 그날은 회복이 아니라 등판 다음 날의
+   * 하체 날이다(평소 부하를 넉넉히 둬 부하 위험 구간이 아니라 이 규칙만 본다).
    */
   const afterCatch = factsFor({
     condition: 8,
     pitches: [90, 0, 0, 0, 0, 0, 0],
     intensity: 9,
+    baselineDailyLoad: 300,
     todayLog: { pitches: 20, intensity: 3 },
   });
   const lightDay = decideTheme({
@@ -6027,10 +6042,8 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
     lastUpperKey: null,
   });
   check(
-    '어제 세게 90구 뒤 오늘 캐치볼 20개 → 회복·재생 데이, 일정의 까닭은 90구',
-    lightDay.key === 'recovery' &&
-      lightDay.reason.includes('90구') &&
-      !lightDay.reason.includes('20구'),
+    '어제 세게 90구 뒤 오늘 캐치볼 20개 → 등판 다음 날의 하체 날, 일정의 까닭은 어제 90구',
+    lightDay.key === 'lower' && lightDay.reason.includes('어제 90구를 던졌어요'),
     `${lightDay.label} — ${lightDay.reason}`
   );
 
@@ -8350,13 +8363,17 @@ console.log(
      * P4 로 바뀜(2026-10-12 커밋 E, C6 결정) — 왜: 던졌다는 답은 있는데 부하를 모르는 날에 무거운 날을 주면 미탐이 된다(facts.ts
      * '미탐이 오탐보다 위험'). 날 종류의 R3'(lib/engine/microcycle.ts claimedNoLog)가 무게 없는 보조 · 코어 날로 받고 기록을 청한다.
      * plannedOuting 은 그대로 null(다음 등판이 아니라 지난 등판이라서) — 테마만 strength → assist.
+     *
+     * 2026-11-16 로 다시 바뀜(김민 결정 — 등판 다음 날은 운동 날) — 왜: 어제 세게 던진 것을 아는 날도 이제 근력 날인데(날 종류 R5'
+     * afterOuting), 부하를 모르는 날만 무게를 빼면 아는 날보다 더 조이는 셈이다. 기록 없는 등판 다음 날도 등판 다음 날의 하체 날로 받고
+     * 이유 글에서 기록을 청한다. 테마 assist → strength.
      */
     {
-      name: "오늘 답 없음 + 어제 '오늘 등판' (어제 등판 · 기록 없음 — P4 로 바뀜: 보조 · 코어)",
+      name: "오늘 답 없음 + 어제 '오늘 등판' (어제 등판 · 기록 없음 — 2026-11-16 로 바뀜: 등판 다음 날의 근력 날)",
       today: { throwPlan: null },
       yesterday: { throwPlan: '오늘 등판' },
       planned: null,
-      theme: 'assist',
+      theme: 'strength',
     },
     {
       name: '둘 다 답 없음',
@@ -8818,12 +8835,18 @@ console.log(
         today: {},
         logs: [{ daysAgo: 1, pitches: 85, intensity: 10, sessionType: '경기' }],
       },
+      /*
+       * 2026-11-16 로 바뀜(김민 결정 — 등판 다음 날은 운동 날) — 왜: 어제 세게 던진 날 다음 날은 이제 쉬는 날이 아니다(날 종류 R5' afterOuting).
+       * 프로그램 'rest:gameYesterday' → 'go:recovery'(쉬지 않고 그날 일차 — 이 사람은 4주 평균이 낮아 부하 지수가 위험 구간이라 주의 한 줄이
+       * 'recovery'다). 매일 일정이 여전히 회복인 것도 그 부하 위험 구간 때문이다(등판 규칙이 아니라 — 평소 부하가 넉넉한 사람은 하체 날,
+       * 위 [안전] '어제 강도 9로 90구'). 던진 뒤 회복 암케어 · 투구 계획의 쉬는 날은 그대로다.
+       */
       expect: {
         theme: 'recovery',
         pitchPlan: 'rest',
         nutrition: 'none',
         armcare: 'recovery',
-        program: 'rest:gameYesterday',
+        program: 'go:recovery',
         safety: 'none',
       },
     },
@@ -8908,13 +8931,16 @@ console.log(
        * 매일 일정 'strength' → 'assist'. 나머지 칸은 그대로다.
        * P4 로 바뀜(2026-10-12 커밋 F, D3) — 왜: 암케어도 어제 팔 부담 한 곳(yesterdayArmLoadOf)을 읽어, 기록 없는 등판 다음 날은 던진 다음
        * 날로 본다('어제 등판' → 회복 루틴). 암케어 'strength' → 'recovery'. 프로그램은 같은 함수로 그대로 쉰다(까닭 글만 '어제 팔 부담이 컸어요').
+       * 2026-11-16 로 바뀜(김민 결정 — 등판 다음 날은 운동 날) — 왜: 기록 없는 등판 다음 날도 등판 다음 날이다(날 종류 R5' afterOuting).
+       * 매일 일정 'assist' → 'strength'(하체 위주 · 양 줄임 · 팔 플라이오는 일정 만들기가 뺀다), 프로그램 'rest:gameYesterday' → 'go'.
+       * 암케어의 회복 루틴은 그대로다(던진 뒤 회복은 안 바꿨다).
        */
       expect: {
-        theme: 'assist',
+        theme: 'strength',
         pitchPlan: 'throw',
         nutrition: 'none',
         armcare: 'recovery',
-        program: 'rest:gameYesterday',
+        program: 'go',
         safety: 'heavyArm',
       },
     },
@@ -9383,8 +9409,8 @@ console.log(
       );
       if (hit.length > 0) note('②', `${c.seed} ${part} 통증인데 ${titles(hit)}`);
     }
-    /* ④ 세게 던진 날(당일 · 다음 날) → 회복 */
-    if (hardOuting(facts)) {
+    /* ④ 오늘 세게 던진 날 → 회복(다음 날은 2026-11-16 부터 운동 날이라 여기서 안 본다 — 날 종류 R5' afterOuting) */
+    if (hardOuting(facts)?.daysAgo === 0) {
       cover.hard++;
       if (!forcing && key !== 'recovery') note('④', `${c.seed} ${key}`);
     }
@@ -9512,7 +9538,7 @@ console.log(
     ['①', '고른 것은 모두 안전 거르기 후보 안에 있다'],
     ['②', '오늘 통증 부위를 곧바로 쓰는 운동 0'],
     ['③', '통증 확인 전(painStateUnknown)일 때만 멈춘다'],
-    ['④', '세게 던진 날(당일 · 다음 날) → 회복'],
+    ['④', '오늘 세게 던진 날 → 회복'],
     ['⑤', "'오늘 등판' → 회복 · '내일 등판' → 무게 없는 날"],
     ['⑥', '컨디션 4 이하 → 회복'],
     ['⑦', '재활 관절의 무거운 운동 0'],
@@ -12019,11 +12045,11 @@ console.log(
       preferredWorkout: null,
     });
     check(
-      'D2 (옛 facts) 저장해 둔 옛 facts(load 없는 hardOutings) — 30구는 hardOuting · 25구는 아님, 이유 글은 예전 그대로',
+      'D2 (옛 facts) 저장해 둔 옛 facts(load 없는 hardOutings) — 30구는 hardOuting · 25구는 아님, 다음 날은 등판 다음 날의 하체 날(2026-11-16)',
       hardOuting(legacy)?.pitches === 30 &&
         hardOuting(legacyLow) === null &&
-        legacyTheme.reason ===
-          '어제 거의 전력으로 30구를 던지셨어요. 오늘은 가볍게 풀고, 내일부터 무게를 다시 올려요.',
+        legacyTheme.key === 'lower' &&
+        legacyTheme.reason === '어제 30구를 던졌어요. 등판 다음 날은 하체 위주로 해요.',
       legacyTheme.reason
     );
   }
@@ -12040,51 +12066,65 @@ console.log(
         preferredWorkout: null,
       });
     };
+    /*
+     * 2026-11-16 로 바뀜(김민 결정 — 등판 다음 날은 운동 날) — 왜: '거의 전력으로 · 팔 부담이 컸어요'는 이제 던진 그날의 회복 글에만 쓴다.
+     * 다음 날은 회복이 아니라 등판 다음 날의 하체 날이고 글도 '어제 N구를 던졌어요. 등판 다음 날은 하체 위주로 해요.' 하나다.
+     */
     const game = themeOf([pctLog(dayBefore(0), 85, 70, '경기')]);
     const light = themeOf([pctLog(yesterday, 60, 50)]);
-    const near = themeOf([pctLog(yesterday, 40, 90)]);
+    const near = themeOf([pctLog(dayBefore(0), 40, 90)]);
     check(
-      'D2 (이유 글) 평균 90% 이상은 "거의 전력으로", 많이 가볍게(60구 50%)와 경기 85구 70%(경기도 고른 강도대로)는 "팔 부담이 컸어요" — 모두 회복',
+      'D2 (이유 글) 오늘 던진 날 — 평균 90% 이상은 "거의 전력으로", 경기 85구 70%(경기도 고른 강도대로)는 "팔 부담이 컸어요" → 회복. 어제 60구 50% 는 등판 다음 날의 하체 날',
       game.key === 'recovery' &&
         game.reason ===
-          '오늘 85구를 던져 팔 부담이 컸어요. 오늘과 내일은 가볍게 풀고, 모레부터 무게를 다시 올려요.' &&
-        near.reason.startsWith('어제 거의 전력으로 40구를') &&
-        light.key === 'recovery' &&
-        light.reason ===
-          '어제 60구를 던져 팔 부담이 컸어요. 오늘은 가볍게 풀고, 내일부터 무게를 다시 올려요.',
+          '오늘 85구를 던져 팔 부담이 컸어요. 오늘은 가볍게 풀어요. 무게는 내일 하체부터 다시 들어요.' &&
+        near.key === 'recovery' &&
+        near.reason.startsWith('오늘 거의 전력으로 40구를') &&
+        light.key === 'lower' &&
+        light.reason === '어제 60구를 던졌어요. 등판 다음 날은 하체 위주로 해요.',
       `${game.reason} / ${near.reason} / ${light.reason}`
     );
-    const f = factsOfLogs([pctLog(yesterday, 60, 50)]);
-    const conflict = workoutConflict({ facts: f, preferredWorkout: '웨이트' });
+    const conflictOf = (date: string) =>
+      workoutConflict({
+        facts: factsOfLogs([pctLog(date, 60, 50)]),
+        preferredWorkout: '웨이트',
+      });
+    const conflict = conflictOf(dayBefore(0));
     check(
-      'D2 (이유 글) 웨이트를 골라도 부딪힘 까닭이 같은 말 — "어제 60구를 던져 팔 부담이 컸어요" → 회복',
+      'D2 (이유 글) 오늘 던진 날 웨이트를 골라도 부딪힘 까닭이 같은 말 — "오늘 60구를 던져 팔 부담이 컸어요" → 회복. 어제 던진 날은 안 부딪힌다',
       conflict?.fallback === 'recovery' &&
-        conflict.reason === '어제 60구를 던져 팔 부담이 컸어요',
-      JSON.stringify(conflict)
+        conflict.reason === '오늘 60구를 던져 팔 부담이 컸어요' &&
+        conflictOf(yesterday) === null,
+      `${JSON.stringify(conflict)} / ${JSON.stringify(conflictOf(yesterday))}`
     );
     check(
       'D2 (이유 글) 글자 규칙 — 줄표 없음 · 해요체',
       ![game.reason, light.reason, conflict?.reason ?? ''].some((t) =>
         t.includes('—')
-      ) && [game.reason, light.reason].every((t) => t.endsWith('올려요.'))
+      ) && [game.reason, light.reason].every((t) => t.endsWith('요.'))
     );
     /*
      * 2판 P3 검토(2026-10-12): 이유 글의 'N구'는 그날 던진 공의 합이다 — 경기 25구 + 캐치볼 20구는 45구(평균이 90% 밑이라
-     * '팔 부담'). 85% 30구(옛 규칙의 날 — nearMaxPitches)도 회복이고 같은 꼴의 글이다.
+     * '팔 부담'). 85% 30구(옛 규칙의 날 — nearMaxPitches)도 세게 던진 날이고 같은 꼴의 글이다. 2026-11-16 부터 다음 날 글도 그날 공의 합.
      */
-    const mixed = themeOf([
-      pctLog(yesterday, 25, 80, '경기'),
-      pctLog(yesterday, 20, 50, '캐치볼'),
-    ]);
-    const pct85 = themeOf([pctLog(yesterday, 30, 85)]);
+    const mixedOn = (date: string) =>
+      themeOf([pctLog(date, 25, 80, '경기'), pctLog(date, 20, 50, '캐치볼')]);
+    const mixed = mixedOn(dayBefore(0));
+    const mixedAfter = mixedOn(yesterday);
+    const pct85 = themeOf([pctLog(dayBefore(0), 30, 85)]);
+    const pct85After = themeOf([pctLog(yesterday, 30, 85)]);
     check(
-      'D2 (이유 글) 경기 25구 + 캐치볼 20구 → "어제 45구를 던져 팔 부담이 컸어요"(그날 공의 합) · 85% 30구 → 회복 "어제 30구를 던져 팔 부담이 컸어요"',
+      'D2 (이유 글) 경기 25구 + 캐치볼 20구 → "오늘 45구를 던져 팔 부담이 컸어요"(그날 공의 합) · 85% 30구 → 회복 "오늘 30구를 던져 팔 부담이 컸어요", 다음 날은 "어제 45구 · 30구를 던졌어요" 하체 날',
       mixed.key === 'recovery' &&
         mixed.reason ===
-          '어제 45구를 던져 팔 부담이 컸어요. 오늘은 가볍게 풀고, 내일부터 무게를 다시 올려요.' &&
+          '오늘 45구를 던져 팔 부담이 컸어요. 오늘은 가볍게 풀어요. 무게는 내일 하체부터 다시 들어요.' &&
         pct85.key === 'recovery' &&
-        pct85.reason.startsWith('어제 30구를 던져 팔 부담이 컸어요'),
-      `${mixed.reason} / ${pct85.reason}`
+        pct85.reason.startsWith('오늘 30구를 던져 팔 부담이 컸어요') &&
+        mixedAfter.key === 'lower' &&
+        mixedAfter.reason === '어제 45구를 던졌어요. 등판 다음 날은 하체 위주로 해요.' &&
+        pct85After.key === 'lower' &&
+        pct85After.reason.startsWith('어제 30구를 던졌어요'),
+      `${mixed.reason} / ${pct85.reason} / ${mixedAfter.reason} / ${pct85After.reason}`
     );
   }
 
@@ -14129,10 +14169,13 @@ console.log(
    * P4 로 바뀜(2026-10-12 커밋 F, D3) — 왜: gameYesterday 가 어제 기록의 세션 종류 · 어제 '오늘 등판' 글자가 아니라 어제 팔 부담
    * (lib/engine/arm-load.ts yesterdayArmLoadOf)이 됐다. 그래서 옛 식과는 나머지 세 칸(gameToday · gameTomorrow · bullpenToday)만 견주고,
    * gameYesterday 는 '팔 부담이 있으면 참'인지 본다. 입력에서 어제 기록(typesYesterday)이 빠졌다.
+   * 2026-11-16 로 바뀜(김민 결정 — 등판 다음 날은 운동 날) — 왜: 어제 세게 던졌거나 기록 없는 등판 다음 날은 이제 쉬지 않는다.
+   * gameYesterday 는 던진 것에 최근 운동 힘듦 급증이 겹친 날만 참이다(lib/engine/arm-load.ts restsAfterOuting — 날 종류 R2 와 같은 날).
    */
-  const ARM_KINDS: (Pick<YesterdayArmLoad, 'kind'> | null)[] = [
+  const ARM_KINDS: ((Pick<YesterdayArmLoad, 'kind'> & { spike?: boolean }) | null)[] = [
     null,
     { kind: 'hard' },
+    { kind: 'hard', spike: true },
     { kind: 'moderateSpike' },
     { kind: 'claimedNoLog' },
   ];
@@ -14152,14 +14195,19 @@ console.log(
             typesToday: t0,
             yesterdayArmLoad: arm,
           });
-          const want = { ...oldProgram(a, b, t0, []), gameYesterday: arm != null };
+          const want = {
+            ...oldProgram(a, b, t0, []),
+            gameYesterday:
+              arm?.kind === 'moderateSpike' || (arm?.kind === 'hard' && arm.spike === true),
+          };
           if (json(got) !== json(want)) {
             programMiss++;
-            if (!firstMiss) firstMiss = `${a} / ${b} / ${t0.join(',')} / ${arm?.kind}`;
+            if (!firstMiss)
+              firstMiss = `${a} / ${b} / ${t0.join(',')} / ${arm?.kind}${arm?.spike ? '+급증' : ''}`;
           }
         }
   check(
-    `통일 (프로그램) programSignalsOf 가 옛 throwSignals 식과 ${programN}가지 모두 같다(답 ${RAW.length} × ${RAW.length} × 오늘 기록 ${TYPES.length} × 어제 팔 부담 ${ARM_KINDS.length}, gameYesterday 는 P4 로 바뀜 — 팔 부담이 있으면 참)`,
+    `통일 (프로그램) programSignalsOf 가 옛 throwSignals 식과 ${programN}가지 모두 같다(답 ${RAW.length} × ${RAW.length} × 오늘 기록 ${TYPES.length} × 어제 팔 부담 ${ARM_KINDS.length}, gameYesterday 는 2026-11-16 로 바뀜 — 운동 힘듦 급증이 겹친 날만 참)`,
     programMiss === 0 && programN === RAW.length ** 2 * TYPES.length * ARM_KINDS.length,
     `${programMiss}가지 다름 — 처음: ${firstMiss}`
   );
@@ -14230,13 +14278,14 @@ console.log(
       /*
        * P4 로 바뀜(커밋 F) — 입력이 어제 기록 대신 어제 팔 부담이다. 기록이 없는 이 길에서는 그 값이 어제 '오늘 등판' 답(기록 없는
        * 등판, claimedNoLog)일 때만 있어, 옛 식(어제 '오늘 등판' 글자)과 그대로 같다 — 목록 밖 글자('오늘등판')는 둘 다 아니다.
+       * 2026-11-16 로 바뀜 — 기록 없는 등판 다음 날은 쉬지 않는다(등판 다음 날은 운동 날). 이 길에서 gameYesterday 는 늘 거짓이다.
        */
       const got = programSignalsOf({
         outing: state.outing,
         typesToday: [],
         yesterdayArmLoad: yesterdayArmLoadOf(pathFacts),
       });
-      if (json(got) !== json(oldProgram(a ?? null, b ?? null, [], []))) {
+      if (json(got) !== json({ ...oldProgram(a ?? null, b ?? null, [], []), gameYesterday: false })) {
         pathMiss++;
         if (!pathFirst) pathFirst = `${a} / ${b} → ${json(got)}`;
       }
@@ -14491,15 +14540,16 @@ console.log(
     const claimedPlan = buildPitchPlan(claimed);
     const claimedState = buildDayState({ facts: claimed, plan: claimedPlan });
     check(
-      "엇갈림이 아님 (P4 로 바뀜 — 커밋 F) 어제 '오늘 등판' 답만(기록 없음) → 프로그램 쉼 · 매일 일정 날 종류 R3'(보조) · 암케어 회복이 모두 같은 함수(claimedNoLog)",
+      "엇갈림이 아님 (2026-11-16 로 바뀜) 어제 '오늘 등판' 답만(기록 없음) → 프로그램은 쉬지 않음 · 매일 일정 날 종류 R5'(등판 다음 날의 근력 날) · 암케어는 회복 — 모두 같은 함수(claimedNoLog)",
       /*
        * P4 로 바뀜 — 칸 이름 source → lastSource, 'checkin' → 'checkin-yesterday'(2판 P4 커밋 B, 뜻은 같다). 커밋 F(D3) 로 이 칸은 '프로그램만
        * 다른 곳'에서 빠졌다: 예전에는 프로그램만 경기 다음 날로 쉬고 암케어는 강화였다(엇갈림 표 C6).
        */
-      sigOf(null, '오늘 등판').gameYesterday === true &&
+      sigOf(null, '오늘 등판').gameYesterday === false &&
         claimedState.outing.lastSource === 'checkin-yesterday' &&
         yesterdayArmLoadOf(claimed)?.kind === 'claimedNoLog' &&
-        dayKindOf(claimed).rule === 'claimedNoLog' &&
+        dayKindOf(claimed).rule === 'afterOuting' &&
+        dayKindOf(claimed).afterOuting &&
         decideArmcare({
           facts: claimed,
           plan: claimedPlan,
@@ -16590,6 +16640,8 @@ console.log(
     logs?: McLog[];
     /** 운동 끝 힘듦(DailyTrainingNote) — 안 주면 facts 에 trainingEffort 칸이 없다 */
     notes?: TrainingNoteLike[];
+    /** 평소 하루 부하(문진) — 안 주면 100. 넉넉히 주면 큰 등판 다음 날에도 부하 지수가 위험 구간이 아니라 날 종류 규칙만 본다 */
+    baseline?: number;
     /** 달력 일정(2판 P4 커밋 G) — 주면(빈 목록이어도) facts 에 등판 짐작의 두 칸이 생긴다. 안 주면 칸이 없다 */
     calendar?: CalendarEventLike[];
   };
@@ -16612,7 +16664,7 @@ console.log(
       age: 22,
       heightCm: 180,
       trainingLevel: null,
-      baselineDailyLoad: 100,
+      baselineDailyLoad: p.baseline ?? 100,
       rehab: null,
       today: TODAY,
       logs: (p.logs ?? []).map<PitchLogLike>((l) => ({
@@ -16663,10 +16715,11 @@ console.log(
           hard: 'recovery',
           outingToday: 'recovery',
           moderateSpike: 'recovery',
-          claimedNoLog: 'light',
           outingTomorrow: 'light',
           softOutingNear: 'light',
           outingSoon: 'strength',
+          /* 2026-11-16 로 바뀜(김민 결정) — 등판 다음 날은 운동 날. 옛 claimedNoLog(보조)는 이 규칙으로 들어왔다 */
+          afterOuting: 'strength',
           outingFar: 'strength',
           none: 'none',
         })
@@ -16700,10 +16753,49 @@ console.log(
       p: { today: { throwPlan: '오늘 불펜' } },
       expect: { rule: 'none', side: null, heavy: true },
     },
+    /*
+     * 2026-11-16 로 바뀜(김민 결정 — 등판 다음 날은 운동 날) — 왜: 어제 세게 던진 날 · 기록 없는 등판 다음 날은 회복 · 보조가 아니라
+     * 하체 위주 근력 날이다(R5' afterOuting — 양은 줄인다). R1 은 오늘 세게 던진 날만. 더 가볍게 가야 하는 규칙(R3 오늘 등판 · R2 힘듦 급증 ·
+     * R4 내일 등판 · R5 등판 3일 안)이 앞선다.
+     */
     {
-      name: 'R1 어제 경기 85구',
+      name: "R5' 어제 경기 85구(등판 다음 날 — 하체 쪽 · 짧게)",
       p: { logs: [{ daysAgo: 1, pitches: 85, pct: 100, sessionType: '경기' }] },
-      expect: { rule: 'hard', side: null, heavy: true, shorten: false },
+      expect: { rule: 'afterOuting', side: 'lower', heavy: true, shorten: true },
+    },
+    {
+      name: "R2 가 R5' 보다 앞 — 어제 경기 85구 + 힘듦 급증 → 회복",
+      p: {
+        logs: [{ daysAgo: 1, pitches: 85, pct: 100, sessionType: '경기' }],
+        notes: SPIKE,
+      },
+      expect: { rule: 'moderateSpike', side: null, shorten: true },
+    },
+    {
+      name: "R5 가 R5' 보다 앞 — 어제 경기 85구 + 오늘 '2~3일 뒤' → 다리를 아끼는 상체 쪽(양은 같이 줄인다)",
+      p: {
+        today: { throwPlan: '2~3일 뒤' },
+        logs: [{ daysAgo: 1, pitches: 85, pct: 100, sessionType: '경기' }],
+      },
+      expect: { rule: 'outingSoon', side: 'upper', heavy: false, shorten: true },
+    },
+    {
+      name: "R5' 가 R6 보다 앞 — 어제 경기 85구 + 오늘 '4일 이상 뒤'",
+      p: {
+        today: { throwPlan: '4일 이상 뒤' },
+        logs: [{ daysAgo: 1, pitches: 85, pct: 100, sessionType: '경기' }],
+      },
+      expect: { rule: 'afterOuting', side: 'lower', heavy: true, shorten: true },
+    },
+    {
+      name: "R1 이 R5' 보다 앞 — 어제 경기 85구 + 오늘 불펜 60구 50%(오늘도 세게 던진 날)",
+      p: {
+        logs: [
+          { daysAgo: 1, pitches: 85, pct: 100, sessionType: '경기' },
+          { daysAgo: 0, pitches: 60, pct: 50, sessionType: '불펜' },
+        ],
+      },
+      expect: { rule: 'hard', side: null, shorten: false },
     },
     {
       name: 'R1 오늘 불펜 60구 50%(3,000)',
@@ -16711,12 +16803,12 @@ console.log(
       expect: { rule: 'hard', shorten: false },
     },
     {
-      name: "R1 이 R3 보다 앞 — 어제 경기 85구 + 오늘 '오늘 등판'",
+      name: "R3 이 R5' 보다 앞 — 어제 경기 85구 + 오늘 '오늘 등판'",
       p: {
         today: { throwPlan: '오늘 등판' },
         logs: [{ daysAgo: 1, pitches: 85, pct: 100, sessionType: '경기' }],
       },
-      expect: { rule: 'hard', heavy: false },
+      expect: { rule: 'outingToday', heavy: false },
     },
     {
       name: "R3 오늘 '오늘 등판'",
@@ -16791,22 +16883,22 @@ console.log(
       expect: { rule: 'outingToday', shorten: false },
     },
     {
-      name: "R3' 어제 '오늘 등판' + 기록 없음 + 오늘 답 없음",
+      name: "R5' 어제 '오늘 등판' + 기록 없음 + 오늘 답 없음(옛 R3' — 기록 없는 등판 다음 날)",
       p: { today: { throwPlan: null }, yesterday: { throwPlan: '오늘 등판' } },
-      expect: { rule: 'claimedNoLog', side: null, heavy: true },
+      expect: { rule: 'afterOuting', side: 'lower', heavy: true, shorten: true },
     },
     {
-      name: "R3' 오늘 체크인 없음 + 어제 '오늘 등판' + 기록 없음",
+      name: "R5' 오늘 체크인 없음 + 어제 '오늘 등판' + 기록 없음",
       p: { today: null, yesterday: { throwPlan: '오늘 등판' } },
-      expect: { rule: 'claimedNoLog' },
+      expect: { rule: 'afterOuting' },
     },
     {
-      name: "R3' 가 R4 보다 앞 — 어제 '오늘 등판'(기록 없음) + 오늘 '내일 등판'",
+      name: "R4 가 R5' 보다 앞 — 어제 '오늘 등판'(기록 없음) + 오늘 '내일 등판'",
       p: { today: { throwPlan: '내일 등판' }, yesterday: { throwPlan: '오늘 등판' } },
-      expect: { rule: 'claimedNoLog', heavy: false },
+      expect: { rule: 'outingTomorrow', heavy: false },
     },
     {
-      name: "R3' 없음 — 어제 '오늘 등판' + 어제 경기 20구 기록(부하를 안다)",
+      name: "R5' 없음 — 어제 '오늘 등판' + 어제 경기 20구 기록(부하를 안다 — 세게 던진 날이 아니다)",
       p: {
         yesterday: { throwPlan: '오늘 등판' },
         logs: [{ daysAgo: 1, pitches: 20, pct: 100, sessionType: '경기' }],
@@ -16888,9 +16980,9 @@ console.log(
       expect: { rule: 'none', shorten: false },
     },
     {
-      name: '짧게 아님 — 어제 경기 35구(세게 던진 날 → 회복)',
+      name: '짧게 — 어제 경기 35구(세게 던진 날 → 등판 다음 날은 양을 줄인다, 2026-11-16)',
       p: { logs: [{ daysAgo: 1, pitches: 35, pct: 100, sessionType: '경기' }] },
-      expect: { rule: 'hard', shorten: false },
+      expect: { rule: 'afterOuting', shorten: true },
     },
     {
       name: "짧게(회복 날이라 일정은 안 줄임) — 어제 경기 25구 + 오늘 '오늘 등판'",
@@ -17048,26 +17140,48 @@ console.log(
     { ...c6p, today: { throwPlan: null, preferredWorkout: '파워' } },
     { override: true }
   );
+  /*
+   * 2026-11-16 로 바뀜(김민 결정 — 등판 다음 날은 운동 날) — 왜: 기록 없는 등판 다음 날(옛 R3' 보조)도 등판 다음 날의 하체 날이다
+   * (R5' afterOuting). 근력 날이라 부딪힘이 없고, 이유 글에서 그렇게 본 까닭을 말하며 기록을 청한다.
+   */
   check(
-    "P4 날 종류 (나) R3' → 보조 · '어제 등판이라고 적었는데 투구 기록이 없어요. 오늘은 무게 대신 코어와 보강을 해요. 기록을 남기면 던진 양으로 다시 짤 수 있어요.'",
-    c6.key === 'assist' &&
-      c6.label === '보조·코어 데이' &&
+    "P4 날 종류 (나) R5'(기록 없는 등판 다음 날) → 하체 · '어제 등판이라고 적었는데 투구 기록이 없어요. 등판 다음 날로 보고 하체 위주로 짰어요. 기록을 남기면 던진 양으로 다시 짤 수 있어요.'",
+    c6.key === 'lower' &&
+      c6.label === '하체 스트렝스 데이' &&
       c6.reason ===
-        '어제 등판이라고 적었는데 투구 기록이 없어요. 오늘은 무게 대신 코어와 보강을 해요. 기록을 남기면 던진 양으로 다시 짤 수 있어요.',
+        '어제 등판이라고 적었는데 투구 기록이 없어요. 등판 다음 날로 보고 하체 위주로 짰어요. 기록을 남기면 던진 양으로 다시 짤 수 있어요.',
     `${c6.key} · ${c6.reason}`
   );
   check(
-    "P4 날 종류 (나) R3' 에 파워를 고르면 까닭 같은 말 · 보조로, 그래도 하기면 근력(통증이 아니라 고를 수 있다)",
-    c6Clash?.fallback === 'assist' &&
-      c6Clash.reason === '어제 등판이라고 적었는데 투구 기록이 없어요' &&
-      (c6Forced.key === 'lower' || c6Forced.key === 'upper'),
+    "P4 날 종류 (나) R5' 에 파워를 골라도 부딪히지 않는다(근력 날) — 그래도 하기 없이도 근력",
+    c6Clash === null && (c6Forced.key === 'lower' || c6Forced.key === 'upper'),
     `${json(c6Clash)} / ${c6Forced.key}`
   );
-  /* 예전 글은 글자 그대로 — R1 · R3 · R4 */
+  {
+    /* 등판 다음 날의 하체 날은 번갈아 차례보다 먼저 — 다만 어제 하체를 했으면 번갈아에 맡긴다(같은 쪽을 이틀 잇지 않는다) */
+    const afterP: McPerson = {
+      baseline: 2000,
+      logs: [{ daysAgo: 1, pitches: 85, pct: 100, sessionType: '경기' }],
+    };
+    const key = (n: number) => dayBefore(n).slice(0, 10);
+    const lowerRecent = themeOf(afterP, { lastLowerKey: key(3), lastUpperKey: key(5) });
+    const lowerYesterday = themeOf(afterP, { lastLowerKey: key(1), lastUpperKey: key(5) });
+    check(
+      "P4 날 종류 (나) R5' 쪽 — 하체를 더 최근에 했어도 하체(번갈아보다 먼저), 어제 하체를 했으면 상체(이틀 잇지 않음)",
+      lowerRecent.key === 'lower' &&
+        lowerRecent.reason === '어제 85구를 던졌어요. 등판 다음 날은 하체 위주로 해요.' &&
+        lowerYesterday.key === 'upper',
+      [lowerRecent, lowerYesterday].map((t) => `${t.key} ${t.reason}`).join(' / ')
+    );
+  }
+  /* R3 · R4 의 글 — 오늘 등판 글은 2026-11-16 에 '무게는 내일 하체부터'로 바뀌었다(등판 다음 날이 운동 날이 돼서). 어제 85구는 R5' */
   const old3 = [
     themeOf({ today: { throwPlan: '오늘 등판' } }),
     themeOf({ today: { throwPlan: '내일 등판' } }),
-    themeOf({ logs: [{ daysAgo: 1, pitches: 85, pct: 100, sessionType: '경기' }] }),
+    themeOf({
+      baseline: 2000,
+      logs: [{ daysAgo: 1, pitches: 85, pct: 100, sessionType: '경기' }],
+    }),
   ];
   const oldClash = [
     workoutConflict({
@@ -17080,16 +17194,15 @@ console.log(
     }),
   ];
   check(
-    'P4 날 종류 (나) R1 · R3 · R4 의 테마 · 글 · 부딪힘 까닭은 커밋 E 전과 글자까지 같다',
+    "P4 날 종류 (나) R3 · R4 · R5' 의 테마 · 글 · 부딪힘 까닭",
     old3[0].reason ===
-      '오늘 등판이에요. 가볍게 풀고 활성화만 하고, 무게는 모레부터 다시 올려요.' &&
+      '오늘 등판이에요. 가볍게 풀고 활성화만 해요. 무게는 내일 하체부터 다시 들어요.' &&
       old3[0].key === 'recovery' &&
       old3[1].reason ===
         '내일 등판이라 무게 대신 코어와 보강을 해요. 등판 전날은 다리를 가볍게 둬요.' &&
       old3[1].key === 'assist' &&
-      old3[2].reason ===
-        '어제 거의 전력으로 85구를 던지셨어요. 오늘은 가볍게 풀고, 내일부터 무게를 다시 올려요.' &&
-      old3[2].key === 'recovery' &&
+      old3[2].reason === '어제 85구를 던졌어요. 등판 다음 날은 하체 위주로 해요.' &&
+      old3[2].key === 'lower' &&
       json(oldClash) ===
         json([
           { reason: '오늘 등판이에요', fallback: 'recovery' },
@@ -17097,13 +17210,13 @@ console.log(
         ]),
     old3.map((t) => t.reason).join(' / ')
   );
-  /* 차례 — 회복이 보조보다 앞(컨디션 3 + R3' → 회복), 보조는 근육통 '심함' 뒤 · 부하 주의 앞 */
+  /* 차례 — 몸 상태의 회복이 등판 다음 날보다 앞(컨디션 3 + R5' → 회복), 보조는 근육통 '심함' 뒤 · 부하 주의 앞 */
   const c6Low = themeOf({
     today: { throwPlan: null, condition: 3 },
     yesterday: { throwPlan: '오늘 등판' },
   });
   check(
-    "P4 날 종류 (나) 차례 — R3'(보조)와 컨디션 3(회복)이 같이 걸리면 회복(회복이 보조보다 앞)",
+    "P4 날 종류 (나) 차례 — R5'(등판 다음 날)와 컨디션 3(회복)이 같이 걸리면 회복(몸 상태가 먼저)",
     c6Low.key === 'recovery' && c6Low.reason.includes('컨디션이 3/10'),
     c6Low.reason
   );
@@ -17141,7 +17254,7 @@ console.log(
       farFresh.reason,
       OUTING_LIGHT_LOWER_NOTE,
     ].every((t) => !t.includes('—') && t.endsWith('요.')) &&
-      [r2Clash?.reason ?? '', c6Clash?.reason ?? ''].every(
+      [r2Clash?.reason ?? ''].every(
         (t) => t.length > 0 && !t.includes('—') && t.endsWith('요')
       )
   );
@@ -17153,6 +17266,7 @@ console.log(
     let rec = 0;
     let light = 0;
     let claimed = 0;
+    let afterDays = 0;
     let soon = 0;
     let clashes = 0;
     let spikeBit = 0;
@@ -17167,9 +17281,17 @@ console.log(
       const dk = dayKindOf(facts);
       const outing = outingOf(facts);
       const planned = plannedOuting(facts);
-      /* 커밋 E 전 사슬(hardOuting · plannedOuting)로 낸 날 — 급증 칸이 없는 facts 라 R2 는 없고, 새 것은 R3' 하나 */
-      const oldRecovery = hardOuting(facts) != null || planned === 'today';
+      /*
+       * 커밋 E 전 사슬(hardOuting · plannedOuting)로 낸 날 — 급증 칸이 없는 facts 라 R2 는 없다.
+       * 2026-11-16 로 바뀜(김민 결정 — 등판 다음 날은 운동 날) — 왜: 회복은 '오늘' 세게 던진 날 · 오늘 등판만, 보조는 내일 등판만이다.
+       * 어제 세게 던진 날 · 기록 없는 등판 다음 날은 등판 다음 날(dk.afterOuting)이고 회복 · 보조가 아니다.
+       */
+      const hardDays = facts.patterns.hardOutings ?? [];
+      const hardOn = (d: number) => hardDays.some((o) => o.daysAgo === d && isHardOuting(o));
+      const oldRecovery = hardOn(0) || planned === 'today';
       const oldLight = !oldRecovery && planned === 'tomorrow';
+      const wantAfter = !hardOn(0) && (hardOn(1) || outing.claimedYesterdayNoLog);
+      if (wantAfter) afterDays++;
       /*
        * P4 검토로 바뀜 — 왜: 기록 없는 등판은 지난 등판(lastSource)이 아니라 어제 기록 유무(claimedYesterdayNoLog)로 본다. 오늘 기록이 있어도
        * 어제 줄이 없으면 R3'(예전에는 오늘 캐치볼 한 줄이 어제의 기록 없는 등판을 지웠다).
@@ -17180,7 +17302,10 @@ console.log(
       if (isClaim) claimed++;
       if (
         (dk.rank === 'recovery') !== oldRecovery ||
-        (dk.rank === 'light') !== (oldLight || isClaim)
+        (dk.rank === 'light') !== oldLight ||
+        dk.afterOuting !== wantAfter ||
+        (dk.rule === 'afterOuting') !==
+          (wantAfter && !oldRecovery && !oldLight && dk.heavyLowerAllowed)
       ) {
         missSame.push(`p3-${i} ${dk.rule}`);
       }
@@ -17271,8 +17396,8 @@ console.log(
       }
     }
     check(
-      `P4 날 종류 (다) ${n}조합 — 회복 날 ⇔ 세게 던진 날 · 오늘 등판, 보조 날 ⇔ 내일 등판 · 기록 없는 등판 다음 날(새 것 ${claimed}) — 회복 ${rec} · 보조 ${light}`,
-      n === 160 && claimed >= 3 && rec >= 20 && light >= 10 && missSame.length === 0,
+      `P4 날 종류 (다) ${n}조합 — 회복 날 ⇔ 오늘 세게 던진 날 · 오늘 등판, 보조 날 ⇔ 내일 등판, 등판 다음 날 ${afterDays}(그중 기록 없는 등판 ${claimed}) — 회복 ${rec} · 보조 ${light}`,
+      n === 160 && claimed >= 3 && afterDays >= 10 && rec >= 10 && light >= 5 && missSame.length === 0,
       missSame.slice(0, 3).join(' / ')
     );
     check(
@@ -17368,6 +17493,38 @@ console.log(
       picksOf(farLower).some(isHeavyLower),
     isHalted(farLower) ? '멈춤' : json(farLower.theme)
   );
+  /*
+   * 등판 다음 날의 일정(2026-11-16 김민 결정) — 하체 날 · 양 줄임(60 → 45분) · 팔 플라이오 없음. 같은 사람이 이틀 전에 던졌으면(등판 다음 날이
+   * 아님) 시간은 그대로다. 평소 부하를 넉넉히 둬 부하 위험 구간이 아니라 이 규칙만 본다.
+   */
+  {
+    const dayAfter = (daysAgo: number) =>
+      mcBuild(
+        {
+          baseline: 2000,
+          logs: [{ daysAgo, pitches: 85, pct: 100, sessionType: '경기' }],
+        },
+        { minutes: 60 }
+      );
+    const after = dayAfter(1);
+    const later = dayAfter(2);
+    check(
+      "P4 날 종류 (라) 등판 다음 날 — 하체 날 · 60분 → 45분 · 이유 '어제 85구를 던졌어요. 등판 다음 날은 하체 위주로 해요. 등판 다음 날이라 양은 줄여 45분으로 잡았어요.' · 팔 플라이오 없음 · 본운동 있음, 이틀 뒤는 60분 그대로",
+      !isHalted(after) &&
+        after.theme.key === 'lower' &&
+        after.minutes === 45 &&
+        after.theme.reason ===
+          '어제 85구를 던졌어요. 등판 다음 날은 하체 위주로 해요. 등판 다음 날이라 양은 줄여 45분으로 잡았어요.' &&
+        !picksOf(after).some(isArmPlyo) &&
+        after.picks.some((k) => k.slot === 'main') &&
+        !isHalted(later) &&
+        later.minutes === 60 &&
+        !later.theme.reason.includes('등판 다음 날'),
+      isHalted(after) || isHalted(later)
+        ? '멈춤'
+        : `${after.theme.key} · ${after.minutes}분 · ${after.theme.reason} / ${later.minutes}분`
+    );
+  }
   const relief = (minutes: number, extra: McPerson = {}) =>
     mcBuild(
       { logs: [{ daysAgo: 1, pitches: 25, pct: 100, sessionType: '경기' }], ...extra },
@@ -18038,25 +18195,42 @@ console.log(
           const r = afRead(p);
           const k = r.arm?.kind ?? null;
           kinds[k ?? 'null'] = (kinds[k ?? 'null'] ?? 0) + 1;
-          if (r.signals.gameYesterday !== (k != null)) miss.program.push(name);
-          if (k === 'hard' && r.dk.rule !== 'hard')
+          /*
+           * 2026-11-16 로 바뀜(김민 결정 — 등판 다음 날은 운동 날) — 왜: 어제 팔 부담이 있다고 다 쉬지 않는다. 쉬는 것은 던진 것에 최근 운동
+           * 힘듦 급증이 겹친 날(중간 부하 + 급증, 세게 던진 날 + 급증 — 날 종류 R2)뿐이고, 그 밖의 세게 던진 날 · 기록 없는 등판 다음 날은
+           * 등판 다음 날의 근력 날(R5' afterOuting)이다. 프로그램 신호 · 날 종류가 같은 날을 같게 말하는지 본다. 암케어의 회복은 그대로다.
+           */
+          const rests =
+            k === 'moderateSpike' || (k === 'hard' && notes === AF_SPIKE);
+          const after = k === 'hard' || k === 'claimedNoLog';
+          if (r.signals.gameYesterday !== rests) miss.program.push(name);
+          /* 등판 다음 날 표시 — 오늘도 세게 던진 날(R1, '오늘 불펜 60 · 50%' + 어제 '오늘 등판' 답)이면 서지 않는다 */
+          if ((after && r.dk.rule !== 'hard') !== r.dk.afterOuting)
             miss.hardRule.push(`${name}: ${r.dk.rule}`);
           if (
-            (r.dk.rule === 'moderateSpike' && k !== 'moderateSpike') ||
-            (r.dk.rule === 'claimedNoLog' && k !== 'claimedNoLog')
+            (r.dk.rule === 'moderateSpike' && !rests) ||
+            (r.dk.rule === 'afterOuting' && (!after || rests))
           )
             miss.ruleArm.push(`${name}: ${r.dk.rule} · ${k}`);
-          /* 그 둘이 걸렸는데 날 종류가 다른 규칙이면, 그 규칙은 앞 차례(R1 세게 · R3 오늘 등판 — 둘 다 회복)여야 한다 */
+          /* 쉬는 날인데 날 종류가 R2 가 아니면 앞 차례(R3 오늘 등판 — 회복)여야 한다 */
+          if (rests && r.dk.rule !== 'moderateSpike' && r.dk.rule !== 'outingToday')
+            miss.ruleArm.push(`${name}: ${k} + 급증인데 ${r.dk.rule}`);
+          /* 등판 다음 날인데 R5' 가 아니면 더 가볍게 가는 앞 차례(오늘 등판 · 내일 등판 · 등판 3일 안)여야 한다 */
           if (
-            (k === 'moderateSpike' || k === 'claimedNoLog') &&
-            r.dk.rule !== k &&
-            r.dk.rule !== 'hard' &&
-            r.dk.rule !== 'outingToday'
+            after &&
+            !rests &&
+            !['afterOuting', 'hard', 'outingToday', 'outingTomorrow', 'outingSoon'].includes(
+              r.dk.rule
+            )
           )
             miss.ruleArm.push(`${name}: ${k} 인데 ${r.dk.rule}`);
           if (k != null && !r.plan.halted && r.armcare.kind !== 'recovery')
             miss.armcare.push(`${name}: ${r.armcare.kind} · ${r.armcare.reason}`);
-          if (k != null && r.dk.rank !== 'recovery' && r.dk.rank !== 'light')
+          /* 프로그램이 쉬는 어제면 매일 일정도 회복, 매일 일정이 등판 다음 날의 근력 날이면 프로그램도 어제 때문에 쉬지 않는다 */
+          if (
+            (r.signals.gameYesterday && r.dk.rank !== 'recovery') ||
+            (r.dk.rule === 'afterOuting' && r.signals.gameYesterday)
+          )
             miss.rank.push(`${name}: ${r.dk.rule}`);
           /* 암케어 까닭의 '어제 N구'(휴식표 '· 아직 쉬는 기간'이 아닌 것)는 세게 · 중간 부하 + 급증일 때만 */
           const pieces = r.armcare.reason.split(' → ')[0].split(' · ');
@@ -18067,8 +18241,8 @@ console.log(
             );
           if (yesterdayPitchSignal && k !== 'hard' && k !== 'moderateSpike')
             miss.armSignal.push(`${name}: ${r.armcare.reason}`);
-          if (r.oldGameYesterday && k == null) flips.programLoosen++;
-          if (!r.oldGameYesterday && k != null) flips.programTighten++;
+          if (r.oldGameYesterday && !r.signals.gameYesterday) flips.programLoosen++;
+          if (!r.oldGameYesterday && r.signals.gameYesterday) flips.programTighten++;
           const oldYesterdayPitches =
             (r.facts.patterns.lastOutingPitches ?? 0) > 0 &&
             r.facts.patterns.restDays === 1;
@@ -18086,12 +18260,12 @@ console.log(
       )
   );
   check(
-    `P4 어제 팔 부담 (나) 프로그램 — 경기 다음 날 = 어제 팔 부담이 있음(${gridN}가지 모두)`,
+    `P4 어제 팔 부담 (나) 프로그램 — 어제 때문에 쉬는 날 = 던진 것에 운동 힘듦 급증이 겹친 날(${gridN}가지 모두, 2026-11-16)`,
     miss.program.length === 0,
     miss.program.slice(0, 3).join(' · ')
   );
   check(
-    `P4 어제 팔 부담 (나) 날 종류 — 어제 세게 던진 날이면 R1, R2 · R3′ 는 이 함수가 그렇다고 할 때만, 이 함수가 R2 · R3′ 인데 다른 날이면 앞 차례(R1 · R3)`,
+    `P4 어제 팔 부담 (나) 날 종류 — 어제 세게 던진 날 · 기록 없는 등판이면 등판 다음 날 표시, R2 · R5′ 는 이 함수가 그렇다고 할 때만, 다른 규칙이면 더 가볍게 가는 앞 차례`,
     miss.hardRule.length === 0 && miss.ruleArm.length === 0,
     [...miss.hardRule, ...miss.ruleArm].slice(0, 3).join(' · ')
   );
@@ -18101,7 +18275,7 @@ console.log(
     [...miss.armcare, ...miss.armSignal].slice(0, 3).join(' · ')
   );
   check(
-    `P4 어제 팔 부담 (나) 프로그램이 쉬는 어제(팔 부담)면 매일 일정은 회복 · 보조 — 같은 어제를 근력 날로 말하지 않는다`,
+    `P4 어제 팔 부담 (나) 프로그램이 어제 때문에 쉬면 매일 일정도 회복, 매일 일정이 등판 다음 날의 근력 날이면 프로그램도 쉬지 않는다 — 같은 어제를 다르게 말하지 않는다`,
     miss.rank.length === 0,
     miss.rank.slice(0, 3).join(' · ')
   );
@@ -18139,16 +18313,23 @@ console.log(
       now: 'go',
       before: 'rest:gameYesterday',
     },
+    /* 2026-11-16 로 바뀜(김민 결정 — 등판 다음 날은 운동 날) — 어제 세게 던졌어도 쉬지 않고 주의 한 줄만. 운동 힘듦 급증이 겹치면 쉰다 */
     {
-      name: '어제 경기 85구 → 쉼(그대로, 엇갈림 표 C2)',
+      name: '어제 경기 85구 → 진행 + 많이 던짐 주의(2026-11-16 — 예전 쉼, 엇갈림 표 C2)',
       p: { logs: [y1(85, 100, '경기')] },
+      now: 'go:hardThrow',
+      before: 'rest:gameYesterday',
+    },
+    {
+      name: '어제 경기 85구 + 힘듦 급증 → 쉼(던진 것에 운동 피로가 겹친 날)',
+      p: { logs: [y1(85, 100, '경기')], notes: AF_SPIKE },
       now: 'rest:gameYesterday',
       before: 'rest:gameYesterday',
     },
     {
-      name: '어제 불펜 40구 90% → 쉼(예전 주의 한 줄만 달고 진행)',
+      name: '어제 불펜 40구 90% → 진행 + 많이 던짐 주의(2026-11-16 — 커밋 F 전과 같아짐)',
       p: { logs: [y1(40, 90, '불펜')] },
-      now: 'rest:gameYesterday',
+      now: 'go:hardThrow',
       before: 'go:hardThrow',
     },
     {
@@ -18158,9 +18339,9 @@ console.log(
       before: 'go',
     },
     {
-      name: "어제 '오늘 등판' 답 · 기록 없음 → 쉼(그대로, 엇갈림 표 C6)",
+      name: "어제 '오늘 등판' 답 · 기록 없음 → 진행(2026-11-16 — 예전 쉼, 엇갈림 표 C6)",
       p: { yesterday: '오늘 등판' },
-      now: 'rest:gameYesterday',
+      now: 'go',
       before: 'rest:gameYesterday',
     },
     {
@@ -18176,11 +18357,11 @@ console.log(
       before: 'go:hardThrow',
     },
     {
-      name: '어제 불펜 40구 90% + 그래도 할래요 → 진행 + 쉬는 게 좋은 날 주의',
-      p: { logs: [y1(40, 90, '불펜')] },
+      name: '어제 불펜 30구 70% + 힘듦 급증 + 그래도 할래요 → 진행 + 쉬는 게 좋은 날 주의',
+      p: { logs: [y1(30, 70, '불펜')], notes: AF_SPIKE },
       override: true,
       now: 'go:gameOverride',
-      before: 'go:hardThrow',
+      before: 'go',
     },
   ];
   for (const c of progCases) {
@@ -18280,7 +18461,7 @@ console.log(
       missing.length === 0 &&
         !/typesYesterday/.test(programSrc) &&
         !/p\.restDays === 1\) signals\.push/.test(routineSrc) &&
-        /gameYesterday: x\.yesterdayArmLoad != null/.test(programSrc),
+        /gameYesterday: restsAfterOuting\(x\.yesterdayArmLoad\)/.test(programSrc),
       missing.join(' · ')
     );
   }
@@ -19299,25 +19480,35 @@ console.log(
     const o1 = outingOf(before);
     const o2 = outingOf(after);
     check(
-      "P4 화면 (마) 어제 30구를 남기면 지난 등판이 기록으로 바뀌고 날 종류가 '기록 없는 등판'(R3')에서 벗어난다",
+      /* 2026-11-16 로 바뀜 — 기록 없는 등판 다음 날도 등판 다음 날(R5' afterOuting, 재료 없음)이다. 기록을 남기면 그 기록이 재료가 된다 */
+      "P4 화면 (마) 어제 30구를 남기면 지난 등판이 기록으로 바뀌고 날 종류의 재료가 '기록 없음'에서 그 기록으로 바뀐다",
       o1.lastSource === 'checkin-yesterday' &&
-        dayKindOf(before).rule === 'claimedNoLog' &&
+        dayKindOf(before).rule === 'afterOuting' &&
+        dayKindOf(before).yesterday === null &&
         o2.lastSource === 'log' &&
         o2.daysSinceLast === 1 &&
         o2.lastPitches === 30 &&
-        dayKindOf(after).rule !== 'claimedNoLog' &&
+        dayKindOf(after).yesterday?.pitches === 30 &&
         !asksYesterdayPitches('오늘 등판', true),
-      `${dayKindOf(before).rule} → ${dayKindOf(after).rule}`
+      `${dayKindOf(before).rule} → ${dayKindOf(after).rule} · ${JSON.stringify(dayKindOf(after).yesterday)}`
     );
-    /* 세게 던진 날이면 회복(R1) — 기록이 부하로 읽힌다 */
-    const big = hFacts({
-      today: null,
-      yesterday: '오늘 등판',
-      logs: [{ daysAgo: 1, pitches: 80, sessionType: '경기', effortPct: 100 }],
-    });
+    /* 기록이 부하로 읽힌다 — 세게 던진 날이면 등판 다음 날(R5') 그대로, 가볍게 던졌으면 등판 다음 날에서 풀린다 */
+    const logged = (pitches: number) =>
+      hFacts({
+        today: null,
+        yesterday: '오늘 등판',
+        logs: [{ daysAgo: 1, pitches, sessionType: '경기', effortPct: 100 }],
+      });
+    const big = logged(80);
+    const small = logged(15);
     check(
-      'P4 화면 (마) 어제 경기 80구를 남기면 세게 던진 날(R1 hard)로 회복 — 부하 기준(D3)',
-      dayKindOf(big).rule === 'hard' && outingOf(big).lastSource === 'log'
+      "P4 화면 (마) 어제 경기 80구를 남기면 세게 던진 날의 다음 날(R5' afterOuting · 재료 80구), 15구면 등판 다음 날이 아니다 — 부하 기준(D3)",
+      dayKindOf(big).rule === 'afterOuting' &&
+        dayKindOf(big).yesterday?.pitches === 80 &&
+        outingOf(big).lastSource === 'log' &&
+        dayKindOf(small).rule !== 'afterOuting' &&
+        !dayKindOf(small).afterOuting,
+      `${dayKindOf(big).rule} · ${dayKindOf(small).rule}`
     );
   }
 
@@ -19636,9 +19827,9 @@ console.log(
       json({ logged: rested.patterns.loggedYesterday, last: o.lastSource })
     );
     check(
-      "검토 (가) 같은 날 — 어제 팔 부담 없음 · 날 종류가 R3' 아님 · 이유 줄 없음 · 프로그램 안 쉼 · 암케어에 '어제 등판' 없음 · 체크인도 안 물음(한 규칙)",
+      "검토 (가) 같은 날 — 어제 팔 부담 없음 · 날 종류가 등판 다음 날 아님 · 이유 줄 없음 · 프로그램 안 쉼 · 암케어에 '어제 등판' 없음 · 체크인도 안 물음(한 규칙)",
       yesterdayArmLoadOf(rested) == null &&
-        dayKindOf(rested).rule !== 'claimedNoLog' &&
+        !dayKindOf(rested).afterOuting &&
         !whyOf(rested).includes(CLAIM_LINE) &&
         !signalsOf(rested, []).gameYesterday &&
         !decideArmcare({
@@ -19665,14 +19856,16 @@ console.log(
     const none = rFacts({ yesterday: '오늘 등판' });
     const on = outingOf(none);
     check(
-      "검토 (가) 어제 줄이 하나도 없으면 그대로 기록 없는 등판 — 지난 등판 '어제 답' · 어제 팔 부담 claimedNoLog · 이유 줄 · 프로그램 쉼 · 체크인이 묻는다",
+      /* 2026-11-16 로 바뀜 — 기록 없는 등판 다음 날도 등판 다음 날의 운동 날이라 프로그램은 쉬지 않는다(날 종류 R5' afterOuting) */
+      "검토 (가) 어제 줄이 하나도 없으면 그대로 기록 없는 등판 — 지난 등판 '어제 답' · 어제 팔 부담 claimedNoLog · 이유 줄 · 날 종류 등판 다음 날 · 프로그램은 안 쉼 · 체크인이 묻는다",
       none.patterns.loggedYesterday === false &&
         on.claimedYesterdayNoLog &&
         on.lastSource === 'checkin-yesterday' &&
         on.daysSinceLast === 1 &&
         yesterdayArmLoadOf(none)?.kind === 'claimedNoLog' &&
         whyOf(none).includes(CLAIM_LINE) &&
-        signalsOf(none, []).gameYesterday &&
+        dayKindOf(none).rule === 'afterOuting' &&
+        !signalsOf(none, []).gameYesterday &&
         asksYesterdayPitches('오늘 등판', false)
     );
     /* 옛 facts(칸 없음) — 던진 기록으로만 가린다: 휴식 줄은 못 보고(옛 동작), 어제 던진 기록은 본다 */
@@ -19754,13 +19947,12 @@ console.log(
       json({ last: o.lastSource, claim: o.claimedYesterdayNoLog })
     );
     check(
-      "검토 (나) 같은 날 — 날 종류 R3'(보조) · 이유 줄 · 프로그램은 어제 등판 다음 날로 쉼('어제 등판한 다음 날이에요') · 체크인이 어제 몇 구를 묻는다",
-      dayKindOf(g).rule === 'claimedNoLog' &&
+      /* 2026-11-16 로 바뀜 — 등판 다음 날은 운동 날: 날 종류는 R5'(근력), 프로그램은 쉬지 않고 그날 일차를 한다. 이유 줄 · 체크인 물음은 그대로 */
+      "검토 (나) 같은 날 — 날 종류 R5'(등판 다음 날) · 이유 줄 · 프로그램은 쉬지 않음 · 체크인이 어제 몇 구를 묻는다",
+      dayKindOf(g).rule === 'afterOuting' &&
+        dayKindOf(g).yesterday === null &&
         whyOf(g).includes(CLAIM_LINE) &&
-        decision?.kind === 'rest' &&
-        decision.reason === 'gameYesterday' &&
-        restTextOf(decision.reason, yesterdayArmLoadOf(g)?.kind ?? null) ===
-          '어제 등판한 다음 날이에요' &&
+        decision?.kind === 'go' &&
         asksYesterdayPitches('오늘 등판', false),
       `${dayKindOf(g).rule} · ${decision?.kind}`
     );
@@ -19772,10 +19964,11 @@ console.log(
       ],
     });
     check(
-      '검토 (나) 어제 경기 30구를 남기면 풀린다 — 기록 없는 등판 아님, 날 종류는 부하(세게 던진 날 R1)로',
+      "검토 (나) 어제 경기 30구를 남기면 풀린다 — 기록 없는 등판 아님, 날 종류의 재료가 그 기록(세게 던진 날의 다음 날 R5')",
       !outingOf(logged).claimedYesterdayNoLog &&
         yesterdayArmLoadOf(logged)?.kind === 'hard' &&
-        dayKindOf(logged).rule === 'hard'
+        dayKindOf(logged).rule === 'afterOuting' &&
+        dayKindOf(logged).yesterday?.pitches === 30
     );
   }
 
@@ -19875,11 +20068,12 @@ console.log(
     );
     const texts = kinds.map((k) => restTextOf('gameYesterday', k));
     check(
-      "검토 (라) 쉬는 까닭 글 — 세게 던진 날 '어제 많이 던졌어요' · 중간 부하 + 힘듦 급증 '어제 던졌고 최근 운동도 힘들었어요' · 기록 없는 등판 '어제 등판한 다음 날이에요'",
+      /* 2026-11-16 로 바뀜 — 어제 세게 던진 날은 운동 힘듦 급증이 겹칠 때만 쉬므로 그 글도 '어제 던졌고 최근 운동도 힘들었어요'다 */
+      "검토 (라) 쉬는 까닭 글 — 세게 던진 날 · 중간 부하 + 힘듦 급증 '어제 던졌고 최근 운동도 힘들었어요' · 기록 없는 등판 '어제 등판한 다음 날이에요'",
       json(kinds) === json(['hard', 'moderateSpike', 'claimedNoLog']) &&
         json(texts) ===
           json([
-            '어제 많이 던졌어요',
+            '어제 던졌고 최근 운동도 힘들었어요',
             '어제 던졌고 최근 운동도 힘들었어요',
             '어제 등판한 다음 날이에요',
           ]),
@@ -20210,9 +20404,9 @@ console.log(
       logs: [{ daysAgo: 1, pitches: 0, sessionType: sentType }],
     });
     check(
-      "검토 (사) '안 던졌어요'로 남긴 줄이 엔진의 기록 없는 등판을 푼다(날 종류 R3' 아님 · 체크인도 안 물음)",
+      "검토 (사) '안 던졌어요'로 남긴 줄이 엔진의 기록 없는 등판을 푼다(날 종류가 등판 다음 날 아님 · 체크인도 안 물음)",
       !outingOf(after).claimedYesterdayNoLog &&
-        dayKindOf(after).rule !== 'claimedNoLog' &&
+        !dayKindOf(after).afterOuting &&
         !asksYesterdayPitches('오늘 등판', after.patterns.loggedYesterday === true)
     );
     /* 3판(2026-10-13) — 체크인 폼은 없다. '안 던졌어요' 칸은 투구 기록 API(위)에만 남았다 */
@@ -20247,7 +20441,7 @@ console.log(
   const passing = () => ({
     metrics: {
       veryHigh: { under15: { days: 0 } },
-      afterHard: { n: 32, d: 32, ratio: 1 },
+      afterHard: { n: 5, d: 32, ratio: 5 / 32 },
       armSevere: { push: 0, plyo: 0 },
       heavyLowerBeforeGame: {
         byDay: [
@@ -29049,7 +29243,14 @@ console.log(
               made.signals.heavyLowerYesterday &&
                 !hasBig &&
                 '큰 하체 없는 날 하체 신호',
-              made.signals.armSpent !== r.arm.spent && '팔 예산',
+              /* 2026-11-16 로 바뀜 — 등판 다음 날('어제 경기 85구')도 팔로 던지는 변형은 뺀다(쉬지는 않는다, 팔 예산은 오늘 것만 그대로) */
+              made.signals.armSpent !== (r.arm.spent || p.name === '어제 경기 85구') &&
+                '팔 예산',
+              go &&
+                p.name === '어제 경기 85구' &&
+                !r.arm.spent &&
+                throwsLeft.length > 0 &&
+                '등판 다음 날 던지기 남음',
             ].filter(Boolean);
             if (problems.length > 0) bad.push(`${tag}: ${problems.join(',')}`);
             if (go) seen.go++;
@@ -30041,8 +30242,9 @@ console.log(
       bad.slice(0, 4).join(' ‖ ')
     );
     check(
-      `P6-3 (아) 어제 세게 던진 불펜(40구 90%) 다음 날 — 프로그램이 있어도 넘기지 않으면 프로그램 날이 아니고 매일 일정은 회복(${hardPen.recovery}/${hardPen.days})`,
-      hardPen.days > 0 && hardPen.program === 0 && hardPen.recovery === hardPen.days,
+      /* 2026-11-16 로 바뀜(김민 결정 — 등판 다음 날은 운동 날) — 프로그램이 있으면 넘기지 않아도 프로그램 날이고 회복이 아니다 */
+      `P6-3 (아) 어제 세게 던진 불펜(40구 90%) 다음 날 — 프로그램이 있으면 넘기지 않아도 프로그램 날이고 매일 일정은 회복이 아니다(프로그램 ${hardPen.program}/${hardPen.days} · 회복 ${hardPen.recovery})`,
+      hardPen.days > 0 && hardPen.program === hardPen.days && hardPen.recovery === 0,
       json(hardPen)
     );
   }

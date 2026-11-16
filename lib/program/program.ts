@@ -1,5 +1,9 @@
 import { exactOutingDay, nextOutingDays, todayOutingRole } from '@/lib/checkin';
-import type { YesterdayArmLoad, YesterdayArmLoadKind } from '@/lib/engine/arm-load';
+import {
+  restsAfterOuting,
+  type YesterdayArmLoad,
+  type YesterdayArmLoadKind,
+} from '@/lib/engine/arm-load';
 import type { DayState } from '@/lib/engine/day-state';
 import {
   LOWER_POWER_KEY,
@@ -2185,8 +2189,8 @@ export type TodaySignals = {
   gameToday: boolean;
   gameTomorrow: boolean;
   /**
-   * 어제 팔 부담이 컸다 — 이름은 예전 그대로지만 2판 P4 커밋 F(D3)부터 달력('어제 경기')이 아니라 부하다: 어제 세게 던진 날 · 중간 부하 +
-   * 운동 힘듦 급증 · 기록 없는 등판 다음 날(lib/engine/arm-load.ts yesterdayArmLoadOf). 어제 경기 15구는 아니고, 어제 불펜 40구 90% 는 그렇다.
+   * 어제 던진 것에 운동 피로까지 쌓였다 — 이름은 예전 그대로지만 2026-11-16 부터 어제 중간 부하 이상 + 최근 운동 힘듦 급증일 때만 참이다
+   * (lib/engine/arm-load.ts restsAfterOuting). 어제 세게 던졌어도 힘듦 급증이 없으면 등판 다음 날의 운동 날이라 거짓이다.
    */
   gameYesterday: boolean;
   bullpenToday: boolean;
@@ -2340,7 +2344,7 @@ export type ProgramSignalsInput = {
    * 어제 팔 부담(lib/engine/arm-load.ts yesterdayArmLoadOf(facts) 그대로) — 세게 던진 날 · 중간 부하 + 힘듦 급증 · 기록 없는 등판, 아니면 null.
    * 2판 P4 커밋 F 전에는 어제 기록의 세션 종류(typesYesterday)를 받아 '경기'면 쉬었다.
    */
-  yesterdayArmLoad: Pick<YesterdayArmLoad, 'kind'> | null;
+  yesterdayArmLoad: (Pick<YesterdayArmLoad, 'kind'> & { spike?: boolean }) | null;
 };
 
 /**
@@ -2353,7 +2357,9 @@ export type ProgramSignalsInput = {
  *
  *   gameToday     오늘 '오늘 등판' · 어제 '내일 등판' · 오늘 '경기' 기록
  *   gameTomorrow  오늘 '내일 등판'
- *   gameYesterday 어제 팔 부담이 컸다(yesterdayArmLoad — 세게 던진 날 · 중간 부하 + 힘듦 급증 · 어제 '오늘 등판' 답에 기록 없음)
+ *   gameYesterday 어제 던진 것에 운동 피로까지 쌓였다(arm-load.ts restsAfterOuting — 어제 중간 부하 이상 + 최근 운동 힘듦 급증).
+ *                 2026-11-16(김민 결정)부터 그 밖의 등판 다음 날(어제 세게 던진 날 · 기록 없는 등판)은 쉬지 않고 그날 일차를 한다 —
+ *                 팔로 던지는 변형만 뺀다(중재 programArbiterSignals 의 armSpent)
  *   bullpenToday  오늘 '오늘 불펜' · 오늘 불펜 · 라이브 기록
  *   '2~3일 뒤' · '4일 이상 뒤' · '없음'은 날을 못 박지 못하니 앞의 둘 · 불펜은 false.
  *
@@ -2373,7 +2379,7 @@ export function programSignalsOf(x: ProgramSignalsInput): ProgramSignals {
   return {
     gameToday: today === 0 || yesterday === 1 || x.typesToday.includes('경기'),
     gameTomorrow: today === 1,
-    gameYesterday: x.yesterdayArmLoad != null,
+    gameYesterday: restsAfterOuting(x.yesterdayArmLoad),
     /* 불펜은 오늘 답만(어제 답은 불펜을 이월하지 않는다) — 투구 계획 · 암케어와 같은 함수 */
     bullpenToday:
       todayOutingRole(x.outing.answerToday, x.outing.answerYesterday) === 'bullpen' ||
@@ -2643,7 +2649,8 @@ export const REST_TEXT: Record<RestReason, string> = {
  * 힘들었어요') · 암케어('어제 N구')와 다른 말을 했다. REST_TEXT.gameYesterday 는 까닭을 모를 때(옛 신호)만 쓴다.
  */
 export const REST_YESTERDAY_TEXT: Record<YesterdayArmLoadKind, string> = {
-  hard: '어제 많이 던졌어요',
+  /* 2026-11-16 부터 어제 세게 던진 날은 운동 힘듦 급증이 겹칠 때만 쉰다(restsAfterOuting) — moderateSpike 와 같은 까닭 */
+  hard: '어제 던졌고 최근 운동도 힘들었어요',
   moderateSpike: '어제 던졌고 최근 운동도 힘들었어요',
   claimedNoLog: '어제 등판한 다음 날이에요',
 };

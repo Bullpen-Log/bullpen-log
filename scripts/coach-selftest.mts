@@ -101,12 +101,12 @@ const heavy = (s: DaySlot) => s.items.some((x) => (x.kind === 'train' && x.fence
   const w = planWeek(input({ answers: answers({ outingEvery: 5 }), lastOuting: '2026-10-30' }));
   const wed = w[2];
   check('② 선발 5일 · 등판 짐작 날은 운동 없음 · 보조', wed.rule === 'softOutingNear' && !kinds(wed).includes('program') && !heavy(wed), JSON.stringify(wed));
-  check('② 선발 5일 · 짐작 등판 다음 날은 회복이 아니다(짐작은 가볍게 하는 쪽에만)', w[3].rule !== 'hard', w[3].rule);
+  check('② 선발 5일 · 짐작 등판 다음 날은 등판 다음 날로 보지 않는다(짐작은 가볍게 하는 쪽에만)', w[3].rule !== 'afterOuting' && !w[3].reasons.includes('after-outing'), w[3].rule);
 }
 {
-  /* 확실한 등판(체크인 답 11-05 목) — 목 회복 · 금 회복 · 수 보조 */
+  /* 확실한 등판(체크인 답 11-05 목) — 목 회복 · 금 등판 다음 날의 운동 날(2026-11-16 김민 결정) · 수 보조 */
   const w = planWeek(input({ outingDate: '2026-11-05' }));
-  check('② 확실한 등판 날 · 다음 날은 운동 안 함 · 회복 암케어 제안', [w[3], w[4]].every((s) => workouts([s]).length === 0 && s.items.some((x) => x.kind === 'armcare' && x.mode === 'recovery')), JSON.stringify([w[3], w[4]].map(kinds)));
+  check('② 확실한 등판 날은 운동 안 함 · 다음 날은 운동 날(큰 하체) · 둘 다 회복 암케어 제안', workouts([w[3]]).length === 0 && w[4].rule === 'afterOuting' && workouts([w[4]]).length === 1 && heavy(w[4]) && [w[3], w[4]].every((s) => s.items.some((x) => x.kind === 'armcare' && x.mode === 'recovery')), JSON.stringify([w[3], w[4]].map(kinds)));
   check('② 등판 전날은 보조(큰 하체 없음)', w[2].rule === 'outingTomorrow' && !heavy(w[2]), JSON.stringify(w[2]));
 }
 {
@@ -412,22 +412,22 @@ check('⑤ 쉬는 날 · 팀 훈련 → 시작 없음', startsOf(slotOf(T, [{ ki
   const [mon, tue, wed, thu, fri, sat] = w;
   check('⑧ 불펜 대기 날 · 경기 칸 · 운동 없음 · 까닭 불펜 대기', kinds(tue).includes('fixed') && workouts([tue]).length === 0 && tue.reasons.includes('standby') && !tue.reasons.includes('outing-soft'), JSON.stringify(tue));
   check('⑧ 불펜 대기 전날 · 가볍게 · 까닭 내일 불펜 대기', mon.reasons.includes('standby-tomorrow') && !heavy(mon) && mon.items.every((x) => x.kind !== 'train' || x.fence.light), JSON.stringify(mon));
-  check('⑧ 불펜 대기 다음 날은 쉬기로 못 박지 않는다', wed.rule !== 'hard', wed.rule);
+  check('⑧ 불펜 대기 다음 날은 등판 다음 날로 못 박지 않는다(던졌는지는 기록으로)', wed.rule !== 'afterOuting' && !wed.reasons.includes('after-outing'), wed.rule);
   check('⑧ 선발 날 · 경기 칸 · 등판', kinds(thu).includes('fixed') && thu.rule === 'outingToday', JSON.stringify(thu));
-  check('⑧ 선발 다음 날(팀 훈련 날) · 회복 날 · 운동 없음', fri.rule === 'hard' && workouts([fri]).length === 0, JSON.stringify(fri));
+  check('⑧ 선발 다음 날(팀 훈련 날) · 등판 다음 날 · 팀 훈련이 있어 운동은 안 얹는다 · 회복 암케어', fri.rule === 'afterOuting' && fri.reasons.includes('after-outing') && workouts([fri]).length === 0 && fri.items.some((x) => x.kind === 'armcare' && x.mode === 'recovery'), JSON.stringify(fri));
   check('⑧ 못 하는 날 · 운동 없음 · 까닭 못 하는 날', workouts([sat]).length === 0 && sat.reasons.includes('not-available'), JSON.stringify(sat));
   check('⑧ 새 까닭 글', REASON_TEXT.standby === '불펜 대기' && REASON_TEXT['standby-tomorrow'] === '내일 불펜 대기');
 
-  /* 불펜 대기 날 실제로 세게 던졌으면(기록) 다음 날은 회복 — 기록이 이긴다 */
+  /* 불펜 대기 날 실제로 세게 던졌으면(기록) 다음 날은 등판 다음 날 — 기록이 이긴다. 그날이 선발 전날이면 가볍게(내일 등판)가 먼저다 */
   const threw = planWeek(input({ answers: answers({ days: ap.days }), fixed: ap.fixed, lastOuting: shiftDateKey(MON, 1), today: shiftDateKey(MON, 2) }));
-  check('⑧ 불펜 대기 날 세게 던진 기록이 있으면 다음 날 회복', threw[2].rule === 'hard', threw[2].rule);
+  check('⑧ 불펜 대기 날 세게 던진 기록이 있으면 다음 날은 등판 다음 날(회복 암케어) · 선발 전날이라 가볍게', threw[2].reasons.includes('after-outing') && threw[2].rule === 'outingTomorrow' && !heavy(threw[2]) && threw[2].items.some((x) => x.kind === 'armcare' && x.mode === 'recovery'), JSON.stringify(threw[2]));
 
-  /* 선발 다음 날 — 쉬기 + 가벼운 회복 운동(선택). 못 함으로 세지 않고, 맨 뒤 단추 */
+  /* 선발 다음 날 — 2026-11-16(김민 결정)부터 쉬는 날이 아니라 운동 날: 운동을 여기 먼저 놓고(큰 하체), 회복 암케어를 같이 제안한다 */
   const st = planWeek(input({ fixed: [{ date: shiftDateKey(MON, 2), kind: 'game' }] }));
   const after = st[3];
-  check('⑧ 선발 다음 날 · 쉬기(가벼운 회복 운동은 선택) · 회복 암케어', after.items.some((x) => x.kind === 'rest' && x.light) && slotLine(after).includes('가벼운 회복 운동은 선택') && after.items.some((x) => x.kind === 'armcare'), slotLine(after));
-  check('⑧ 가벼운 회복 운동은 못 함이 아니다 · 단추는 맨 뒤', slotStateOf(after, undefined, shiftDateKey(MON, 5)) === 'off' && startsOf(after).at(-1)?.kind === 'recovery' && startsOf(after)[0].kind !== 'recovery', JSON.stringify(startsOf(after)));
-  check('⑧ 여느 쉬는 날에는 회복 운동 단추가 없다', st.filter((s) => s.rule !== 'hard').every((s) => !startsOf(s).some((x) => x.kind === 'recovery')));
+  check('⑧ 선발 다음 날 · 운동 날(큰 하체) · 까닭 등판 다음 날 · 회복 암케어', after.rule === 'afterOuting' && workouts([after]).length === 1 && heavy(after) && after.reasons.includes('after-outing') && after.items.some((x) => x.kind === 'armcare' && x.mode === 'recovery'), JSON.stringify(after));
+  check('⑧ 선발 다음 날에는 메커니즘 · 강화 암케어를 안 넣는다', !after.items.some((x) => x.kind === 'mechanics' || (x.kind === 'armcare' && x.mode === 'strength')), JSON.stringify(after.items));
+  check('⑧ 가벼운 회복 운동(선택) 칸은 이제 만들지 않는다', st.every((s) => !s.items.some((x) => x.kind === 'rest' && x.light)) && !slotLine(after).includes('가벼운 회복'));
 }
 
 console.log(`coach: ${pass}개 통과${fails.length ? `, ${fails.length}개 실패` : ''} (불변 입력 ${n}가지)`);

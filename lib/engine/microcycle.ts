@@ -7,24 +7,29 @@
  * 안 읽었고, 사용자 결정 D3('경기 다음 날은 달력이 아니라 투구수 × 체감 강도 + 최근 운동 부하로')의 운동 부하 반쪽은 어디에도 없었다.
  * 여기서 한 번 가르고, 두 곳은 이 결과의 rank 만 읽는다(사슬 베끼기를 걷는다).
  *
- * 규칙 차례(검토안 4-2 표 + D3 · C6 결정). 위에서 처음 걸리는 것이 그날이다.
- *   R1  hard           오늘 · 어제 세게 던진 날(theme.ts hardOuting 과 같은 값 — day-state.ts recentHardOuting)      → 회복
+ * 규칙 차례(검토안 4-2 표 + D3 결정 + 2026-11-16 '등판 다음 날은 운동 날'). 위에서 처음 걸리는 것이 그날이다.
+ *   R1  hard           오늘 세게 던진 날(facts.ts isHardOuting, daysAgo 0)                                           → 회복
  *   R3  outingToday    다음 등판이 꼭 오늘(오늘 '오늘 등판', 또는 오늘 답 없이 어제 '내일 등판')                      → 회복
- *   R2  moderateSpike  세게는 아니지만 어제 Σ 투구수 × 체감 강도가 세게 던진 날 문턱의 절반(1,350) 이상이고, 최근 운동 힘듦이
- *                      급증(facts.condition.trainingEffort.spikeFlag — 7일 3개 이상 · 평균 +2)                       → 회복
- *   R3' claimedNoLog   어제 '오늘 등판'이라 답했는데 어제 투구 기록이 없다(outing.claimedYesterdayNoLog, 쉰 날 줄도 기록) → 보조
+ *   R2  moderateSpike  어제 Σ 투구수 × 체감 강도가 세게 던진 날 문턱의 절반(1,350) 이상이고(세게 던진 날 포함), 최근 운동
+ *                      힘듦이 급증(facts.condition.trainingEffort.spikeFlag — 7일 3개 이상 · 평균 +2)                → 회복
  *   R4  outingTomorrow 다음 등판이 꼭 내일                                                                          → 보조
  *   R4' softOutingNear 짐작한 다음 등판(달력 · 같은 요일, outing.soft — 커밋 G)이 오늘이나 내일 — 짐작이라 회복까지는 안 가고
  *                      무게만 뺀다(사용자 결정: 짐작은 가볍게 하는 쪽에만)                                          → 보조
  *   R5  outingSoon     다음 등판 창의 끝이 3일 안(2~3일 뒤 · 어제 '2~3일 뒤'를 하루 당긴 1~2일 뒤 · 짐작한 2~3일 뒤) — 근력
  *                      날이되 무거운 하체는 안전 거르기가 뺀다(prescription.ts 2-2), 번갈아 예비 규칙에서는 상체 쪽   → 근력
+ *   R5' afterOuting    등판 다음 날 — 어제 세게 던졌거나, 어제 '오늘 등판'이라 답했는데 기록이 없다(yesterday null). 하체 위주
+ *                      근력 날이고 양을 줄인다(shorten), 팔 플라이오는 뺀다(buildDailyPlan)                          → 근력
  *   R6  outingFar      다음 등판 창의 끝이 없거나 3일 밖(4일 이상 뒤 · 어제 답을 당긴 3일 이상 뒤) — 무거운 하체를 들 수 있고,
  *                      창이 4일 이상 · 어제 · 오늘 안 던졌으면 번갈아 예비 규칙에서 하체 쪽. 짐작한 출처는 여기 오지 않는다 —
  *                      무거운 쪽(하체 쪽)을 짐작으로 고르지 않게 R7 로 본다(설계 검토 G22)                         → 근력
  *   R7  none           모름('없음' · '오늘 불펜' · 안 적음 · 짐작한 4일 이상 뒤)                                     → 지금처럼 번갈아
- * R2 를 R3 뒤에 두는 까닭: 둘 다 회복이라 날은 같고 글만 다르다. 오늘 등판인 날에 '내일부터 무게를 다시 올려요'(R2 글)라고 하면
- * 틀린 말이라(내일은 등판 다음 날) 오늘 등판의 글('무게는 모레부터')을 쓴다. R3' 를 R4 앞에 두는 까닭은 C6 결정 — 기록이 없는
- * 등판 다음 날을 먼저 말한다(둘 다 보조라 날은 같다).
+ * R2 를 R3 뒤에 두는 까닭: 둘 다 회복이라 날은 같고 글만 다르다. 오늘 등판인 날에는 오늘 등판의 글을 쓴다.
+ *
+ * 등판 다음 날(R5', 김민 결정 2026-11-16 — docs/designs/ai-coach-knowledge-memory.md 3-5). 예전에는 어제 세게 던진 날도 R1(회복),
+ * 기록 없는 등판 다음 날은 R3'(보조)였다. 이제 등판 다음 날은 시즌 중 방식의 운동 날이다 — 센 운동을 등판 바로 뒤에 붙이면 다음
+ * 등판까지 쉴 날이 가장 길다. 하체 위주 · 양은 줄임 · 팔로 던지는 운동 없음. 더 가볍게 가야 하는 날이 먼저다: 오늘 또 던지는 날(R3) ·
+ * 운동 힘듦까지 급증한 날(R2) · 내일 등판(R4 · R4') · 등판이 3일 안(R5 — 다리를 아끼는 상체 쪽, 양은 같이 줄인다). 통증 · 낮은 컨디션 ·
+ * 근육통 '심함' · 부하 위험은 테마(theme.ts)가 이 규칙보다 먼저 본다. 던진 뒤 회복 암케어는 그대로다(lib/armcare/routine.ts).
  *
  * 회복(recovery)과 보조(light)는 decideThemeForBody 의 두 자리에 그대로 들어간다 — 회복은 맨 앞(부하 위험 · 컨디션 · 근육통 '심함'보다
  * 앞), 보조는 근육통 '심함' 뒤 · 부하 주의 앞(예전 '내일 등판' 자리). 그래서 '회복이 보조보다 앞' 차례가 그대로다. 근력(strength)과
@@ -35,7 +40,8 @@
  * '그래도 하기'로 안 풀리고 아침 일정의 재검사도 따라온다). heavyLowerAllowed 는 같은 창 · 같은 문턱으로 그 거르기가 걸리는지 알려 주기만
  * 한다(일정 JSON 의 표시 칸 · 이유 한 줄). 자체 시험이 두 값이 늘 같은지 본다.
  *
- * shorten(구원 '어제 20구 넘게 던졌으면 짧게', 검토안 4-2): 어제 실전 강도(경기, 또는 85% 이상 — facts.HardOuting.nearMaxPitches)로
+ * shorten: 등판 다음 날(어제 팔 부담 hard · claimedNoLog — R5' 와 그 앞 규칙에 걸린 날 모두)이면 참(시즌 중 방식 — 양을 줄인다).
+ * 그리고 구원 '어제 20구 넘게 던졌으면 짧게'(검토안 4-2) — 어제 실전 강도(경기, 또는 85% 이상 — facts.HardOuting.nearMaxPitches)로
  * 20구를 넘게 던졌는데 세게 던진 날은 아니면 참. 경기 25구처럼 '세게 던진 날'(2,700) 밑의 구원 등판 다음 날이다. 투구수를 모두 세지
  * 않는 까닭: 캐치볼 · 가벼운 불펜 25구까지 세면 던지는 날 다음 날이 거의 다 짧아진다(가정 — 설계 문서 'P4 결과'). 시간을 줄이는 일은
  * buildDailyPlan 이 한다(회복 날은 effectiveMinutes 가 이미 줄이니 두 번 줄이지 않는다).
@@ -43,18 +49,18 @@
  * 이 파일은 글을 만들지 않는다 — 코드(rule)와 재료(hard · yesterday · outing)만 돌려주고, 이유 글은 theme.ts 가 만든다(테마 글이 한
  * 곳에서 나오게 — 설계 검토 G12).
  *
- * R2 · R3' 의 조건은 어제 팔 부담 한 곳(lib/engine/arm-load.ts yesterdayArmLoadOf, 커밋 F)에서 읽는다 — 근력 프로그램의 '경기 다음
- * 날' 쉬기와 암케어의 '어제 N구' 회복이 같은 함수를 불러, 같은 어제를 세 독자가 같게 말한다.
+ * R2 · R5' 의 조건은 어제 팔 부담 한 곳(lib/engine/arm-load.ts yesterdayArmLoadOf, 커밋 F)에서 읽는다 — 근력 프로그램의 '등판 다음
+ * 날' 신호와 암케어의 '어제 N구' 회복이 같은 함수를 불러, 같은 어제를 세 독자가 같게 읽는다.
  *
  * 순수 파일이다 — 'server-only' · prisma · 날짜 함수 · 난수 없음. 같은 facts 면 늘 같은 값이다. import 는 등판 한 곳(outing.ts) · 세게
  * 던진 날 한 곳(day-state.ts recentHardOuting) · 어제 팔 부담 한 곳(arm-load.ts) · facts 의 타입 · 안전 거르기의 창 문턱뿐 — theme.ts 가
  * 이 파일을 부르므로 이 파일이 theme.ts 를 부르면 순환이 된다. day-state.ts 가 이 파일을 부르게 하려면 recentHardOuting 을 facts.ts
  * 쪽으로 먼저 옮겨야 한다(지금은 이 파일이 day-state 를 부른다).
  */
-import { yesterdayArmLoadOf } from '@/lib/engine/arm-load';
+import { restsAfterOuting, yesterdayArmLoadOf } from '@/lib/engine/arm-load';
 import { recentHardOuting } from '@/lib/engine/day-state';
 import { outingOf, type Outing } from '@/lib/engine/outing';
-import type { HardOuting, ReportFacts } from '@/lib/report/facts';
+import { isHardOuting, type HardOuting, type ReportFacts } from '@/lib/report/facts';
 import { HEAVY_LOWER_BLOCK_WITHIN_DAYS } from '@/lib/report/prescription';
 
 /** 날 종류의 규칙 이름 — 머리 주석의 R1 ~ R7 */
@@ -62,10 +68,10 @@ export type DayRule =
   | 'hard'
   | 'outingToday'
   | 'moderateSpike'
-  | 'claimedNoLog'
   | 'outingTomorrow'
   | 'softOutingNear'
   | 'outingSoon'
+  | 'afterOuting'
   | 'outingFar'
   | 'none';
 
@@ -77,10 +83,10 @@ export const DAY_RULE_RANK: Record<DayRule, DayRank> = {
   hard: 'recovery',
   outingToday: 'recovery',
   moderateSpike: 'recovery',
-  claimedNoLog: 'light',
   outingTomorrow: 'light',
   softOutingNear: 'light',
   outingSoon: 'strength',
+  afterOuting: 'strength',
   outingFar: 'strength',
   none: 'none',
 };
@@ -104,14 +110,19 @@ export type DayKind = {
   rank: DayRank;
   /**
    * 번갈아 예비 규칙(하체 · 상체 마지막 날이 둘 다 없을 때)에서 고를 쪽 — R5 상체(다리를 아낌) · R6 하체(등판에서 먼 날, 조건은 머리
-   * 주석), 그 밖 null(날짜 홀짝 그대로).
+   * 주석), 그 밖 null(날짜 홀짝 그대로). R5'(등판 다음 날)는 하체 — 이 규칙만은 번갈아 차례보다 먼저다(theme.ts).
    */
   side: 'lower' | 'upper' | null;
   /** 무거운 하체를 들 수 있는 날인가 — 안전 거르기 2-2(prescription.ts)와 같은 창 · 같은 문턱. 거기가 걸리면 false */
   heavyLowerAllowed: boolean;
-  /** 구원 '어제 실전 강도로 20구 넘게 → 짧게'(회복 날이면 buildDailyPlan 이 안 줄인다) */
+  /** 등판 다음 날 · 구원 '어제 실전 강도로 20구 넘게' → 짧게(회복 날이면 buildDailyPlan 이 안 줄인다) */
   shorten: boolean;
-  /** 오늘 · 어제 세게 던진 날(R1 재료 · 글), 없으면 null */
+  /**
+   * 등판 다음 날인가 — 어제 세게 던졌거나 어제 '오늘 등판'에 기록이 없다(오늘 또 세게 던진 날은 아니다). 규칙이 R5' 가 아니어도(R2 · R4 ·
+   * R5 가 먼저 걸린 날) 참이다 — 팔로 던지는 운동을 빼는 데 쓴다(buildDailyPlan).
+   */
+  afterOuting: boolean;
+  /** 오늘 · 어제 세게 던진 날(R1 · R5' 재료 · 글 — R1 은 daysAgo 0 일 때만), 없으면 null */
   hard: HardOuting | null;
   /** 어제 던진 날의 재료(facts.patterns.hardOutings 의 daysAgo 1 — R2 · 짧게 · 글), 어제 안 던졌으면 null */
   yesterday: HardOuting | null;
@@ -130,32 +141,41 @@ export function dayKindOf(facts: ReportFacts): DayKind {
   const hard = recentHardOuting(facts);
   const yesterday =
     (facts.patterns.hardOutings ?? []).find((o) => o.daysAgo === 1) ?? null;
-  /* R2 · R3' 는 어제 팔 부담 한 곳에서 — 프로그램 · 암케어가 같은 함수로 '경기 다음 날'을 읽는다(커밋 F). 'hard' 는 R1 이 먼저 받는다 */
-  const yesterdayArm = yesterdayArmLoadOf(facts)?.kind ?? null;
+  /* R2 · R5' 는 어제 팔 부담 한 곳에서 — 프로그램 · 암케어가 같은 함수로 '등판 다음 날'을 읽는다(커밋 F) */
+  const yesterdayLoad = yesterdayArmLoadOf(facts);
+  const yesterdayArm = yesterdayLoad?.kind ?? null;
   const w = outing.daysUntilNext;
   const soon = w != null && w.max != null && w.max <= HEAVY_LOWER_BLOCK_WITHIN_DAYS;
+  /* 오늘 세게 던진 날만 R1 — 어제 것은 R5'(등판 다음 날, 2026-11-16) */
+  const hardToday = (facts.patterns.hardOutings ?? []).some(
+    (o) => o.daysAgo === 0 && isHardOuting(o)
+  );
+  /* 등판 다음 날 — 어제 세게 던졌거나, 어제 '오늘 등판'이라 답했는데 기록이 없다 */
+  const afterOuting = yesterdayArm === 'hard' || yesterdayArm === 'claimedNoLog';
+  /* R2 — 어제 중간 부하 이상(세게 던진 날 포함)에 최근 운동 힘듦 급증이 겹쳤다. 등판 다음 날이라도 이날은 회복이다 */
+  const spiked = restsAfterOuting(yesterdayLoad);
   const shorten =
-    hard == null && yesterday != null && nearMaxOf(yesterday) > RELIEF_SHORTEN_PITCHES;
+    !hardToday &&
+    (afterOuting || (yesterday != null && nearMaxOf(yesterday) > RELIEF_SHORTEN_PITCHES));
 
-  const rule: DayRule =
-    hard != null
-      ? 'hard'
-      : outing.nextDay === 0
-        ? 'outingToday'
-        : yesterdayArm === 'moderateSpike'
-          ? 'moderateSpike'
-          : yesterdayArm === 'claimedNoLog'
-            ? 'claimedNoLog'
-            : outing.nextDay === 1
-              ? 'outingTomorrow'
-              : /* 짐작한 오늘 · 내일 — nextDay 가 비어 있어(outing.ts) 위 R3 · R4 에 안 걸리고 여기서 보조로 */
-                outing.soft && w != null && w.max != null && w.max <= 1
-                ? 'softOutingNear'
-                : soon
-                  ? 'outingSoon'
-                  : w != null && !outing.soft
-                    ? 'outingFar'
-                    : 'none';
+  const rule: DayRule = hardToday
+    ? 'hard'
+    : outing.nextDay === 0
+      ? 'outingToday'
+      : spiked
+        ? 'moderateSpike'
+        : outing.nextDay === 1
+          ? 'outingTomorrow'
+          : /* 짐작한 오늘 · 내일 — nextDay 가 비어 있어(outing.ts) 위 R3 · R4 에 안 걸리고 여기서 보조로 */
+            outing.soft && w != null && w.max != null && w.max <= 1
+            ? 'softOutingNear'
+            : soon
+              ? 'outingSoon'
+              : afterOuting
+                ? 'afterOuting'
+                : w != null && !outing.soft
+                  ? 'outingFar'
+                  : 'none';
 
   /* 등판에서 먼 날 — 짐작한 출처(달력 · 같은 요일)는 무거운 쪽을 허락하지 않는다(outing.ts soft) */
   const farFromOuting =
@@ -166,7 +186,7 @@ export function dayKindOf(facts: ReportFacts): DayKind {
   const side =
     rule === 'outingSoon'
       ? 'upper'
-      : rule === 'outingFar' && farFromOuting
+      : rule === 'afterOuting' || (rule === 'outingFar' && farFromOuting)
         ? 'lower'
         : null;
 
@@ -176,6 +196,7 @@ export function dayKindOf(facts: ReportFacts): DayKind {
     side,
     heavyLowerAllowed: !soon,
     shorten,
+    afterOuting: !hardToday && afterOuting,
     hard: hard ? { ...hard } : null,
     yesterday: yesterday ? { ...yesterday } : null,
     outing,
@@ -188,7 +209,12 @@ export function shortenedMinutes(minutes: number): number {
   return Math.min(minutes, Math.max(SHORTEN_MIN_MINUTES, cut));
 }
 
-/** 짧게 잡은 까닭의 재료 — 어제 실전 강도로 던진 공(글은 theme · daily-plan 이 만든다) */
+/**
+ * 짧게 잡은 까닭의 재료 — 구원 '어제 실전 강도로 20구 넘게'면 그 공 수, 등판 다음 날이라 줄인 날은 null(글은 theme 이 만든다).
+ * 줄일지는 kind.shorten 이 정한다 — 이 값은 글에만 쓴다.
+ */
 export function shortenPitchesOf(kind: DayKind): number | null {
-  return kind.shorten && kind.yesterday ? nearMaxOf(kind.yesterday) : null;
+  if (!kind.shorten || !kind.yesterday) return null;
+  const n = nearMaxOf(kind.yesterday);
+  return n > RELIEF_SHORTEN_PITCHES && !isHardOuting(kind.yesterday) ? n : null;
 }

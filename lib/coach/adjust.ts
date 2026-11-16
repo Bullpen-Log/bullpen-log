@@ -41,7 +41,7 @@ export function readAdjust(v: unknown): CoachAdjust | null {
 const isMain = (x: SlotItem) => x.kind === 'train' || x.kind === 'program' || x.kind === 'mechanics';
 const isWork = (x: SlotItem) => x.kind === 'train' || x.kind === 'program';
 /** 큰 하체를 들 수 있는 날(dayRuleOf 의 heavyLower 와 같은 규칙) */
-const HEAVY_RULES = new Set<DayRule>(['none', 'outingFar']);
+const HEAVY_RULES = new Set<DayRule>(['none', 'outingFar', 'afterOuting']);
 /** 운동이 빠지면 그 운동을 설명하던 까닭도 뺀다 */
 const WORK_REASONS = new Set<ReasonCode>(['youth', 'lower-yesterday']);
 

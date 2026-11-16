@@ -40,14 +40,12 @@ export function slotProgressOf(slot: DaySlot, done: DayDone | undefined): SlotPr
 }
 
 /** 오늘 칸에서 시작할 것 — 앱 화면 주소(그 화면이 그날 운동을 엔진으로 만든다, R2). 운동 · 프로그램이 먼저 */
-export type CoachStart = { kind: 'train' | 'mechanics' | 'armcare' | 'recovery'; label: string; path: string };
+export type CoachStart = { kind: 'train' | 'mechanics' | 'armcare'; label: string; path: string };
 
 export function startsOf(slot: DaySlot): CoachStart[] {
   const out: CoachStart[] = [];
   if (slot.items.some((x) => x.kind === 'train' || x.kind === 'program')) out.push({ kind: 'train', label: '운동 시작', path: '/training-today' });
   if (slot.items.some((x) => x.kind === 'mechanics')) out.push({ kind: 'mechanics', label: '메커니즘 드릴', path: '/training-mechanics' });
   if (slot.items.some((x) => x.kind === 'armcare')) out.push({ kind: 'armcare', label: '암케어', path: '/training-armcare' });
-  /* 등판 다음 날 — 쉬어도 되고, 하고 싶으면 가벼운 회복 운동(그날 엔진이 회복 날 운동을 만든다). 맨 뒤라 큰 단추가 되지 않는다 */
-  if (slot.items.some((x) => x.kind === 'rest' && x.light)) out.push({ kind: 'recovery', label: '가벼운 회복 운동(선택)', path: '/training-today' });
   return out;
 }

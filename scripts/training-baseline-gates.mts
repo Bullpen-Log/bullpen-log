@@ -120,11 +120,15 @@ export const GATES: readonly Gate[] = [
   {
     no: '⑪',
     stage: 'P4',
-    what: '세게 던진 다음 날 회복(D3)',
-    target: '100%',
+    /*
+     * 2026-11-16 로 바뀜(김민 결정 — 등판 다음 날은 운동 날): 예전 목표는 100% 회복이었다. 이제 세게 던진 다음 날은 하체 위주 근력 날이
+     * 기본이고(날 종류 R5' afterOuting), 회복은 부하 위험 구간 · 낮은 컨디션 · 운동 힘듦 급증 같은 다른 까닭이 걸린 날뿐이라 절반을 넘지 않아야 한다.
+     */
+    what: '세게 던진 다음 날 회복(2026-11-16 — 운동 날이 기본, 회복은 다른 까닭이 걸린 날만)',
+    target: '50% 밑',
     blocking: true,
     actual: (j) => numAt(j, ['metrics', 'afterHard', 'ratio']),
-    ok: (v) => v === 1,
+    ok: (v) => v < 0.5,
     unit: 'ratio',
   },
   {

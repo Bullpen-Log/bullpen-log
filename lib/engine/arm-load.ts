@@ -47,31 +47,47 @@ export const MODERATE_OUTING_MIN_LOAD = Math.round(
 export type YesterdayArmLoadKind = 'hard' | 'moderateSpike' | 'claimedNoLog';
 
 export type YesterdayArmLoad =
-  /** 어제 던진 날의 재료(facts.patterns.hardOutings 의 daysAgo 1, 새 객체) */
-  | { kind: 'hard' | 'moderateSpike'; outing: HardOuting }
+  /**
+   * 어제 던진 날의 재료(facts.patterns.hardOutings 의 daysAgo 1, 새 객체). spike 는 최근 운동 힘듦 급증이 겹쳤나 — moderateSpike 는 늘 참,
+   * hard 는 겹친 날만 참(restsAfterOuting 이 읽는다).
+   */
+  | { kind: 'hard' | 'moderateSpike'; outing: HardOuting; spike: boolean }
   /** 기록이 없어 재료가 없다 */
-  | { kind: 'claimedNoLog'; outing: null };
+  | { kind: 'claimedNoLog'; outing: null; spike: false };
+
+/**
+ * 등판 다음 날인데 운동까지 쉬는 날인가 — 어제 중간 부하 이상(세게 던진 날 포함)에 최근 운동 힘듦 급증이 겹친 날(날 종류 R2).
+ *
+ * 2026-11-16(김민 결정)부터 등판 다음 날은 운동 날이다 — 어제 세게 던졌거나 기록 없는 등판 다음 날이어도 매일 일정은 하체 위주 근력 날
+ * (날 종류 R5' afterOuting), 근력 프로그램은 그날 일차를 한다. 쉬는 것은 던진 것에 운동 피로까지 쌓인 이 경우뿐이다. 날 종류와 프로그램
+ * 신호(programSignalsOf gameYesterday)가 이 함수 하나를 읽는다. 암케어의 회복 루틴은 예전대로 kind 로 간다(던진 뒤 회복은 그대로).
+ */
+export function restsAfterOuting(
+  a: Pick<YesterdayArmLoad, 'kind'> & { spike?: boolean } | null
+): boolean {
+  return a != null && (a.kind === 'moderateSpike' || (a.kind === 'hard' && a.spike === true));
+}
 
 /**
  * 어제 팔 부담이 컸나 — 컸으면 그 까닭, 아니면 null. facts 를 바꾸지 않고, 같은 facts 면 늘 같은 값이다.
  *
- * 프로그램은 이것이 null 이 아니면 '어제 팔 부담이 컸어요'로 쉬고(넘기기 가능), 암케어는 회복 루틴으로 간다. 날 종류는 hard 를 R1
- * (오늘 · 어제 세게 던진 날, 한 덩어리)로 먼저 보고, 나머지 둘을 R2 · R3' 로 읽는다.
+ * 암케어는 이것이 hard · moderateSpike 면 회복 루틴으로 간다. 날 종류와 프로그램은 2026-11-16 부터 restsAfterOuting 으로 가른다 —
+ * 운동 힘듦 급증이 겹친 날만 쉬고(R2), 그 밖의 hard · claimedNoLog 는 등판 다음 날의 운동 날이다(R5' afterOuting).
  */
 export function yesterdayArmLoadOf(facts: ReportFacts): YesterdayArmLoad | null {
   const yesterday =
     (facts.patterns.hardOutings ?? []).find((o) => o.daysAgo === 1) ?? null;
-  if (yesterday && isHardOuting(yesterday))
-    return { kind: 'hard', outing: { ...yesterday } };
   const spike = facts.condition.trainingEffort?.spikeFlag ?? false;
+  if (yesterday && isHardOuting(yesterday))
+    return { kind: 'hard', outing: { ...yesterday }, spike };
   if (
     yesterday &&
     spike &&
     yesterday.load != null &&
     yesterday.load >= MODERATE_OUTING_MIN_LOAD
   )
-    return { kind: 'moderateSpike', outing: { ...yesterday } };
+    return { kind: 'moderateSpike', outing: { ...yesterday }, spike: true };
   if (outingOf(facts).claimedYesterdayNoLog)
-    return { kind: 'claimedNoLog', outing: null };
+    return { kind: 'claimedNoLog', outing: null, spike: false };
   return null;
 }

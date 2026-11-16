@@ -450,6 +450,22 @@ export function armBudget({
   };
 }
 
+/**
+ * 등판 다음 날인가 — 어제 세게 던졌거나 어제 '오늘 등판'에 기록이 없다(lib/engine/microcycle.ts DayKind.afterOuting 과 같은 날).
+ *
+ * 2026-11-16(김민 결정)부터 등판 다음 날은 쉬지 않고 운동하되 팔로 던지는 것만 뺀다 — 근력 프로그램의 팔 던지기 변형과 매일 일정의
+ * 팔 플라이오. 팔 예산(armBudget)은 오늘 것만이라 그대로 두고(메카닉 접기 · 암케어 강화 · 상체 막기는 오늘 팔을 다 쓴 날에만), 이 값은
+ * 그 둘만 뺀다. 오늘도 세게 던진 날이면 팔 예산이 먼저 다 쓴 날로 본다.
+ */
+export function afterOutingOf(state: Pick<DayState, 'outing' | 'load'>): boolean {
+  return (
+    state.load.hardOuting?.daysAgo === 1 || state.outing.claimedYesterdayNoLog === true
+  );
+}
+
+/** 등판 다음 날 팔로 던지는 운동을 뺀 까닭 — 한 줄 */
+export const AFTER_OUTING_ARM_TEXT = '등판 다음 날이라 팔로 던지는 운동은 뺐어요.';
+
 /** 팔 예산을 지키는 운동인가 — 다 쓴 날 팔 플라이오(isArmPlyo)는 아니다. '그래도 하기'로도 안 풀린다 */
 export function keepsArmBudget(ex: ClassifiableExercise, budget: ArmBudget): boolean {
   return !budget.defer.dailyArmPlyo || !isArmPlyo(ex);
@@ -563,7 +579,8 @@ export function programArbiterSignals({
   const near = outingNearOf(state.outing);
   return {
     signals: {
-      armSpent: arm.spent,
+      /* 등판 다음 날도 팔로 던지는 변형은 뺀다(afterOutingOf — 쉬지는 않는다, 2026-11-16) */
+      armSpent: arm.spent || afterOutingOf(state),
       armThrows,
       heavyLowerYesterday: lower.programLighter,
       hardToday: !ownsToday && state.load.hardOuting?.daysAgo === 0,
@@ -684,7 +701,7 @@ export const PROGRAM_YIELD_TEXT: Partial<Record<DayRule, string>> & {
   otherMode: string;
   programRest: string;
 } = {
-  hard: '최근에 많이 던져 오늘은 근력 프로그램을 쉬어요.',
+  hard: '오늘 많이 던져 근력 프로그램은 쉬어요.',
   outingToday: '오늘 등판이라 근력 프로그램을 쉬어요.',
   moderateSpike: '어제 던졌고 운동도 힘들어 오늘은 근력 프로그램을 쉬어요.',
   chooseRecovery: '오늘 회복을 골라 근력 프로그램은 쉬어요.',
@@ -919,8 +936,34 @@ export function arbitrate(input: ArbiterInput): Arbitration {
   }
   const owns = program?.role === 'owns';
 
-  /* 2 등판 보호(팔) — 오늘 무엇을 하든 팔로 던지는 것은 뺀다 */
-  const deferVariants = owns ? programDeferVariants(program!.today, arm) : [];
+  /* 2 등판 보호(팔) — 오늘 무엇을 하든 팔로 던지는 것은 뺀다. 등판 다음 날은 팔 던지기 변형 · 팔 플라이오만(afterOutingOf) */
+  const afterOuting = !arm.spent && afterOutingOf(state);
+  const deferVariants = owns
+    ? afterOuting
+      ? [...(program!.today?.armThrows ?? [])]
+      : programDeferVariants(program!.today, arm)
+    : [];
+  if (afterOuting) {
+    if (owns) {
+      for (const v of deferVariants) {
+        defer({
+          key: 'programVariant',
+          variant: v,
+          what: `근력 프로그램 ${VARIANT_LABELS[v]}`,
+          why: AFTER_OUTING_ARM_TEXT,
+          layer: 'outing',
+        });
+      }
+    } else if (!halted) {
+      defer({
+        key: 'dailyArmPlyo',
+        what: '팔로 던지는 파워 운동',
+        why: AFTER_OUTING_ARM_TEXT,
+        layer: 'outing',
+      });
+    }
+    say('outing', AFTER_OUTING_ARM_TEXT);
+  }
   if (arm.spent) {
     if (owns) {
       for (const v of deferVariants) {
@@ -1018,7 +1061,7 @@ export function arbitrate(input: ArbiterInput): Arbitration {
     heavyLower: dailyFree ? heavyLower : false,
     upperOk: upperBlockedBy == null,
     upperBlockedBy,
-    armPlyo: !arm.defer.dailyArmPlyo,
+    armPlyo: !arm.defer.dailyArmPlyo && !afterOuting,
     /* 멈춘 날 · 프로그램 날('none' 길)은 매일 일정에 쓸 시간이 없다 */
     minutes: time ? (halted || (owns && !assist) ? 0 : time.daily) : null,
     overrodeBudget,

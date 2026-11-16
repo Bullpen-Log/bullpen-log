@@ -37,8 +37,7 @@ export function coachMinutesOf(slot: DaySlot | null): number | null {
  * 코치 칸이 운동 날이면 그대로 코치 것(만든 운동이 코치 시간을 따랐다).
  */
 export async function takeDayFromCoach(userId: string, dateKey: string, slot: DaySlot | null): Promise<void> {
-  /* 등판 다음 날의 가벼운 회복 운동은 코치가 권한 것 — 만들어도 그날은 코치 것 그대로 */
-  if (!slot || slot.owner === 'user' || slot.items.some((x) => x.kind === 'train' || x.kind === 'program' || (x.kind === 'rest' && x.light))) return;
+  if (!slot || slot.owner === 'user' || slot.items.some((x) => x.kind === 'train' || x.kind === 'program')) return;
   const weekStart = dbDate(shiftDateKey(dateKey, -weekdayOf(dateKey)));
   const row = await prisma.coachWeek.findUnique({ where: { userId_weekStart: { userId, weekStart } }, select: { slots: true } });
   if (!row) return;

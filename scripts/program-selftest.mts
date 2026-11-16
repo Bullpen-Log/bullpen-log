@@ -1175,23 +1175,41 @@ console.log('\n4-1) 경기 다음 날은 부하로(D3)');
   const zero = dayOf(factsOf(y1(0, 100, '경기')));
   check("어제 '경기' 0구 줄 → 진행(부하 0)", zero.kind === 'go', zero.kind);
   const game = dayOf(factsOf(y1(85, 100, '경기')));
+  /*
+   * 2026-11-16 로 바뀜(김민 결정 — 등판 다음 날은 운동 날) — 왜: 어제 세게 던졌거나 기록 없는 등판 다음 날은 쉬지 않고 그날 일차를 한다
+   * (센 운동을 등판 바로 뒤에 붙이면 다음 등판까지 쉴 날이 가장 길다). 쉬는 것은 던진 것에 최근 운동 힘듦 급증이 겹친 날뿐이다
+   * (lib/engine/arm-load.ts restsAfterOuting — 매일 일정의 날 종류 R2 와 같은 날).
+   */
   check(
-    "어제 경기 85구 → 쉼 · 까닭 '어제 팔 부담이 컸어요'(넘길 수 있음)",
-    game.kind === 'rest' &&
-      game.reason === 'gameYesterday' &&
-      REST_TEXT[game.reason] === '어제 팔 부담이 컸어요',
+    '어제 경기 85구 → 진행(2026-11-16 — 등판 다음 날은 운동 날, 예전 쉼)',
+    game.kind === 'go' && REST_TEXT.gameYesterday === '어제 팔 부담이 컸어요',
     game.kind
+  );
+  const yesterdaySignal = (arm: Parameters<typeof programSignalsOf>[0]['yesterdayArmLoad']) =>
+    programSignalsOf({
+      outing: { answerToday: null, answerYesterday: null },
+      typesToday: [],
+      yesterdayArmLoad: arm,
+    }).gameYesterday;
+  check(
+    '어제 때문에 쉬는 신호 — 세게 던진 날 + 운동 힘듦 급증 · 중간 부하 + 급증만 참, 세게 던진 날만 · 기록 없는 등판 · 없음은 거짓',
+    yesterdaySignal({ kind: 'hard', spike: true }) === true &&
+      yesterdaySignal({ kind: 'moderateSpike' }) === true &&
+      yesterdaySignal({ kind: 'hard' }) === false &&
+      yesterdaySignal({ kind: 'hard', spike: false }) === false &&
+      yesterdaySignal({ kind: 'claimedNoLog' }) === false &&
+      yesterdaySignal(null) === false
   );
   const pen = dayOf(factsOf(y1(40, 90, '불펜')));
   check(
-    '어제 불펜 40구 90% → 쉼(경기가 아니어도 세게 던진 날 — 예전에는 진행)',
-    pen.kind === 'rest' && pen.reason === 'gameYesterday',
+    '어제 불펜 40구 90% → 진행(세게 던진 날의 다음 날도 운동 날)',
+    pen.kind === 'go',
     pen.kind
   );
   const claimed = dayOf(factsOf([], '오늘 등판'));
   check(
-    "어제 '오늘 등판' 답 · 기록 없음 → 쉼(부하를 모르니 조이는 쪽)",
-    claimed.kind === 'rest' && claimed.reason === 'gameYesterday',
+    "어제 '오늘 등판' 답 · 기록 없음 → 진행(기록 없는 등판 다음 날도 등판 다음 날)",
+    claimed.kind === 'go',
     claimed.kind
   );
   const claimedLight = dayOf(factsOf(y1(15, 100, '경기'), '오늘 등판'));
@@ -1207,8 +1225,8 @@ console.log('\n4-1) 경기 다음 날은 부하로(D3)');
   const textOf = (facts: ReturnType<typeof factsOf>) =>
     restTextOf('gameYesterday', yesterdayArmLoadOf(facts)?.kind ?? null);
   check(
-    "P4 검토 — 쉬는 까닭 글: 어제 경기 85구 '어제 많이 던졌어요' · 기록 없는 등판 '어제 등판한 다음 날이에요' · 까닭 모름은 예전 글",
-    textOf(factsOf(y1(85, 100, '경기'))) === '어제 많이 던졌어요' &&
+    "P4 검토 — 쉬는 까닭 글: 어제 경기 85구(운동 힘듦 급증이 겹쳐 쉬는 날) '어제 던졌고 최근 운동도 힘들었어요' · 기록 없는 등판 '어제 등판한 다음 날이에요' · 까닭 모름은 예전 글",
+    textOf(factsOf(y1(85, 100, '경기'))) === '어제 던졌고 최근 운동도 힘들었어요' &&
       textOf(factsOf([], '오늘 등판')) === '어제 등판한 다음 날이에요' &&
       restTextOf('gameYesterday') === REST_TEXT.gameYesterday &&
       restTextOf('gameToday', 'hard') === REST_TEXT.gameToday

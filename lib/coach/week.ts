@@ -62,7 +62,7 @@ export type SlotItem =
   | { kind: 'armcare'; mode: 'strength' | 'recovery'; suggested: true }
   | { kind: 'mechanics' }
   | { kind: 'fixed'; what: FixedDay['kind'] }
-  /* light = 등판 다음 날의 쉬기 — 가벼운 회복 운동은 해도 된다(선택, 안 해도 못 함이 아니다. 그날 엔진이 회복 날 운동을 만든다) */
+  /* light 는 2026-11-16 하루 동안 저장된 옛 칸에만 있다(등판 다음 날의 쉬기 — 이제 그날은 운동 날이라 만들지도 읽지도 않는다) */
   | { kind: 'rest'; light?: true };
 
 /** 칸의 까닭 — 화면 글은 정해진 문장(AI 없이도 설명, U7) */
@@ -151,22 +151,28 @@ const YOUTH_MAX_FREQ = 3;
 type Outing = { date: string; soft: boolean };
 
 /**
- * 그 날의 엔진 날 종류(R1 ~ R7, lib/engine/microcycle.ts 머리 주석) — 등판 날짜 목록에서. 엔진과 같은 차례: 세게 던진 다음 날 > 오늘 등판 >
- * 내일 등판 > 3일 안 > 그 밖. 짐작한 등판(soft)은 오늘 · 내일이면 보조, 2~3일 뒤면 큰 하체만 빼고, 4일 이상이면 모름(엔진 G22 — 짐작으로
- * 무거운 쪽을 고르지 않는다). 지난 등판은 확실한 것만 '다음 날 회복'으로 본다.
+ * 그 날의 엔진 날 종류(R1 ~ R7, lib/engine/microcycle.ts 머리 주석) — 등판 날짜 목록에서. 엔진과 같은 차례: 오늘 등판 > 내일 등판 >
+ * 3일 안 > 등판 다음 날 > 그 밖. 짐작한 등판(soft)은 오늘 · 내일이면 보조, 2~3일 뒤면 큰 하체만 빼고, 4일 이상이면 모름(엔진 G22 — 짐작으로
+ * 무거운 쪽을 고르지 않는다). 등판 다음 날(확실한 등판만)은 2026-11-16 부터 회복이 아니라 하체 위주 운동 날이다(엔진 R5' afterOuting).
  */
 export function dayRuleOf(date: string, outings: readonly Outing[]): { rule: DayRule; heavyLower: boolean } {
-  const yesterday = shiftDateKey(date, -1);
-  if (outings.some((o) => o.date === yesterday && !o.soft)) return { rule: 'hard', heavyLower: false };
+  const after = isAfterOuting(date, outings);
   const today = outings.find((o) => o.date === date);
   if (today) return { rule: today.soft ? 'softOutingNear' : 'outingToday', heavyLower: false };
   const next = outings.filter((o) => o.date > date).sort((a, b) => (a.date < b.date ? -1 : 1))[0];
-  if (!next) return { rule: 'none', heavyLower: true };
+  if (!next) return { rule: after ? 'afterOuting' : 'none', heavyLower: true };
   const n = daysFrom(date, next.date);
   if (n === 1) return { rule: next.soft ? 'softOutingNear' : 'outingTomorrow', heavyLower: false };
   if (n <= HEAVY_LOWER_BLOCK_WITHIN_DAYS) return { rule: 'outingSoon', heavyLower: false };
+  if (after) return { rule: 'afterOuting', heavyLower: true };
   if (next.soft) return { rule: 'none', heavyLower: true };
   return { rule: n >= FAR_OUTING_MIN_DAYS ? 'outingFar' : 'outingSoon', heavyLower: n >= FAR_OUTING_MIN_DAYS };
+}
+
+/** 확실한 등판 다음 날인가 — 규칙이 afterOuting 이 아니어도(다음 등판이 3일 안인 날) 참이다. 회복 암케어 · 메커니즘 빼기가 읽는다 */
+function isAfterOuting(date: string, outings: readonly Outing[]): boolean {
+  const yesterday = shiftDateKey(date, -1);
+  return outings.some((o) => o.date === yesterday && !o.soft);
 }
 
 function daysFrom(a: string, b: string): number {
@@ -209,7 +215,7 @@ function spread(candidates: readonly number[], count: number, taken: ReadonlySet
 }
 
 const RULE_REASON: Partial<Record<DayRule, ReasonCode>> = {
-  hard: 'after-outing',
+  afterOuting: 'after-outing',
   outingToday: 'outing',
   softOutingNear: 'outing-soft',
   outingTomorrow: 'outing-tomorrow',
@@ -248,6 +254,8 @@ export function planWeek(input: WeekInput): DaySlot[] {
     const standby = (d: string) => input.fixed.some((f) => f.date === d && f.kind === 'game' && f.relief);
     const r = rule !== 'softOutingNear' ? RULE_REASON[rule] : standby(date) ? 'standby' : standby(shiftDateKey(date, 1)) ? 'standby-tomorrow' : RULE_REASON[rule];
     if (r) reasons.push(r);
+    /* 등판 다음 날인데 다른 규칙(3일 안 · 내일 등판)이 먼저 걸린 날에도 그 사실은 말한다 */
+    if (r !== 'after-outing' && rule !== 'outingToday' && isAfterOuting(date, outings)) reasons.push('after-outing');
     return { date, items, reasons, owner: 'coach', rule, rank: DAY_RULE_RANK[rule], ...(!input.prev && date < input.today ? { late: true as const } : {}) };
   });
 
@@ -257,6 +265,9 @@ export function planWeek(input: WeekInput): DaySlot[] {
     (i) => answers.days.includes(i as Weekday) && slots[i].rank !== 'recovery' && !hasFixed(i)
   );
   const heavyOk = (i: number) => !input.youth && dayRuleOf(dates[i], outings).heavyLower;
+  /* 등판 다음 날 — 운동을 여기 먼저 놓는다(센 운동을 등판 바로 뒤에 붙이면 다음 등판까지 쉴 날이 가장 길다, 2026-11-16) */
+  const after = (i: number) => isAfterOuting(dates[i], outings);
+  const afterFirst = (xs: readonly number[]) => [...xs.filter(after), ...xs.filter((i) => !after(i))];
   const keptCount = (kind: SlotItem['kind']) => [...kept.values()].filter((s) => s.items.some((x) => x.kind === kind)).length;
 
   /* 운동 날 — 쉬는 날(운동 · 팀 훈련 · 레슨 없는 날)은 적어도 하루 */
@@ -269,14 +280,14 @@ export function planWeek(input: WeekInput): DaySlot[] {
     target = Math.min(room, Math.max(0, input.program.perWeek - keptCount('program') - dropped));
     /* 프로그램은 무게를 드는 날 — 보조 날(등판 전날)은 피하고 큰 하체를 들 수 있는 날 먼저 */
     const strong = trainable.filter((i) => slots[i].rank !== 'light');
-    picks = spread([...strong.filter(heavyOk), ...strong.filter((i) => !heavyOk(i))], target, new Set([...kept.keys()].filter((i) => kept.get(i)!.items.some((x) => x.kind === 'program'))));
+    picks = spread(afterFirst([...strong.filter(heavyOk), ...strong.filter((i) => !heavyOk(i))]), target, new Set([...kept.keys()].filter((i) => kept.get(i)!.items.some((x) => x.kind === 'program'))));
   } else {
     const lessons = slots.filter((s, i) => !kept.has(i) && s.items.some((x) => x.kind === 'fixed' && x.what === 'lesson')).length;
     let base = input.baselineFreq ?? LEVEL_FREQ[input.level ?? ''] ?? DEFAULT_FREQ;
     if (input.youth) base = Math.min(base, YOUTH_MAX_FREQ);
     if (input.effortSpike) base -= 1;
     target = Math.min(room, Math.max(0, base - lessons - keptCount('train') - dropped));
-    picks = spread(trainable, target);
+    picks = spread(afterFirst(trainable), target);
   }
   /* 프로그램 칸은 프로그램이 정한 대로라 그대로 둔다(진행 중 프로그램은 피할 동작을 모른다 — 프로그램 제안도 안 한다) */
   const noHeavy = !input.program && !!input.limits?.includes('heavyLower');
@@ -303,10 +314,10 @@ export function planWeek(input: WeekInput): DaySlot[] {
   }
 
   /* 암케어 제안(U23) — 등판 날 · 다음 날은 회복, 강화는 주 STRENGTH_PER_WEEK 번 · 이어서 안 함 · 통증이면 빼고. '제안'이라 안 해도 못 함이 아니다 */
-  for (const i of free) if (slots[i].rule === 'outingToday' || slots[i].rule === 'hard') slots[i].items.push({ kind: 'armcare', mode: 'recovery', suggested: true });
+  for (const i of free) if (slots[i].rule === 'outingToday' || after(i)) slots[i].items.push({ kind: 'armcare', mode: 'recovery', suggested: true });
   if (!input.painArm) {
     const keptStrength = [...kept.entries()].filter(([, s]) => s.items.some((x) => x.kind === 'armcare' && x.mode === 'strength'));
-    const ok = free.filter((i) => slots[i].rank === 'strength' || slots[i].rank === 'none');
+    const ok = free.filter((i) => (slots[i].rank === 'strength' || slots[i].rank === 'none') && !after(i));
     const order = [...ok.filter((i) => isWorkoutDay(slots[i])), ...ok.filter((i) => !isWorkoutDay(slots[i]))];
     const n = Math.max(0, STRENGTH_PER_WEEK - keptStrength.length);
     for (const i of spreadStrict(order, n, new Set(keptStrength.map(([i]) => i)))) slots[i].items.push({ kind: 'armcare', mode: 'strength', suggested: true });
@@ -317,7 +328,7 @@ export function planWeek(input: WeekInput): DaySlot[] {
     if (input.painArm) slots.find((s, i) => !kept.has(i))?.reasons.push('pain');
     else if (input.limits?.includes('throwing')) slots.find((s, i) => !kept.has(i))?.reasons.push('limit');
     else {
-      const ok = free.filter((i) => answers.days.includes(i as Weekday) && slots[i].rank !== 'recovery' && slots[i].rule !== 'outingTomorrow' && !slots[i].items.some((x) => x.kind === 'fixed' && x.what === 'team'));
+      const ok = free.filter((i) => answers.days.includes(i as Weekday) && slots[i].rank !== 'recovery' && !after(i) && slots[i].rule !== 'outingTomorrow' && !slots[i].items.some((x) => x.kind === 'fixed' && x.what === 'team'));
       const order = [...ok.filter((i) => !slots[i].items.some((x) => x.kind === 'program')), ...ok.filter((i) => slots[i].items.some((x) => x.kind === 'program'))];
       const n = Math.max(0, input.mechanics.perWeek - keptCount('mechanics'));
       for (const i of spread(order, n)) slots[i].items.push({ kind: 'mechanics' });
@@ -328,7 +339,7 @@ export function planWeek(input: WeekInput): DaySlot[] {
   for (const i of free) {
     if (isWorkoutDay(slots[i]) || slots[i].items.some((x) => x.kind === 'fixed')) continue;
     const can = answers.days.includes(i as Weekday);
-    slots[i].items.unshift(can && slots[i].rule === 'hard' ? { kind: 'rest', light: true } : { kind: 'rest' });
+    slots[i].items.unshift({ kind: 'rest' });
     slots[i].reasons.push(can ? 'rest' : 'not-available');
   }
   return slots;

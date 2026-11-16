@@ -551,7 +551,9 @@ export function buildDailyPlan<T extends ExerciseLike>({
    */
   const lowerBlocked = budget != null && !budget.heavyLower;
   const dropLower = lowerBlocked && !override;
-  const dropArm = budget != null && !budget.armPlyo;
+  /* 날 종류 — 등판 다음 날은 운동 날이지만 팔로 던지는 운동은 뺀다(2026-11-16, '그래도 하기'로도 안 풀린다 — 팔 예산과 같은 칸) */
+  const dk = dayKindOf(facts);
+  const dropArm = (budget != null && !budget.armPlyo) || dk.afterOuting;
   const pool =
     dropLower || dropArm
       ? picked.candidates.filter(
@@ -648,13 +650,12 @@ export function buildDailyPlan<T extends ExerciseLike>({
     avoid,
   });
   /*
-   * 쓸 시간 — 회복 날은 effectiveMinutes 가 줄이고, 그 밖의 날은 구원 '어제 실전 강도로 20구 넘게 던졌으면 짧게'(날 종류의 shorten,
-   * 2판 P4 커밋 E)일 때 × 0.75 · 바닥 30분. 회복 날은 이미 줄였으니 두 번 줄이지 않는다. 고르기 전에 정해야 구성이 그 시간에 맞는다.
+   * 쓸 시간 — 회복 날은 effectiveMinutes 가 줄이고, 그 밖의 날은 날 종류의 shorten(등판 다음 날 · 구원 '어제 실전 강도로 20구 넘게',
+   * 2판 P4 커밋 E · 2026-11-16)일 때 × 0.75 · 바닥 30분. 회복 날은 이미 줄였으니 두 번 줄이지 않는다. 고르기 전에 정해야 구성이 그 시간에 맞는다.
    */
-  const dk = dayKindOf(facts);
   const baseMinutes = effectiveMinutes(theme.key, requestedMinutes);
-  const shortenPitches = theme.key === 'recovery' ? null : shortenPitchesOf(dk);
-  const minutes = shortenPitches != null ? shortenedMinutes(baseMinutes) : baseMinutes;
+  const shorten = theme.key !== 'recovery' && dk.shorten;
+  const minutes = shorten ? shortenedMinutes(baseMinutes) : baseMinutes;
 
   /*
    * 오늘 상태 한 장 — 양 조절(아래)과 고르기 점수가 같이 읽는다. 안 넘겼으면 facts · plan 으로 만든다(넘긴 것과 같은 값).
@@ -767,8 +768,8 @@ export function buildDailyPlan<T extends ExerciseLike>({
     {
       conditioning,
       shortened:
-        shortenPitches != null && minutes < baseMinutes
-          ? { pitches: shortenPitches, minutes }
+        shorten && minutes < baseMinutes
+          ? { pitches: shortenPitchesOf(dk), minutes }
           : null,
     }
   );

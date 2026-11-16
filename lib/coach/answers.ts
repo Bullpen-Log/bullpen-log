@@ -152,7 +152,7 @@ function itemText(x: SlotItem): string {
     case 'fixed':
       return x.what === 'game' ? '경기' : x.what === 'team' ? '팀 훈련' : '레슨';
     case 'rest':
-      return x.light ? '쉬기(가벼운 회복 운동은 선택)' : '쉬기';
+      return '쉬기';
   }
 }
 
