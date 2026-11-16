@@ -24,6 +24,7 @@ import { downloadFileName, isIntakeId, isSubmissionPath, originalExtension } fro
 import { requeueJob } from '@/lib/intake/jobs';
 import { ORIGINAL_RETENTION_MS, correctionHoldUntil, currentOriginalsPurgedAt, originalRetention, retentionDue, shownRetention, type RetentionBasis } from '@/lib/intake/retention';
 import {
+  normalizeAthleteName,
   cancelCorrection,
   cleanupCutoffs,
   createInvitation,
@@ -137,7 +138,7 @@ export function parseIntakeFilters(raw: Record<string, string | string[] | undef
     status: oneOf(firstOf(raw.status), SUBMISSION_STATUSES),
     analysis: oneOf(firstOf(raw.analysis), ANALYSIS_STATUSES),
     publication: oneOf(firstOf(raw.publication), PUBLICATION_STATUSES),
-    invitation: oneOf(firstOf(raw.invitation), INVITATION_STATUSES),
+    invitation: oneOf(firstOf(raw.invitation), [...INVITATION_STATUSES, 'archived']),
     assignee: assignee === 'me' || assignee === 'none' || isIntakeId(assignee) ? (assignee as string) : null,
     unread: firstOf(raw.unread) === '1',
     page: Number.isFinite(page) && page >= 1 ? Math.min(page, 100_000) : 1,
@@ -196,7 +197,7 @@ async function unreadIds(db: Db, adminId: string): Promise<string[]> {
     SELECT s."id"
     FROM "IntakeSubmission" s
     LEFT JOIN "IntakeAdminRead" r ON r."submissionId" = s."id" AND r."adminId" = ${adminId}
-    WHERE s."receivedAt" IS NOT NULL AND (r."readAt" IS NULL OR r."readAt" < s."updatedAt")
+    WHERE EXISTS (SELECT 1 FROM "IntakeInvitation" i WHERE i."id" = s."invitationId" AND i."status" <> 'archived') AND s."receivedAt" IS NOT NULL AND (r."readAt" IS NULL OR r."readAt" < s."updatedAt")
   `);
   return rows.map((r) => r.id);
 }
@@ -230,7 +231,7 @@ function listWhere(f: IntakeListFilters, adminId: string, unread: readonly strin
   if (f.status) where.status = f.status;
   if (f.analysis) where.analysisStatus = f.analysis;
   if (f.publication) where.publicationStatus = f.publication;
-  if (f.invitation) where.invitation = { status: f.invitation };
+  where.invitation = { status: f.invitation ?? { not: 'archived' } };
   if (f.assignee === 'none') where.assigneeAdminId = null;
   else if (f.assignee) where.assigneeAdminId = f.assignee === 'me' ? adminId : f.assignee;
   if (f.unread) and.push({ id: { in: [...unread] } });
@@ -1631,4 +1632,43 @@ export async function buildIntakeManifest(db: Db, actor: IntakeActor, input: { s
     truncated,
     entries,
   };
+}
+
+
+/** 관리자 표시 이름 수정·휴지통. 원본·동의·확정 판을 덮어쓰지 않는다. */
+export async function adminManageRecord(db: Db, actor: IntakeActor, input: {
+  submissionId: string; expectedVersion: number; operation: 'edit' | 'archive' | 'restore'; athleteName?: string; note?: string;
+}, now: Date = new Date()): Promise<{ version: number }> {
+  assertIntakeAdmin(actor);
+  mustSubmissionId(input.submissionId);
+  if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 0 || !['edit', 'archive', 'restore'].includes(input.operation)) throw new IntakeError('invalid_input');
+  const name = input.operation === 'edit' ? normalizeAthleteName(input.athleteName) : null;
+  if (input.operation === 'edit' && (typeof input.note !== 'string' || [...input.note].length > MAX_NOTE_CHARS || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(input.note))) throw new IntakeError('invalid_input');
+  return db.$transaction(async tx => {
+    await tx.$queryRaw`SELECT "id" FROM "IntakeSubmission" WHERE "id" = ${input.submissionId} FOR UPDATE`;
+    const sub = await tx.intakeSubmission.findUnique({ where: { id: input.submissionId }, include: { invitation: true } });
+    if (!sub) throw new IntakeError('submission_not_found');
+    if (sub.version !== input.expectedVersion) throw new IntakeError('stale_version');
+    const archived = sub.invitation.status === 'archived';
+    if ((input.operation === 'restore') !== archived) throw new IntakeError('invalid_state');
+    const version = sub.version + 1;
+    if (input.operation === 'edit') {
+      await tx.intakeSubmission.update({ where: { id: sub.id }, data: { athleteName: name!, version } });
+      await tx.intakeInvitation.update({ where: { id: sub.invitationId }, data: { note: input.note!.trim() || null } });
+      await writeAudit(tx, { actor: { kind: 'admin', id: actor.id }, action: 'submission.admin_edited', submissionId: sub.id, invitationId: sub.invitationId, detail: { fields: ['athleteName', 'invitationNote'], previousName: sub.athleteName, athleteName: name } }, now);
+    } else {
+      let status = 'archived';
+      if (input.operation === 'restore') {
+        const audit = await tx.intakeAudit.findFirst({ where: { submissionId: sub.id, action: 'submission.archived', detail: { path: ['archivedVersion'], equals: sub.version } } });
+        const detail = audit?.detail as { previousStatus?: string } | null;
+        status = detail?.previousStatus === 'active' ? 'active' : 'revoked';
+      }
+      await tx.intakeInvitation.update({ where: { id: sub.invitationId }, data: { status, sessionEpoch: { increment: 1 } } });
+      await tx.intakeInviteeSession.updateMany({ where: { invitationId: sub.invitationId, revokedAt: null }, data: { revokedAt: now } });
+      await tx.intakePublication.updateMany({ where: { submissionId: sub.id, activeFor: sub.id }, data: { activeFor: null, unpublishedAt: now, unpublishedByAdminId: actor.id } });
+      await tx.intakeSubmission.update({ where: { id: sub.id }, data: { version, publicationStatus: 'unpublished' } });
+      await writeAudit(tx, { actor: { kind: 'admin', id: actor.id }, action: input.operation === 'archive' ? 'submission.archived' : 'submission.restored', submissionId: sub.id, invitationId: sub.invitationId, detail: { previousStatus: sub.invitation.status, archivedVersion: version } }, now);
+    }
+    return { version };
+  });
 }

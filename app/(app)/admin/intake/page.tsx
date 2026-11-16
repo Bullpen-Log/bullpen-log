@@ -49,10 +49,11 @@ export default async function IntakeAdminPage({
         <BackLink href="/admin">관리자</BackLink>
         <PageHeading
           kicker="대표관리자"
-          title="외부 영상 접수"
+          title={filters.invitation === 'archived' ? '영상 접수 휴지통' : '외부 영상 접수'}
           description="초대 링크 생성부터 원본 다운로드, 3D 결과 검토·공개까지 관리합니다."
           action={
             <div className="flex flex-wrap items-center gap-2">
+              <Link href={filters.invitation === 'archived' ? '/admin/intake' : '/admin/intake?invitation=archived'} className="inline-flex min-h-11 items-center rounded-xl border border-line px-4 text-sm text-ink">{filters.invitation === 'archived' ? '일반 접수 목록' : '휴지통'}</Link>
               {list !== 'not_ready' && <ManifestLink />}
               <CreateInvitation
                 ready={readiness.ready}

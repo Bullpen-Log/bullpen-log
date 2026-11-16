@@ -33,6 +33,7 @@ export const PUBLICATION_STATUS_TEXT: Record<string, string> = {
 };
 
 export const INVITATION_STATUS_TEXT: Record<string, string> = {
+  archived: '휴지통',
   active: '사용 중',
   revoked: '폐기됨',
 };
@@ -102,6 +103,9 @@ export const HAND_TEXT: Record<string, string> = { R: '오른손', L: '왼손' }
 
 /** 감사 기록의 동작 이름 — 모르는 이름은 코드 그대로 보인다(숨기지 않는다) */
 export const AUDIT_ACTION_TEXT: Record<string, string> = {
+  'submission.admin_edited': '관리자가 선수 정보를 수정했습니다',
+  'submission.archived': '접수를 휴지통으로 이동했습니다',
+  'submission.restored': '접수를 복원했습니다',
   'invitation.created': '초대를 만들었어요',
   'invitation.revoked': '초대를 폐기했습니다',
   'invitation.reissued': '링크를 새로 변경했습니다',

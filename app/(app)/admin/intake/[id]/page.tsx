@@ -1,3 +1,4 @@
+import { RecordManagement } from './record-management';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import type { PrismaClient } from '@prisma/client';
@@ -77,6 +78,11 @@ export default async function IntakeDetailPage({
   if (!isIntakeId(id)) notFound();
   const d = await loadDetail(user, id);
   if (!d) notFound();
+  if (d.invitation.status === 'archived') return <div className="stack-page">
+    <BackLink href="/admin/intake?invitation=archived">휴지통</BackLink>
+    <PageHeading title={d.athleteName ?? d.invitation.note ?? '이름 미입력'} />
+    <RecordManagement submissionId={d.id} version={d.version} athleteName={d.athleteName} note={d.invitation.note} archived />
+  </div>;
   const analysis = await loadAnalysis(id);
   /* 새 링크 만들기도 초대 만들기와 같은 준비(표 · 정식 주소)를 본다 */
   const readiness =
@@ -118,6 +124,7 @@ export default async function IntakeDetailPage({
         </div>
       </div>
 
+      <RecordManagement key={d.version} submissionId={d.id} version={d.version} athleteName={d.athleteName} note={d.invitation.note} />
       {withdrawn && (
         <p className="rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-sm text-warn">
           {withdrawnBannerLead(d)}

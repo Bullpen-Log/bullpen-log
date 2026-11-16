@@ -6,6 +6,7 @@ import { requirePermission } from '@/lib/dal';
 import { prisma } from '@/lib/prisma';
 import { allowAdmin } from '@/lib/release-gate';
 import {
+  adminManageRecord,
   addIntakeNote,
   adminCancelCorrection,
   adminCreateInvitationLink,
@@ -387,5 +388,14 @@ export async function unpublishIntake(submissionId: string, expectedActivePublic
     await markIntakeRead(db, actor, submissionId);
     revalidate(submissionId);
     return {};
+  });
+}
+
+
+export async function manageIntakeRecord(input: Parameters<typeof adminManageRecord>[2]): Promise<IntakeActionResult<{ version: number }>> {
+  return asAdmin(async actor => {
+    const result = await adminManageRecord(db, actor, input);
+    revalidate(input.submissionId);
+    return result;
   });
 }

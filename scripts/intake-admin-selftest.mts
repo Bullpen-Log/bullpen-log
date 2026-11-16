@@ -310,6 +310,7 @@ const auditCount = () => db.intakeAudit.count();
     /* 이름 · PIN · 수동 결과 · 원본 사본 확인(INTAKE-MAIN/R03) */
     resetIntakeInvitee: [id],
     unlockIntakeInvitee: [id],
+    manageIntakeRecord: [{ submissionId: id, expectedVersion: 0, operation: 'archive' }],
     importIntakeManualResult: [id, id, '{}'],
     confirmIntakeLocalCopy: [id, id, '팀 외장 디스크'],
   };
@@ -1277,7 +1278,7 @@ const auditCount = () => db.intakeAudit.count();
     const d = await loadIntakeDetail(db, A, dr.submissionId, NOW);
     eq([d.filesPurgedAt, d.analysisBlock], [row.originalsPurgedAt, row.analysisBlock], `상세가 목록과 같은 지운 날 · 판단을 준다: ${kind}`);
     ok(d.filesPurgedAt != null, `지운 날이 있다: ${kind}`);
-    eq(emptyVideosText(d.assets), '받은 영상을 지웠어요.', `받은 적 없는 접수처럼 안 읽힌다: ${kind}`);
+    eq(emptyVideosText(d.assets), '받은 영상을 삭제했습니다.', `받은 적 없는 접수처럼 안 읽힌다: ${kind}`);
     /* 검증 지적: 철회 유예가 끝나 지운 파일을 '쓰이지 않은 임시 파일'이라고 했다. 철회 뒤에 지웠으면 까닭은 철회다 */
     const why = kind === 'withdrawn' ? '접수를 철회해서 지웠습니다' : '접수에 쓰이지 않은 임시 파일이라 지웠습니다';
     eq(d.assets.map((a) => a.integrity), [why, why], `정리가 지운 파일의 까닭을 사실대로 말하고 보유 기간 때문이라고 안 한다: ${kind}`);
@@ -1285,7 +1286,7 @@ const auditCount = () => db.intakeAudit.count();
     eq([row.analysisBlock, analysisChipText(row.analysisStatus, row.analysisBlock)], ['received_deleted', '영상 지워짐'], `판이 없는 접수의 칩은 원본이라고 안 한다: ${kind}`);
     eq(d.analysisBlock, row.analysisBlock, `상세 칩도 같다: ${kind}`);
   }
-  eq(emptyVideosText([]), '아직 고른 영상이 없어요.', '받은 적 없으면 그대로다');
+  eq(emptyVideosText([]), '아직 고른 영상이 없습니다.', '받은 적 없으면 그대로다');
 
   /* 검증 지적: 철회하기 전에 정리가 지운 임시 파일은 철회가 까닭이 아니다 */
   {
@@ -1300,12 +1301,12 @@ const auditCount = () => db.intakeAudit.count();
   }
 
   /*
-   * 검증 지적: 옆 파일은 지웠고 뒤 파일은 버렸지만 아직 안 지운 초안 — 목록은 [지워짐, 없음]인데 상세는 '아직 고른 영상이 없어요'라고 했다.
+   * 검증 지적: 옆 파일은 지웠고 뒤 파일은 버렸지만 아직 안 지운 초안 — 목록은 [지워짐, 없음]인데 상세는 '아직 고른 영상이 없습니다'라고 했다.
    * 상세 글은 목록 칸과 같은 칸별 판단(slotProgressOf)으로 만든다.
    */
   for (const [kind, sideStatus, want, wantRow] of [
-    ['옆만지움', 'purged', '옆 영상은 지웠어요. 뒤 영상은 없어요.', ['deleted', 'empty']],
-    ['옆만지우는중', 'purging', '옆 영상은 지우고 있어요. 뒤 영상은 없어요.', ['deleting', 'empty']],
+    ['옆만지움', 'purged', '옆 영상은 삭제했습니다. 뒤 영상은 없습니다.', ['deleted', 'empty']],
+    ['옆만지우는중', 'purging', '옆 영상은 지우고 있습니다. 뒤 영상은 없습니다.', ['deleting', 'empty']],
   ] as const) {
     const half = await mk({ name: `${tag}${kind}`, status: 'draft', receivedAt: null });
     await mkAsset(half.submissionId, 'side', sideStatus, sideStatus === 'purged' ? { purgedAt: NOW } : {});
@@ -1318,14 +1319,14 @@ const auditCount = () => db.intakeAudit.count();
 
   /*
    * 검증 지적: 고침 중 두 칸을 요청했고, 받는 사람이 새로 고른 두 파일을 정리가 버려 칸을 비웠다. 판 1에 얼린 원본은 살아 있다.
-   * 칸이 비었다고 '받은 영상을 지웠어요'라고 하면 바로 아래 살아 있는 원본과 어긋나고, 목록('없음')과도 어긋난다.
+   * 칸이 비었다고 '받은 영상을 삭제했습니다'라고 하면 바로 아래 살아 있는 원본과 어긋나고, 목록('없음')과도 어긋난다.
    */
-  const FROZEN_ALIVE = '새로 받은 영상이 없어요. 판에 얼린 원본은 아래 이전에 고른 영상에 있어요.';
+  const FROZEN_ALIVE = '새로 받은 영상이 없습니다. 판에 얼린 원본은 아래 이전에 고른 영상에 있습니다.';
   for (const [kind, newStatus, frozenStatus, want] of [
     ['고침새파일지움', 'purged', 'verified', FROZEN_ALIVE],
     ['고침새파일버림', 'abandoned', 'verified', FROZEN_ALIVE],
-    ['고침다지움', 'purged', 'purged', '받은 영상을 지웠어요.'],
-    ['고침원본지움', 'abandoned', 'purged', '새로 받은 영상이 없어요. 판에 얼린 원본은 지웠어요.'],
+    ['고침다지움', 'purged', 'purged', '받은 영상을 삭제했습니다.'],
+    ['고침원본지움', 'abandoned', 'purged', '새로 받은 영상이 없습니다. 판에 얼린 원본은 삭제했습니다.'],
   ] as const) {
     const fx = await mkReady(kind, { status: 'correction_requested' });
     if (frozenStatus === 'purged') await db.intakeAsset.updateMany({ where: { id: { in: [fx.side, fx.rear] } }, data: { status: 'purged', purgedAt: NOW } });
@@ -1413,12 +1414,12 @@ const auditCount = () => db.intakeAudit.count();
   eq([fine.ready, fine.blockers, fine.missing], [true, [], []], '표 · 칸 · 정식 주소가 다 있으면 준비됨');
   const prod = await checkIntakeReadiness(db, PROD_LOCAL);
   eq([prod.ready, prod.blockers], [false, ['origin']], '운영에서 정식 주소가 아니면 준비 안 됨');
-  ok(readinessLines(prod).some((l) => l.includes('외부 주소 설정이 없어요: NEXT_PUBLIC_SITE_URL')), '고칠 설정 칸 이름을 말한다');
+  ok(readinessLines(prod).some((l) => l.includes('외부 주소 설정이 없습니다: NEXT_PUBLIC_SITE_URL')), '고칠 설정 칸 이름을 말한다');
   const prodPreview = await checkIntakeReadiness(db, { VERCEL_ENV: 'production', INTAKE_PUBLIC_ORIGIN: 'https://bullpen-log-git-x.vercel.app' });
   ok(readinessLines(prodPreview).some((l) => l.includes('INTAKE_PUBLIC_ORIGIN') && l.includes('미리보기 배포 주소')), '미리보기 주소도 막고 까닭을 말한다');
   const dev = await checkIntakeReadiness(db, DEV_LOCAL);
   eq([dev.ready, dev.link.external], [true, false], '개발에서는 개발용 링크로 만들 수 있다');
-  ok(devLinkText(dev)?.startsWith('개발용 주소라 받는 사람에게 보내면 안 돼요'), '개발용 링크라고 붙인다');
+  ok(devLinkText(dev)?.startsWith('개발용 주소라 받는 사람에게 보내면 안 됩니다'), '개발용 링크라고 붙인다');
   eq(devLinkText(fine), null, '정식 주소면 개발용 표시가 없다');
 
   const invCount = () => db.intakeInvitation.count();
@@ -1432,7 +1433,7 @@ const auditCount = () => db.intakeAudit.count();
   await db.$executeRawUnsafe('ALTER TABLE "IntakeInvitation" RENAME COLUMN "createRequestKey" TO "createRequestKeyX"');
   const noColumn = await checkIntakeReadiness(db, {});
   eq([noColumn.ready, noColumn.blockers, noColumn.missing], [false, ['db'], ['IntakeInvitation.createRequestKey']], '새 칸이 없으면 준비 안 됨');
-  ok(readinessLines(noColumn)[0].startsWith('DB 마이그레이션 적용 전이에요'), 'DB 준비 안 됨 글');
+  ok(readinessLines(noColumn)[0].startsWith('DB 마이그레이션 적용 전입니다'), 'DB 준비 안 됨 글');
   await fails(adminCreateInvitationLink(db, A, {}, {}, NOW), 'intake_not_ready', '칸이 없으면 만들기가 준비 안 됨으로 막힌다');
   await db.$executeRawUnsafe('ALTER TABLE "IntakeInvitation" RENAME COLUMN "createRequestKeyX" TO "createRequestKey"');
   await db.$executeRawUnsafe('ALTER TABLE "IntakeRateLimit" RENAME TO "IntakeRateLimitX"');
@@ -1633,6 +1634,51 @@ const auditCount = () => db.intakeAudit.count();
   ok(seen.length >= 10 && seen.every((t) => t.length >= 40), '시험한 토큰을 모았다');
   ok(seen.every((t) => !trailAll.includes(t)), '감사 기록 · 초대 줄 어디에도 토큰 원문이 없다');
   ok(seen.every((t) => !logged.some((l) => l.includes(t))), '콘솔 출력에도 토큰 원문이 없다');
+}
+
+
+/* 관리자 이름 편집·휴지통: 격리 DB만 사용한다. */
+{
+  const f = await mk({ name: '수정 전 선수' });
+  const before = await db.intakeSubmission.findUniqueOrThrow({ where: { id: f.submissionId } });
+  const command = { submissionId: f.submissionId, expectedVersion: before.version, operation: 'edit' as const, athleteName: '  수정 후 선수  ', note: '관리자 메모' };
+  await fails(admin.adminManageRecord(db, U, command, NOW), 'admin_forbidden', '일반 사용자 직접 편집 차단');
+  await fails(admin.adminManageRecord(db, A, { ...command, expectedVersion: -1 }, NOW), 'invalid_input', '잘못된 버전 차단');
+  await fails(admin.adminManageRecord(db, A, { ...command, athleteName: '' }, NOW), 'athlete_name_required', '빈 이름 차단');
+  await fails(admin.adminManageRecord(db, A, { ...command, athleteName: '가'.repeat(41) }, NOW), 'athlete_name_invalid', '긴 이름 차단');
+  const edited = await admin.adminManageRecord(db, A, command, NOW);
+  eq((await db.intakeSubmission.findUniqueOrThrow({ where: { id: f.submissionId } })).athleteName, '수정 후 선수', '이름 정규화 저장');
+  eq((await db.intakeInvitation.findUniqueOrThrow({ where: { id: f.invitationId } })).note, '관리자 메모', '비공개 메모 저장');
+  await fails(admin.adminManageRecord(db, B, command, NOW), 'stale_version', '다른 관리자 낡은 저장 차단');
+  const side = await mkAsset(f.submissionId, 'side');
+  const rear = await mkAsset(f.submissionId, 'rear');
+  const rev = await db.intakeRevision.create({ data: { submissionId: f.submissionId, number: 1, sideAssetId: side, rearAssetId: rear, athleteName: '확정 당시 이름', submitterRelation: 'self', consentSnapshot: [], finalizeKey: 'manage-test-finalize', finalizedAt: NOW } });
+  const run = await db.intakeAnalysisRun.create({ data: { submissionId: f.submissionId, revisionId: rev.id, engineKey: 'manual', status: 'succeeded' } });
+  await db.intakePublication.create({ data: { submissionId: f.submissionId, runId: run.id, activeFor: f.submissionId, number: 1, publishedByAdminId: A.id, publishedAt: NOW } });
+  await db.intakeSubmission.update({ where: { id: f.submissionId }, data: { currentRevisionId: rev.id, publicationStatus: 'published' } });
+  const archived = await admin.adminManageRecord(db, A, { submissionId: f.submissionId, expectedVersion: edited.version, operation: 'archive' }, NOW);
+  eq((await db.intakeInvitation.findUniqueOrThrow({ where: { id: f.invitationId } })).status, 'archived', '삭제는 휴지통 상태');
+  await fails(openIntakeScope(db, `Intake ${f.token}`, 'read', NOW), 'invitation_revoked', '삭제된 공유 링크 차단');
+  eq(await db.intakePublication.count({ where: { submissionId: f.submissionId, activeFor: { not: null } } }), 0, '삭제하면 결과 공개 해제');
+  eq(await db.intakeAsset.count({ where: { submissionId: f.submissionId } }), 2, '삭제해도 원본과 메타데이터 보존');
+  eq((await db.intakeRevision.findUniqueOrThrow({ where: { id: rev.id } })).athleteName, '확정 당시 이름', '확정 판을 덮어쓰지 않는다');
+  const active = await loadIntakeList(db, A, parseIntakeFilters({ q: '수정 후 선수' }), NOW);
+  eq(active.total, 0, '일반 목록에서 제외');
+  const trash = await loadIntakeList(db, A, parseIntakeFilters({ q: '수정 후 선수', invitation: 'archived' }), NOW);
+  eq(trash.rows.map(x => x.id), [f.submissionId], '휴지통에서 검색·조회');
+  await fails(admin.adminManageRecord(db, A, { ...command, expectedVersion: archived.version }, NOW), 'invalid_state', '삭제된 접수 편집 차단');
+  await fails(admin.adminManageRecord(db, B, { submissionId: f.submissionId, expectedVersion: edited.version, operation: 'restore' }, NOW), 'stale_version', '낡은 복원 차단');
+  const restored = await admin.adminManageRecord(db, A, { submissionId: f.submissionId, expectedVersion: archived.version, operation: 'restore' }, NOW);
+  const inv = await db.intakeInvitation.findUniqueOrThrow({ where: { id: f.invitationId } });
+  eq(inv.status, 'active', '유효했던 링크만 복원');
+  eq(await db.intakePublication.count({ where: { submissionId: f.submissionId, activeFor: { not: null } } }), 0, '복원해도 자동 재공개하지 않는다');
+  eq(inv.sessionEpoch, 2, '삭제·복원마다 예전 세션 무효화');
+  eq((await db.intakeSubmission.findUniqueOrThrow({ where: { id: f.submissionId } })).receivedAt, before.receivedAt, '접수일과 보관 기준 유지');
+  await adminRevokeInvitation(db, A, { submissionId: f.submissionId }, NOW);
+  const again = await admin.adminManageRecord(db, A, { submissionId: f.submissionId, expectedVersion: restored.version, operation: 'archive' }, NOW);
+  await admin.adminManageRecord(db, A, { submissionId: f.submissionId, expectedVersion: again.version, operation: 'restore' }, NOW);
+  eq((await db.intakeInvitation.findUniqueOrThrow({ where: { id: f.invitationId } })).status, 'revoked', '폐기된 링크를 복원이 재활성화하지 않는다');
+  eq(await db.intakeAudit.count({ where: { submissionId: f.submissionId, action: 'submission.archived' } }), 2, '반복 삭제·복원을 각각 감사 기록');
 }
 
 await db.$disconnect();
