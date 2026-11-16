@@ -3689,6 +3689,13 @@
     "source": "https://www.nsca.com/education/videos/plyometric-implementation-setup-and-execution-of-jump-landing-positions-to-decrease-likelihood-of-injuries/",
     "limitations": "Landing work is indirect support only; no claim of proven pitching transfer or injury prevention. Native offline playback not verified.",
     "verification": "Saved; reloaded web displays revised text and playing with repeat enabled; video exported with AVFoundation.",
-    "at_utc": "2026-11-16T10:41:21.354631+00:00"
+    "at_utc": "2026-11-16T10:41:21.354631+00:00",
+    "updates": [
+      {
+        "at_utc": "2026-11-16T10:43:06.340654+00:00",
+        "user_request": "Cut further, camera-facing ending still visible.",
+        "video_edit": "Trim previous 10.65s to 9.75s from original, finishing shortly after final drop before head rises. Source and prior edit retained. Description and settings unchanged; browser reloaded, repeat enabled. Human judgment pending."
+      }
+    ]
   }
 ]
