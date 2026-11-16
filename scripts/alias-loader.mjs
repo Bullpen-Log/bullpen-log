@@ -29,9 +29,11 @@ export function resolve(specifier, context, next) {
    * 운동 시작 목록(lib/workout/session-plan.ts — 순수 계산뿐)을 시험하려고 그 파일에서만 빈 모듈로 바꾼다(2026-10-04).
    * 모든 파일에 풀면 DB 에 쓰는 서버 코드(예: today-data.ts)까지 스크립트에서 불려 운영 DB 를 건드릴 수 있다.
    */
+  /* 코치 AI 부르기(lib/coach/ai.ts — Anthropic 호출뿐, DB 없음)도 실제 호출 확인(scripts/coach-ai-live.mts)을 위해 푼다(2026-11-16) */
   if (
     specifier === 'server-only' &&
-    context.parentURL?.endsWith('/lib/workout/session-plan.ts')
+    (context.parentURL?.endsWith('/lib/workout/session-plan.ts') ||
+      context.parentURL?.endsWith('/lib/coach/ai.ts'))
   ) {
     return { url: 'data:text/javascript,', shortCircuit: true };
   }

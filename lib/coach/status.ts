@@ -19,6 +19,26 @@ export function slotStateOf(slot: DaySlot, done: DayDone | undefined, today: str
   return slot.items.some((x) => PLANNED.has(x.kind)) ? 'missed' : 'off';
 }
 
+/**
+ * 과제별 진행(AI 맥락용, 2026-11-16) — slotStateOf 는 하나만 해도 '한 것'이라 암케어만 한 날이 다 한 날로 읽혔다. 여기서는 계획한 과제
+ * (운동 · 메커니즘 드릴)마다 했나를 가르고, 계획 밖에 한 것(암케어 · 쉬는 날 운동)은 따로 둔다. 암케어 제안은 안 해도 '안 한 것'이 아니다(U23).
+ */
+export type SlotProgress = { did: string[]; left: string[]; extra: string[] };
+
+export function slotProgressOf(slot: DaySlot, done: DayDone | undefined): SlotProgress {
+  const d = done ?? { workout: false, armcare: false, drill: false };
+  const tasks: { label: string; planned: boolean; done: boolean }[] = [
+    { label: '운동', planned: slot.items.some((x) => x.kind === 'train' || x.kind === 'program'), done: d.workout },
+    { label: '메커니즘 드릴', planned: slot.items.some((x) => x.kind === 'mechanics'), done: d.drill },
+    { label: '암케어', planned: false, done: d.armcare },
+  ];
+  return {
+    did: tasks.filter((t) => t.planned && t.done).map((t) => t.label),
+    left: tasks.filter((t) => t.planned && !t.done).map((t) => t.label),
+    extra: tasks.filter((t) => !t.planned && t.done).map((t) => t.label),
+  };
+}
+
 /** 오늘 칸에서 시작할 것 — 앱 화면 주소(그 화면이 그날 운동을 엔진으로 만든다, R2). 운동 · 프로그램이 먼저 */
 export type CoachStart = { kind: 'train' | 'mechanics' | 'armcare'; label: string; path: string };
 

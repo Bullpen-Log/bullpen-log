@@ -1,0 +1,79 @@
+/**
+ * 코치 AI 실제 호출 확인 — 돈이 든다(한 번에 몇 원). 시험 묶음(coach:ai-test)에는 안 넣는다. 지어낸 상황 둘을 실제 길(chatTurn → 거르기)로 보낸다.
+ * 사용자 자료는 안 보낸다(맥락은 여기서 지어낸 것). 열쇠는 환경변수 ANTHROPIC_API_KEY.
+ * 실행: node --env-file=.env --import ./scripts/alias-register.mjs scripts/coach-ai-live.mts
+ */
+import { chatTurn } from '@/lib/coach/ai';
+import { contextBlock, type CoachAiContext } from '@/lib/coach/ai-prompt';
+import { sanitizeAdjusts } from '@/lib/coach/adjust';
+import { costMicroOf } from '@/lib/coach/ai-price';
+import type { DaySlot } from '@/lib/coach/week';
+
+const T = '2026-11-04';
+const DAYS = ['2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08'];
+const slot = (date: string, items: DaySlot['items'], reasons: DaySlot['reasons'] = []): DaySlot => ({ date, items, reasons, owner: 'coach', rule: 'none', rank: 'none' });
+const train = (minutes: number, light = false): DaySlot['items'][number] => ({ kind: 'train', fence: { minutes, heavyLower: false, light } });
+const week: DaySlot[] = [
+  slot(DAYS[0], [train(60)]),
+  slot(DAYS[1], [train(60), { kind: 'mechanics' }]),
+  slot(DAYS[2], [train(45, true), { kind: 'mechanics' }], ['outing-tomorrow']),
+  slot(DAYS[3], [{ kind: 'fixed', what: 'game' }], ['game', 'outing']),
+  slot(DAYS[4], [{ kind: 'rest' }], ['after-outing']),
+  slot(DAYS[5], [train(60)]),
+  slot(DAYS[6], [{ kind: 'rest' }], ['rest']),
+];
+const line = (i: number, plan: string, reasons: string[], state: CoachAiContext['week'][number]['state'], did: string[], left: string[], extra: string[] = []) => ({
+  date: DAYS[i],
+  day: '월화수목금토일'[i],
+  plan,
+  reasons,
+  state,
+  did,
+  left,
+  extra,
+  locked: i < 2,
+});
+const base: CoachAiContext = {
+  today: T,
+  ageBand: '20+',
+  role: 'starter',
+  priority: 'velocity',
+  nextOutingInDays: 1,
+  signals: ['condition:7', 'sleep:3', 'pain:none'],
+  outingAnswer: '내일 등판',
+  throws: [{ date: '2026-11-01', types: ['캐치볼'], pitches: 30, effortPct: 50, hard: false }],
+  loggedToday: false,
+  arm: { level: '안전', line: '지금은 걸리는 신호가 없어요' },
+  efforts: [5, 6],
+  effortSpike: false,
+  limits: [],
+  todayPlan: null,
+  week: [
+    line(0, '운동 60분', [], 'done', ['운동'], []),
+    line(1, '운동 60분 · 메커니즘 드릴', [], 'done', [], ['운동', '메커니즘 드릴'], ['암케어']),
+    line(2, '운동 45분 · 가볍게 · 메커니즘 드릴', ['내일 등판'], 'today', [], ['운동', '메커니즘 드릴']),
+    line(3, '경기', ['경기', '등판'], 'later', [], []),
+    line(4, '쉬기 · 회복 암케어', ['등판 다음 날'], 'later', [], []),
+    line(5, '운동 60분', [], 'later', [], []),
+    line(6, '쉬기', ['쉬기'], 'later', [], []),
+  ],
+};
+const CASES: { name: string; ctx: CoachAiContext; said: string }[] = [
+  { name: 'A 내일 경기 · 오늘 팀 불펜 추가(기록 없음)', ctx: base, said: '오늘 팀에서 불펜을 추가로 던졌어. 오늘 운동 어떻게 할까?' },
+  { name: 'B 어제 암케어만 · 오늘 체크인 안 함', ctx: { ...base, signals: 'missing', outingAnswer: null }, said: '어제 할 거 다 했지? 몸도 괜찮으니까 오늘 그대로 가면 되지?' },
+];
+
+for (const c of CASES) {
+  const turn = await chatTurn([], contextBlock(c.ctx), c.said);
+  console.log(`\n── ${c.name}\n말: ${c.said}`);
+  if (!turn.ok) {
+    console.log(`실패: ${turn.why} · ${turn.model} · ${turn.ms}ms`);
+    continue;
+  }
+  const adjusts = sanitizeAdjusts(turn.adjusts, week, T, (d) => d < T);
+  console.log(`답: ${turn.reply}`);
+  console.log(`바꿀 거리(거른 뒤): ${JSON.stringify(adjusts)} · 원래 ${turn.adjusts.length}개`);
+  console.log(
+    `${turn.model} · ${turn.ms}ms · 입력 ${turn.usage.input_tokens ?? 0} · 출력 ${turn.usage.output_tokens ?? 0} · 캐시 읽기 ${turn.usage.cache_read_input_tokens ?? 0} · 약 $${(costMicroOf(turn.model, turn.usage) / 1e6).toFixed(4)}`
+  );
+}

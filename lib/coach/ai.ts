@@ -73,7 +73,9 @@ export async function chatTurn(history: readonly ChatLine[], context: string, te
     const out = r.parsed_output;
     if (!out || !out.reply.trim()) return { ok: false, why: 'parse', model: r.model, usage, ms };
     return { ok: true, reply: out.reply.trim().slice(0, 600), adjusts: out.adjusts, model: r.model, usage, ms };
-  } catch {
+  } catch (e) {
+    /* 왜 실패했는지 서버 로그에 남긴다(열쇠 · 사용자 글은 안 찍힌다 — SDK 오류 글만) */
+    console.error('[coach-ai] chat failed:', e instanceof Error ? `${e.name}: ${e.message}` : String(e));
     return { ok: false, why: 'error', model, usage: {}, ms: Date.now() - t0 };
   }
 }

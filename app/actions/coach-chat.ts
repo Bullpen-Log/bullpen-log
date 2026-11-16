@@ -11,14 +11,17 @@ import { coachAiConsentFor, healthConsentFor } from '@/lib/analysis-consent-stor
 import { COACH_AI_CONSENT, COACH_AI_PURPOSE } from '@/lib/coach/ai-consent';
 import { AI_BLOCK_TEXT, AI_MIN_AGE, aiGate, capUsdOf, type AiGate } from '@/lib/coach/ai-gate';
 import { costMicroOf } from '@/lib/coach/ai-price';
-import { ageBandOf, contextBlock, type CoachAiContext } from '@/lib/coach/ai-prompt';
+import { ageBandOf, contextBlock, throwsOf, type CoachAiContext } from '@/lib/coach/ai-prompt';
 import { aiKeyReady, chatTurn, type ChatLine } from '@/lib/coach/ai';
 import { sanitizeAdjusts, type CoachAdjust } from '@/lib/coach/adjust';
-import { REASON_TEXT, WEEKDAY_LABELS, savedOf, slotLine } from '@/lib/coach/answers';
-import { slotStateOf } from '@/lib/coach/status';
+import { COACH_LIMITS, REASON_TEXT, WEEKDAY_LABELS, savedOf, slotLine } from '@/lib/coach/answers';
+import { slotProgressOf, slotStateOf } from '@/lib/coach/status';
 import { coachWeekBase } from '@/lib/coach/today';
 import { loadTrainingDone } from '@/lib/training-week';
-import { dbDate } from '@/lib/nutrition/days';
+import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
+import { gatherFactsAndPlan } from '@/lib/report/gather';
+import { ARM_LEVEL_LABEL, armStatusOf } from '@/lib/report/arm-status';
+import { planReasonLines, readDailyPlan } from '@/lib/report/daily-plan';
 
 /**
  * 코치 AI 대화(docs/designs/ai-coach.md 10-6) — 앱 코치 탭의 대화 시트. 답 글 + 바꿀 거리(거른 것만) → 미리보기 · 적용은 조정 단추와 같은 길
@@ -123,33 +126,44 @@ export async function clearCoachChat(): Promise<{ ok: true }> {
   return { ok: true };
 }
 
-/** 오늘 맥락 덩이 — 코드 · 숫자만(lib/coach/ai-prompt.ts). 오늘 신호는 건강 동의가 있을 때만 */
+/** 맥락에 넣는 던진 날 창(오늘 포함) */
+const THROW_DAYS = 7;
+
+/**
+ * 오늘 맥락 덩이 — 코드 · 숫자 · 앱이 정한 문장만(lib/coach/ai-prompt.ts). 이름 · 메모 글 · 영상은 안 넣는다.
+ * 2026-11-16 넓힘: AI 가 일정 한 줄과 컨디션만 봐서 '오늘 불펜 했는데?'에 답할 재료가 없었다. 엔진이 이미 읽는 것(최근 투구 기록 · 팔 상태 ·
+ * 운동 힘듦 · 오늘 운동의 까닭)과 과제별 완료를 같이 보낸다. 건강정보(체크인 신호 · 팔 상태 · 피할 동작 · 오늘 운동의 까닭)는 건강 동의가 있을 때만.
+ */
 async function contextOf(user: User, base: Awaited<ReturnType<typeof coachWeekBase>>, age: number): Promise<string | null> {
   const { today, slots, locked } = base;
   if (!slots) return null;
   const weekStart = slots[0].date;
-  const [done, profile, health, checkin] = await Promise.all([
+  const [done, profile, health, checkin, { facts }, logs, setup] = await Promise.all([
     loadTrainingDone(user.id, weekStart, shiftDateKey(weekStart, 6)),
     prisma.coachProfile.findUnique({ where: { userId: user.id }, select: { answers: true } }),
     healthConsentFor(user.id),
     prisma.dailyCheckin.findFirst({
       where: { userId: user.id, date: dbDate(today) },
-      select: { condition: true, sleepQuality: true, shoulder: true, elbow: true },
+      select: { condition: true, sleepQuality: true, shoulder: true, elbow: true, throwPlan: true },
     }),
+    gatherFactsAndPlan(user, appNow()),
+    prisma.pitchLog.findMany({
+      where: { userId: user.id, date: { gte: dbDate(shiftDateKey(today, -(THROW_DAYS - 1))), lte: dbDate(today) } },
+      select: { date: true, sessionType: true, pitchCount: true, intensity: true, effortPct: true },
+    }),
+    prisma.dailyTrainingSetup.findUnique({ where: { userId_date: { userId: user.id, date: dbDate(today) } }, select: { plan: true } }),
   ]);
   const saved = savedOf(profile?.answers);
   const outing = slots.find((s) => s.date >= today && (s.items.some((x) => x.kind === 'fixed' && x.what === 'game') || s.reasons.some((r) => r === 'outing' || r === 'outing-soft')));
   const daysTo = outing ? Math.round((Date.parse(`${outing.date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000) : null;
-  const signals = !health.valid
-    ? null
+  const pain = [...(checkin?.shoulder === '통증' ? ['pain:shoulder'] : []), ...(checkin?.elbow === '통증' ? ['pain:elbow'] : [])];
+  const signals: CoachAiContext['signals'] = !health.valid
+    ? 'no-consent'
     : !checkin
-      ? []
-      : [
-          `condition:${checkin.condition}`,
-          ...(checkin.sleepQuality != null ? [`sleep:${checkin.sleepQuality}`] : []),
-          ...(checkin.shoulder === '통증' ? ['pain:shoulder'] : []),
-          ...(checkin.elbow === '통증' ? ['pain:elbow'] : []),
-        ];
+      ? 'missing'
+      : [`condition:${checkin.condition}`, ...(checkin.sleepQuality != null ? [`sleep:${checkin.sleepQuality}`] : []), ...(pain.length ? pain : ['pain:none'])];
+  const arm = health.valid ? armStatusOf(facts) : null;
+  const plan = readDailyPlan(setup?.plan);
   const ctx: CoachAiContext = {
     today,
     ageBand: ageBandOf(age),
@@ -157,12 +171,28 @@ async function contextOf(user: User, base: Awaited<ReturnType<typeof coachWeekBa
     priority: saved.priority ?? null,
     nextOutingInDays: daysTo,
     signals,
+    outingAnswer: checkin?.throwPlan ?? null,
+    throws: throwsOf(logs.map((l) => ({ ...l, date: keyOfDbDate(l.date) }))),
+    loggedToday: logs.some((l) => keyOfDbDate(l.date) === today),
+    arm: arm ? { level: ARM_LEVEL_LABEL[arm.level], line: arm.headline } : null,
+    efforts: facts.condition.trainingEffort?.last7 ?? [],
+    effortSpike: facts.condition.trainingEffort?.spikeFlag ?? false,
+    limits: health.valid ? (saved.limits ?? []).map((l) => COACH_LIMITS.find((o) => o.value === l)?.label ?? l) : null,
+    todayPlan: plan
+      ? {
+          theme: plan.theme.label,
+          minutes: plan.minutes,
+          /* 까닭 글에는 통증 · 컨디션이 섞일 수 있어 건강 동의가 있을 때만 */
+          why: health.valid ? [plan.theme.reason, ...(plan.auto?.reason ? [plan.auto.reason] : []), ...planReasonLines(plan)].filter(Boolean).slice(0, 4) : [],
+        }
+      : null,
     week: slots.map((s, i) => ({
       date: s.date,
       day: WEEKDAY_LABELS[i],
       plan: slotLine(s),
       reasons: s.reasons.map((r) => REASON_TEXT[r]),
       state: slotStateOf(s, done[s.date], today),
+      ...slotProgressOf(s, done[s.date]),
       locked: locked(s.date),
     })),
   };
