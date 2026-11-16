@@ -170,6 +170,13 @@ export function withEngineToday(p: DayVerdict, e: EngineToday): DayVerdict {
   return { rule, heavyLower: p.heavyLower && e.heavyLower, after: e.afterOuting };
 }
 
+/**
+ * 계획기 규칙의 판 — 규칙을 바꾸면 올린다. 지문(lib/coach/refresh.ts weekKey)에 들어가 저장된 주 틀을 한 번 다시 짠다(지난 날 · 사용자 칸 ·
+ * 조정 칸은 prev 로 그대로). 예전에는 입력이 같으면 옛 규칙이 지은 칸(예: 11-16 전의 등판 다음 날 '쉬기')이 남았다(2026-11-17 검토 [19]).
+ * 2 — 등판 다음 날은 운동 날(2026-11-16) · 오늘 칸 = 엔진 판정(2026-11-17).
+ */
+export const PLAN_VERSION = 2;
+
 /** 경력별 기본 주당 운동 횟수(평소 횟수를 모를 때) */
 const LEVEL_FREQ: Record<string, number> = { 입문: 2, 초급: 3, 중급: 3, 상급: 4 };
 const DEFAULT_FREQ = 3;

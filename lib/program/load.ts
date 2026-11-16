@@ -30,7 +30,7 @@ import {
 import { estimate1RM } from '@/lib/workout/history';
 import { toDateKey } from '@/lib/pitch-stats';
 import {
-  ARM_ACCESSORIES,
+  armDeferredVariant,
   ARM_DEFER_REASON,
   CAUTION_TEXT,
   TM_LOOKBACK_DAYS,
@@ -725,8 +725,8 @@ export async function buildProgramDay(
       continue;
     }
     /* 대체보다 먼저 — 그 칸의 대체 후보도 같은 변형(메디신볼)이라 대체하면 또 던진다 */
-    /* 팔을 아끼는 날은 팔 보조(삼두 · 이두 · 전완)도 뺀다 — 던지는 변형만 빼던 것에 더해(2026-10-14) */
-    if (deferred.includes(variant) || (deferred.length > 0 && ARM_ACCESSORIES.includes(variant))) {
+    /* 오늘 팔을 다 쓴 날은 팔 보조(삼두 · 이두 · 전완)도 뺀다(2026-10-14) — 등판 다음 날은 던지는 변형만(armDeferredVariant) */
+    if (armDeferredVariant(variant, deferred, arbitration.arm.spent)) {
       view.dropped.push({ slot, title: pinnedEx.title, reason: ARM_DEFER_REASON });
       continue;
     }

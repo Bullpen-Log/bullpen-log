@@ -314,14 +314,21 @@ for (const days of DAY_SETS)
             });
             const w = planWeek(inp);
             const tag = JSON.stringify({ days, outing, every, program, team, flags });
-            const outingDays = w.filter((s) => s.rule === 'outingToday' || s.rule === 'hard');
-            check('③ 등판 날 · 다음 날 운동 0', outingDays.every((s) => workouts([s]).length === 0), tag);
+            /* 2026-11-17 바뀜 — 왜: 계획기는 'hard' 를 안 내고 등판 다음 날은 운동 날이 됐다(2026-11-16). 등판 날 운동 0, 다음 날은 팔 일 · 강화 없이 회복 암케어(검토 [12]) */
+            const outingDays = w.filter((s) => s.rule === 'outingToday');
+            check('③ 등판 날 운동 0', outingDays.length > 0 === (outing != null && outing <= shiftDateKey(MON, 6)) && outingDays.every((s) => workouts([s]).length === 0), tag);
+            const afterDays = w.filter((s) => s.reasons.includes('after-outing'));
+            check(
+              '③ 등판 다음 날 · 메커니즘 · 강화 암케어 0 · 회복 암케어 있음',
+              afterDays.every((s) => !s.items.some((x) => x.kind === 'mechanics' || (x.kind === 'armcare' && x.mode === 'strength')) && s.items.some((x) => x.kind === 'armcare' && x.mode === 'recovery')),
+              tag
+            );
             check('③ 이어진 이틀 큰 하체 0', w.every((s, i) => i === 0 || !(heavy(s) && heavy(w[i - 1]))), tag);
             check('③ 쉬는 날 ≥ 1', w.some((s) => !s.items.some((x) => x.kind === 'train' || x.kind === 'program' || (x.kind === 'fixed' && x.what !== 'game'))), tag);
             check('③ 가능 요일 밖 운동 0', workouts(w).every((s) => days.includes(weekdayOf(s.date))), tag);
             const str = w.map((s, i) => (s.items.some((x) => x.kind === 'armcare' && x.mode === 'strength') ? i : -1)).filter((i) => i >= 0);
             check('③ 강화 암케어 ≤ 주 3 · 잇지 않음 · 모두 제안', str.length <= STRENGTH_PER_WEEK && str.every((x, k) => k === 0 || x - str[k - 1] > 1) && w.every((s) => s.items.every((x) => x.kind !== 'armcare' || x.suggested)), tag);
-            check('③ 메커니즘은 팔 쓴 날 · 등판 전날 밖', w.every((s) => !s.items.some((x) => x.kind === 'mechanics') || !['outingToday', 'hard', 'outingTomorrow'].includes(s.rule)), tag);
+            check('③ 메커니즘은 팔 쓴 날 · 등판 전날 · 다음 날 밖', w.every((s) => !s.items.some((x) => x.kind === 'mechanics') || (s.rank !== 'recovery' && s.rule !== 'outingTomorrow' && !s.reasons.includes('after-outing'))), tag);
             check('③ 성장기 큰 하체 0', !inp.youth || w.every((s) => !heavy(s)), tag);
             check('③ 칸 7 · 날짜 차례', w.length === 7 && w.every((s, i) => s.date === shiftDateKey(MON, i)), tag);
           }
@@ -504,7 +511,8 @@ check('⑤ 쉬는 날 · 팀 훈련 → 시작 없음', startsOf(slotOf(T, [{ ki
   check('⑧ 불펜 대기 날 세게 던진 기록이 있으면 다음 날은 등판 다음 날(회복 암케어) · 선발 전날이라 가볍게', threw[2].reasons.includes('after-outing') && threw[2].rule === 'outingTomorrow' && !heavy(threw[2]) && threw[2].items.some((x) => x.kind === 'armcare' && x.mode === 'recovery'), JSON.stringify(threw[2]));
 
   /* 선발 다음 날 — 2026-11-16(김민 결정)부터 쉬는 날이 아니라 운동 날: 운동을 여기 먼저 놓고(큰 하체), 회복 암케어를 같이 제안한다 */
-  const st = planWeek(input({ fixed: [{ date: shiftDateKey(MON, 2), kind: 'game' }] }));
+  /* 메커니즘 진행 중 — 없으면 '메커니즘을 안 넣는다' 검사가 늘 참이다(검토 [12]) */
+  const st = planWeek(input({ fixed: [{ date: shiftDateKey(MON, 2), kind: 'game' }], mechanics: { perWeek: 2 } }));
   const after = st[3];
   check('⑧ 선발 다음 날 · 운동 날(큰 하체) · 까닭 등판 다음 날 · 회복 암케어', after.rule === 'afterOuting' && workouts([after]).length === 1 && heavy(after) && after.reasons.includes('after-outing') && after.items.some((x) => x.kind === 'armcare' && x.mode === 'recovery'), JSON.stringify(after));
   /* 칸 글의 시간 줄임은 엔진 판정(오늘 칸만, slot.cut — lib/coach/refresh.ts withTodayCut)으로만 — 계획한 경기로 정한 '등판 다음 날' 까닭만으로는 줄여 보이지 않는다 */

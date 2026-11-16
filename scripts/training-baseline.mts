@@ -1322,7 +1322,8 @@ type DayRecord = {
   shorten: boolean;
   /**
    * ⑮ 힘듦 급증 변형 — 체크인 있는 날 '최근 운동이 힘들었던 사람'(7일 안 9 셋 · 28일 안 5 넷)으로 다시 만든 테마. 어제 Σ 투구수 × 체감
-   * 강도가 중간(1,350~2,699)인 날만 회복으로 바뀌어야 하고(R2), 그 밖의 날은 그대로여야 한다. 체크인 없는 날은 칸이 없다.
+   * 강도가 1,350 이상(세게 던진 날 포함 — 2026-11-16 부터 세게 던진 다음 날도 급증이 겹쳐야 쉰다)인 날만 회복으로 바뀌어야 하고(R2),
+   * 그 밖의 날은 그대로여야 한다. 체크인 없는 날은 칸이 없다.
    */
   spikeTheme?: ThemeKey | null;
   /**
@@ -2658,8 +2659,8 @@ const realDistribution = loadDistribution(
  * ⑫ 경기 다음 날 — 어제 '오늘 등판'이라 답하고 경기 기록도 남긴 날(모든 역할). 대본 1판은 '답 없는 선발 · 답 하는 선발' 둘로
  * 갈라 둘 다 회복 10/10(기록이 있어 답과 무관)이었다. 이제 모두 답하니 같은 날을 두 변형으로 다시 잰다:
  *   기록만(답을 모두 지움)   기록이 다음 날을 정하나 — 대본 1판의 '답 없는 선발'과 같은 뜻
- *   답만(어제 기록을 뺌)     '던졌다고 답했지만 기록은 안 남긴' 다음 날 — 지금 테마는 어제 '오늘 등판'을 안 읽는다(엇갈림 표 C6
- *                            과 같은 알려진 빈틈). D3 · P4 가 부하와 답으로 이 날을 회복 쪽으로 뒤집는다
+ *   답만(어제 기록을 뺌)     '던졌다고 답했지만 기록은 안 남긴' 다음 날 — 기록 없는 등판(엇갈림 표 C6). 2026-11-16 부터 기록 있는 날처럼
+ *                            등판 다음 날의 근력 날이고(날 종류 R5' afterOuting), 운동 힘듦 급증이 겹치면 회복(R2)
  * 어제 기록은 있는데 어제 체크인이 없는 날(가끔 체크인 선발D 의 경기 다음 날)은 세지 않고 수만 따로 적는다.
  */
 const afterGameRows = allDays.filter((d) => d.afterGame != null);
@@ -2750,17 +2751,17 @@ const heavyLowerBeforeGame = {
 };
 
 /*
- * ⑮ 날 종류(2판 P4 커밋 E) — 체크인 있는 날의 규칙 분포 · 구원 '짧게'가 일정 시간을 줄인 날, 그리고 힘듦 급증 변형. 변형은 어제 대본의
- * Σ 투구수 × 체감 강도가 중간(MODERATE_OUTING_MIN_LOAD 1,350 이상 · 세게 던진 날 2,700 밑)인 날만 회복이 돼야 하고(R2), 그 밖의 날
- * (어제 안 던짐 · 가볍게 · 세게)은 테마가 그대로여야 한다(힘듦 급증만으로는 날을 안 바꾼다 — D3 은 투구 부하와 운동 힘듦이 같이 높을 때).
+ * ⑮ 날 종류(2판 P4 커밋 E) — 체크인 있는 날의 규칙 분포 · 날 종류가 일정 시간을 줄인 날(등판 다음 날 · 구원 짧게), 그리고 힘듦 급증 변형.
+ * 변형은 어제 대본의 Σ 투구수 × 체감 강도가 MODERATE_OUTING_MIN_LOAD(1,350) 이상인 날만 회복이 돼야 하고(R2 — 2026-11-16 부터 세게 던진
+ * 날도 여기: 급증이 없으면 등판 다음 날의 운동 날, 겹치면 쉰다, lib/engine/arm-load.ts restsAfterOuting), 그 밖의 날(어제 안 던짐 · 가볍게)은
+ * 테마가 그대로여야 한다(힘듦 급증만으로는 날을 안 바꾼다 — D3 은 투구 부하와 운동 힘듦이 같이 높을 때). 예전에는 세게 던진 날을 '그 밖'으로
+ * 세어 막는 목표가 늘 실패했다(검토 [10], 2026-11-17).
  */
 const spikeRows = allDays.filter((d) => d.spikeTheme !== undefined);
-const isModerateYesterday = (d: DayRecord) => {
-  const load = d.yesterday ? outingLoadOf(d.yesterday) : 0;
-  return load >= MODERATE_OUTING_MIN_LOAD && load < HARD_OUTING_MIN_LOAD;
-};
-const moderateRows = spikeRows.filter(isModerateYesterday);
-const otherSpikeRows = spikeRows.filter((d) => !isModerateYesterday(d));
+const isLoadedYesterday = (d: DayRecord) =>
+  (d.yesterday ? outingLoadOf(d.yesterday) : 0) >= MODERATE_OUTING_MIN_LOAD;
+const moderateRows = spikeRows.filter(isLoadedYesterday);
+const otherSpikeRows = spikeRows.filter((d) => !isLoadedYesterday(d));
 const dayKind = {
   rulesCheckin: countBy(
     allDays.filter((d) => d.hasCheckin),
@@ -3436,7 +3437,7 @@ out.push(
       ],
       [
         '⑫',
-        '  같은 날 어제 기록만 뺀 변형(답만 — 던졌다고 답하고 기록은 안 남김, 엇갈림 표 C6 · 2판 P4 커밋 E 부터 보조 · 코어)',
+        '  같은 날 어제 기록만 뺀 변형(답만 — 던졌다고 답하고 기록은 안 남김, 엇갈림 표 C6 · 2026-11-16 부터 기록 있는 날처럼 등판 다음 날의 근력 날)',
         `${themeText(afterGame.dropped)} · 근력 ${pct(afterGame.droppedStrength, afterGame.count)} · 기록이 있으면 회복이던 날 중 근력 ${pct(afterGame.recoveryDroppedStrength, afterGame.recoveryDays)}`,
       ],
       [
@@ -3463,19 +3464,19 @@ out.push(
       ],
       [
         '⑮',
-        '  체크인 없는 날의 규칙 · 구원 짧게(어제 실전 강도로 20구 넘게 — 회복 날 빼고)가 시간을 줄인 날',
+        '  체크인 없는 날의 규칙 · 날 종류가 시간을 줄인 날(등판 다음 날 · 구원 어제 실전 강도로 20구 넘게 — 회복 날 빼고)',
         `${Object.entries(dayKind.rulesNoCheckin)
           .map(([k, n]) => `${k} ${n}`)
           .join(' · ')} · 짧게 ${dayKind.shortenDays}일`,
       ],
       [
         '⑮',
-        `  힘듦 급증 변형 — 어제 중간 부하(${MODERATE_OUTING_MIN_LOAD}~${HARD_OUTING_MIN_LOAD - 1}) 날의 회복: 원래 → 변형(D3, 모두 회복이어야 한다)`,
+        `  힘듦 급증 변형 — 어제 ${MODERATE_OUTING_MIN_LOAD} 이상(세게 던진 날 포함) 날의 회복: 원래 → 변형(D3, 모두 회복이어야 한다)`,
         `${pct(dayKind.moderateSpike.baseRecovery, dayKind.moderateSpike.moderateDays)} → ${pct(dayKind.moderateSpike.spikeRecovery, dayKind.moderateSpike.moderateDays)}`,
       ],
       [
         '⑮',
-        '  같은 변형 — 그 밖의 날(어제 안 던짐 · 가볍게 · 세게) 테마가 바뀐 날(0 이어야 한다)',
+        '  같은 변형 — 그 밖의 날(어제 안 던짐 · 가볍게) 테마가 바뀐 날(0 이어야 한다)',
         pct(dayKind.moderateSpike.otherChanged, dayKind.moderateSpike.otherDays),
       ],
       ...calendarGuess.byDay.map((r): (string | number | null)[] => [

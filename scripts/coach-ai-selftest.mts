@@ -5,7 +5,7 @@
  */
 import { aiGate, capUsdOf, AI_DAILY_CHATS, AI_BLOCK_TEXT, type AiGateInput } from '@/lib/coach/ai-gate';
 import { costMicroOf } from '@/lib/coach/ai-price';
-import { COACH_SYSTEM, contextBlock, ageBandOf, throwsOf, type CoachAiContext } from '@/lib/coach/ai-prompt';
+import { COACH_SYSTEM, contextBlock, ageBandOf, scrubNames, throwsOf, type CoachAiContext } from '@/lib/coach/ai-prompt';
 import { slotProgressOf } from '@/lib/coach/status';
 import { sanitizeAdjusts } from '@/lib/coach/adjust';
 import type { DaySlot } from '@/lib/coach/week';
@@ -124,6 +124,38 @@ check(
 );
 check('④ 배열이 아니면 빈 목록', sanitizeAdjusts('skip everything', week, T, locked).length === 0);
 check('④ 이미 60분인 날을 60분으로는 뺀다(누를 것이 없는 단추)', sanitizeAdjusts([{ ...nul, kind: 'minutes', date: '2026-11-04', minutes: 60 }], week, T, locked).length === 0);
+{
+  /* 적용하면 막히는 제안은 카드로 안 남긴다(2026-11-17 검토 [20]) — 프로그램 날 시간 · 이미 쉬는 날 쉬기 · 경기(회복) 날로 옮기기 */
+  const w2: DaySlot[] = week.map((d) =>
+    d.date === '2026-11-05'
+      ? { ...d, items: [{ kind: 'fixed', what: 'game' }], rule: 'outingToday', rank: 'recovery' }
+      : d.date === '2026-11-06'
+        ? { ...d, items: [{ kind: 'program', heavyLower: false }] }
+        : d
+  );
+  const kept = sanitizeAdjusts(
+    [
+      { ...nul, kind: 'minutes', date: '2026-11-06', minutes: 45 },
+      { ...nul, kind: 'skip', date: '2026-11-07' },
+      { ...nul, kind: 'move', from: '2026-11-04', to: '2026-11-05' },
+      { ...nul, kind: 'minutes', date: '2026-11-04', minutes: 75 },
+    ],
+    w2,
+    T,
+    locked
+  );
+  check('④ 적용하면 막히는 제안(프로그램 날 시간 · 쉬는 날 쉬기 · 경기 날로 옮기기)은 버리고 되는 것만', JSON.stringify(kept) === JSON.stringify([{ kind: 'minutes', date: '2026-11-04', minutes: 75 }]), JSON.stringify(kept));
+}
+
+/* ⑤ 두 투구 코칭 기관 이름 — 지시문이 막고 답에서 한 번 더 지운다(2026-11-17 검토 [26]) */
+check(
+  '⑤ 답의 이름은 지우고 트레드밀은 그대로',
+  scrubNames('드라이브라인처럼 짜 줄 수 있어요') === '다른 곳처럼 짜 줄 수 있어요' &&
+    scrubNames('Driveline 방식, 트레드 애슬레틱스 방식, Tread Athletics') === '다른 곳 방식, 다른 곳 방식, 다른 곳' &&
+    scrubNames('트레드밀 10분 · treadmill') === '트레드밀 10분 · treadmill',
+  scrubNames('Driveline 방식, 트레드 애슬레틱스 방식, Tread Athletics')
+);
+check('⑤ 시스템 글은 이름을 안 쓰고 말하지 말라고 한다', scrubNames(COACH_SYSTEM) === COACH_SYSTEM && COACH_SYSTEM.includes('다른 회사 · 기관 · 프로그램 이름'));
 
 console.log(`coach-ai: ${pass}개 통과${fails.length ? `, ${fails.length}개 실패` : ''}`);
 for (const f of fails) console.log(`  - ${f}`);

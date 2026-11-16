@@ -39,7 +39,12 @@ export type ChatTurn =
   | { ok: true; reply: string; adjusts: unknown[]; model: string; usage: AiUsage; ms: number }
   | { ok: false; why: 'refusal' | 'parse' | 'error'; model: string; usage: AiUsage; ms: number };
 
-/** 앞 마디(글만) 정리 — 사용자로 시작, 같은 쪽이 이어지면 합친다(실패한 마디 뒤에 사용자 말이 둘 이어질 수 있다) */
+/**
+ * 앞 마디(글만) 정리 — 사용자로 시작, 같은 쪽이 이어지면 합친다(실패한 마디 뒤에 사용자 말이 둘 이어질 수 있다). 마지막 칸(코치 답)에 캐시 표시를
+ * 단다 — 시스템 글 + 지난 마디는 다음 마디에도 글자 그대로라 5분 안 다음 마디가 읽는다. 오늘 맥락 + 이번 말은 그 뒤라 캐시를 안 깬다.
+ * 예전에는 요청 끝(맥락 + 이번 말)에 자동 표시를 달아, 다음 마디에는 그 칸이 맥락 없이 저장된 말로 바뀌어 한 번도 못 읽고 쓰기 값만 냈다
+ * (2026-11-17 검토 [27]). 20마디 창이 밀리기 시작하면 앞이 바뀌어 못 읽는다(짧은 대화 몫).
+ */
 function turnsOf(history: readonly ChatLine[]): Anthropic.Beta.Messages.BetaMessageParam[] {
   const out: { role: 'user' | 'assistant'; content: string }[] = [];
   for (const h of history) {
@@ -50,7 +55,9 @@ function turnsOf(history: readonly ChatLine[]): Anthropic.Beta.Messages.BetaMess
     else out.push({ role, content: h.text });
   }
   if (out.length && out[out.length - 1].role === 'user') out.pop();
-  return out;
+  return out.map((m, i) =>
+    i === out.length - 1 ? { role: m.role, content: [{ type: 'text' as const, text: m.content, cache_control: { type: 'ephemeral' as const } }] } : m
+  );
 }
 
 export async function chatTurn(history: readonly ChatLine[], context: string, text: string): Promise<ChatTurn> {
@@ -63,8 +70,7 @@ export async function chatTurn(history: readonly ChatLine[], context: string, te
       system: COACH_SYSTEM,
       messages: [...turnsOf(history), { role: 'user', content: `${context}\n\n[사용자 말]\n${text}` }],
       output_config: { effort: 'low', format: betaZodOutputFormat(ChatOut) },
-      /* 시스템 글 + 지난 마디를 5분 안 다음 마디가 캐시로 읽는다(usage.cache_read_input_tokens 로 확인) */
-      cache_control: { type: 'ephemeral' },
+      /* 캐시 표시는 지난 마디 끝에(turnsOf) — usage.cache_read_input_tokens 로 확인 */
       ...(model.includes('haiku') ? {} : { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const }),
     });
     const usage = r.usage as AiUsage;

@@ -168,8 +168,12 @@ export function sanitizeAdjusts(raw: unknown, week: readonly DaySlot[], today: s
     if (!a) continue;
     const dates = a.kind === 'minutes' || a.kind === 'skip' ? [a.date] : a.kind === 'move' ? [a.from, a.to] : [];
     if (!dates.every(ok)) continue;
-    /* 이미 그 시간인 날을 그 시간으로 — 눌러도 바뀌는 것이 없는 단추(Haiku 실제 호출에서 나왔다, 2026-11-16) */
-    if (a.kind === 'minutes' && week.find((d) => d.date === a.date)?.items.some((i) => i.kind === 'train' && i.fence.minutes === a.minutes)) continue;
+    /*
+     * 적용하면 막히거나 바뀌는 것이 없는 제안은 카드로 남기지 않는다 — 프로그램 날의 시간 · 이미 쉬는 날 쉬기 · 경기 · 회복 날로 옮기기는 미리보기에서
+     * 오류 글로 끝났고(2026-11-17 검토 [20]), 이미 그 시간인 날을 그 시간으로는 눌러도 그대로였다(Haiku 실제 호출, 2026-11-16 — applyAdjust 의
+     * '바뀌는 게 없어요'). 적용과 같은 함수로 본다
+     */
+    if ('error' in applyAdjust(week, a, locked)) continue;
     const key = JSON.stringify(a);
     if (seen.has(key)) continue;
     seen.add(key);

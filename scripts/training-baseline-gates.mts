@@ -91,10 +91,12 @@ export type Gate = {
 };
 
 /**
- * T0(2판 P5 전, 2026-10-12) 기준선의 '체크인 있는 날 중 회복 날' 비율 — ⑲ 회복 날 울타리의 기준점. 점수 · 양 조절이 회복 날을 몰래
- * 늘리거나 줄이면(검토 비판 3 의 14 · 23번) 이 폭 밖으로 나간다. 값은 T0 커밋의 --out JSON 에서 옮겼다(metrics.fence.recoveryShare).
+ * '체크인 있는 날 중 회복 날' 비율의 기준점 — ⑲ 회복 날 울타리. 점수 · 양 조절이 회복 날을 몰래 늘리거나 줄이면(검토 비판 3 의 14 · 23번)
+ * 이 폭 밖으로 나간다. 처음 값은 T0(2판 P5 전, 2026-10-12)의 136/282(48.2%)였다. 2026-11-16 김민 결정(세게 던진 다음 날은 회복이 아니라
+ * 등판 다음 날의 운동 날)으로 회복 날이 114/282(40.4%)로 준 것은 몰래 준 것이 아니라 정한 것이라, 그 커밋의 --out JSON 값으로 다시 잡았다
+ * (2026-11-17 검토 [10], metrics.fence.recoveryShare). 이름은 부르는 곳을 그대로 두려고 두었다.
  */
-export const T0_RECOVERY_SHARE = 136 / 282;
+export const T0_RECOVERY_SHARE = 114 / 282;
 /** 회복 날 울타리의 폭 — 검토 비판 3 의 '−5%p 안'(근거가 약해 막지 않는 목표) */
 export const RECOVERY_SHARE_BAND = 0.05;
 
@@ -236,7 +238,7 @@ export const GATES: readonly Gate[] = [
   {
     no: '⑲',
     stage: 'P5',
-    what: `체크인 있는 날 중 회복 날 — T0 ${(T0_RECOVERY_SHARE * 100).toFixed(1)}% 에서 ±${RECOVERY_SHARE_BAND * 100}%p 안`,
+    what: `체크인 있는 날 중 회복 날 — 기준 ${(T0_RECOVERY_SHARE * 100).toFixed(1)}%(2026-11-16 결정 뒤) 에서 ±${RECOVERY_SHARE_BAND * 100}%p 안`,
     target: `${((T0_RECOVERY_SHARE - RECOVERY_SHARE_BAND) * 100).toFixed(1)}~${((T0_RECOVERY_SHARE + RECOVERY_SHARE_BAND) * 100).toFixed(1)}%`,
     blocking: false,
     actual: (j) => numAt(j, ['metrics', 'fence', 'recoveryShare', 'ratio']),

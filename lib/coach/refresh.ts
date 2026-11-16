@@ -17,7 +17,7 @@ import { activeProgram } from '@/lib/program/load';
 import { parseProgram } from '@/lib/program/program';
 import { isOutingTitle } from '@/lib/calendar-event';
 import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
-import { planWeek, weekdayOf, type DaySlot, type FixedDay, type WeekInput } from '@/lib/coach/week';
+import { PLAN_VERSION, planWeek, weekdayOf, type DaySlot, type FixedDay, type WeekInput } from '@/lib/coach/week';
 import { coachMinutes, savedOf, type CoachLimit, type CoachSaved } from '@/lib/coach/answers';
 import { applyWeekAsk, weekAskFor } from '@/lib/coach/week-ask';
 
@@ -85,9 +85,12 @@ export function withTodayCut(slots: DaySlot[], today: string, facts: ReportFacts
   return slots.map((s) => (s.date === today && s.rank !== 'recovery' ? { ...s, cut: true as const } : s));
 }
 
-/** 입력의 지문 — 날이 바뀐 것만으로는 다시 안 짠다(오늘 · 잠김 · 지난 틀 · 오늘 엔진 판정 빼고 — 판정은 sameToday 가 따로 본다) */
+/** 입력의 지문 — 날이 바뀐 것만으로는 다시 안 짠다(오늘 · 잠김 · 지난 틀 · 오늘 엔진 판정 빼고 — 판정은 sameToday 가 따로 본다). 계획기 판(PLAN_VERSION)은 넣는다 */
 const weekKey = (input: WeekInput) =>
-  createHash('sha1').update(JSON.stringify({ ...input, today: null, todayLocked: null, prev: null, todayKind: null })).digest('hex').slice(0, 16);
+  createHash('sha1')
+    .update(JSON.stringify({ ...input, today: null, todayLocked: null, prev: null, todayKind: null, planV: PLAN_VERSION }))
+    .digest('hex')
+    .slice(0, 16);
 
 /**
  * 저장한 오늘 칸의 날 종류 · '등판 다음 날'이 지금 엔진 판정으로 다시 짠 것과 같은가 — 다르면 다시 맞춘다. 칸 전체를 견주지 않는 까닭: 지난 날이

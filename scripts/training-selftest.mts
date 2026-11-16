@@ -20646,7 +20646,7 @@ console.log(
       direction: { all: { pass: 10, d: 10, ratio: 1 } },
       fence: {
         exposure: { n: 202, d: 404, ratio: 0.5, schedulableRatio: 0.85 },
-        recoveryShare: { n: 136, d: 282, ratio: T0_RECOVERY_SHARE },
+        recoveryShare: { n: 114, d: 282, ratio: T0_RECOVERY_SHARE },
       },
       programDay: { dailyMainDays: 0, goDays: 34 },
       lowerGap: { violations: 0 },
@@ -29358,6 +29358,8 @@ console.log(
       today: {},
       logs: [{ daysAgo: 1, pitches: 85, intensity: 10, sessionType: '경기' }],
     },
+    /* 기록 없는 등판 다음 날(검토 [21], 2026-11-17) — 세게 던진 기록이 있는 날과 같이 팔로 던지는 변형을 뺀다(arbiter afterOutingOf) */
+    { name: "어제 '오늘 등판' 기록 없음", today: {}, yesterday: { throwPlan: '오늘 등판' } },
     { name: "오늘 '회복' 고름", today: { preferredWorkout: '회복' } },
     { name: "오늘 '오늘 불펜'", today: { throwPlan: '오늘 불펜' } },
     { name: "오늘 '내일 등판'", today: { throwPlan: '내일 등판' } },
@@ -29389,6 +29391,7 @@ console.log(
       lowerLighter: 0,
       overrideGo: 0,
     };
+    const DAY_AFTER = ['어제 경기 85구', "어제 '오늘 등판' 기록 없음"];
     for (const p of people)
       for (const base of runs)
         for (const lastLowerKey of [null, Y])
@@ -29431,11 +29434,11 @@ console.log(
               made.signals.heavyLowerYesterday &&
                 !hasBig &&
                 '큰 하체 없는 날 하체 신호',
-              /* 2026-11-16 로 바뀜 — 등판 다음 날('어제 경기 85구')도 팔로 던지는 변형은 뺀다(쉬지는 않는다, 팔 예산은 오늘 것만 그대로) */
-              made.signals.armSpent !== (r.arm.spent || p.name === '어제 경기 85구') &&
+              /* 2026-11-16 로 바뀜 — 등판 다음 날(세게 던진 기록 · 기록 없는 등판)도 팔로 던지는 변형은 뺀다(쉬지는 않는다, 팔 예산은 오늘 것만 그대로) */
+              made.signals.armSpent !== (r.arm.spent || DAY_AFTER.includes(p.name)) &&
                 '팔 예산',
               go &&
-                p.name === '어제 경기 85구' &&
+                DAY_AFTER.includes(p.name) &&
                 !r.arm.spent &&
                 throwsLeft.length > 0 &&
                 '등판 다음 날 던지기 남음',
@@ -29597,8 +29600,9 @@ console.log(
         /lastStrengthDates\(user\.id, core\.midnight\)/.test(load) &&
         /lastLowerKey: strengthDates\.lower,/.test(load) &&
         /exerciseOf: \(v\) => pinnedOf\(v\)\.ex,/.test(load) &&
-        loop.indexOf('deferred.includes(variant)') > 0 &&
-        loop.indexOf('deferred.includes(variant)') <
+        /* 2026-11-17 바뀜 — 뺄 변형 판정이 program.ts armDeferredVariant 한 곳으로(팔 보조는 오늘 팔 다 쓴 날만, 검토 [11]) */
+        loop.indexOf('armDeferredVariant(variant, deferred, arbitration.arm.spent)') > 0 &&
+        loop.indexOf('armDeferredVariant(variant, deferred, arbitration.arm.spent)') <
           loop.indexOf("a?.kind === 'substitute'") &&
         /reason: ARM_DEFER_REASON/.test(loop)
     );

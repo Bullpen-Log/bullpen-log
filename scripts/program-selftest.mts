@@ -57,6 +57,7 @@ import {
   weekOfDay,
   ARM_DEFER_REASON,
   ARM_THROW_VARIANTS,
+  armDeferredVariant,
   CAUTION_TEXT,
   REST_TEXT,
   SUBSTITUTE_REASON,
@@ -1090,7 +1091,8 @@ console.log('\n4-1) 경기 다음 날은 부하로(D3)');
   });
   const factsOf = (
     logs: { daysAgo: number; pitches: number; pct: number; sessionType: string }[],
-    yesterdayPlan: string | null = null
+    yesterdayPlan: string | null = null,
+    spike = false
   ) =>
     buildFacts({
       nickname: '프로그램',
@@ -1109,6 +1111,10 @@ console.log('\n4-1) 경기 다음 날은 부하로(D3)');
       })),
       checkins: [checkinOn(0, null), checkinOn(1, yesterdayPlan)],
       memos: [],
+      /* 운동 힘듦 급증 — 어제까지 7일 9 셋 · 그 앞 5 넷(lib/workout/effort.ts) */
+      ...(spike
+        ? { trainingNotes: [1, 2, 4, 9, 12, 16, 20].map((d, i) => ({ date: ago(d).slice(0, 10), intensity: i < 3 ? 9 : 5 })) }
+        : {}),
     });
   /* 오늘 판정 — 던지는 신호만 facts 에서, 나머지는 보통 날(sig) */
   const dayOf = (facts: ReturnType<typeof factsOf>) =>
@@ -1227,10 +1233,16 @@ console.log('\n4-1) 경기 다음 날은 부하로(D3)');
    */
   const textOf = (facts: ReturnType<typeof factsOf>) =>
     restTextOf('gameYesterday', yesterdayArmLoadOf(facts)?.kind ?? null);
+  /* 2026-11-17 바뀜 — 왜: 입력에 급증이 없어 실제로는 쉬지 않는 날의 글을 지켰다(검토 [23]). 급증을 넣고 쉬는 날인지도 본다 */
+  const spikeHard = factsOf(y1(85, 100, '경기'), null, true);
+  const spikeClaimed = factsOf([], '오늘 등판', true);
+  const restOf = (d: ReturnType<typeof dayOf>) => (d.kind === 'rest' ? d.reason : d.kind);
   check(
-    "P4 검토 — 쉬는 까닭 글: 어제 경기 85구(운동 힘듦 급증이 겹쳐 쉬는 날) '어제 던졌고 최근 운동도 힘들었어요' · 기록 없는 등판 + 급증 '어제 등판했고 최근 운동도 힘들었어요' · 까닭 모름은 예전 글",
-    textOf(factsOf(y1(85, 100, '경기'))) === '어제 던졌고 최근 운동도 힘들었어요' &&
-      textOf(factsOf([], '오늘 등판')) === '어제 등판했고 최근 운동도 힘들었어요' &&
+    "P4 검토 — 쉬는 까닭 글: 어제 경기 85구 + 운동 힘듦 급증(실제로 쉬는 날) '어제 던졌고 최근 운동도 힘들었어요' · 기록 없는 등판 + 급증 '어제 등판했고 최근 운동도 힘들었어요' · 까닭 모름은 예전 글",
+    restOf(dayOf(spikeHard)) === 'gameYesterday' &&
+      restOf(dayOf(spikeClaimed)) === 'gameYesterday' &&
+      textOf(spikeHard) === '어제 던졌고 최근 운동도 힘들었어요' &&
+      textOf(spikeClaimed) === '어제 등판했고 최근 운동도 힘들었어요' &&
       restTextOf('gameYesterday') === REST_TEXT.gameYesterday &&
       restTextOf('gameToday', 'hard') === REST_TEXT.gameToday
   );
@@ -1622,6 +1634,18 @@ console.log('\n4-3) 중재 신호(2판 P6-2)');
 }
 
 /* ── 5) 일차 넘기기 ─────────────────────────────── */
+/* 등판 다음 날은 던지는 변형만 뺀다 — 팔 보조는 오늘 팔을 다 쓴 날에만(검토 [11], 2026-11-17, lib/program/load.ts 가 부른다) */
+check(
+  '뺄 변형 — 등판 다음 날(팔 안 다 씀) 531 회전 던지기만 빼고 전완 · 삼두는 남김 / 오늘 팔 다 쓴 날(넘김)은 팔 보조도 뺌 · 던지는 칸이 없는 날은 남김',
+  armDeferredVariant('rotationalThrow', ['rotationalThrow'], false) &&
+    !armDeferredVariant('forearm', ['rotationalThrow'], false) &&
+    !armDeferredVariant('triceps', [], false) &&
+    armDeferredVariant('triceps', ['medball'], true) &&
+    armDeferredVariant('forearm', ['medball'], true) &&
+    !armDeferredVariant('triceps', [], true) &&
+    !armDeferredVariant('squat', ['medball'], true)
+);
+
 console.log('\n5) 일차 넘기기');
 const prog = { key: 'offseason-strength-power', day: 5, week: 2 };
 check(

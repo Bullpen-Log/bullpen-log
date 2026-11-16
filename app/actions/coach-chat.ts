@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import type { Prisma } from '@prisma/client';
 import { requireUser } from '@/lib/dal';
 import { prisma } from '@/lib/prisma';
 import { appNow } from '@/lib/clock';
@@ -11,8 +12,8 @@ import { coachAiConsentFor, healthConsentFor } from '@/lib/analysis-consent-stor
 import { COACH_AI_CONSENT, COACH_AI_PURPOSE } from '@/lib/coach/ai-consent';
 import { AI_BLOCK_TEXT, AI_MIN_AGE, aiGate, capUsdOf, type AiGate } from '@/lib/coach/ai-gate';
 import { costMicroOf } from '@/lib/coach/ai-price';
-import { ageBandOf, contextBlock, throwsOf, type CoachAiContext } from '@/lib/coach/ai-prompt';
-import { aiKeyReady, chatTurn, type ChatLine } from '@/lib/coach/ai';
+import { ageBandOf, contextBlock, scrubNames, throwsOf, type CoachAiContext } from '@/lib/coach/ai-prompt';
+import { COACH_MODEL_CHAT, aiKeyReady, chatTurn, type ChatLine } from '@/lib/coach/ai';
 import { sanitizeAdjusts, type CoachAdjust } from '@/lib/coach/adjust';
 import { COACH_LIMITS, REASON_TEXT, WEEKDAY_LABELS, savedOf, slotLine } from '@/lib/coach/answers';
 import { slotProgressOf, slotStateOf } from '@/lib/coach/status';
@@ -38,17 +39,21 @@ const MAX_TEXT = 500;
 
 type User = Awaited<ReturnType<typeof requireUser>>;
 
-/** 한국 날짜의 시작 · 이번 달 시작(UTC 로) — 하루 마디 수(AI_DAILY_CHATS) · 월 상한 셈 */
-function windowsOf(today: string) {
+/**
+ * 실제 지금의 한국 날짜의 시작 · 이번 달 시작(UTC 로) — 하루 마디 수(AI_DAILY_CHATS) · 월 상한 셈. CoachLog.createdAt 이 실제 시각이라 시뮬 날짜
+ * (appNow) · 기기 시간대로 창을 잡으면 해외 · 시험 계정에서 전날 마디가 세지거나 한도가 안 걸렸다(2026-11-17 검토 [25], 설계 '한국 날짜').
+ */
+function windowsOf() {
+  const today = new Date(Date.now() + 9 * 3_600_000).toISOString().slice(0, 10);
   return { dayStart: new Date(`${today}T00:00:00+09:00`), monthStart: new Date(`${today.slice(0, 8)}01T00:00:00+09:00`) };
 }
 
-async function gateFor(user: User, today: string): Promise<{ gate: AiGate; consented: boolean }> {
-  const { dayStart, monthStart } = windowsOf(today);
+async function gateFor(user: User, db: Prisma.TransactionClient | typeof prisma = prisma): Promise<{ gate: AiGate; consented: boolean }> {
+  const { dayStart, monthStart } = windowsOf();
   const [consent, month, todayChats] = await Promise.all([
     coachAiConsentFor(user.id),
-    prisma.coachLog.aggregate({ where: { createdAt: { gte: monthStart } }, _sum: { costMicro: true } }),
-    prisma.coachLog.count({ where: { userId: user.id, kind: 'chat', createdAt: { gte: dayStart } } }),
+    db.coachLog.aggregate({ where: { createdAt: { gte: monthStart } }, _sum: { costMicro: true } }),
+    db.coachLog.count({ where: { userId: user.id, kind: 'chat', createdAt: { gte: dayStart } } }),
   ]);
   const gate = aiGate('chat', {
     consent: consent.valid,
@@ -73,9 +78,8 @@ type ShownMessage = { id: string; role: 'user' | 'coach'; text: string; adjusts:
 export async function loadCoachChat() {
   const user = await requireUser();
   if (!(await activeCoach(user))) return { ok: false as const, error: '코치를 시작한 뒤에 쓸 수 있어요.' };
-  const { today } = await coachWeekBase(user.id);
   const [{ gate, consented }, rows] = await Promise.all([
-    gateFor(user, today),
+    gateFor(user),
     prisma.coachMessage.findMany({
       where: { userId: user.id, createdAt: { gte: new Date(Date.now() - KEEP_DAYS * 86_400_000) } },
       orderBy: { createdAt: 'desc' },
@@ -218,10 +222,26 @@ export async function sendCoachMessage(
   if (!said) return { error: '할 말을 적어 주세요.' };
   if (said.length > MAX_TEXT) return { error: `${MAX_TEXT}자 안으로 적어 주세요.` };
   const base = await coachWeekBase(user.id);
-  const { gate } = await gateFor(user, base.today);
-  if (!gate.ok) return { ok: true, blocked: AI_BLOCK_TEXT[gate.why] };
   const context = await contextOf(user, base, ageOn(user.birthDate, appNow()) ?? 20);
   if (!context || !base.slots) return { error: '이번 주 일정이 없어요.' };
+  /*
+   * 마디 자리를 먼저 잡는다 — 사용자별 잠금 안에서 세고 · 빈 기록(실패 · 값 0)을 먼저 만든 뒤 AI 를 부르고, 끝나면 그 기록을 채운다. 예전에는
+   * 세고 → AI → 기록 차례라 동시에 보낸 요청이 모두 '오늘 0마디'로 통과했다(2026-11-17 검토 [24]). 월 상한은 값을 모른 채 잡혀 몇 센트 넘을 수 있다(설계).
+   */
+  const seat = await prisma.$transaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`coach-chat:${user.id}`}, 0))`;
+      const { gate } = await gateFor(user, tx);
+      if (!gate.ok) return { blocked: gate.why } as const;
+      const log = await tx.coachLog.create({
+        data: { userId: user.id, kind: 'chat', model: COACH_MODEL_CHAT, ok: false, ms: 0, inTok: 0, outTok: 0, cacheTok: 0, costMicro: 0 },
+        select: { id: true },
+      });
+      return { left: gate.left, logId: log.id } as const;
+    },
+    { maxWait: 10_000, timeout: 15_000 }
+  );
+  if (seat.blocked) return { ok: true, blocked: AI_BLOCK_TEXT[seat.blocked] };
 
   const history = await prisma.coachMessage.findMany({
     where: { userId: user.id, createdAt: { gte: new Date(Date.now() - KEEP_DAYS * 86_400_000) } },
@@ -231,10 +251,9 @@ export async function sendCoachMessage(
   });
   const lines: ChatLine[] = history.reverse().map((m) => ({ role: m.role === 'user' ? 'user' : 'coach', text: m.text }));
   const turn = await chatTurn(lines, context, said);
-  await prisma.coachLog.create({
+  await prisma.coachLog.update({
+    where: { id: seat.logId },
     data: {
-      userId: user.id,
-      kind: 'chat',
       model: turn.model,
       ok: turn.ok,
       ms: turn.ms,
@@ -244,7 +263,7 @@ export async function sendCoachMessage(
       costMicro: costMicroOf(turn.model, turn.usage),
     },
   });
-  const reply = turn.ok ? turn.reply : turn.why === 'refusal' ? FALLBACK.refusal : FALLBACK.other;
+  const reply = turn.ok ? scrubNames(turn.reply) : turn.why === 'refusal' ? FALLBACK.refusal : FALLBACK.other;
   const adjusts = turn.ok ? sanitizeAdjusts(turn.adjusts, base.slots, base.today, base.locked) : [];
   await prisma.coachMessage.createMany({
     data: [
@@ -253,5 +272,5 @@ export async function sendCoachMessage(
     ],
   });
   revalidatePath('/coach');
-  return { ok: true, reply, adjusts, left: Math.max(0, gate.left - 1) };
+  return { ok: true, reply, adjusts, left: Math.max(0, seat.left - 1) };
 }

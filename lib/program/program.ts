@@ -2262,8 +2262,21 @@ export type TodaySignals = {
  * 코어를 고정했으면 던지지 않는다 — 고정 운동을 알면 programArbiterSignals 가 그 운동으로 가른다(armThrows).
  * lib/engine/arbiter.ts 가 같은 상수를 다시 내보낸다(한 곳 — 중재가 이 파일을 부르므로 여기 둔다).
  */
-/** 팔 보조 — 팔을 아끼는 날(deferVariants 가 있는 날) 같이 빠진다 */
+/** 팔 보조 — 오늘 팔을 다 쓴 날(던지는 변형을 뺀 날) 같이 빠진다 */
 export const ARM_ACCESSORIES: readonly VariantKey[] = ['triceps', 'biceps', 'forearm'];
+
+/**
+ * 오늘 이 변형을 빼나 — 뺀 던지는 변형(deferVariants)은 늘, 팔 보조(삼두 · 이두 · 전완)는 오늘 팔을 다 쓴 날(오늘 등판 · 경기 · 세게 던짐 —
+ * 중재 arm.spent)에만. 등판 다음 날은 던지는 변형만 뺀다(2026-11-16 결정) — 예전에는 던지기 칸이 있는 일차에서만 팔 보조까지 빠져, 같은
+ * 등판 다음 날인데 일차마다 달랐다(2026-11-17 검토 [11]).
+ */
+export function armDeferredVariant(
+  variant: VariantKey,
+  deferred: readonly VariantKey[],
+  armSpentToday: boolean
+): boolean {
+  return deferred.includes(variant) || (armSpentToday && deferred.length > 0 && ARM_ACCESSORIES.includes(variant));
+}
 
 export const ARM_THROW_VARIANTS: readonly VariantKey[] = ['medball', 'rotationalThrow', 'plyoPush'];
 
