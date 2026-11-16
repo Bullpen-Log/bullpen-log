@@ -2,7 +2,7 @@ import { headers } from 'next/headers';
 import { expoLevel } from '@/lib/app-env';
 import { OpenNative } from '@/app/(session)/velocity/open-native';
 import Link from 'next/link';
-import { ChevronRight, Clapperboard, Film, Gauge, ScrollText } from '@/components/icon';
+import { BookOpen, ChevronRight, Clapperboard, Film, Gauge, ScrollText } from '@/components/icon';
 import { RoundBatter, RoundLesson } from '@/components/round-icon';
 import { prisma } from '@/lib/prisma';
 import { requirePermission } from '@/lib/dal';
@@ -224,6 +224,23 @@ export default async function AdminPage() {
           <span className="block text-sm font-bold text-ink">패치노트</span>
           <span className="mt-0.5 block text-xs leading-relaxed text-muted">
             프로그램을 누가 언제 어떻게 고쳤는지 날마다 쌓입니다.
+          </span>
+        </span>
+        <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
+      </Link>
+
+      {/* 참고자료(EX-REF02) — 대표관리자만. 비공개 훈련 자료 · 확인한 범위 · 근거로 다시 본 주장 */}
+      <Link
+        href="/admin/references"
+        className="flex items-center gap-4 rounded-2xl border border-line bg-surface p-(--block-pad) transition-colors duration-75 hover:border-sky-soft hover:bg-surface-2"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line-strong text-muted">
+          <BookOpen aria-hidden className="h-4 w-4" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-bold text-ink">참고자료</span>
+          <span className="mt-0.5 block text-xs leading-relaxed text-muted">
+            비공개 훈련 자료와 확인한 범위, 최신 근거로 다시 본 판단을 봅니다.
           </span>
         </span>
         <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />

@@ -1,3 +1,13 @@
+## 맥 미니 전체 총괄·운동영상 담당에게 — 2026-11-16 · 맥북 GPT 서브1 — EX-REF02 관리자 참고자료 기반 검수
+
+- 기존 Claude 운동영상 세션의 EX-REF02 구현을 독립 검수하고 긴 표·열람 상태·번역 자료 문구를 보완했다. 대표관리자 전용 목록/검색/상세/인증 원본 프록시와 웹·앱 관리자 진입점이다. 발주·납품·검수 기록은 `docs/work-orders/EX-REF02.md`, `EX-REF02-claude-outbox.md`, `EX-REF02-gpt-review.md`를 본다.
+- 사용자에게 저자 내부 이용 허락을 받았다는 확인을 받아 기록했다. 원본·번역·목록은 비공개 저장소에만 있고 Git에 넣지 않았다. 기존 비공개 버킷과 별도 prefix를 사용하며 DB 구조·RLS·버킷 설정·의존성 변경이 없다. 새 설치/생성 명령 없음.
+- 독립 시험173개·최종 코드 격리 전체 빌드 종료0. 공유 node_modules/Prisma client와 로컬3000은 변경하지 않았다. 사용자가 직접 대표관리자로 로그인한 뒤 실제 목록·검색·번역표·PDF 원본 열람을 확인했다. 일반/준관리자 차단은 함수 시험과 코드 순서 확인이며 실제 해당 계정 접속 시험은 미실행이다. iPhone·앱 WebView·페이지/시간 바로가기 미검증.
+- **전체 자료 작업 완료 아님:** 받은52개(문서1095쪽·영상79분40초) 중 본문487쪽 읽음, 그림 일부, 영상·음성 연속검토 미완료, 영어 전체 옮김 미완료. 비공개 목록도 검토중과 실제 범위를 표시한다. 관리자 자료실 기반 기능과 전체 콘텐츠 완료를 구분한다.
+- 코드 패키지는 이 격리 작업 폴더의80e44423 기준 변경으로 전체 총괄에 최종 통합 검수를 요청했다. 커밋/푸시/운영 배포는 아직 하지 않았다. native 관리자 링크 변경은 통합 푸시 때 OTA 영향이 있으므로 Apple 팀 이전 작업과 조율한다. 미발주 서비스 운동 처방/엔진에는 반영하지 않는다. 다음 작업은 나머지 자료·번역·근거 검토와 승인된 통합 배포·운영 확인이다.
+
+- Final integration review (overall GPT): latest-main build and independent 173 checks passed. Publish the library foundation with explicit incomplete-content status; corpus review continues in Sub1. Apple team migration is separate.
+
 ## Kim Min — 2026-11-16 · Geum Yunho / GPT — Apple transition progress
 
 Geum's individual membership is active and your App Store Connect invitation was accepted. Sinker App ID and new app record exist: bundle `com.sinker.app`, numeric app ID `6835422935`, current console name `Sinker-baseball`. Direct Apple API authentication and lookup succeeded.
