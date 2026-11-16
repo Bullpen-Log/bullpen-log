@@ -1,3 +1,5 @@
+CURRENT P048 start trim: source7.95 ->6.80s from1.15s, ready pose and both demonstrations retained; source preserved. Await user review.
+
 CURRENT P048 single-leg depth drop: P049 trim2 accepted. Description revised and own thumbnail selected; high/advanced/3x5 each side/rest180 retained. 7.95s video shows two same-side demonstrations, source unchanged. User review pending. See record for evidence and before/after.
 
 CURRENT P049 trim2: 18.4->17.1s at end of final landing hold before rising, source and previous edit retained. Await user review.

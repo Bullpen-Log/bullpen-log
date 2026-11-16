@@ -4251,6 +4251,14 @@
     ],
     "evidence_limits": "Landing training evidence and pitching link are indirect; no proof this drill alone raises velocity or prevents injury. Legal clearance KR/US/JP remains open.",
     "verification": "Saved via editor and reload. Player active with repeat enabled.",
-    "at_utc": "2026-11-16T12:11:39.914475+00:00"
+    "at_utc": "2026-11-16T12:11:39.914475+00:00",
+    "updates": [
+      {
+        "at_utc": "2026-11-16T12:13:49.805823+00:00",
+        "request": "Shorten initial wait while preserving setup.",
+        "video": "Source 7.95s to 6.80s; cut first1.15s, standing ready position retained, two demonstrations and ending preserved. Source retained.",
+        "verification": "Export duration, conditional live update/readback, editor refresh and playback with repeat enabled. User review pending."
+      }
+    ]
   }
 ]
