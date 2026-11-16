@@ -96,6 +96,26 @@
       "owned_source_confirmed": true,
       "right_panel_request": "queued because caller chat hidden; opens when chat shown",
       "actual_user_panel_exposure_verified": false
+    },
+    "latest_assistant_inspection": {
+      "at": "2026-11-16T16:08:54.473319+09:00",
+      "coverage": "Partial scene inspection using shared-player seek; not continuous or frame-complete review.",
+      "visual": "Start standing, first-angle stride/throw, later-angle knee lift, and terminal follow-through viewed. Feet and full body visible in sampled frames. Terminal frame still in follow-through: human should assess end length.",
+      "description_candidates": [
+        "Explain drift and rocker in beginner Korean.",
+        "Clarify front/rear foot and throwing direction for right/left pitchers.",
+        "50-60 percent is perceived effort, not proportional elbow load; no drill-specific optimum established."
+      ],
+      "research": {
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6668195/",
+        "type": "2019 original study abstract in journal supplement",
+        "population_condition": "60 healthy high-school and collegiate pitchers; 120-foot long toss at perceived100/75/50 percent effort.",
+        "finding": "Measured torque and velocity fell less than the proportional perceived-effort decrease.",
+        "limit": "Indirect for step-back drill; does not prove optimal effort, reps/rest or training transfer."
+      },
+      "playback": "Repeat checkbox ON; returned Home and playing. No cycle test. Audio not verified.",
+      "user_status": "Awaiting first human video judgment; no next instruction.",
+      "applied_content_change": false
     }
   },
   "completed": [],
