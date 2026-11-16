@@ -104,7 +104,8 @@ export const allExercises = unstable_cache(
   /* :v49 — 2026-11-16 암케어 어깨 후방 · 전방에서 자세만 다른 변형 8개를 숨김(scripts/library-armcare-hide-2026-11-16.mjs). */
   /* :v50 — 2026-11-16 워밍업 12 · 하체 10 · 상체 5 · 모빌리티 2를 더함(scripts/library-adds-2026-11-16.mjs) — 같은 날 v49 와 겹쳐 하나 더 올림. */
   /* :v51 — 2026-11-16 암케어 팔꿈치 후방 1 → 5: '나중에 촬영' 둘을 되돌리고 참고 영상 둘을 더함(scripts/library-elbow-back-2026-11-16.mjs). */
-  ['library:exercises:v51'],
+  /* :v52 — 2026-11-16 덤벨 벤트오버 로우를 더함(scripts/library-add-db-row-2026-11-16.mjs) — 덤벨만 있고 벤치가 없으면 '중간' 이상 로우가 0개였다. */
+  ['library:exercises:v52'],
   { tags: [LIBRARY_TAG] }
 );
 
