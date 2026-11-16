@@ -345,6 +345,13 @@ check('⑤ 쉬는 날 · 팀 훈련 → 시작 없음', startsOf(slotOf(T, [{ ki
   const answered = first.map((s, i) => (i === 1 ? { ...s, followup: { why: 'time' as const, at: 'x' } } : s));
   const again = planWeek(input({ baselineFreq: 3, today: '2026-11-04', prev: answered, painArm: true }));
   check('⑥-2 다시 맞춰도 어제 답은 남는다', again[1].followup?.why === 'time');
+  /* 주중에 처음 지은 틀 — 이미 지난 날은 본 적 없는 계획이라 묻지도 '못 함'으로 세지도 않는다 */
+  const midweek = planWeek(input({ baselineFreq: 6, today: '2026-11-04' }));
+  const lateWork = midweek.filter((s) => s.date < '2026-11-04' && s.items.some((x) => x.kind === 'train'));
+  check('⑥-2 주중 첫 틀: 지난 날에 표시 · 오늘부터는 없음', lateWork.length > 0 && midweek.every((s) => !!s.late === s.date < '2026-11-04'), JSON.stringify(midweek.map((s) => s.late)));
+  check('⑥-2 주중 첫 틀: 지난 날은 안 묻고 못 함도 아님', lateWork.every((s) => followupAskOf(s, undefined) === null && slotStateOf(s, undefined, '2026-11-04') === 'off'));
+  check('⑥-2 다시 맞춰도 표시는 남고 새 표시는 안 생긴다', planWeek(input({ baselineFreq: 6, today: '2026-11-05', prev: midweek, painArm: true })).every((s, i) => s.late === midweek[i].late));
+  check('⑥-2 월요일에 지은 틀은 표시 없음(지난 날이 진짜 계획)', planWeek(input({ baselineFreq: 3 })).every((s) => !s.late));
 }
 
 /* ─────────── ⑦ 주간 리뷰 ─────────── */

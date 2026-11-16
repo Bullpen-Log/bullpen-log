@@ -15,8 +15,8 @@ export function slotStateOf(slot: DaySlot, done: DayDone | undefined, today: str
   if (done && (done.workout || done.drill || done.armcare)) return 'done';
   if (slot.date > today) return 'later';
   if (slot.date === today) return 'today';
-  /* 암케어는 '제안'이라 안 해도 못 함이 아니다(U23) */
-  return slot.items.some((x) => PLANNED.has(x.kind)) ? 'missed' : 'off';
+  /* 암케어는 '제안'이라 안 해도 못 함이 아니다(U23). 틀이 생기기 전에 지난 날(late)도 못 함이 아니다 — 본 적 없는 계획 */
+  return !slot.late && slot.items.some((x) => PLANNED.has(x.kind)) ? 'missed' : 'off';
 }
 
 /**
@@ -28,8 +28,8 @@ export type SlotProgress = { did: string[]; left: string[]; extra: string[] };
 export function slotProgressOf(slot: DaySlot, done: DayDone | undefined): SlotProgress {
   const d = done ?? { workout: false, armcare: false, drill: false };
   const tasks: { label: string; planned: boolean; done: boolean }[] = [
-    { label: '운동', planned: slot.items.some((x) => x.kind === 'train' || x.kind === 'program'), done: d.workout },
-    { label: '메커니즘 드릴', planned: slot.items.some((x) => x.kind === 'mechanics'), done: d.drill },
+    { label: '운동', planned: !slot.late && slot.items.some((x) => x.kind === 'train' || x.kind === 'program'), done: d.workout },
+    { label: '메커니즘 드릴', planned: !slot.late && slot.items.some((x) => x.kind === 'mechanics'), done: d.drill },
     { label: '암케어', planned: false, done: d.armcare },
   ];
   return {

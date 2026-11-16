@@ -94,6 +94,8 @@ export type DaySlot = {
   adjusted?: true;
   /** 어제 이어보기의 답(lib/coach/followup.ts) — 덜 한 날에 '무엇 때문이었어요?' 답 · 답한 때. 지난 날이라 다시 맞춰도 남는다 */
   followup?: { why: FollowupAnswer; at: string };
+  /** 이 주 틀을 처음 지을 때 이미 지난 날(코치를 주중에 시작 · 새 주를 주중에 처음 엶) — 사용자가 본 적 없는 계획이라 '못 함' · 어제 이어보기로 세지 않는다 */
+  late?: true;
   /** 엔진 날 종류(규칙 이름)와 그 몫 — 칸 그림 · 시험이 읽는다 */
   rule: DayRule;
   rank: DayRank;
@@ -233,7 +235,7 @@ export function planWeek(input: WeekInput): DaySlot[] {
     for (const what of fixedKinds) reasons.push(what === 'team' ? 'team-practice' : what);
     const r = RULE_REASON[rule];
     if (r) reasons.push(r);
-    return { date, items, reasons, owner: 'coach', rule, rank: DAY_RULE_RANK[rule] };
+    return { date, items, reasons, owner: 'coach', rule, rank: DAY_RULE_RANK[rule], ...(!input.prev && date < input.today ? { late: true as const } : {}) };
   });
 
   const free = dates.map((_, i) => i).filter((i) => !kept.has(i));
