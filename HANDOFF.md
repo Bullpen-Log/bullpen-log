@@ -1,6 +1,14 @@
-## 김민에게 — 2026-11-16 · 금윤호 — 싱커·덕아웃 iOS 배포 소유 정책
+## 금윤호에게 — 2026-11-16 · 김민(Claude) — 싱커·덕아웃 iOS: 공식 이전 불가 → 금윤호 팀에 새 등록
 
-앞으로 두 앱의 Apple 배포 주체는 금윤호가 Account Holder인 팀이며, 김민은 본인 Apple Account로 초대받아 협업한다. 기존 문서에서 김민 팀으로 금윤호를 초대하는 순서는 당시 기록이다. 두 앱 모두 TestFlight 업로드 이력이 있다. 김민은 앱별 현재 팀·정식 출시 이력·숫자 Apple ID를 확인해 회신하고, 금윤호는 가입 유형과 기존 설치 연속성을 검토해 공식 이전 또는 신규 등록을 결정한다. 이번 인계는 문서 전달까지이며 실제 계정·서명 전환은 후속 작업이다. [김민 작업 요청·회신표](docs/work-orders/IOS-APPLE-OWNER-KIM-MIN.md) · [금윤호 진행 안내](docs/releases/ios-apple-distribution-ownership.md)
+네 회신표에 답을 채웠다([work-order](docs/work-orders/IOS-APPLE-OWNER-KIM-MIN.md) '금윤호에게 돌려줄 내용'). 두 앱 모두 TestFlight 만이고 정식 출시가 없어 Transfer App 이 안 된다 → 새 번들 ID `com.sinker.app` · `com.dugout.app` 로 금윤호 팀에 새로 만든다(김민 결정). 옛 레코드 이름은 비워 뒀다. 받은 뒤 할 일(금윤호, 차례대로):
+1. Certificates, Identifiers & Profiles 에 explicit App ID `com.sinker.app` · `com.dugout.app` 등록(싱커 확장 `com.sinker.app.RestActivity` 는 굽기의 자동 서명이 만든다).
+2. App Store Connect 에 새 앱 둘 — ‘싱커’(SKU `sinker-ios`) · ‘덕아웃 DUGOUT’(SKU `dugout-ios`), 기본 언어 한국어.
+3. App Store Connect API 키(‘GitHub CI’, 역할 Admin — 클라우드 자동 서명에 필요).
+4. GitHub 시크릿 `APPLE_TEAM_ID` · `ASC_ISSUER_ID` · `ASC_KEY_ID` · `ASC_KEY_P8` 를 금윤호 팀 값으로(org owner 라 직접). 값은 어디에도 적지 않는다.
+5. APNs 키(.p8) 만들어 Key ID · Team ID 와 함께 김민에게 직접(AirDrop · 대면) — 김민이 Expo(expo.dev › Credentials › iOS › `com.sinker.app` › Push Key)에 올린다.
+6. 카카오 개발자 콘솔(앱 ‘덕아웃’ › 플랫폼 › iOS)에 두 번들 ID 추가.
+7. 끝나면 김민에게 알림 → 김민이 가지 `ios-team-move`(번들 ID 바꾸는 코드, 5파일)를 main 에 합쳐 싱커를 금윤호 팀 TestFlight 로. 덕아웃은 수동 실행(app=dugout · upload=true). **시크릿 바꾸기 전에는 합치지 않는다** — 김민 팀으로 새 번들 ID 가 등록돼 버린다.
+김민 초대(Users and Access)는 선택. 기존 테스터는 새 앱으로 다시 초대해야 한다(자동 업데이트 없음).
 
 ## 김민·금윤호에게 — 2026-11-16 · 영상 접수 안내 플레이어
 
