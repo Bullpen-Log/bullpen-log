@@ -545,7 +545,7 @@
 **한도 · 비용(U41 · U42)** — `lib/coach/ai-gate.ts` 의 `aiGate(userId, kind)` 하나가 부르기 전에 판정한다. 하나라도 걸리면 AI 없이 규칙으로:
 1. 국외 이전 동의 없음(U43) → 대화 칸 숨김 · 정해진 문장
 2. 만 14세 미만(U21)
-3. 사람마다 하루 30마디(대화만 셈, 한국 날짜) → '오늘 대화는 다 썼어요. 내일 다시' · 단추 조정은 그대로. `CoachLog` 줄 세기(`lib/community.ts rateLimitError` 와 같은 방식)
+3. 사람마다 하루 80마디(2026-11-16 김민 — Haiku 로 바꾼 뒤 30 → 80, 다 써도 한 사람 월 약 $1.5; 대화만 셈, 한국 날짜) → '오늘 대화는 다 썼어요. 내일 다시' · 단추 조정은 그대로. `CoachLog` 줄 세기(`lib/community.ts rateLimitError` 와 같은 방식)
 4. 이번 달 전체 비용 ≥ `COACH_AI_MONTHLY_USD`(기본 30) → 그달 남은 동안 규칙만(설명 포함). **0 이면 AI 끔** — 비상 스위치 겸
 5. 열쇠 없음
 - 비용 셈: 응답 `usage`(입력 · 캐시 쓰기 · 캐시 읽기 · 출력, 생각 포함) × 값표(`lib/coach/ai-price.ts`, 모델별 $/MTok) → `CoachLog.costMicro`. 이번 달 합 = `CoachLog` 합. 동시에 들어온 요청이 상한을 몇 센트 넘을 수 있는데 괜찮다.

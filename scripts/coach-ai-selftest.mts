@@ -17,13 +17,13 @@ const whyOf = (g: ReturnType<typeof aiGate>) => (g.ok ? 'ok' : g.why);
 
 /* ① 판정 표 */
 const base: AiGateInput = { consent: true, age: 20, hasKey: true, capUsd: 30, monthCostMicro: 0, todayChats: 0 };
-check('① 다 됨 → 남은 30', JSON.stringify(aiGate('chat', base)) === JSON.stringify({ ok: true, left: AI_DAILY_CHATS }));
+check('① 다 됨 → 남은 마디 전부', JSON.stringify(aiGate('chat', base)) === JSON.stringify({ ok: true, left: AI_DAILY_CHATS }));
 check('① 동의 없음이 먼저', whyOf(aiGate('chat', { ...base, consent: false, age: 10, hasKey: false })) === 'consent');
 check('① 만 13세 · 나이 모름 → age', whyOf(aiGate('chat', { ...base, age: 13 })) === 'age' && whyOf(aiGate('chat', { ...base, age: null })) === 'age');
 check('① 열쇠 없음 → key', whyOf(aiGate('chat', { ...base, hasKey: false })) === 'key');
 check('① 상한 0 → off(설명도)', whyOf(aiGate('explain', { ...base, capUsd: 0 })) === 'off');
 check('① 이번 달 $30 닿음 → budget', whyOf(aiGate('explain', { ...base, monthCostMicro: 30_000_000 })) === 'budget' && aiGate('chat', { ...base, monthCostMicro: 29_999_999 }).ok);
-check('① 하루 30마디 → daily, 설명은 안 셈', whyOf(aiGate('chat', { ...base, todayChats: 30 })) === 'daily' && aiGate('explain', { ...base, todayChats: 30 }).ok);
+check('① 하루 한도 → daily, 설명은 안 셈', whyOf(aiGate('chat', { ...base, todayChats: AI_DAILY_CHATS })) === 'daily' && aiGate('explain', { ...base, todayChats: AI_DAILY_CHATS }).ok);
 check('① 상한 읽기: 없음 30 · 0 은 0 · 이상한 값 30', capUsdOf(undefined) === 30 && capUsdOf('0') === 0 && capUsdOf('abc') === 30 && capUsdOf('12.5') === 12.5 && capUsdOf('-3') === 30);
 check('① 막힘 글: 해요체 · 줄표 없음', Object.values(AI_BLOCK_TEXT).every((t) => t.endsWith('요.') && !t.includes('—')));
 

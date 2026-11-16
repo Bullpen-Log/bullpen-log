@@ -1,8 +1,8 @@
 /**
  * 코치 AI 를 부르기 전 판정(docs/designs/ai-coach.md 10-6 U41 · U42) — 하나라도 걸리면 AI 없이 정해진 문장으로. 순수 파일(값은 서버가 모아 넘긴다).
- * 차례: 국외 이전 동의 → 만 14세 → 열쇠 → 상한 0(끔) → 이번 달 비용 → (대화만) 하루 30마디.
+ * 차례: 국외 이전 동의 → 만 14세 → 열쇠 → 상한 0(끔) → 이번 달 비용 → (대화만) 하루 80마디(2026-11-16 김민 — Haiku 로 바꿔 한 사람이 다 써도 월 $1.5 쯤).
  */
-export const AI_DAILY_CHATS = 30;
+export const AI_DAILY_CHATS = 80;
 export const AI_MIN_AGE = 14;
 export const AI_DEFAULT_MONTHLY_USD = 30;
 

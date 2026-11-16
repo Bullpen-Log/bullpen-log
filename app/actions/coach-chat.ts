@@ -27,7 +27,7 @@ import { planReasonLines, readDailyPlan } from '@/lib/report/daily-plan';
 /**
  * 코치 AI 대화(docs/designs/ai-coach.md 10-6) — 앱 코치 탭의 대화 시트. 답 글 + 바꿀 거리(거른 것만) → 미리보기 · 적용은 조정 단추와 같은 길
  * (app/actions/coach.ts previewCoachAdjust · applyCoachAdjust). AI 가 저장 · 적용하지 않는다.
- * 막는 판정은 lib/coach/ai-gate.ts 하나(국외 이전 동의 · 만 14세 · 열쇠 · 월 상한 · 하루 30마디). 대화는 30일 둔다(크론이 지움).
+ * 막는 판정은 lib/coach/ai-gate.ts 하나(국외 이전 동의 · 만 14세 · 열쇠 · 월 상한 · 하루 80마디). 대화는 30일 둔다(크론이 지움).
  * 출시 전 베타에는 모듈째 잠긴다(lib/release-ops.ts 'coach-chat' = 'analysis').
  */
 
@@ -37,7 +37,7 @@ const MAX_TEXT = 500;
 
 type User = Awaited<ReturnType<typeof requireUser>>;
 
-/** 한국 날짜의 시작 · 이번 달 시작(UTC 로) — 하루 30마디 · 월 상한 셈 */
+/** 한국 날짜의 시작 · 이번 달 시작(UTC 로) — 하루 마디 수(AI_DAILY_CHATS) · 월 상한 셈 */
 function windowsOf(today: string) {
   return { dayStart: new Date(`${today}T00:00:00+09:00`), monthStart: new Date(`${today.slice(0, 8)}01T00:00:00+09:00`) };
 }
