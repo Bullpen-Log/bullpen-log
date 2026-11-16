@@ -3622,6 +3622,27 @@
         },
         "content_and_metadata": "Title, description, targets, intensity, difficulty, equipment and prescription unchanged.",
         "human_decision": "Requested edit applied; no next approval."
+      },
+      {
+        "at_utc": "2026-11-16T09:39:22.837844+00:00",
+        "user_direction_summary": "Show only first and second jumps. End after the second jump at the point that looks like the exercise has finished.",
+        "video_edit": {
+          "version": "P023 trim2 two jumps5.60s",
+          "before_duration_seconds": 8.75,
+          "after_duration_seconds": 5.6,
+          "source_interval_seconds": [
+            2.35,
+            7.95
+          ],
+          "reason": "Keep first2 jump demonstrations. Include second landing and standing upright with arms lowered, end before third-jump preparation.",
+          "retained_jumps": 2,
+          "thumbnail": "Previously selected airborne image retained, source3.25s -> edited0.90s.",
+          "preservation": "Source and previous3-jump edit retained; new distinct video/poster identity. No speed change, freeze or stitching.",
+          "verification": "Second-landing end segment sampled10fps; actual final output frame inspected upright arms-down. Full decode5.60s/336frames/1080x1920/60fps. Live row only videoPath/thumbPath changed; new video, previous edit and selected poster storage hashes matched local copies. Backup succeeded. Editor unchanged-save invalidated common cache; Web reloaded; active playback with5s displayed duration and repeat enabled observed. View restored to full video; no repeat-cycle wait.",
+          "limits": "User finish judgment and native/offline/other-device refresh unverified."
+        },
+        "content_and_prescription": "Unchanged; showing2 demonstrations does not change3sets x5reps/rest180 prescription.",
+        "human_decision": "Requested edit applied, user review pending; no next."
       }
     ],
     "thumbnail_updates": [
