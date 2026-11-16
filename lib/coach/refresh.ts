@@ -40,6 +40,7 @@ export async function weekInputOf(user: CoachUser, saved: CoachSaved, healthOk: 
     prisma.calendarEvent.findMany({ where: { userId: user.id, date: { gte: dbDate(weekStart), lte: dbDate(weekEnd) } }, select: { date: true, title: true } }),
   ]);
   const outing = outingOf(facts);
+  const dk = dayKindOf(facts);
   const lastHard = (facts.patterns.hardOutings ?? []).filter(isHardOuting).sort((a, b) => a.daysAgo - b.daysAgo)[0];
   const t = facts.condition.today;
   const calendar: FixedDay[] = events.filter((e) => isOutingTitle(e.title)).map((e) => ({ date: keyOfDbDate(e.date), kind: 'game' }));
@@ -70,12 +71,13 @@ export async function weekInputOf(user: CoachUser, saved: CoachSaved, healthOk: 
     program: program ? { perWeek: parseProgram(program.programKey)?.perWeek ?? 3 } : null,
     /* ponytail: 메커니즘 프로그램엔 주당 횟수 칸이 없다 — 주 2번으로 둔다(12세션 순서는 날짜 의무가 아님), 칸이 생기면 그것으로 */
     mechanics: mechanics ? { perWeek: 2 } : null,
+    todayKind: { rule: dk.rule, afterOuting: dk.afterOuting, heavyLower: dk.heavyLowerAllowed },
   };
 }
 
 /**
- * 오늘 칸에 '그날 엔진이 시간을 줄인다'를 싣는다(DaySlot.cut — slotLine 이 '60분 → 45분'으로 보인다). 요청마다 셈하고 저장하지 않는다 — 계획기의
- * '등판 다음 날' 까닭은 계획한 경기로 정해서, 실제로 던진 양(세게 던진 기록 · 기록 없는 '오늘 등판' 답)으로 줄이는 엔진과 다를 수 있다(2026-11-16 검토).
+ * 오늘 칸에 '그날 엔진이 시간을 줄인다'를 싣는다(DaySlot.cut — slotLine 이 '60분 → 45분'으로 보인다). 요청마다 셈하고 저장하지 않는다 — 오늘 칸의
+ * 날 종류는 엔진과 맞추지만(withEngineToday), 구원 '어제 20구 넘게'처럼 날 종류에 안 드러나는 줄임도 있어서다(2026-11-16 검토).
  */
 export function withTodayCut(slots: DaySlot[], today: string, facts: ReportFacts): DaySlot[] {
   const dk = dayKindOf(facts);
@@ -83,8 +85,21 @@ export function withTodayCut(slots: DaySlot[], today: string, facts: ReportFacts
   return slots.map((s) => (s.date === today && s.rank !== 'recovery' ? { ...s, cut: true as const } : s));
 }
 
-/** 입력의 지문 — 날이 바뀐 것만으로는 다시 안 짠다(오늘 · 잠김 · 지난 틀 빼고) */
-const weekKey = (input: WeekInput) => createHash('sha1').update(JSON.stringify({ ...input, today: null, todayLocked: null, prev: null })).digest('hex').slice(0, 16);
+/** 입력의 지문 — 날이 바뀐 것만으로는 다시 안 짠다(오늘 · 잠김 · 지난 틀 · 오늘 엔진 판정 빼고 — 판정은 sameToday 가 따로 본다) */
+const weekKey = (input: WeekInput) =>
+  createHash('sha1').update(JSON.stringify({ ...input, today: null, todayLocked: null, prev: null, todayKind: null })).digest('hex').slice(0, 16);
+
+/**
+ * 저장한 오늘 칸의 날 종류 · '등판 다음 날'이 지금 엔진 판정으로 다시 짠 것과 같은가 — 다르면 다시 맞춘다. 칸 전체를 견주지 않는 까닭: 지난 날이
+ * 늘면(그대로 둔 칸) 남은 날의 배치가 달라질 수 있어, 날만 바뀌어도 다시 짜게 된다(weekKey 의 약속). 그대로 둔 오늘(시작함 · 가져감 · 조정함)은 늘 같다.
+ */
+function sameToday(stored: readonly DaySlot[], input: WeekInput): boolean {
+  const pick = (slots: readonly DaySlot[]) => {
+    const s = slots.find((x) => x.date === input.today);
+    return s ? `${s.rule}|${s.reasons.includes('after-outing')}` : '';
+  };
+  return pick(stored) === pick(planWeek({ ...input, prev: stored }));
+}
 
 /**
  * 그 주 틀을 저장 — 지난 틀이 있으면 지난 날 · 사용자가 가져간 날 · 조정한 날 · 시작한 오늘은 그대로(planWeek prev).
@@ -131,7 +146,7 @@ export async function currentCoachWeek(
   const f = facts ?? (await gatherFactsAndPlan(user, appNow())).facts;
   const input: WeekInput = { ...(await weekInputOf(user, saved, consent.valid, f)), todayLocked: started != null };
   const limits = [...(input.limits ?? [])];
-  const slots = row && row.fingerprint === weekKey(input) ? stored! : await saveWeek(user.id, input);
+  const slots = row && row.fingerprint === weekKey(input) && sameToday(stored!, input) ? stored! : await saveWeek(user.id, input);
   /* 돌려주는 칸에만 오늘 시간 줄임을 싣는다 — 저장한 칸에는 없다(저장하는 곳은 모두 DB 의 칸을 읽어 고친다) */
   return { active: true, slots: withTodayCut(slots, today, f), limits };
 }

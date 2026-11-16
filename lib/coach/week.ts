@@ -108,7 +108,7 @@ export type DaySlot = {
   rank: DayRank;
   /**
    * 그날 운동 엔진이 시간을 줄이는가(등판 다음 날 · 구원 짧게 — 날 종류의 shorten). 오늘 칸에만, 요청마다 엔진 판정으로 싣고 저장하지 않는다
-   * (lib/coach/refresh.ts withTodayCut). 계획기의 '등판 다음 날' 까닭은 계획한 경기로 정해서 실제로 던진 양을 모른다 — 그래서 시간 글은 이것만 본다.
+   * (lib/coach/refresh.ts withTodayCut). 오늘 칸의 날 종류는 엔진과 맞추지만(withEngineToday) 구원 짧게는 날 종류에 안 드러난다 — 그래서 시간 글은 이것만 본다.
    */
   cut?: true;
 };
@@ -145,7 +145,30 @@ export type WeekInput = {
   mechanics: { perWeek: number } | null;
   /** 다시 맞출 때 지난 계획 — 오늘 앞 날 · 사용자가 가져간 날 · 조정한 날 · 시작한 오늘은 그대로(U24 · U35 · U38) */
   prev?: readonly DaySlot[] | null;
+  /** 오늘 엔진 판정(lib/coach/refresh.ts weekInputOf) — 있으면 오늘 칸을 그것과 맞춘다(withEngineToday). 날마다 바뀌어 지문에는 안 넣는다 */
+  todayKind?: EngineToday | null;
 };
+
+/** 엔진의 오늘 날 종류(lib/engine/microcycle.ts dayKindOf 의 rule · afterOuting · heavyLowerAllowed) */
+export type EngineToday = { rule: DayRule; afterOuting: boolean; heavyLower: boolean };
+
+type DayVerdict = { rule: DayRule; heavyLower: boolean; after: boolean };
+
+/** 덜 하는 차례 — 회복 < 보조 < 등판 3일 안(큰 하체 없음) < 그 밖 */
+const lightness = (r: DayRule) => (r === 'outingSoon' ? 2 : { recovery: 0, light: 1, strength: 3, none: 3 }[DAY_RULE_RANK[r]]);
+
+/**
+ * 오늘 칸을 엔진 판정과 맞춘다(2026-11-17 — 코치와 엔진이 같은 날을 다르게 말하던 것). 계획기는 날짜(경기 일정 · 답 · 기록)만 봐서 엔진만 아는 것을
+ * 모른다: 어제 부하 + 운동 힘듦 급증(R2 회복), 기록 없는 '오늘 등판' 답, 계획한 선발인데 가볍게 던진 날, 체크인의 '2~3일 뒤' 같은 창.
+ * 더 가벼운 쪽이 이긴다 — 엔진이 가벼우면 엔진, 계획기가 가벼우면 계획기(확실한 경기 날 · 전날 — 엔진은 달력 경기를 짐작으로만 본다).
+ * '등판 다음 날'은 엔진이 정한다 — 실제로 던진 양을 아는 쪽이다(계획한 선발이어도 기록이 없거나 가볍게 던졌으면 아니다).
+ */
+export function withEngineToday(p: DayVerdict, e: EngineToday): DayVerdict {
+  const a = lightness(e.rule);
+  const b = lightness(p.rule);
+  const rule = a < b || (a === b && (p.rule === 'afterOuting' || e.rule === 'afterOuting')) ? e.rule : p.rule;
+  return { rule, heavyLower: p.heavyLower && e.heavyLower, after: e.afterOuting };
+}
 
 /** 경력별 기본 주당 운동 횟수(평소 횟수를 모를 때) */
 const LEVEL_FREQ: Record<string, number> = { 입문: 2, 초급: 3, 중급: 3, 상급: 4 };
@@ -221,6 +244,8 @@ function spread(candidates: readonly number[], count: number, taken: ReadonlySet
 
 const RULE_REASON: Partial<Record<DayRule, ReasonCode>> = {
   afterOuting: 'after-outing',
+  /* 오늘 칸에만 온다(엔진 판정 — withEngineToday) */
+  moderateSpike: 'effort-spike',
   outingToday: 'outing',
   softOutingNear: 'outing-soft',
   outingTomorrow: 'outing-tomorrow',
@@ -245,11 +270,16 @@ export function planWeek(input: WeekInput): DaySlot[] {
   }
   /* 쉬기로 함 · 바쁜 주로 뺀 운동 날도 이번 주 몫을 쓴 것 — 다시 맞출 때 다른 날로 되살리지 않는다 */
   const dropped = [...kept.values()].filter((s) => s.reasons.includes('skipped') || s.reasons.includes('busy')).length;
+  /* 날마다 날 종류 · 큰 하체 · 등판 다음 날 — 오늘은 엔진 판정과 맞춘다 */
+  const verdict = dates.map((date): DayVerdict => {
+    const p = { ...dayRuleOf(date, outings), after: isAfterOuting(date, outings) };
+    return date === input.today && input.todayKind ? withEngineToday(p, input.todayKind) : p;
+  });
 
   const slots: DaySlot[] = dates.map((date, i) => {
     const old = kept.get(i);
     if (old) return old;
-    const { rule } = dayRuleOf(date, outings);
+    const { rule } = verdict[i];
     const reasons: ReasonCode[] = [];
     const fixedKinds = new Set(input.fixed.filter((f) => f.date === date).map((f) => f.kind));
     if (answers.teamDays.includes(i as Weekday)) fixedKinds.add('team');
@@ -259,8 +289,8 @@ export function planWeek(input: WeekInput): DaySlot[] {
     const standby = (d: string) => input.fixed.some((f) => f.date === d && f.kind === 'game' && f.relief);
     const r = rule !== 'softOutingNear' ? RULE_REASON[rule] : standby(date) ? 'standby' : standby(shiftDateKey(date, 1)) ? 'standby-tomorrow' : RULE_REASON[rule];
     if (r) reasons.push(r);
-    /* 등판 다음 날인데 다른 규칙(3일 안 · 내일 등판)이 먼저 걸린 날에도 그 사실은 말한다 */
-    if (r !== 'after-outing' && rule !== 'outingToday' && isAfterOuting(date, outings)) reasons.push('after-outing');
+    /* 등판 다음 날인데 다른 규칙(3일 안 · 내일 등판 · 힘듦 급증)이 먼저 걸린 날에도 그 사실은 말한다 */
+    if (r !== 'after-outing' && rule !== 'outingToday' && verdict[i].after) reasons.push('after-outing');
     return { date, items, reasons, owner: 'coach', rule, rank: DAY_RULE_RANK[rule], ...(!input.prev && date < input.today ? { late: true as const } : {}) };
   });
 
@@ -269,9 +299,9 @@ export function planWeek(input: WeekInput): DaySlot[] {
   const trainable = free.filter(
     (i) => answers.days.includes(i as Weekday) && slots[i].rank !== 'recovery' && !hasFixed(i)
   );
-  const heavyOk = (i: number) => !input.youth && dayRuleOf(dates[i], outings).heavyLower;
+  const heavyOk = (i: number) => !input.youth && verdict[i].heavyLower;
   /* 등판 다음 날 — 운동을 여기 먼저 놓는다(센 운동을 등판 바로 뒤에 붙이면 다음 등판까지 쉴 날이 가장 길다, 2026-11-16) */
-  const after = (i: number) => isAfterOuting(dates[i], outings);
+  const after = (i: number) => verdict[i].after;
   const afterFirst = (xs: readonly number[]) => [...xs.filter(after), ...xs.filter((i) => !after(i))];
   const keptCount = (kind: SlotItem['kind']) => [...kept.values()].filter((s) => s.items.some((x) => x.kind === kind)).length;
 
@@ -303,10 +333,14 @@ export function planWeek(input: WeekInput): DaySlot[] {
         ? { kind: 'program', heavyLower }
         : { kind: 'train', fence: { minutes: answers.minutes, heavyLower, light: slots[i].rank === 'light' } }
     );
-    if (input.youth && dayRuleOf(dates[i], outings).heavyLower) slots[i].reasons.push('youth');
+    if (input.youth && verdict[i].heavyLower) slots[i].reasons.push('youth');
     else if (noHeavy && heavyOk(i)) slots[i].reasons.push('limit');
   }
-  if (input.effortSpike && !input.program) slots.find((s, i) => !kept.has(i) && !isWorkoutDay(s))?.reasons.push('effort-spike');
+  if (input.effortSpike && !input.program) {
+    /* 오늘이 힘듦 급증으로 쉬는 날(R2)이면 그 칸에 이미 있다 — 두 번 안 단다 */
+    const s = slots.find((s, i) => !kept.has(i) && !isWorkoutDay(s));
+    if (s && !s.reasons.includes('effort-spike')) s.reasons.push('effort-spike');
+  }
 
   /* 이어진 이틀 큰 하체 없음(keepsLowerBudget 과 같은 약속) — 앞날이 큰 하체면 오늘은 뺀다. 그대로 둔 뒷날이 큰 하체여도 */
   for (let i = 0; i < 7; i++) {
@@ -318,8 +352,8 @@ export function planWeek(input: WeekInput): DaySlot[] {
     if (i > 0 && heavyOfSlot(slots[i - 1])) slots[i].reasons.push('lower-yesterday');
   }
 
-  /* 암케어 제안(U23) — 등판 날 · 다음 날은 회복, 강화는 주 STRENGTH_PER_WEEK 번 · 이어서 안 함 · 통증이면 빼고. '제안'이라 안 해도 못 함이 아니다 */
-  for (const i of free) if (slots[i].rule === 'outingToday' || after(i)) slots[i].items.push({ kind: 'armcare', mode: 'recovery', suggested: true });
+  /* 암케어 제안(U23) — 던져서 쉬는 날(등판 날 · 오늘 세게 던짐 · 힘듦 급증) · 다음 날은 회복, 강화는 주 STRENGTH_PER_WEEK 번 · 이어서 안 함 · 통증이면 빼고. '제안'이라 안 해도 못 함이 아니다 */
+  for (const i of free) if (slots[i].rank === 'recovery' || after(i)) slots[i].items.push({ kind: 'armcare', mode: 'recovery', suggested: true });
   if (!input.painArm) {
     const keptStrength = [...kept.entries()].filter(([, s]) => s.items.some((x) => x.kind === 'armcare' && x.mode === 'strength'));
     const ok = free.filter((i) => (slots[i].rank === 'strength' || slots[i].rank === 'none') && !after(i));

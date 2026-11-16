@@ -116,8 +116,9 @@ export default function ProgramTodayScreen() {
               : !p.canStart
                 ? '오늘 할 수 있는 운동이 없어요'
                 : '오늘 할 수 있어요';
+  /* 마친 날은 쉬는 까닭 · '그래도 오늘 할래요'를 안 보인다(마친 뒤 오늘 세게 던진 기록을 남기면 판정이 쉬기로 바뀐다 — 카드와 같게) */
   const sub =
-    p.kind === 'rest'
+    p.kind === 'rest' && !finished
       ? p.restText
       : p.kind === 'painWait'
         ? `통증 기록이 있어 ${withJosa(p.dayLabel, '은/는')} 기다려요.`
@@ -133,7 +134,7 @@ export default function ProgramTodayScreen() {
   else if (going && p.canStart) primary = { label: '운동 시작', icon: 'play', onPress: start };
   else if (p.kind === 'needCheckin') primary = { label: '체크인하기', onPress: () => openCheckin('/training/program-today') };
   else primary = { label: '트레이닝으로', onPress: () => router.back() };
-  if (p.kind === 'rest') {
+  if (p.kind === 'rest' && !finished) {
     secondary = {
       label: '그래도 오늘 할래요',
       onPress: () =>

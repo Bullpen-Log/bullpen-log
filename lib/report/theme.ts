@@ -351,6 +351,11 @@ function afterOutingReason(dk: DayKind): string {
     : `${CLAIMED_NO_LOG_PHRASE}. 등판 다음 날로 보고 하체 위주로 짰어요. 기록을 남기면 던진 양으로 다시 짤 수 있어요.`;
 }
 
+/** 등판 다음 날 글의 앞 문장만 — 하체 위주가 아닌 날(어제가 하체 날)이 앞에 붙인다 */
+function afterOutingLead(dk: DayKind): string {
+  return dk.yesterday ? `어제 ${dk.yesterday.pitches}구를 던졌어요.` : `${CLAIMED_NO_LOG_PHRASE}.`;
+}
+
 /** 기록 없는 등판 다음 날(R3', C6 결정)의 짧은 말 — 부딪힘 까닭과 이유 글 앞머리가 같은 말 */
 const CLAIMED_NO_LOG_PHRASE = '어제 등판이라고 적었는데 투구 기록이 없어요';
 
@@ -827,18 +832,26 @@ function decideThemeForBody({
    */
   /*
    * 3-0) 등판 다음 날은 하체 위주(날 종류 R5' afterOuting, 김민 결정 2026-11-16) — 번갈아 차례보다 먼저다. 센 하체를 등판 바로 뒤에 붙여야
-   * 다음 등판까지 다리가 쉴 날이 가장 길다. 어제 · 오늘 하체를 이미 했으면 아래 번갈아에 맡긴다(같은 쪽을 이틀 잇지 않는다).
+   * 다음 등판까지 다리가 쉴 날이 가장 길다. 어제가 하체 날이면 상체다(같은 쪽을 이틀 잇지 않는다 — 아래 번갈아와 같은 쪽, 글만 다르다).
    * 하체 쪽이 아프면 바깥의 steerAroundPain 이 상체로 돌린다.
    */
-  if (
-    dk.rule === 'afterOuting' &&
-    !(lastLowerKey != null && lastLowerKey >= shiftDateKey(facts.asOf, -1))
-  ) {
-    return {
-      key: 'lower',
-      label: '하체 스트렝스 데이',
-      reason: todayNote + afterOutingReason(dk) + forcedNote,
-    };
+  if (dk.rule === 'afterOuting') {
+    /*
+     * 어제가 하체 날이었으면(마친 기록 · 저장만 한 일정 — strengthDatesFrom) 상체다. 아래 번갈아도 상체로 가지만 그 글 '최근에 하체를 했으니'는
+     * 등판 날 아침 저장만 하고 안 한 일정에선 거짓이라(2026-11-17 검토 [17]) 여기서 '하체 날'이라고만 말한다(하체 예산 글과 같은 말).
+     */
+    const lowerYesterday = lastLowerKey != null && lastLowerKey >= shiftDateKey(facts.asOf, -1);
+    return lowerYesterday
+      ? {
+          key: 'upper',
+          label: '상체 스트렝스 데이',
+          reason: `${todayNote}${afterOutingLead(dk)} 어제가 하체 날이라 오늘은 상체를 해요.${forcedNote}`,
+        }
+      : {
+          key: 'lower',
+          label: '하체 스트렝스 데이',
+          reason: todayNote + afterOutingReason(dk) + forcedNote,
+        };
   }
 
   if (lastLowerKey == null && lastUpperKey == null) {

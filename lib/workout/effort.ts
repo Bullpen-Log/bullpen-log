@@ -10,9 +10,12 @@
  * 가벼움 3~4 · 보통 5~6 · 힘듦 7~8 · 최대 9~10. 부하 배수로는 0.7 · 0.9 · 1.1 · 1.3(intensityFactor = 0.4 + n/10) —
  * '보통'이 1.0(= 6)이 아니라 0.9 인 것은 알고 둔 것이다(눈금 가운데를 고르는 쪽이 사람 말과 맞는다).
  *
- * 급증 깃발(trainingEffortOf): 최근 7일(오늘 포함)에 3개 이상 남겼고 그 평균이 28일 평균보다 2 이상 높으면 true
+ * 급증 깃발(trainingEffortOf): 어제까지 7일에 3개 이상 남겼고 그 평균이 어제까지 28일 평균보다 2 이상 높으면 true
  * (검토안 '7일 중 3개'). 2판 P4 커밋 E 부터 날 종류(lib/engine/microcycle.ts R2 — 어제 중간 부하 + 급증 → 회복, D3)가 읽고, P5 에서
  * '경고와 그래도 하기'도 읽는다. 여기서는 숫자만 둔다.
+ *
+ * 오늘 노트를 깃발에 안 넣는 까닭(2026-11-17): 노트는 오늘 운동을 마친 뒤에 남긴다. 넣으면 마친 뒤 '아주 힘듦'을 누르는 순간 그날 판정이
+ * 회복으로 뒤집혀, 프로그램 카드가 '오늘 했어요' 밑에 쉬는 까닭을 보였다(코치 · 엔진 검토 [14]). 오늘 노트는 내일 판정부터 든다.
  *
  * 순수 파일 — server-only · prisma · 날짜 함수(appNow) 없음. lib/report/facts.ts 가 가져다 쓰고, 자체 시험 · 기준선 도구가
  * node 로 그대로 부른다.
@@ -63,7 +66,8 @@ export type TrainingNoteLike = { date: string; intensity: number };
  * 최근 힘듦 — facts.condition.trainingEffort 의 모양.
  *
  * last7 · last28 은 그 날 수 안(오늘 포함)에 남긴 강도를 날짜 오름차순으로. last28 은 last7 을 품는다(7일 평균 ↔ 28일 평균을
- * 견주는 검토안 그대로). spikeFlag 는 last7 이 3개 이상이고 7일 평균 − 28일 평균 ≥ 2 일 때만 true.
+ * 견주는 검토안 그대로). spikeFlag 는 같은 셈을 어제까지(어제부터 7일 · 28일)로 해서 7일 쪽이 3개 이상이고 평균 차 ≥ 2 일 때만 true
+ * — 오늘 노트는 안 든다(머리 주석).
  */
 export type TrainingEffort = {
   last7: number[];
@@ -103,17 +107,28 @@ export function trainingEffortOf(
     if (!Number.isFinite(n.intensity)) continue;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(n.date)) continue;
     const ago = daysBetweenKeys(n.date, asOf);
-    if (ago < 0 || ago >= EFFORT_WINDOW_LONG_DAYS) continue;
+    /* 28 일 전은 last28 밖이지만 깃발의 어제까지 28일에는 든다 */
+    if (ago < 0 || ago > EFFORT_WINDOW_LONG_DAYS) continue;
     byDay.set(n.date, n.intensity);
   }
   const days = [...byDay.keys()].sort();
-  const last28 = days.map((d) => byDay.get(d) as number);
-  const last7 = days
-    .filter((d) => daysBetweenKeys(d, asOf) < EFFORT_WINDOW_SHORT_DAYS)
-    .map((d) => byDay.get(d) as number);
+  /* from 일 전부터 days 일 동안(오늘이 0) */
+  const span = (from: number, len: number) =>
+    days
+      .filter((d) => {
+        const ago = daysBetweenKeys(d, asOf);
+        return ago >= from && ago < from + len;
+      })
+      .map((d) => byDay.get(d) as number);
+  const short = span(1, EFFORT_WINDOW_SHORT_DAYS);
+  const long = span(1, EFFORT_WINDOW_LONG_DAYS);
   /* 1e-9 는 부동소수 오차 몫 — 9 와 7(42/6)의 차이가 1.9999… 로 읽혀 경계가 빠지지 않게 */
   const spikeFlag =
-    last7.length >= EFFORT_SPIKE_MIN_NOTES &&
-    average(last7) - average(last28) >= EFFORT_SPIKE_DIFF - 1e-9;
-  return { last7, last28, spikeFlag };
+    short.length >= EFFORT_SPIKE_MIN_NOTES &&
+    average(short) - average(long) >= EFFORT_SPIKE_DIFF - 1e-9;
+  return {
+    last7: span(0, EFFORT_WINDOW_SHORT_DAYS),
+    last28: span(0, EFFORT_WINDOW_LONG_DAYS),
+    spikeFlag,
+  };
 }

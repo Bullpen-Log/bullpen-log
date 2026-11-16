@@ -2197,8 +2197,8 @@ export type TodaySignals = {
   /**
    * 오늘 · 어제 세게 던진 날이 있다 — 매일 일정과 같은 판정(lib/report/theme.ts hardOuting = 오늘 상태 한 장의 load.hardOuting,
    * 문턱은 lib/report/facts.ts isHardOuting: Σ 투구수 × 체감 강도 ≥ 2,700, 경기는 100%, 2판 D2). 프로그램이 따로 세지 않는다.
-   * 어제 세게 던진 날은 2판 P4 커밋 F 부터 gameYesterday 로 먼저 쉬므로(넘기면 gameOverride 가 앞선다) 이 주의는 사실상 오늘 세게 던진 날에 붙는다.
-   * 2판 P6-2 부터 앱은 오늘 세게 던진 날도 hardToday 로 먼저 쉬어, 이 주의는 그 신호를 안 주는 옛 입력에서만 보인다.
+   * 앱은 오늘 세게 던진 날을 hardToday 로 먼저 쉬고(2판 P6-2), 2026-11-16 부터 어제 세게 던진 날은 힘듦 급증이 없으면 쉬지 않는다(등판 다음 날의
+   * 운동 날) — 그래서 이 주의는 등판 다음 날에 붙는다. 실제로 가볍게 바꾼 까닭(등판 3일 안 · 어제 하체)이 있으면 그것이 먼저다(pickCaution).
    */
   hardThrowRecent: boolean;
   /** 경기 때문에 쉬는 날을 '그래도 오늘 할래요'로 넘겼는가(D24) */
@@ -2563,8 +2563,11 @@ export function decideToday(plan: ProgramPlan, s: TodaySignals): TodayDecision {
 
 /**
  * 맨 위 주의는 한 줄만 — 우선순위(§13-6). 칸에만 해당하는 것은 줄 표시로 간다.
- * 팔 아낌 > 쉬는 날 넘김 > 회복 데이 > 센 불펜 · 라이브 > 부하 모름 · 통증 확인 전 > 짐작한 등판 오늘 · 내일 > 등판 3일 안 > 어제 하체 >
+ * 팔 아낌 > 쉬는 날 넘김 > 회복 데이 > 부하 모름 · 통증 확인 전 > 짐작한 등판 오늘 · 내일 > 등판 3일 안 > 어제 하체 > 센 불펜 · 라이브 >
  * 부하 주의 · 근육통 · 잠 > 오래 쉼 > 가벼운 주.
+ *
+ * 센 불펜 · 라이브(hardThrowRecent)가 바꾼 까닭(등판 · 어제 하체) 뒤인 까닭(2026-11-17): 2026-11-16 부터 등판 다음 날마다 붙는데, 앞에 두면
+ * 그날 등판이 3일 안이라 큰 하체를 가볍게 해도 카드가 '많이 던졌어요'만 말해 무게를 낮춘 까닭이 안 보였다. 이때 부하 모름보다도 뒤로 갔다.
  *
  * applied 는 판정이 실제로 바꾼 것(2판 P6-2) — armRest 팔로 던지는 변형을 뺐다 · lowerBudget 어제 하체 날이라 큰 하체를 가볍게 했다. 신호만
  * 있고 바뀐 것이 없으면(그날 메디신볼 · 큰 하체가 없음) 말하지 않는다. 안 주면 예전 차례 그대로다.
@@ -2592,12 +2595,12 @@ export function pickCaution(
   )
     return 'gameOverride';
   if (s.recovery) return 'recovery';
-  if (s.hardThrowRecent) return 'hardThrow';
   if (s.uncertain) return 'uncertain';
   /* 등판이 가까워 가볍게 한 날(2판 P6 검토) — 어제 하체보다 앞(다음 등판이 더 가까운 까닭이다) */
   if (applied.outingGuess) return 'outingGuess';
   if (applied.outingSoon) return 'outingSoon';
   if (applied.lowerBudget) return 'lowerBudget';
+  if (s.hardThrowRecent) return 'hardThrow';
   if (s.loadCaution || s.soreMany || s.sleepShort) return 'lighter';
   if (gapDays != null && gapDays >= 8) return 'restGap';
   if (lightWeek) return 'lightWeek';

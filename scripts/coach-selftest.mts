@@ -97,6 +97,86 @@ const kinds = (s: DaySlot) => s.items.map((x) => x.kind);
 const workouts = (w: DaySlot[]) => w.filter((s) => s.items.some((x) => x.kind === 'train' || x.kind === 'program'));
 const heavy = (s: DaySlot) => s.items.some((x) => (x.kind === 'train' && x.fence.heavyLower) || (x.kind === 'program' && x.heavyLower));
 
+/* ─────────── ①-2 오늘 칸 = 엔진(withEngineToday — 2026-11-17 코치 · 엔진 검토 [4] · [5] · [15]) ─────────── */
+{
+  const Y = shiftDateKey(D, -1);
+  const engineFacts = (o: { log?: { count: number; intensity: number; type?: string }; yesterdayPlan?: string; todayPlan?: string; spike?: boolean }) =>
+    buildFacts({
+      nickname: '시험',
+      age: 22,
+      heightCm: 180,
+      baselineDailyLoad: 100,
+      today: TODAY,
+      logs: o.log
+        ? [{ date: new Date(TODAY.getTime() - 86_400_000).toISOString(), pitchCount: o.log.count, intensity: o.log.intensity, sessionType: o.log.type ?? '경기', maxVelocity: 130, avgVelocity: 120 }]
+        : [],
+      checkins: [...(o.yesterdayPlan ? [checkin(Y, o.yesterdayPlan)] : []), ...(o.todayPlan ? [checkin(D, o.todayPlan)] : [])],
+      memos: [],
+      /* 어제까지 7일 셋 9 · 그 앞 5 넷 — 급증(lib/workout/effort.ts) */
+      ...(o.spike ? { trainingNotes: [1, 3, 6, 9, 12, 16, 20].map((a, i) => ({ date: shiftDateKey(D, -a), intensity: i < 3 ? 9 : 5 })) } : {}),
+    });
+  const today = (f: ReturnType<typeof engineFacts>, o: Partial<WeekInput> = {}) => {
+    const dk = dayKindOf(f);
+    const w = planWeek(input({ today: D, mechanics: { perWeek: 2 }, todayKind: { rule: dk.rule, afterOuting: dk.afterOuting, heavyLower: dk.heavyLowerAllowed }, ...o }));
+    return { dk, s: w[2] };
+  };
+  const recoveryCare = (s: DaySlot) => s.items.some((x) => x.kind === 'armcare' && x.mode === 'recovery');
+
+  /* [4] 어제 경기 95구 + 힘듦 급증 — 엔진 R2 회복 · 프로그램 쉼, 예전 코치는 '등판 다음 날 · 운동 60분 · 하체 무겁게' */
+  const r2 = today(engineFacts({ log: { count: 95, intensity: 10 }, spike: true }), { lastOuting: Y });
+  check(
+    '①-2 [4] 어제 경기 95구 + 급증 → 엔진 회복(R2) · 오늘 칸도 회복(운동 없음 · 회복 암케어 · 메커니즘 없음 · 까닭 등판 다음 날 + 최근 힘들었음)',
+    r2.dk.rule === 'moderateSpike' && r2.s.rule === 'moderateSpike' && r2.s.rank === 'recovery' && workouts([r2.s]).length === 0 && recoveryCare(r2.s) &&
+      !kinds(r2.s).includes('mechanics') && r2.s.reasons.includes('after-outing') && r2.s.reasons.filter((r) => r === 'effort-spike').length === 1,
+    JSON.stringify(r2.s)
+  );
+  const r2p = today(engineFacts({ log: { count: 95, intensity: 10 }, spike: true }), { lastOuting: Y, program: { perWeek: 3 } });
+  check('①-2 [4] 프로그램이어도 오늘은 프로그램 날이 아니다(엔진 프로그램도 쉼)', !kinds(r2p.s).includes('program'), JSON.stringify(r2p.s));
+
+  /* 어제 불펜 30구 70%(2,100 — 중간 부하, 세게 던진 날 밑) + 급증 → R2 회복인데 등판 다음 날은 아니다. 회복 암케어는 쉬는 날이라 그대로 */
+  const mid = today(engineFacts({ log: { count: 30, intensity: 7, type: '불펜' }, spike: true }));
+  check(
+    '①-2 [4] 어제 중간 부하 + 급증 → 오늘 칸 회복 · 회복 암케어(등판 다음 날 아님)',
+    mid.dk.rule === 'moderateSpike' && !mid.dk.afterOuting && mid.s.rank === 'recovery' && recoveryCare(mid.s) && !mid.s.reasons.includes('after-outing'),
+    JSON.stringify(mid.s)
+  );
+
+  /* [5] 어제 '오늘 등판' 답 · 기록 없음 — 엔진은 등판 다음 날(기록 없는 등판), 계획기 혼자는 모른다(lastOuting 은 세게 던진 기록만) */
+  const claimed = today(engineFacts({ yesterdayPlan: '오늘 등판' }));
+  check(
+    '①-2 [5] 기록 없는 등판 다음 날 → 오늘 칸도 등판 다음 날(운동 날 · 회복 암케어 · 메커니즘 없음)',
+    claimed.dk.rule === 'afterOuting' && claimed.s.rule === 'afterOuting' && claimed.s.reasons.includes('after-outing') && workouts([claimed.s]).length === 1 &&
+      recoveryCare(claimed.s) && !kinds(claimed.s).includes('mechanics'),
+    JSON.stringify(claimed.s)
+  );
+
+  /* [15] 계획한 선발(어제 경기 일정)인데 25구만(2,500 — 세게 던진 날 밑) — 엔진은 등판 다음 날이 아니다 */
+  const light = today(engineFacts({ log: { count: 25, intensity: 10 } }), { fixed: [{ date: Y, kind: 'game' }] });
+  check(
+    '①-2 [15] 계획한 선발이어도 가볍게 던졌으면 오늘 칸은 등판 다음 날이 아니다(회복 암케어 없음 · 메커니즘 놓을 수 있음)',
+    dayRuleOf(D, [{ date: Y, soft: false }]).rule === 'afterOuting' && light.dk.afterOuting === false && light.s.rule !== 'afterOuting' &&
+      !light.s.reasons.includes('after-outing') && !recoveryCare(light.s),
+    JSON.stringify(light.s)
+  );
+
+  /* 계획기가 더 가벼우면 계획기 — 확실한 경기 날(엔진은 달력 경기를 짐작으로만 본다) */
+  const game = today(engineFacts({}), { fixed: [{ date: D, kind: 'game' }] });
+  check('①-2 확실한 경기 날은 엔진이 몰라도 등판 날(운동 없음)', game.s.rule === 'outingToday' && workouts([game.s]).length === 0, JSON.stringify(game.s));
+
+  /* 엔진만 아는 창 — 체크인 '2~3일 뒤'(하루로 못 박지 않아 계획기 outingDate 가 없다) */
+  const soon = today(engineFacts({ todayPlan: '2~3일 뒤' }));
+  check('①-2 체크인 2~3일 뒤 → 오늘 칸 등판 3일 안 · 큰 하체 없음', soon.dk.rule === 'outingSoon' && soon.s.rule === 'outingSoon' && !heavy(soon.s), JSON.stringify(soon.s));
+
+  /* 다시 맞춰도 오늘 칸의 날 종류가 그대로(lib/coach/refresh.ts sameToday 가 이 비교로 다시 짤지 정한다 — 같은 입력이면 늘 같아야 한다) */
+  const first = planWeek(input({ today: D, lastOuting: Y, todayKind: { rule: r2.dk.rule, afterOuting: r2.dk.afterOuting, heavyLower: r2.dk.heavyLowerAllowed } }));
+  const again = planWeek(input({ today: D, lastOuting: Y, todayKind: { rule: r2.dk.rule, afterOuting: r2.dk.afterOuting, heavyLower: r2.dk.heavyLowerAllowed }, prev: first }));
+  check('①-2 같은 입력으로 다시 맞추면 오늘 칸이 같다(다시 짜기가 돌지 않는다)', JSON.stringify(first[2]) === JSON.stringify(again[2]), JSON.stringify([first[2], again[2]]));
+
+  /* todayKind 가 없으면(옛 입력 · 시험) 예전 그대로 */
+  const plain = planWeek(input({ today: D, lastOuting: Y }));
+  check('①-2 엔진 판정이 없으면 계획기 그대로(어제 세게 던진 날 → 등판 다음 날)', plain[2].rule === 'afterOuting', plain[2].rule);
+}
+
 {
   /* 선발 5일 간격 — 지난 등판 10-30(금) → 11-04(수) · 11-09(월, 다음 주) 짐작 */
   const w = planWeek(input({ answers: answers({ outingEvery: 5 }), lastOuting: '2026-10-30' }));

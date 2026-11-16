@@ -1026,6 +1026,27 @@ console.log('\n[안전] 몸이 안 좋은 날 무거운 운동이 섞이지 않�
       gameAt(9).reason === '어제 40구를 던졌어요. 등판 다음 날은 하체 위주로 해요.',
     `${gameAt(5).key} · ${gameAt(9).key} — ${gameAt(9).reason}`
   );
+
+  /*
+   * 코치 · 엔진 검토 [17](2026-11-17) — 어제가 하체 날(마친 기록 · 저장만 한 일정)이면 등판 다음 날도 상체다(같은 쪽 이틀 없음). 예전 글
+   * '최근에 하체를 했으니'는 등판 날 아침 저장만 하고 안 한 일정에선 거짓이라 '하체 날이라'로 말한다. 그제가 하체 날이면 하체 위주 그대로.
+   */
+  const after90 = factsFor({ condition: 8, pitches: [90, 0, 0, 0, 0, 0, 0], intensity: 9, baselineDailyLoad: 300 });
+  const themeWithLower = (daysAgo: number) =>
+    decideTheme({
+      facts: after90,
+      plan: buildPitchPlan(after90),
+      lastLowerKey: shiftDateKey(after90.asOf, -daysAgo),
+      lastUpperKey: null,
+    });
+  check(
+    '등판 다음 날 · 어제가 하체 날 → 상체, 글은 어제 던진 것 + 하체 날이라(했으니 아님) / 그제가 하체 날이면 하체 위주',
+    themeWithLower(1).key === 'upper' &&
+      themeWithLower(1).reason === '어제 90구를 던졌어요. 어제가 하체 날이라 오늘은 상체를 해요.' &&
+      themeWithLower(2).key === 'lower' &&
+      themeWithLower(2).reason === '어제 90구를 던졌어요. 등판 다음 날은 하체 위주로 해요.',
+    `${themeWithLower(1).key} — ${themeWithLower(1).reason} / ${themeWithLower(2).key} — ${themeWithLower(2).reason}`
+  );
 }
 {
   /*
@@ -11211,16 +11232,17 @@ console.log(
     'P2 (급증) 7일 안 둘(9 · 9)은 3개 미만이라 false — 28일 평균이 아무리 낮아도',
     two.last7.length === 2 && two.last28.length === 7 && two.spikeFlag === false
   );
+  /* 2026-11-17 바뀜 — 왜: 깃발은 어제까지로 센다(오늘 노트는 안 든다, lib/workout/effort.ts 머리 주석). 오늘(0) 줄을 어제(1) 쪽으로 밀었다 */
   const three = trainingEffortOf(
-    [note(0, 9), note(2, 9), note(5, 9), ...fives(8, 11)],
+    [note(1, 9), note(3, 9), note(6, 9), ...fives(8, 11)],
     asOf
   );
   check(
-    'P2 (급증) 7일 안 셋 9 · 그 밖 5 넷 → 7일 평균 9 · 28일 평균 6.71 · 차이 2.29 → true',
+    'P2 (급증) 어제까지 7일 안 셋 9 · 그 밖 5 넷 → 7일 평균 9 · 28일 평균 6.71 · 차이 2.29 → true',
     three.last7.length === 3 && three.last28.length === 7 && three.spikeFlag === true
   );
   const mild = trainingEffortOf(
-    [note(0, 7), note(2, 7), note(5, 7), ...fives(8, 11)],
+    [note(1, 7), note(3, 7), note(6, 7), ...fives(8, 11)],
     asOf
   );
   check(
@@ -11228,14 +11250,14 @@ console.log(
     mild.last7.length === 3 && mild.spikeFlag === false
   );
   const edge = trainingEffortOf(
-    [note(0, 9), note(2, 9), note(5, 9), ...fives(8, 10)],
+    [note(1, 9), note(3, 9), note(6, 9), ...fives(8, 10)],
     asOf
   );
   check(
     'P2 (급증) 경계 — 7일 평균 9 · 28일 평균 7(42/6) · 차이 정확히 2 → true(부동소수 오차에 안 빠짐)',
     edge.last28.length === 6 && edge.spikeFlag === true
   );
-  const flat = trainingEffortOf([note(0, 9), note(1, 9), note(2, 9)], asOf);
+  const flat = trainingEffortOf([note(1, 9), note(2, 9), note(3, 9)], asOf);
   check(
     'P2 (급증) 7일 안 셋뿐이면 28일 평균도 같아 차이 0 → false(꾸준히 힘든 것은 급증이 아니다)',
     flat.last7.length === 3 && flat.last28.length === 3 && flat.spikeFlag === false
@@ -11265,8 +11287,28 @@ console.log(
   check(
     'P2 (급증) 같은 입력 두 번 → 글자까지 같다(결정성)',
     JSON.stringify(
-      trainingEffortOf([note(0, 9), note(2, 9), note(5, 9), ...fives(8, 11)], asOf)
+      trainingEffortOf([note(1, 9), note(3, 9), note(6, 9), ...fives(8, 11)], asOf)
     ) === JSON.stringify(three)
+  );
+  /* 코치 · 엔진 검토 [14](2026-11-17) — 운동을 마치고 '아주 힘듦'을 누른 날 그날 판정(R2 회복 · 프로그램 쉬기)이 뒤집히던 것 */
+  const todayNote = trainingEffortOf([note(0, 9), note(3, 9), note(6, 9), ...fives(8, 11)], asOf);
+  const nextDay = trainingEffortOf(
+    [note(0, 9), note(3, 9), note(6, 9), ...fives(8, 11)],
+    dayBefore(-1).slice(0, 10)
+  );
+  check(
+    'P2 (급증) 오늘 노트는 깃발에 안 든다 — 오늘 9 · 사흘 전 · 엿새 전 9 → last7 셋이어도 어제까지 둘이라 false, 내일 보면 셋이라 true',
+    todayNote.last7.length === 3 &&
+      todayNote.spikeFlag === false &&
+      nextDay.spikeFlag === true
+  );
+  check(
+    'P2 (급증) 28일 전 노트는 last28 밖이지만 어제까지 28일 깃발 셈에는 든다(오늘을 뺀 만큼 하루 뒤까지)',
+    (() => {
+      /* 어제까지 7일 셋 9, 그 앞 28일 전 하나 1 — 28일 전이 셈에 들면 28일 평균이 (27 + 1)/4 = 7 → 차이 2 → true, 안 들면 차이 0 → false */
+      const r = trainingEffortOf([note(1, 9), note(2, 9), note(3, 9), note(28, 1)], asOf);
+      return r.spikeFlag === true && r.last28.length === 3;
+    })()
   );
 
   /* ── facts 잇기 ── */
@@ -11314,18 +11356,19 @@ console.log(
     JSON.stringify(empty.condition.trainingEffort) ===
       JSON.stringify({ last7: [], last28: [], spikeFlag: false })
   );
-  const spiked = factsWith([note(0, 9), note(2, 9), note(5, 9), ...fives(8, 11)]);
+  const spiked = factsWith([note(1, 9), note(3, 9), note(6, 9), ...fives(8, 11)]);
   check(
-    'P2 (facts) 7일 안 셋 9 · 28일 안 5 넷 → facts.condition.trainingEffort.spikeFlag true · last7 셋 · last28 일곱',
+    'P2 (facts) 어제까지 7일 안 셋 9 · 28일 안 5 넷 → facts.condition.trainingEffort.spikeFlag true · last7 셋 · last28 일곱',
     spiked.condition.trainingEffort?.spikeFlag === true &&
       spiked.condition.trainingEffort.last7.length === 3 &&
       spiked.condition.trainingEffort.last28.length === 7
   );
-  const excluded = factsWith([note(2, 9), note(5, 9), ...fives(8, 11)]);
+  /* 2026-11-17 바뀜 — 왜: 오늘 줄은 깃발에 원래 안 든다. excludeToday 로 빼도 · 안 빼도 깃발이 같고 last7 만 다르다 */
+  const withToday = factsWith([note(0, 3), note(1, 9), note(3, 9), note(6, 9), ...fives(8, 11)]);
   check(
-    'P2 (facts) excludeToday 흉내 — 오늘 줄을 뺀 입력이면 last7 이 둘이라 false(gather.ts 가 오늘 로그와 같은 규칙으로 뺀다)',
-    excluded.condition.trainingEffort?.spikeFlag === false &&
-      excluded.condition.trainingEffort.last7.length === 2
+    'P2 (facts) 오늘 줄(3)이 있어도 깃발은 그대로 true — last7 만 넷(excludeToday 로 빼면 셋, gather.ts)',
+    withToday.condition.trainingEffort?.spikeFlag === true &&
+      withToday.condition.trainingEffort.last7.length === 4
   );
   check(
     'P2 (facts) 힘듦 칸 말고는 facts 가 글자 하나 안 다르다(있을 때 · 없을 때)',

@@ -86,9 +86,12 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
             ? `오늘 할 일 · ${session}`
             : '다 마쳤어요';
 
+  /* 마친 날은 쉬는 까닭 · '그래도 오늘 할래요'를 안 보인다 — 마친 뒤 오늘 세게 던진 기록을 남기면 판정이 쉬기로 바뀐다(2026-11-17) */
   const sub =
     p.kind === 'rest'
-      ? p.restText
+      ? finishedToday
+        ? null
+        : p.restText
       : p.kind === 'painWait'
         ? `통증 기록이 있어 ${withJosa(p.dayLabel, '은/는')} 기다려요.`
         : p.kind === 'otherMode'
@@ -210,7 +213,7 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
         </ul>
       )}
 
-      {p.kind === 'rest' && (
+      {p.kind === 'rest' && !finishedToday && (
         <button
           type="button"
           onClick={() => setConfirm('override')}

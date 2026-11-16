@@ -1049,8 +1049,9 @@ check(
   const lw = decideToday(LEGACY, sig({ nextDay: 10 }));
   check('4주 = 가벼운 주 주의', lw.kind === 'go' && lw.caution === 'lightWeek');
 }
+/* 2026-11-17 바뀜 — 왜: 센 불펜이 등판 다음 날마다 붙게 돼(2026-11-16) 바꾼 까닭 · 모름 뒤로 갔다(program.ts pickCaution 주석) */
 check(
-  '주의 우선순위: 회복 > 센 불펜 > 모름 > 가볍게',
+  '주의 우선순위: 회복 > 모름 > 센 불펜 > 가볍게',
   pickCaution(
     sig({ recovery: 'soreSevere', hardThrowRecent: true, uncertain: true }),
     false,
@@ -1060,7 +1061,8 @@ check(
       sig({ hardThrowRecent: true, uncertain: true, soreMany: true }),
       false,
       2
-    ) === 'hardThrow' &&
+    ) === 'uncertain' &&
+    pickCaution(sig({ hardThrowRecent: true, soreMany: true }), false, 2) === 'hardThrow' &&
     pickCaution(sig({ uncertain: true, soreMany: true }), false, 2) === 'uncertain' &&
     pickCaution(sig({ sleepShort: true }), true, 20) === 'lighter'
 );
@@ -1517,7 +1519,7 @@ console.log('\n4-3) 중재 신호(2판 P6-2)');
     wrongOrder.map(([o]) => `${JSON.stringify(o)} → ${kindOf(o)}`).join(' · ')
   );
 
-  /* (사) 주의 차례 — 팔 아낌 > 넘김 > 회복 데이 > 센 불펜 > 모름 > 어제 하체 > 가볍게 > 오래 쉼 > 가벼운 주 */
+  /* (사) 주의 차례 — 팔 아낌 > 넘김 > 회복 데이 > 모름 > 등판 · 어제 하체 > 센 불펜 > 가볍게 > 오래 쉼 > 가벼운 주(2026-11-17) */
   const cautionRows: [
     string,
     Partial<TodaySignals>,
@@ -1554,13 +1556,17 @@ console.log('\n4-3) 중재 신호(2판 P6-2)');
       { lowerBudget: true },
       'recovery',
     ],
+    /* 2026-11-17 바뀜 — 왜: 등판 다음 날(센 불펜)에 큰 하체를 가볍게 한 까닭이 안 보였다(pickCaution 주석) */
     [
-      '센 불펜 > 어제 하체',
+      '어제 하체 > 센 불펜',
       { hardThrowRecent: true },
       { lowerBudget: true },
-      'hardThrow',
+      'lowerBudget',
     ],
+    ['등판 3일 안 > 센 불펜', { hardThrowRecent: true }, { outingSoon: true }, 'outingSoon'],
+    ['센 불펜(바꾼 것 없음)', { hardThrowRecent: true, soreMany: true }, {}, 'hardThrow'],
     ['모름 > 어제 하체', { uncertain: true }, { lowerBudget: true }, 'uncertain'],
+    ['모름 > 센 불펜', { uncertain: true, hardThrowRecent: true }, { outingSoon: true }, 'uncertain'],
     [
       '어제 하체 > 가볍게',
       { soreMany: true, loadCaution: true },
@@ -1579,7 +1585,7 @@ console.log('\n4-3) 중재 신호(2판 P6-2)');
     ([, o, applied, want]) => pickCaution(sig(o), false, 20, applied) !== want
   );
   check(
-    `4-3 (사) 주의 차례 ${cautionRows.length}가지 — 팔 아낌 > 넘김 > 회복 데이 > 센 불펜 > 모름 > 어제 하체 > 가볍게 > 오래 쉼(바뀐 것만 말한다)`,
+    `4-3 (사) 주의 차례 ${cautionRows.length}가지 — 팔 아낌 > 넘김 > 회복 데이 > 모름 > 등판 · 어제 하체 > 센 불펜 > 가볍게 > 오래 쉼(바뀐 것만 말한다)`,
     wrongCaution.length === 0,
     wrongCaution
       .map(([name, o, a]) => `${name}: ${pickCaution(sig(o), false, 20, a)}`)
