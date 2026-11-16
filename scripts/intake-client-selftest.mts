@@ -1427,27 +1427,26 @@ eq(unhandled, 0, '처리되지 않은 거절이 없다');
       ok(/openFilePicker\(input\.current\)/.test(src) && !/input\.current\?\.click\(\)/.test(src), 'R08 검수: 고르기 단추는 늘 openFilePicker 로 연다');
     }
 
-    ok(fp.GUIDE_CHAPTERS.length === 4 && fp.GUIDE_CHAPTERS.map((c) => c.id).join() === '01-open-share,02-export-original,03-save-files,04-pick-file', 'R08: 안내는 네 장, 차례대로');
-    ok(fp.GUIDE_CHAPTERS.every((c) => c.video === `/intake-guides/original-file-v4/${c.id}.mp4` && c.poster === `/intake-guides/original-file-v4/${c.id}.jpg`), '안내 영상 · 포스터는 검수한 자산만, 모든 단계는 상태 표시줄을 제거한 v4');
-    const all = fp.GUIDE_CHAPTERS.map((c) => `${c.title} ${c.body} ${c.note ?? ''}`).join(' ');
+    ok(fp.GUIDE_CHAPTERS.length === 2 && fp.GUIDE_CHAPTERS.map((c) => c.id).join() === '01-save-original,02-select-file', 'R08: 사용자 녹화에 맞춰 저장·선택 두 파트');
+    ok(fp.GUIDE_CHAPTERS.every((c) => c.video === `/intake-guides/original-file-v5/${c.id}.mp4` && c.poster === `/intake-guides/original-file-v5/${c.id}.jpg`), '안내 영상 · 포스터는 검수한 자산만, 모든 단계는 상태 표시줄을 제거한 v5');
+    const all = fp.GUIDE_CHAPTERS.map((c) => `${c.title} ${c.body}`).join(' ');
     ok(all.includes('무수정 원본 내보내기') && !all.includes('iOS 버전') && all.includes(`‘${fp.PICK_LABEL}’`), 'R10: 원본 메뉴와 실제 단추 이름만 설명하고 버전 주석을 제거한다');
     ok(all.includes('모든 사진 데이터') && !/AirDrop|사진 보관함|카메라로/.test(all + fp.FILE_FIRST_NOTE), '사진 데이터 설정 후 무수정 원본을 파일 앱에서 고른다');
     ok(fp.GUIDE_CHAPTERS.every((c) => [...c.body].length <= 90), 'R08: 장마다 본문이 짧다');
-    ok(fp.GUIDE_CHAPTERS.every(c => c.shape === 'tall'), 'R10: 내보내기도 원본의 전체 세로 화면 비율을 유지한다');
     ok(fp.FILE_FIRST_NOTE === '사진 앱에서 ‘무수정 원본 내보내기’로 파일 앱에 저장한 뒤 선택해 주세요.' && !/만 고를|만 선택|확인합니다|보장/.test(fp.FILE_FIRST_NOTE), 'R08 검수: 고르기 전 한 줄은 할 일만 말하고, 출처를 막는다고 하지 않는다');
 
     const { GuideBody } = await import('@/components/intake/original-file-guide');
     const g0 = renderToStaticMarkup(React.createElement(GuideBody, { onClose() {} }));
     const vids = g0.match(/<video\b[^>]*>/g) ?? [];
-    ok(vids.length === 1 && /preload="metadata"/.test(vids[0]) && vids[0].includes('poster="/intake-guides/original-file-v4/01-open-share.jpg"') && /playsinline/i.test(vids[0]) && !/ controls(?:=|\s|>)/.test(vids[0]) && /autoplay/i.test(vids[0]), 'R10: 안내 하나 · 자동 무음 인라인 재생 · 기본 조작부 없음');
-    ok(!g0.includes('02-export-original.mp4') && !g0.includes('04-pick-file.mp4'), 'R10: 현재 안내 영상만 붙인다');
-    ok(g0.includes('1 / 4') && g0.includes('>이전</button>') && g0.includes('>다음</button>') && /disabled=""[^>]*>이전/.test(g0), 'R10: 단계 · 이전(첫 장 잠김) · 다음');
+    ok(vids.length === 1 && /preload="metadata"/.test(vids[0]) && vids[0].includes('poster="/intake-guides/original-file-v5/01-save-original.jpg"') && /playsinline/i.test(vids[0]) && !/ controls(?:=|\s|>)/.test(vids[0]) && /autoplay/i.test(vids[0]), 'R10: 안내 하나 · 자동 무음 인라인 재생 · 기본 조작부 없음');
+    ok(/\sloop(?:=|\s|>)/.test(vids[0] ?? '') && g0.includes('data-share-corner'), '공유 모서리를 비워 둔 고정 조작부와 반복 재생');
+    ok(!g0.includes('02-select-file.mp4'), 'R10: 현재 안내 영상만 붙인다');
+    ok(g0.includes('1 / 2') && g0.includes('>이전</button>') && g0.includes('>다음</button>') && /disabled=""[^>]*>이전/.test(g0), 'R10: 단계 · 이전(첫 장 잠김) · 다음');
     ok((g0.match(/<button\b/g) ?? []).length === 4 && g0.includes('안내 영상 재생 위치') && g0.includes('안내 영상 전체화면') && !g0.includes('배속'), 'R10: 플레이어는 재생·전체화면 버튼 둘과 탐색만, 안내 이전·다음 둘');
-    const g3 = renderToStaticMarkup(React.createElement(GuideBody, { onClose() {}, initial: 3 }));
     const g1 = renderToStaticMarkup(React.createElement(GuideBody, { onClose() {}, initial: 1 }));
     ok(!/aspect-\[590/.test(g0 + g1), 'R10: 파일 비율을 가정하거나 화면을 자르는 비율 클래스 없음');
-    ok(g1.includes('02-export-original.mp4') && !g1.includes('iOS 버전'), 'R10: 내보내기 안내 · 불필요한 버전 문구 없음');
-    ok(g3.includes('>닫기</button>') && g3.includes('04-pick-file.mp4'), 'R10: 마지막 안내는 닫기로 돌아온다');
+    ok(g1.includes('02-select-file.mp4') && !g1.includes('iOS 버전'), 'R10: 내보내기 안내 · 불필요한 버전 문구 없음');
+    ok(g1.includes('>닫기</button>') && g1.includes('02-select-file.mp4'), 'R10: 마지막 안내는 닫기로 돌아온다');
     const { guideSeek } = await import('@/components/intake/guide-player');
     ok(guideSeek(-5, 10) === 0 && guideSeek(100, 10) === 10 && guideSeek(3.5, 10) === 3.5, 'R10: 탐색 위치는 영상 길이 안에서만');
     ok(guideSeek(NaN, 10) === 0 && guideSeek(Infinity, 0) === 0, 'R10: 길이 미상·잘못된 탐색 값도 안전');

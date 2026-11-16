@@ -89,3 +89,48 @@
 .guideNav button:last-child { background: var(--color-sky); color: white; }
 .guideNav button:disabled { opacity: .35; }
 @media (max-height: 600px) { .heading { font-size: 21px; } .main { padding-top: 2px; padding-bottom: 4px; } .filledContent { gap: 6px; padding-top: 6px; } .content > * + * { margin-top: 8px; } .guideTask { font-size: 13px; line-height: 1.4; } }
+
+/* Give portrait footage the height that used to be occupied by separate title and action rows. */
+.guideHeading { min-width: 0; flex: 1; }
+.guideHeading span { display: block; color: var(--color-muted); font-size: 12px; line-height: 1.2; }
+.guideHeading .heading { font-size: 18px; line-height: 1.25; }
+.guideScreen .main { padding-block: 4px; }
+.guideScreen .filledContent { padding-top: 0; gap: 4px; }
+.guideFooter { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+.guideFooter button { min-width: 74px; min-height: 48px; height: auto; padding: 10px 14px; }
+.guideScreen .actions { padding-top: 4px; }
+.mediaDialog { width: min(100%, 40rem); height: var(--intake-height, 100dvh); max-height: var(--intake-height, 100dvh); }
+.mediaDialog .dialogBody { position: relative; padding: max(4px, env(safe-area-inset-top)) 12px max(6px, env(safe-area-inset-bottom)); }
+.mediaDialog .dialogHeader { position: absolute; top: max(4px, env(safe-area-inset-top)); right: 12px; z-index: 1; padding: 0; }
+.mediaDialog .dialogHeader h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.mediaDialog .guideBody { gap: 4px; }
+.mediaDialog .guideBody h3 { display: flex; align-items: center; min-height: 44px; padding-inline-end: 48px; }
+@media (max-width: 600px) { .mediaDialog { border: 0; border-radius: 0; } }
+
+@media (min-width: 600px) and (orientation: landscape) {
+  .guideScreen,
+  .mediaDialog .guideBody {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(220px, 1fr);
+    column-gap: clamp(16px, 3vw, 36px);
+  }
+  .guideScreen {
+    max-width: 58rem;
+    grid-template-rows: auto 1fr;
+    grid-template-areas: 'video heading' 'video actions';
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
+  }
+  .guideScreen > header { grid-area: heading; }
+  .guideScreen > main { grid-area: video; min-width: 0; padding: 0; }
+  .guideScreen > .actions { grid-area: actions; align-self: end; margin: 0; padding: 0; border: 0; }
+  .guideFooter { grid-template-columns: 1fr; }
+  .mediaDialog { width: min(100%, 58rem); }
+  .mediaDialog .guideBody {
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas: 'video heading' 'video task' 'video nav';
+  }
+  .mediaDialog .guideStage { grid-area: video; }
+  .mediaDialog .guideBody h3 { grid-area: heading; }
+  .mediaDialog .guideTask { grid-area: task; }
+  .mediaDialog .guideNav { grid-area: nav; }
+}

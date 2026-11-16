@@ -50,39 +50,19 @@ export const FILE_FIRST_NOTE = '사진 앱에서 ‘무수정 원본 내보내�
 /** 안내 열기 단추 */
 export const GUIDE_OPEN_LABEL = '원본 저장 방법 보기';
 
-/**
- * 원본 저장 안내 네 장 — 영상은 GPT05 가 개인정보를 가리고 소리 · 메타데이터를 뺀 파일만 쓴다.
- * 영상이 없거나 못 틀어도 글만으로 따라 할 수 있게 쓴다.
- */
-export const GUIDE_BASE = '/intake-guides/original-file-v4';
-export type GuideChapter = { id: string; title: string; body: string; note?: string; video: string; poster: string; shape: 'tall'; controlsTopUntil?: number };
-const media = (id: string) => ({ video: `${GUIDE_BASE}/${id}.mp4`, poster: `${GUIDE_BASE}/${id}.jpg`, shape: 'tall' as const });
+/** 사용자가 나눠 녹화한 두 파트. 다운로드·전송 파일과 독립된 안내 자산이다. */
+export const GUIDE_BASE = '/intake-guides/original-file-v5';
+export type GuideChapter = { id: string; title: string; body: string; video: string; poster: string };
+const media = (id: string) => ({ id, video: `${GUIDE_BASE}/${id}.mp4`, poster: `${GUIDE_BASE}/${id}.jpg` });
 export const GUIDE_CHAPTERS: readonly GuideChapter[] = [
   {
-    id: '01-open-share',
-    title: '사진에서 공유 열기',
-    body: '사진 앱에서 공유 → 옵션을 열고, 아래쪽의 ‘모든 사진 데이터’를 켭니다.',
-    ...media('01-open-share'),
-    controlsTopUntil: 44 / 30, // 첫 장면의 공유 버튼은 화면 왼쪽 아래에 있다.
+    ...media('01-save-original'),
+    title: '원본 저장',
+    body: '공유 → 옵션에서 ‘모든 사진 데이터’를 켭니다. ‘무수정 원본 내보내기’로 파일 앱에 저장합니다.',
   },
   {
-    id: '02-export-original',
-    title: '무수정 원본 내보내기',
-    body: '공유 목록을 아래로 내려 ‘무수정 원본 내보내기’를 누릅니다.',
-    ...media('02-export-original'),
-  },
-  {
-    id: '03-save-files',
-    title: '파일 앱에 저장하기',
-    body: '찾기 쉬운 폴더를 고르고 저장을 누릅니다. 저장한 위치를 기억해 둡니다.',
-    note: 'iCloud Drive에 저장했다면 내려받기가 끝난 뒤 고릅니다.',
-    ...media('03-save-files'),
-  },
-  {
-    id: '04-pick-file',
-    title: '접수 화면에서 파일 고르기',
-    body: `이 화면으로 돌아와 ‘${PICK_LABEL}’을 누르고 저장한 영상(.MOV)을 고릅니다. 감지된 fps를 확인하고 다음으로 넘어갑니다.`,
-    note: '미리 보기가 나오지 않아도 보낼 수 있습니다.',
-    ...media('04-pick-file'),
+    ...media('02-select-file'),
+    title: '파일 선택',
+    body: `‘${PICK_LABEL}’을 눌러 저장한 영상을 고릅니다.`,
   },
 ];

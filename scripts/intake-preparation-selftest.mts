@@ -23,6 +23,7 @@ const p: Preparation = {
   returnTo: 'side',
 };
 eq(preparationOf(p), p);
+for (const stage of ['export', 'save']) eq(preparationOf({ ...p, stage }), p);
 for (const patch of [
   { view: 'bad' },
   { stage: 'sent' },
@@ -140,7 +141,7 @@ writePreparation('submission-one', {
   ...p,
   view: 'rear',
   returnTo: 'rear',
-  stage: 'export',
+  stage: 'select',
 });
 eq(readPreparation('submission-one')?.positions.side, p);
 eq(readPreparation('submission-two'), null);

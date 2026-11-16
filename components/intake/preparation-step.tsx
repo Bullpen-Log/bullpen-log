@@ -29,7 +29,7 @@ export function PreparationVideo({
       src={chapter.video}
       poster={chapter.poster}
       title={chapter.title}
-      controlsTopUntil={chapter.controlsTopUntil}
+      reserveShareCorner={index === 0}
       paused={paused}
     />
   );
@@ -85,52 +85,50 @@ export function PreparationStep({
         onOriginal={() => onStage('share')}
         onPrepare={() => onStage('select')}
         hand={hand}
-        preparationProgress={`${label} 준비 · 5/5`}
+        preparationProgress={`${label} 준비 · 3/3`}
         extra={extra}
       />
     );
   const selecting = p.stage === 'select' || p.route === 'other';
-  const title = selecting
-    ? `저장한 ${label} 선택`
-    : index === 0
-      ? `${label}에서 공유 열기`
-      : GUIDE_CHAPTERS[index].title;
-  const task = selecting
-    ? '이 화면에서 파일 선택을 열고 저장한 원본을 고릅니다.'
-    : GUIDE_CHAPTERS[index].body;
+  const title = selecting ? `저장한 ${label} 선택` : GUIDE_CHAPTERS[0].title;
+  const task = GUIDE_CHAPTERS[selecting ? 1 : 0].body;
   return (
     <>
       <Screen
         screenKey={`prepare-${p.view}-${p.route}-${p.stage}`}
         title={title}
-        progress={`${label} 준비 · ${selecting ? 4 : index + 1}/5`}
-        step={selecting ? 4 : index + 1}
+        guideHeader={p.route === 'apple'}
+        progress={`${label} 준비 · ${selecting ? 2 : 1}/3`}
+        step={selecting ? 2 : 1}
         onBack={onBack}
         fill
         headerAction={
           <HelpButton onClick={() => setAlternative(true)}>도움말</HelpButton>
         }
         actions={
-          selecting ? (
-            <FileButton
-              label={inspecting ? '파일을 확인하는 중' : PICK_LABEL}
-              onFile={onPick}
-              className={FILL_BUTTON}
-              disabled={inspecting}
-              describedBy={error ? 'preparation-error' : undefined}
-            />
-          ) : (
-            <PrimaryButton onClick={() => onStage(PREPARATION_STAGES[index + 1])}>
-              다음
-            </PrimaryButton>
-          )
+          <div className={styles.guideFooter}>
+            <p className={styles.guideTask}>{task}</p>
+            {selecting ? (
+              <FileButton
+                label={inspecting ? '파일을 확인하는 중' : PICK_LABEL}
+                onFile={onPick}
+                className={FILL_BUTTON}
+                disabled={inspecting}
+                describedBy={error ? 'preparation-error' : undefined}
+              />
+            ) : (
+              <PrimaryButton onClick={() => onStage(PREPARATION_STAGES[index + 1])}>
+                다음
+              </PrimaryButton>
+            )}
+          </div>
         }
       >
         {p.route === 'apple' ? (
           <div className={styles.guideStage}>
             <PreparationVideo
               key={`${p.view}-${p.stage}`}
-              index={selecting ? 3 : index}
+              index={selecting ? 1 : 0}
               paused={alternative}
             />
           </div>
@@ -138,10 +136,6 @@ export function PreparationStep({
           <div className="flex min-h-0 flex-1 items-center justify-center rounded-xl bg-ink/3 px-5 text-sm leading-6 text-muted">
             120fps 이상으로 촬영한 원본 파일을 준비합니다.
           </div>
-        )}
-        <p className={styles.guideTask}>{task}</p>
-        {p.stage === 'save' && GUIDE_CHAPTERS[index].note && (
-          <p className={styles.guideNote}>{GUIDE_CHAPTERS[index].note}</p>
         )}
         {error && <FieldError id="preparation-error">{error}</FieldError>}
         {selecting && picked && (
@@ -178,7 +172,7 @@ export function PreparationStep({
         </HelpButton>
         <p>
           아이폰에서는 사진 앱의 ‘무수정 원본 내보내기’로 파일 앱에 저장한 뒤
-          선택합니다.
+          선택합니다. iCloud Drive에 저장했다면 내려받기가 끝난 뒤 고릅니다.
         </p>
         {p.route === 'apple' && (
           <HelpButton

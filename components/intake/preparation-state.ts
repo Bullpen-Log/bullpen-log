@@ -5,8 +5,6 @@ export const PREPARATION_VERSION = 1;
 export const PREPARATION_TTL = 24 * 60 * 60 * 1000;
 export const PREPARATION_STAGES = [
   'share',
-  'export',
-  'save',
   'select',
   'confirm',
 ] as const;
@@ -28,14 +26,16 @@ const RETURNS = ['side', 'rear', 'review', 'recovery', 'correction'];
 export function preparationOf(value: unknown): Preparation | null {
   if (!value || typeof value !== 'object') return null;
   const p = value as Partial<Preparation>;
+  const storedStage = (value as { stage?: unknown }).stage;
+  const stage = storedStage === 'export' || storedStage === 'save' ? 'share' : p.stage;
   if (
     (p.view !== 'side' && p.view !== 'rear') ||
-    !PREPARATION_STAGES.includes(p.stage as PreparationStage) ||
+    !PREPARATION_STAGES.includes(stage as PreparationStage) ||
     (p.route !== 'apple' && p.route !== 'other') ||
     !RETURNS.includes(p.returnTo ?? '')
   )
     return null;
-  return { view: p.view, stage: p.stage!, route: p.route, returnTo: p.returnTo! };
+  return { view: p.view, stage: stage!, route: p.route, returnTo: p.returnTo! };
 }
 export const safePreparation = (p: Preparation, hasFile: boolean): Preparation =>
   p.stage === 'confirm' && !hasFile ? { ...p, stage: 'select' } : p;

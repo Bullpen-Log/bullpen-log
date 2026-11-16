@@ -35,7 +35,7 @@ export function IntakeDialog({
   return (
     <dialog
       ref={dialog}
-      className={styles.dialog}
+      className={`${styles.dialog} ${fill ? styles.mediaDialog : ''}`}
       aria-label={title}
       onCancel={(e) => {
         e.preventDefault();

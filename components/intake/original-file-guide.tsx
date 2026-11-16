@@ -41,11 +41,10 @@ export function GuideBody({
           src={chapter.video}
           poster={chapter.poster}
           title={chapter.title}
-          controlsTopUntil={chapter.controlsTopUntil}
+          reserveShareCorner={at === 0}
         />
       </div>
       <p className={styles.guideTask}>{chapter.body}</p>
-      {chapter.note && <p className={styles.guideNote}>{chapter.note}</p>}
       <div className={styles.guideNav}>
         <button type="button" disabled={at === 0} onClick={() => setAt(at - 1)}>
           이전

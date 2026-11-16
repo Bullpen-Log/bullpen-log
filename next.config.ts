@@ -54,6 +54,9 @@ const nextConfig: NextConfig = {
   // (북마크나 예전에 공유한 링크가 끊기지 않도록)
   async redirects() {
     return [
+      // Bring cached guide screens to the current privacy-reviewed recordings.
+      { source: '/intake-guides/original-file-v:version([1-4])/:chapter(01-open-share|02-export-original|03-save-files).:ext(mp4|jpg)', destination: '/intake-guides/original-file-v5/01-save-original.:ext', permanent: true },
+      { source: '/intake-guides/original-file-v:version([1-4])/04-pick-file.:ext(mp4|jpg)', destination: '/intake-guides/original-file-v5/02-select-file.:ext', permanent: true },
       /* 2026-10-21 2단계(docs/designs/sinker-dugout.md 8절 H) — 덕아웃은 뿌리 주소로, 관리는 /manage 로. 옛 링크 · 북마크 */
       { source: '/dugout', destination: '/', permanent: true },
       { source: '/dugout/:path*', destination: '/:path*', permanent: true },

@@ -23,7 +23,7 @@
   object-fit: contain;
 }
 .controls {
-  --edge-padding: 24px 0 0;
+  --edge-padding: 20px 0 0;
   position: absolute;
   inset-inline: 0;
   bottom: 0;
@@ -32,24 +32,23 @@
   padding-inline: 2px;
   color: white;
 }
-.controls[data-top] {
-  --edge-padding: 0 0 24px;
-  top: 0;
-  bottom: auto;
+.controls[data-share-corner] {
+  left: 21%;
 }
 .controls button {
   display: grid;
   place-items: center;
-  height: 44px;
+  height: 54px;
   padding: var(--edge-padding);
-  width: min(22%, 44px);
+  width: clamp(44px, 19%, 54px);
   flex-shrink: 0;
   background: transparent;
   color: inherit;
 }
 .controls button svg {
-  width: 17px;
-  height: 17px;
+  width: 25px;
+  height: 25px;
+  stroke-width: 2.8;
   filter: drop-shadow(0 1px 2px #000) drop-shadow(0 0 1px #000);
 }
 .controls :focus-visible {
@@ -60,8 +59,8 @@
   appearance: none;
   flex: 1;
   min-width: 0;
-  height: 44px;
-  min-height: 44px;
+  height: 54px;
+  min-height: 54px;
   margin: 0;
   padding: var(--edge-padding);
   border: 0;
@@ -70,33 +69,33 @@
   touch-action: none;
 }
 .controls input::-webkit-slider-runnable-track {
-  height: 2px;
-  border-radius: 2px;
+  height: 6px;
+  border-radius: 6px;
   background: white;
-  box-shadow: 0 0 2px #000;
+  box-shadow: 0 0 0 1px #111, 0 1px 3px #000;
 }
 .controls input::-moz-range-track {
-  height: 2px;
-  border-radius: 2px;
+  height: 6px;
+  border-radius: 6px;
   background: white;
-  box-shadow: 0 0 2px #000;
+  box-shadow: 0 0 0 1px #111, 0 1px 3px #000;
 }
 .controls input::-webkit-slider-thumb {
   appearance: none;
-  width: 10px;
-  height: 10px;
-  margin-top: -4px;
+  width: 18px;
+  height: 18px;
+  margin-top: -6px;
   border-radius: 50%;
   background: white;
-  box-shadow: 0 0 2px #000;
+  box-shadow: 0 0 0 1px #111, 0 1px 3px #000;
 }
 .controls input::-moz-range-thumb {
-  width: 10px;
-  height: 10px;
+  width: 18px;
+  height: 18px;
   border: 0;
   border-radius: 50%;
   background: white;
-  box-shadow: 0 0 2px #000;
+  box-shadow: 0 0 0 1px #111, 0 1px 3px #000;
 }
 .expanded,
 .player:fullscreen {

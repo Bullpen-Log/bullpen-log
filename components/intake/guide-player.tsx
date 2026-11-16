@@ -20,13 +20,13 @@ export function GuidePlayer({
   poster,
   title,
   paused = false,
-  controlsTopUntil = 0,
+  reserveShareCorner = false,
 }: {
   src: string;
   poster?: string;
   title: string;
   paused?: boolean;
-  controlsTopUntil?: number;
+  reserveShareCorner?: boolean;
 }) {
   const video = useRef<HTMLVideoElement>(null);
   const box = useRef<HTMLDivElement>(null);
@@ -38,7 +38,6 @@ export function GuidePlayer({
   }, [paused]);
   const resumeScrub = useRef(false);
   const [aspect, setAspect] = useState(590 / 1196);
-  const [scrubAtTop, setScrubAtTop] = useState<boolean | null>(null);
   const [playing, setPlaying] = useState(false);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -46,6 +45,10 @@ export function GuidePlayer({
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [blocked, setBlocked] = useState(false);
+  const readMetadata = (el: HTMLVideoElement) => {
+    setDuration(guideTime(el.duration));
+    if (el.videoWidth && el.videoHeight) setAspect(el.videoWidth / el.videoHeight);
+  };
   const play = () => {
     const el = video.current;
     if (!el || externalPaused.current || document.visibilityState === 'hidden') return;
@@ -60,6 +63,10 @@ export function GuidePlayer({
   };
   useEffect(() => {
     const el = video.current;
+    // A cached clip can finish loading before React attaches its media listeners.
+    const initialFrame = requestAnimationFrame(() => {
+      if (el && el.readyState >= 1) readMetadata(el);
+    });
     const visibility = () => {
       if (document.visibilityState === 'hidden') video.current?.pause();
       else if (!userPaused.current) play();
@@ -69,6 +76,7 @@ export function GuidePlayer({
     window.addEventListener('pagehide', stop);
     play();
     return () => {
+      cancelAnimationFrame(initialFrame);
       el?.pause();
       document.removeEventListener('visibilitychange', visibility);
       window.removeEventListener('pagehide', stop);
@@ -146,6 +154,7 @@ export function GuidePlayer({
             ref={video}
             src={src}
             poster={poster}
+            loop
             autoPlay
             muted
             playsInline
@@ -159,11 +168,7 @@ export function GuidePlayer({
             }}
             onPause={() => setPlaying(false)}
             onEnded={() => setPlaying(false)}
-            onLoadedMetadata={({ currentTarget: el }) => {
-              setDuration(guideTime(el.duration));
-              if (el.videoWidth && el.videoHeight)
-                setAspect(el.videoWidth / el.videoHeight);
-            }}
+            onLoadedMetadata={(e) => readMetadata(e.currentTarget)}
             onDurationChange={(e) => setDuration(guideTime(e.currentTarget.duration))}
             onTimeUpdate={(e) => setTime(guideTime(e.currentTarget.currentTime))}
             onError={() => {
@@ -173,7 +178,7 @@ export function GuidePlayer({
           />
           <div
             className={styles.controls}
-            data-top={(scrubAtTop ?? time < controlsTopUntil) || undefined}
+            data-share-corner={reserveShareCorner || undefined}
           >
             <button
               type="button"
@@ -204,7 +209,6 @@ export function GuidePlayer({
               aria-valuetext={`${time.toFixed(1)}초 / ${duration.toFixed(1)}초`}
               onPointerDown={(e) => {
                 e.currentTarget.setPointerCapture(e.pointerId);
-                setScrubAtTop(time < controlsTopUntil);
                 resumeScrub.current = video.current?.paused === false;
                 video.current?.pause();
               }}
@@ -218,14 +222,12 @@ export function GuidePlayer({
                   e.currentTarget.releasePointerCapture(e.pointerId);
                 if (resumeScrub.current && !userPaused.current) play();
                 resumeScrub.current = false;
-                setScrubAtTop(null);
               }}
               onPointerCancel={(e) => {
                 if (e.currentTarget.hasPointerCapture(e.pointerId))
                   e.currentTarget.releasePointerCapture(e.pointerId);
                 if (resumeScrub.current && !userPaused.current) play();
                 resumeScrub.current = false;
-                setScrubAtTop(null);
               }}
             />
             <button

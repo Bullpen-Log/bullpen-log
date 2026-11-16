@@ -30,6 +30,7 @@ export function Screen({
   progress,
   fill = false,
   headerAction,
+  guideHeader = false,
 }: {
   screenKey: string;
   title: string;
@@ -46,6 +47,7 @@ export function Screen({
   progress?: string;
   fill?: boolean;
   headerAction?: ReactNode;
+  guideHeader?: boolean;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
 
@@ -56,9 +58,18 @@ export function Screen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screenKey]);
 
+  const titleElement = (
+    <h1
+      ref={heading}
+      tabIndex={-1}
+      className={`${styles.heading} ${dense ? styles.denseHeading : ''} text-ink outline-none`}
+    >
+      {title}
+    </h1>
+  );
   return (
     <div
-      className={`${styles.screen} mx-auto flex min-h-[var(--vvh,100dvh)] w-full max-w-[33rem] flex-col px-5 pt-[max(env(safe-area-inset-top),0.5rem)] desk:px-[1.5rem]`}
+      className={`${styles.screen} ${guideHeader ? styles.guideScreen : ''} mx-auto flex min-h-[var(--vvh,100dvh)] w-full max-w-[33rem] flex-col px-5 pt-[max(env(safe-area-inset-top),0.5rem)] desk:px-[1.5rem]`}
     >
       <header className="flex h-11 shrink-0 items-center justify-between gap-3">
         {onBack ? (
@@ -73,36 +84,37 @@ export function Screen({
         ) : (
           <Wordmark className="text-xl text-ink" />
         )}
-        {(step != null || progress) && (
-          <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-            <span className="text-xs text-muted">
-              {progress ?? `${step} / ${GUIDED_STEPS}`}
-              {!progress && <span className="sr-only"> 단계</span>}
-            </span>
-            {!headerAction && (
-              <div
-                aria-hidden
-                className="h-1 w-24 overflow-hidden rounded-full bg-line"
-              >
-                <div
-                  className="h-full rounded-full bg-sky transition-[width] duration-300 motion-reduce:transition-none"
-                  style={{ width: `${((step ?? 1) / GUIDED_STEPS) * 100}%` }}
-                />
-              </div>
-            )}
+        {guideHeader ? (
+          <div className={styles.guideHeading}>
+            <span>{progress}</span>
+            {titleElement}
           </div>
+        ) : (
+          (step != null || progress) && (
+            <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+              <span className="text-xs text-muted">
+                {progress ?? `${step} / ${GUIDED_STEPS}`}
+                {!progress && <span className="sr-only"> 단계</span>}
+              </span>
+              {!headerAction && (
+                <div
+                  aria-hidden
+                  className="h-1 w-24 overflow-hidden rounded-full bg-line"
+                >
+                  <div
+                    className="h-full rounded-full bg-sky transition-[width] duration-300 motion-reduce:transition-none"
+                    style={{ width: `${((step ?? 1) / GUIDED_STEPS) * 100}%` }}
+                  />
+                </div>
+              )}
+            </div>
+          )
         )}
         {headerAction}
       </header>
 
       <main key={screenKey} className={styles.main}>
-        <h1
-          ref={heading}
-          tabIndex={-1}
-          className={`${styles.heading} ${dense ? styles.denseHeading : ''} text-ink outline-none`}
-        >
-          {title}
-        </h1>
+        {!guideHeader && titleElement}
         {desc && (
           <Paras
             text={desc}
