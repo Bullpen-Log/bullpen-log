@@ -34,7 +34,8 @@ function parseJson(text: string): { ok: true; value: unknown } | { ok: false } {
 }
 
 /**
- * 원본 보기 상태 — 이미 있는 두 값(목록의 rights · 한 건의 asset)으로만 정한다(저장소를 따로 묻지 않는다).
+ * 원본 보기 상태 — 이미 있는 값(목록의 kind · rights, 한 건의 asset)으로만 정한다(저장소를 따로 묻지 않는다).
+ * - external-video: 영상 자료 — 원본 파일을 우리 서버에 두지 않는다(EX-REF03). 원본은 한 건의 externalVideo 링크로만(없으면 '링크 확인 중')
  * - original-not-offered: rights 'private-summary' — 옮긴 글 · 해설 · 요약은 비공개로 보여 주되(전체를 옮긴 자료일 수도 있다)
  *   원본 파일은 이 화면에서 제공하지 않는다
  * - permission-pending: rights 'pending', 또는 허락 자료인데 asset.rightsConfirmed 가 true 가 아님
@@ -42,10 +43,12 @@ function parseJson(text: string): { ok: true; value: unknown } | { ok: false } {
  * - eligible: rights 'licensed-private' + asset.rightsConfirmed === true — 원본 통로(original.ts resolveOriginal)도 같은 두 조건을 따로 다시 본다
  * eligible 이어도 저장소에 실제 파일이 올라갔는지는 이 화면이 확인하지 않는다(없으면 원본 통로가 404).
  */
-export type OriginalStatus = 'eligible' | 'permission-pending' | 'not-linked' | 'original-not-offered';
-export type OriginalKind = 'pdf' | 'video' | 'audio' | 'image';
+export type OriginalStatus = 'eligible' | 'permission-pending' | 'not-linked' | 'original-not-offered' | 'external-video';
+/** 우리 원본 통로로 여는 파일의 종류 — 영상은 없다(EX-REF03) */
+export type OriginalKind = 'pdf' | 'audio' | 'image';
 
-export function originalStatusOf(entry: Pick<Entry, 'rights'>, detail: Pick<Detail, 'asset'>): OriginalStatus {
+export function originalStatusOf(entry: Pick<Entry, 'rights' | 'kind'>, detail: Pick<Detail, 'asset'>): OriginalStatus {
+  if (entry.kind === 'video') return 'external-video';
   if (entry.rights === 'private-summary') return 'original-not-offered';
   if (entry.rights !== 'licensed-private') return 'permission-pending';
   if (!detail.asset) return 'not-linked';
@@ -55,7 +58,6 @@ export function originalStatusOf(entry: Pick<Entry, 'rights'>, detail: Pick<Deta
 
 function originalKindOf(mime: string): OriginalKind {
   if (mime === 'application/pdf') return 'pdf';
-  if (mime.startsWith('video/')) return 'video';
   if (mime.startsWith('audio/')) return 'audio';
   return 'image';
 }
@@ -63,10 +65,10 @@ function originalKindOf(mime: string): OriginalKind {
 /** 원본 통로 주소 — 자료 번호만 담는다(저장소 열쇠 · 서명 주소 없음) */
 export const originalHref = (id: string) => `/api/admin/references/${id}/original`;
 
-/** 화면으로 보내는 한 자료 — 원본 열쇠(asset)는 빼고, 열 수 있을 때만 종류(쪽 · 시간 바로가기용) */
+/** 화면으로 보내는 한 자료 — 원본 열쇠(asset)는 빼고, 열 수 있을 때만 종류(쪽 · 시간 바로가기용). externalVideo 는 바꿔 둔 공개 링크 그대로 */
 export type PublicDetail = Omit<Detail, 'asset'> & { original: OriginalStatus; originalKind: OriginalKind | null };
 
-export function publicDetailOf(detail: Detail, entry: Pick<Entry, 'rights'>): PublicDetail {
+export function publicDetailOf(detail: Detail, entry: Pick<Entry, 'rights' | 'kind'>): PublicDetail {
   const { asset, ...rest } = detail;
   const original = originalStatusOf(entry, detail);
   return { ...rest, original, originalKind: original === 'eligible' && asset ? originalKindOf(asset.mime) : null };

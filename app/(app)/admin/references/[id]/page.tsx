@@ -21,7 +21,7 @@ import {
   reviewLabel,
 } from '@/lib/admin-references/view';
 import { FailScreen } from '../fail-screen';
-import { OriginalNotice, SourceTable } from './detail-parts';
+import { ExternalVideoNotice, OriginalNotice, SourceTable } from './detail-parts';
 
 /**
  * 참고자료 한 건(대표관리자만, EX-REF02). 쉬운 요약 · 원저자 내용(한국어로 옮김) · 최신 근거로 본 판단을 서로 다른 칸으로 나눠 보인다.
@@ -50,7 +50,7 @@ export default async function ReferenceDetailPage({ params }: { params: Promise<
   const translations = detail.sections.filter((s) => s.kind === 'translation' || s.kind === 'table');
   const notes = detail.sections.filter((s) => s.kind === 'note');
   const limitSections = detail.sections.filter((s) => s.kind === 'limitation');
-  /* 원본 바로가기 — 열 수 있을 때만(PDF 는 #page=, 영상 · 소리는 #t=) */
+  /* 원본 바로가기 — 열 수 있을 때만(PDF 는 #page=, 소리는 #t=. 영상 자료는 원본 파일이 없어 바로가기 없음) */
   const jump: Jump | null = detail.original === 'eligible' && detail.originalKind ? { href: originalHref(entry.id), kind: detail.originalKind } : null;
 
   return (
@@ -103,7 +103,12 @@ export default async function ReferenceDetailPage({ params }: { params: Promise<
         </dl>
       </Block>
 
-      <OriginalNotice status={detail.original} href={jump ? jump.href : null} />
+      {/* 영상 자료는 원래 올라온 곳의 링크로만(EX-REF03), 그 밖의 자료는 우리 원본 통로 상태 */}
+      {entry.kind === 'video' ? (
+        <ExternalVideoNotice video={detail.externalVideo} />
+      ) : (
+        <OriginalNotice status={detail.original} href={jump ? jump.href : null} />
+      )}
 
       <Block title="쉽게 요약" note="검토자가 쉬운 말로 쓴 요약이에요. 원저자의 말과 다를 수 있어요.">
         {detail.digestKo ? <Prose text={detail.digestKo} /> : <Empty>요약이 아직 없어요.</Empty>}
@@ -211,7 +216,7 @@ function intervalsText(list: readonly Interval[]) {
 type Jump = { href: string; kind: OriginalKind };
 
 /**
- * 원본 위치 — '원문 3–5쪽' · '영상 1:02–3:40'. 원본을 열 수 있으면 원본을 여는 링크(PDF 는 첫 쪽 #page=, 영상 · 소리는 시작 #t=).
+ * 원본 위치 — '원문 3–5쪽' · '영상 1:02–3:40'. 원본을 열 수 있으면 원본을 여는 링크(PDF 는 첫 쪽 #page=, 소리는 시작 #t=).
  * 그 쪽 · 시각으로 실제로 가는지는 브라우저 · 앱의 보기 프로그램에 따른다 — 화면 글로 약속하지 않는다.
  */
 function Where({ pages, start, end, seconds, jump }: { pages?: readonly number[]; start?: number | null; end?: number | null; seconds?: readonly number[]; jump: Jump | null }) {
@@ -224,7 +229,8 @@ function Where({ pages, start, end, seconds, jump }: { pages?: readonly number[]
     ) : (
       <span key={key}>{text}</span>
     );
-  const media = jump && (jump.kind === 'video' || jump.kind === 'audio');
+  /* 우리 통로로 여는 원본에는 영상이 없다(EX-REF03) — 시각 바로가기는 소리 원본만 */
+  const media = jump?.kind === 'audio';
   if (pages && pages.length) {
     const first = [...pages].sort((a, b) => a - b)[0];
     parts.push(link('p', `원문 ${pagesText(pages)}`, jump?.kind === 'pdf' ? `page=${first}` : null));

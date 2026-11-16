@@ -7,6 +7,7 @@ import type { ReferenceSource, Viewer } from '@/lib/admin-references/load';
  *
  * 순서: 보는 사람 → 번호 모양 → 목록 → 그 항목의 한 건 → 한 건의 asset. 열쇠는 늘 목록 · 한 건에서만 온다(주소 · 화면이 정하지 못함).
  * 원본을 여는 조건: 목록의 rights 가 'licensed-private' 이고 한 건의 asset.rightsConfirmed === true. 아니면 저장소의 원본을 묻지 않는다.
+ * 영상 자료는 원본 파일을 두지 않는다(EX-REF03) — 목록의 kind 가 'video' 면 한 건도 읽지 않고 404. 한 건 검사(schema.ts)도 영상 형식 · 영상 자료의 asset 을 거절한다.
  * 원본은 비공개 버킷 external-intake 의 admin-references/v1/assets/ 에 application/octet-stream 으로 있다 —
  * 보내는 Content-Type 은 검사한 한 건의 asset.mime(허용 목록)이다. 저장소의 형식 · 주소 · 오류 글은 응답에 싣지 않는다.
  *
@@ -93,7 +94,7 @@ export async function resolveOriginal(viewer: Viewer, id: unknown, source: Refer
     const catalog = parseCatalog(parseJson(cat.text));
     if (!catalog.ok) return unavailable;
     const entry = catalog.value.entries.find((e) => e.id === id);
-    if (!entry || entry.rights !== 'licensed-private') return notFound;
+    if (!entry || entry.rights !== 'licensed-private' || entry.kind === 'video') return notFound;
     const det = await source.read(entry.detailKey, MAX_DETAIL_BYTES);
     if (!det.ok) return det.reason === 'missing' ? notFound : unavailable;
     const detail = parseDetail(parseJson(det.text), entry);

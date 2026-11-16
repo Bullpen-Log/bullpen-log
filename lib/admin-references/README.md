@@ -13,7 +13,10 @@
 | 한 건 | `admin-references/v1/entries/<id>.json` (16 MB 까지, 열쇠는 목록의 `detailKey` 만) |
 | 원본 파일 | **버킷 `external-intake`** 의 `admin-references/v1/assets/<불투명 이름>[.확장자]` (`application/octet-stream` 으로 올림) |
 
-버킷 설정 · 정책은 바꾸지 않는다. 원본의 실제 형식은 한 건 JSON 의 `asset.mime` 이 정한다(PDF · mp4 · mov · webm · m4a · mp3 · jpeg · png 만).
+버킷 설정 · 정책은 바꾸지 않는다. 원본의 실제 형식은 한 건 JSON 의 `asset.mime` 이 정한다(PDF · m4a · mp3 · jpeg · png 만).
+
+**참고 영상 원본은 우리 서버에 두지 않는다**(EX-REF03, 2026-11-16 사용자). 영상 형식 `asset.mime`, 영상 파일 이름의 열쇠(.mp4 · .mov · .webm 등),
+영상 자료(`kind: "video"`)의 `asset` 은 모두 한 건 전체를 거절한다. 영상은 한 건의 `externalVideo` 링크로 원래 올라온 곳에서 연다.
 
 내 컴퓨터에서만 미리 볼 때: 서버 환경변수 `ADMIN_REFERENCES_LOCAL_DIR` 에 폴더를 주면, 운영이 아닐 때(`NODE_ENV !== 'production'`)
 그 폴더에서 `catalog.json` · `entries/<id>.json` · `assets/<이름>` 을 읽는다. 폴더 밖 열쇠는 거절한다. 그 폴더는 저장소 · 배포물에 넣지 않는다.
@@ -79,7 +82,9 @@
                               "limitations": "…", "applicability": "direct" }] }],   // direct | inferred
   "limitationsKo": ["…"],
   "asset": { "key": "admin-references/v1/assets/ref_abc123.pdf", "mime": "application/pdf",
-             "filename": "…", "rightsConfirmed": true }    // 선택. 열쇠는 external-intake 버킷 안
+             "filename": "…", "rightsConfirmed": true },   // 선택. 열쇠는 external-intake 버킷 안. 영상 자료에는 두지 않는다
+  "externalVideo": { "url": "https://www.youtube.com/watch?v=<11자>", "title": "…", "author": "…",
+                     "checkedAt": "2026-11-16T00:00:00Z" }  // 선택, 영상 자료만(아니면 거절). 없거나 null 이면 '원본 링크 확인 중'
 }
 ```
 
@@ -94,8 +99,19 @@
   열쇠는 주소가 아니라 목록 → 한 건 → `asset.key` 에서만 온다. 서버가 요청마다 60초 서명 주소를 만들어 그 자리에서 받고 버린다(응답 · 화면 · 캐시에 없음).
   응답: `Content-Type` = `asset.mime`, `Cache-Control: private, no-store`, `nosniff`, `Accept-Ranges: bytes`.
   Range 는 한 구간(`bytes=a-b` · `a-` · `-n`)만, 한 번에 4 MB 까지로 줄여 넘긴다(영상 · PDF 보기는 다음 구간을 다시 청한다). 여러 구간 · 틀린 모양은 무시하고 처음부터.
-  화면의 원본 상태(목록 `rights` · 한 건 `asset` 으로만 정함, 저장소는 따로 묻지 않음):
+  화면의 원본 상태(목록 `kind` · `rights`, 한 건 `asset` 으로만 정함, 저장소는 따로 묻지 않음). 영상 자료는 아래 대신 '원본 영상 보기' 링크(아래 절):
   `private-summary` → 옮긴 글 · 해설 · 요약은 비공개로 보이고(전체를 옮긴 자료일 수도 있음) 원본 파일은 제공하지 않음 · `pending`(또는 허락 자료인데 `asset.rightsConfirmed` 가 true 아님) → 허락 확인 중 ·
   `licensed-private` + `asset` 없음 → 허락은 됐지만 파일 연결 전 · `licensed-private` + `rightsConfirmed: true` → '원본 열기'.
   열 수 있을 때 쪽 · 시각 표시는 원본을 여는 링크가 되고 `#page=` · `#t=` 를 붙이지만, 그 자리로 가는지는 브라우저 · 앱의 보기 프로그램에 따른다.
 - 페이지는 요청마다 새로 읽는다(쿠키를 읽어 늘 동적, `connection()`), 받은 글을 서버에 기억해 두지 않는다.
+
+## 원본 영상 링크 `externalVideo` (EX-REF03)
+
+- 영상 자료만. 모양 `{ url, title, author, checkedAt }` 또는 없음/null. 없는 옛 JSON 은 그대로 읽힌다.
+- 지금은 YouTube 만: `https://www.youtube.com/watch?v=<11자>`(호스트 `www.youtube.com` · `youtube.com` · `m.youtube.com`, 쿼리는 `v` 하나뿐) 또는
+  `https://youtu.be/<11자>`(쿼리 없음). 저장할 때 `https://www.youtube.com/watch?v=<id>` 로 바꾼다.
+  계정 · 포트(:443 포함) · `#` · 다른 쿼리(공유 토큰 `si` · 재생목록 · 시각 · 돌려보내기 값) · 다른 호스트(닮은 이름 · IP · localhost ·
+  영상 파일 주소) · http · javascript: · data: 는 한 건 전체 거절. 다른 사이트가 필요하면 GPT 와 정한 뒤 더한다.
+- 서버는 이 주소를 읽지 않는다. 화면은 '원본 영상 보기'(새 창, noopener noreferrer) 링크와 제목 · 올린 사람 · 링크 확인 날짜만 보인다.
+  플레이어 · iframe · 썸네일 · 내려받기 · 원본 통로 없음. 링크가 연결된 것은 영상 · 음성을 다 확인했다는 뜻이 아니다(확인한 범위는 목록의 `coverage` 그대로).
+- 원본 통로(`/api/admin/references/<id>/original`)는 목록의 `kind` 가 `video` 면 한 건도 읽지 않고 404 다.

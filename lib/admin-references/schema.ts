@@ -16,8 +16,52 @@ const ENTRY_ID = /^[A-Za-z0-9_-]{6,80}$/;
 /** 원본 파일 열쇠(버킷 external-intake) — 이름은 불투명, 끝의 확장자는 있어도 없어도 된다 */
 export const ASSET_PREFIX = `${STORAGE_PREFIX}assets/`;
 export const ASSET_KEY = /^admin-references\/v1\/assets\/[A-Za-z0-9_-]{6,80}(\.[a-z0-9]{2,5})?$/;
-/** 원본으로 보낼 수 있는 형식 — HTML · SVG · 스크립트처럼 브라우저가 실행할 수 있는 형식은 넣지 않는다 */
-export const ASSET_MIMES = ['application/pdf', 'video/mp4', 'video/quicktime', 'video/webm', 'audio/mp4', 'audio/mpeg', 'image/jpeg', 'image/png'] as const;
+/**
+ * 원본으로 보낼 수 있는 형식 — HTML · SVG · 스크립트처럼 브라우저가 실행할 수 있는 형식은 넣지 않는다.
+ * 영상도 넣지 않는다(EX-REF03, 2026-11-16 사용자: 참고 영상 원본은 우리 서버에 두지 않는다 — 원래 올라온 곳의 링크로만 연다).
+ */
+export const ASSET_MIMES = ['application/pdf', 'audio/mp4', 'audio/mpeg', 'image/jpeg', 'image/png'] as const;
+/** 열쇠 이름이 영상 파일처럼 보이면 형식 값과 상관없이 거절 */
+const VIDEO_FILE_EXT = /\.(mp4|m4v|mov|qt|webm|mkv|avi|wmv|flv|mpg|mpeg|3gp|ogv|m2ts|mts)$/;
+
+/**
+ * 원본 영상 링크(EX-REF03) — 지금은 YouTube 만. 정해 둔 주소 모양만 받아 https://www.youtube.com/watch?v=<11자> 로 바꾼다.
+ * 서버는 이 주소를 읽지 않는다(화면 링크로만). 계정 · 포트 · # · v 밖의 쿼리(공유 토큰 si · 재생목록 · 시각 · 돌려보내기 값) ·
+ * 다른 호스트(닮은 이름 · IP · localhost · googlevideo 같은 영상 파일 주소) · http · javascript: · data: 는 모두 거절.
+ * 다른 영상 사이트가 필요하면 GPT 와 정한 뒤 이 목록에 더한다(아무 주소나 받지 않는다).
+ */
+const YOUTUBE_WATCH_HOSTS = new Set(['www.youtube.com', 'youtube.com', 'm.youtube.com']);
+const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
+
+export function canonicalYouTubeUrl(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const s = raw.trim();
+  if (!s || s.length > 200 || /[\s\\#]/.test(s) || !/^https:\/\//i.test(s)) return null;
+  /* 주소 머리(호스트 자리)에 계정 · 포트가 있으면 거절 — URL 이 기본 포트 :443 을 지워 버리기 전에 본다 */
+  const authority = s.slice('https://'.length).split(/[/?]/)[0];
+  if (authority.includes('@') || authority.includes(':')) return null;
+  let u: URL;
+  try {
+    u = new URL(s);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== 'https:' || u.username || u.password || u.port || u.hash) return null;
+  let id: string | null = null;
+  if (YOUTUBE_WATCH_HOSTS.has(u.hostname)) {
+    if (u.pathname !== '/watch') return null;
+    const keys = [...u.searchParams.keys()];
+    if (keys.length !== 1 || keys[0] !== 'v') return null;
+    id = u.searchParams.get('v');
+  } else if (u.hostname === 'youtu.be') {
+    if (u.search) return null;
+    id = u.pathname.slice(1);
+  } else {
+    return null;
+  }
+  if (!id || !YOUTUBE_ID.test(id)) return null;
+  return `https://www.youtube.com/watch?v=${id}`;
+}
 
 export const MAX_CATALOG_BYTES = 8 * 1024 * 1024;
 export const MAX_DETAIL_BYTES = 16 * 1024 * 1024;
@@ -126,6 +170,8 @@ export type Section = {
 };
 export type GlossaryItem = { en: string; ko: string; meaning: string };
 export type Asset = { key: string; mime: (typeof ASSET_MIMES)[number]; filename: string; rightsConfirmed: boolean };
+/** 원본 영상 링크 — url 은 바꿔 둔 YouTube 주소, checkedAt 은 링크를 확인한 때(영상 전체를 검토했다는 뜻이 아니다) */
+export type ExternalVideo = { url: string; title: string; author: string; checkedAt: string };
 
 export type Detail = {
   id: string;
@@ -137,8 +183,10 @@ export type Detail = {
   glossary: GlossaryItem[];
   claims: Claim[];
   limitationsKo: string[];
-  /** 서버에서만 — 원본 파일 열쇠. 화면에는 대표관리자 원본 통로(app/api/admin/references/[id]/original) 주소만 간다(README) */
+  /** 서버에서만 — 원본 파일 열쇠. 화면에는 대표관리자 원본 통로(app/api/admin/references/[id]/original) 주소만 간다(README). 영상 자료는 늘 null */
   asset: Asset | null;
+  /** 영상 자료만 — 원래 올라온 곳의 원본 영상 링크(EX-REF03). 없는 옛 JSON 은 null */
+  externalVideo: ExternalVideo | null;
 };
 
 /* ─────────────────────────── 검사 도우미 ─────────────────────────── */
@@ -348,6 +396,18 @@ function parseEvidence(v: unknown, w: string): Evidence {
   };
 }
 
+/** 원본 영상 링크 — 없으면 null(옛 JSON 그대로 읽힘). 영상이 아닌 자료에 있거나 모양이 틀리면 자료 전체 거절 */
+function parseExternalVideo(v: unknown, kind: Kind): ExternalVideo | null {
+  if (v === undefined || v === null) return null;
+  if (kind !== 'video') fail('externalVideo');
+  const o = obj(v, 'externalVideo');
+  const url = canonicalYouTubeUrl(o.url);
+  if (!url) fail('externalVideo');
+  const checkedAt = str(o.checkedAt, 'externalVideo', 40);
+  if (!Number.isFinite(Date.parse(checkedAt))) fail('externalVideo');
+  return { url, title: str(o.title, 'externalVideo', TEXT.title), author: str(o.author, 'externalVideo', TEXT.short), checkedAt };
+}
+
 /** 한 자료 JSON 검사 — 목록의 그 항목과 같은 자료인지(id · 종류)도 본다 */
 export function parseDetail(raw: unknown, entry: Pick<Entry, 'id' | 'kind' | 'pageCount' | 'durationSeconds'>): ParseResult<Detail> {
   try {
@@ -415,10 +475,12 @@ export function parseDetail(raw: unknown, entry: Pick<Entry, 'id' | 'kind' | 'pa
     });
     let asset: Asset | null = null;
     if (o.asset !== undefined && o.asset !== null) {
+      /* 영상 자료에는 원본 파일을 두지 않는다(EX-REF03) — 어떤 형식이든 거절 */
+      if (kind === 'video') fail('asset');
       const a = obj(o.asset, 'asset');
       const key = str(a.key, 'asset', 300);
-      /* 원본은 비공개 버킷 external-intake 의 이 자리 안에서만(storage.ts) — '..' · 다른 폴더 열쇠는 거절 */
-      if (!ASSET_KEY.test(key)) fail('asset');
+      /* 원본은 비공개 버킷 external-intake 의 이 자리 안에서만(storage.ts) — '..' · 다른 폴더 열쇠 · 영상 파일 이름은 거절 */
+      if (!ASSET_KEY.test(key) || VIDEO_FILE_EXT.test(key)) fail('asset');
       asset = {
         key,
         /* 저장소에는 application/octet-stream 으로 있다 — 보낼 때 쓸 실제 형식을 여기서 정한다(이 목록 밖은 거절) */
@@ -440,6 +502,7 @@ export function parseDetail(raw: unknown, entry: Pick<Entry, 'id' | 'kind' | 'pa
         claims,
         limitationsKo: optArr(o.limitationsKo, 'limitationsKo', LIMITS.limitations).map((l) => str(l, 'limitationsKo', TEXT.line)),
         asset,
+        externalVideo: parseExternalVideo(o.externalVideo, kind),
       },
     };
   } catch (e) {

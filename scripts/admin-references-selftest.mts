@@ -6,7 +6,7 @@ import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promis
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { parseCatalog, parseDetail, validEntryId, CATALOG_KEY, type Entry } from '../lib/admin-references/schema.ts';
+import { canonicalYouTubeUrl, parseCatalog, parseDetail, validEntryId, CATALOG_KEY, type Entry } from '../lib/admin-references/schema.ts';
 import { loadCatalogFor, loadDetailFor, originalHref, publicDetailOf, type ReferenceSource, type SourceRead } from '../lib/admin-references/load.ts';
 import {
   bibNote,
@@ -148,6 +148,12 @@ const files = () => ({
 });
 
 const ADMIN = { role: 'ADMIN' };
+/** 목록에서 읽은 허락 문서 항목(lic_delta4) */
+const LICENSED_ENTRY = (): Entry => {
+  const p = parseCatalog(catalog());
+  if (!p.ok) throw new Error('fixture');
+  return p.value.entries.find((x) => x.id === 'lic_delta4')!;
+};
 const viewers: [string, { role: string } | null][] = [
   ['로그인 안 함', null],
   ['일반(USER)', { role: 'USER' }],
@@ -587,6 +593,196 @@ console.log('\n[화면 · 통로 코드 — 순서 · 날 HTML · 비공개 경�
   check('원본 상태 글 넷이 서로 다름', ['연결되지 않았어요', '원본 파일은 이 화면에서 제공하지 않아요', '허락을 확인하는 중', '원본 열기'].every((t) => parts.includes(t)));
   check("private-summary 를 '요약만'이라고 쓰지 않음(라벨 · 원본 상태 글)", !RIGHTS_LABEL['private-summary'].includes('요약만') && !/요약만/.test(parts) && RIGHTS_LABEL['private-summary'].includes('옮김') && RIGHTS_LABEL['private-summary'].includes('원본'));
   check("바로가기를 '그 자리로 가요'라고 단정하지 않음", !/그 자리로 가요/.test(parts + det + read('lib/admin-references/README.md')));
+}
+
+
+/* ─────────────── 10. EX-REF03 — 원본 영상은 링크로만, 영상 원본 파일은 받지 않음 ─────────────── */
+console.log('\n[EX-REF03 — 원본 영상 링크 · 영상 원본 파일 거절]');
+{
+  const ID = 'AbCdEfGhIj0';
+  const CANON = `https://www.youtube.com/watch?v=${ID}`;
+  const ev = (url: unknown, over: Record<string, unknown> = {}) => ({ url, title: '지어낸 영상 제목', author: '지어낸 채널', checkedAt: '2026-11-16T00:00:00Z', ...over });
+  const parsedCat = parseCatalog(catalog());
+  const cat = parsedCat.ok ? parsedCat.value.entries : [];
+  const vidE = cat.find((x) => x.id === 'vid_beta22')!;
+  const docE = cat.find((x) => x.id === 'doc_alpha1')!;
+  const resE = cat.find((x) => x.id === 'res_gamma3')!;
+  const vidDetail = (over: Record<string, unknown> = {}) =>
+    detail('vid_beta22', 'video', { title: '가짜 영상', sections: [{ id: 'v1', title: '구간', kind: 'note', startSeconds: 5, endSeconds: 20, textKo: '지어낸 화면 메모' }], claims: [], ...over });
+
+  /* 옛 JSON · null */
+  const old = parseDetail(vidDetail(), vidE);
+  check('옛 영상 한 건(externalVideo 없음) 그대로 읽힘 → null', old.ok && old.value.externalVideo === null);
+  const nul = parseDetail(vidDetail({ externalVideo: null }), vidE);
+  check('externalVideo: null 도 읽힘', nul.ok && nul.value.externalVideo === null);
+  const oldDoc = parseDetail(detail('doc_alpha1'), docE);
+  check('옛 문서 한 건도 그대로 읽힘(externalVideo null)', oldDoc.ok && oldDoc.value.externalVideo === null);
+
+  /* 바른 주소 → 하나의 모양 */
+  for (const [input, note] of [
+    [CANON, 'www watch'],
+    [`https://youtube.com/watch?v=${ID}`, 'youtube.com'],
+    [`https://m.youtube.com/watch?v=${ID}`, 'm.youtube.com'],
+    [`https://youtu.be/${ID}`, 'youtu.be'],
+    [`HTTPS://WWW.YOUTUBE.COM/watch?v=${ID}`, '대문자 머리'],
+    [`https://youtu.be/${ID}?`, '빈 쿼리'],
+    [`https://www.youtube.com/watch?v=Zz_-0123456`, '_ · - 든 번호'],
+  ] as const) {
+    const want = input.includes('Zz_-0123456') ? 'https://www.youtube.com/watch?v=Zz_-0123456' : CANON;
+    check(`바른 주소(${note}) → ${want}`, canonicalYouTubeUrl(input) === want, String(canonicalYouTubeUrl(input)));
+  }
+  const good = parseDetail(vidDetail({ externalVideo: ev(`https://youtu.be/${ID}`) }), vidE);
+  check('한 건에서 바꿔 둔 주소 · 제목 · 올린 사람 · 확인 시각', good.ok && good.value.externalVideo?.url === CANON && good.value.externalVideo.title === '지어낸 영상 제목' && good.value.externalVideo.author === '지어낸 채널' && good.value.externalVideo.checkedAt === '2026-11-16T00:00:00Z');
+
+  /* 틀린 주소 — 모두 null, 한 건 전체 거절 */
+  const bad: [string, unknown][] = [
+    ['계정:비밀번호', `https://user:pw@www.youtube.com/watch?v=${ID}`],
+    ['계정', `https://user@www.youtube.com/watch?v=${ID}`],
+    ['기본 포트 :443', `https://www.youtube.com:443/watch?v=${ID}`],
+    ['포트 :8080', `https://www.youtube.com:8080/watch?v=${ID}`],
+    ['# 붙음', `https://www.youtube.com/watch?v=${ID}#t=10`],
+    ['닮은 호스트(뒤에 붙임)', `https://www.youtube.com.evil.example/watch?v=${ID}`],
+    ['닮은 호스트(.co)', `https://youtube.co/watch?v=${ID}`],
+    ['닮은 호스트(점 빠짐)', `https://wwwyoutube.com/watch?v=${ID}`],
+    ['닮은 호스트(키릴 о)', `https://www.yоutube.com/watch?v=${ID}`],
+    ['닮은 호스트(youtu.be.)', `https://youtu.be.evil.example/${ID}`],
+    ['끝에 점 붙은 호스트', `https://www.youtube.com./watch?v=${ID}`],
+    ['다른 호스트 경로에 이름', `https://evil.example/www.youtube.com/watch?v=${ID}`],
+    ['nocookie embed', `https://www.youtube-nocookie.com/embed/${ID}`],
+    ['music 호스트', `https://music.youtube.com/watch?v=${ID}`],
+    ['IP', `https://127.0.0.1/watch?v=${ID}`],
+    ['localhost', `https://localhost/watch?v=${ID}`],
+    ['IPv6', `https://[::1]/watch?v=${ID}`],
+    ['http', `http://www.youtube.com/watch?v=${ID}`],
+    ['javascript:', 'javascript:alert(1)'],
+    ['data:', 'data:text/html,hi'],
+    ['file:', 'file:///tmp/x.mp4'],
+    ['머리 없음(//)', `//www.youtube.com/watch?v=${ID}`],
+    ['머리 없음', `www.youtube.com/watch?v=${ID}`],
+    ['영상 파일 주소(googlevideo)', 'https://rr1---sn-abc.googlevideo.com/videoplayback?id=x'],
+    ['썸네일 주소(ytimg)', `https://i.ytimg.com/vi/${ID}/hqdefault.jpg`],
+    ['YouTube 돌려보내기', 'https://www.youtube.com/redirect?q=https://evil.example'],
+    ['공유 토큰 si', `https://www.youtube.com/watch?v=${ID}&si=tok123`],
+    ['youtu.be 공유 토큰', `https://youtu.be/${ID}?si=tok123`],
+    ['재생목록', `https://www.youtube.com/watch?v=${ID}&list=PLxyz`],
+    ['시각 t', `https://www.youtube.com/watch?v=${ID}&t=30`],
+    ['돌려보내기 값', `https://www.youtube.com/watch?v=${ID}&redirect=https://evil.example`],
+    ['v 둘', `https://www.youtube.com/watch?v=${ID}&v=Zz_-0123456`],
+    ['v 앞에 다른 값', `https://www.youtube.com/watch?feature=share&v=${ID}`],
+    ['번호 10자', 'https://www.youtube.com/watch?v=AbCdEfGhIj'],
+    ['번호 12자', 'https://www.youtube.com/watch?v=AbCdEfGhIj01'],
+    ['번호에 !', 'https://www.youtube.com/watch?v=AbCdEfGhIj!'],
+    ['빈 v', 'https://www.youtube.com/watch?v='],
+    ['/watch/', `https://www.youtube.com/watch/?v=${ID}`],
+    ['shorts', `https://www.youtube.com/shorts/${ID}`],
+    ['embed', `https://www.youtube.com/embed/${ID}`],
+    ['/v/', `https://www.youtube.com/v/${ID}`],
+    ['인코딩된 ?', `https://www.youtube.com/watch%3Fv=${ID}`],
+    ['번호 뒤 .mp4', `https://youtu.be/${ID}.mp4`],
+    ['youtu.be 하위 경로', `https://youtu.be/${ID}/x`],
+    ['빈칸', `https://www.youtube.com/watch?v=AbCdE fGhIj0`],
+    ['줄바꿈', `https://www.youtube.com/watch?v=${ID}\nhttps://evil.example`],
+    ['역슬래시', `https://www.youtube.com\\@evil.example/watch?v=${ID}`],
+    ['너무 김', `https://www.youtube.com/watch?v=${ID}${'&x'.repeat(200)}`],
+    ['문자열 아님', 42],
+    ['null 주소', null],
+  ];
+  for (const [name, url] of bad) {
+    const r = parseDetail(vidDetail({ externalVideo: ev(url) }), vidE);
+    check(`틀린 주소 거절: ${name}`, canonicalYouTubeUrl(url) === null && !r.ok);
+  }
+  for (const [name, over] of [
+    ['제목 없음', { title: '' }],
+    ['올린 사람 없음', { author: undefined }],
+    ['확인 시각 없음', { checkedAt: undefined }],
+    ['확인 시각이 날짜 아님', { checkedAt: 'yesterday' }],
+    ['객체 아님', null],
+  ] as const) {
+    const value = over === null ? 'https://youtu.be/x' : ev(CANON, over as Record<string, unknown>);
+    check(`externalVideo 모양 틀림 거절: ${name}`, !parseDetail(vidDetail({ externalVideo: value }), vidE).ok);
+  }
+
+  /* 영상이 아닌 자료에는 원본 영상 링크를 두지 않는다 */
+  check('문서 자료에 externalVideo → 한 건 거절', !parseDetail(detail('doc_alpha1', 'document', { externalVideo: ev(CANON) }), docE).ok);
+  check('연구 자료에 externalVideo → 한 건 거절', !parseDetail(detail('res_gamma3', 'research', { externalVideo: ev(CANON) }), resE).ok);
+
+  /* 영상 자료의 화면 상태 */
+  const m = memSource({ ...files(), [key('vid_beta22')]: vidDetail({ externalVideo: ev(`https://m.youtube.com/watch?v=${ID}`) }) });
+  const vd = await loadDetailFor(ADMIN, 'vid_beta22', m.source);
+  check('영상 한 건: 원본 상태 external-video · 우리 통로 종류 없음 · 바꿔 둔 링크', vd.ok && vd.detail.original === 'external-video' && vd.detail.originalKind === null && vd.detail.externalVideo?.url === CANON);
+  const noLink = await loadDetailFor(ADMIN, 'vid_beta22', memSource(files()).source);
+  check('링크 없는 영상 한 건: externalVideo null(화면은 링크 확인 중)', noLink.ok && noLink.detail.externalVideo === null && noLink.detail.original === 'external-video');
+  const licVidCat = catalog([entry(), entry({ ...VIDEO, rights: 'licensed-private' }), UNREAD, LICENSED]);
+  const licVid = await loadDetailFor(ADMIN, 'vid_beta22', memSource({ ...files(), [CATALOG_KEY]: licVidCat }).source);
+  check('허락 받은 영상 자료도 원본 파일 상태가 아니라 external-video', licVid.ok && licVid.detail.original === 'external-video' && licVid.detail.originalKind === null);
+
+  /* 확인한 범위는 링크와 상관없이 목록 기록 그대로 */
+  const plain = await loadDetailFor(ADMIN, 'vid_beta22', memSource(files()).source);
+  check('링크가 붙어도 확인한 범위 같음(화면 26초 · 음성 40초, 길이 100초를 확인으로 치지 않음)',
+    vd.ok && plain.ok && JSON.stringify(vd.entry.coverageView) === JSON.stringify(plain.entry.coverageView) && vd.entry.coverageView.videoSeconds === 26 && vd.entry.coverageView.audioSeconds === 40 && vd.entry.coverageView.audioPending === 60);
+  check('목록 전체 범위도 같음(한 건의 링크는 목록 계산에 안 들어감)', JSON.stringify(totalsOf(cat)) === JSON.stringify(totalsOf(parseCatalog(catalog()).ok ? (parseCatalog(catalog()) as { ok: true; value: { entries: Entry[] } }).value.entries : [])) && !('externalVideo' in listItemOf(vidE)));
+
+  /* 보는 사람 — 영상 자료도 저장소를 묻기 전에 막힘 */
+  for (const [name, v] of viewers) {
+    const mm = memSource(files());
+    const d = await loadDetailFor(v, 'vid_beta22', mm.source);
+    const f = recFetch(() => fakeUpstream(200, {}));
+    const r = await serveOriginal({ viewer: v, id: 'vid_beta22', rangeHeader: null, source: mm.source, fetchAsset: f.fetchAsset });
+    check(`${name}: 영상 자료 한 건 · 원본 통로 모두 막힘, 저장소 0번`, !d.ok && d.reason === 'forbidden' && r.status === (v ? 403 : 401) && mm.reads.length === 0 && f.calls.length === 0);
+  }
+
+  /* 영상 원본 파일 — 형식 · 이름 · 영상 자료 어디로든 거절, 원본 받기 전에 */
+  const licDocCat = catalog([entry(), VIDEO, UNREAD, LICENSED]);
+  const VIDEO_MIMES = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska', 'video/ogg', 'video/x-msvideo', 'video/mpeg', 'video/3gpp', 'application/x-mpegURL', 'application/vnd.apple.mpegurl', 'application/dash+xml', 'application/octet-stream'];
+  for (const mime of VIDEO_MIMES) {
+    const forged = { ...files(), [CATALOG_KEY]: licDocCat, [key('lic_delta4')]: detail('lic_delta4', 'document', { asset: { ...ASSET, key: 'admin-references/v1/assets/lic_delta4.bin', mime } }) };
+    const pr = parseDetail(forged[key('lic_delta4')], LICENSED_ENTRY());
+    const f = recFetch(() => fakeUpstream(200, { 'content-type': mime }));
+    const r = await serveOriginal({ viewer: ADMIN, id: 'lic_delta4', rangeHeader: 'bytes=0-', source: memSource(forged).source, fetchAsset: f.fetchAsset });
+    check(`영상 · 스트림 형식 ${mime} → 거절, 원본 받기 0번`, !pr.ok && r.status !== 200 && r.status !== 206 && f.calls.length === 0);
+  }
+  for (const ext of ['mp4', 'mov', 'webm', 'm4v', 'mkv', 'avi', 'mpeg', '3gp']) {
+    const forged = { ...files(), [key('lic_delta4')]: detail('lic_delta4', 'document', { asset: { ...ASSET, key: `admin-references/v1/assets/lic_delta4.${ext}` } }) };
+    const f = recFetch(() => fakeUpstream(200, {}));
+    const r = await serveOriginal({ viewer: ADMIN, id: 'lic_delta4', rangeHeader: null, source: memSource(forged).source, fetchAsset: f.fetchAsset });
+    check(`영상 파일 이름 .${ext}(형식은 PDF 라고 적어도) → 거절, 원본 받기 0번`, !parseDetail(forged[key('lic_delta4')], LICENSED_ENTRY()).ok && f.calls.length === 0 && r.status === 503);
+  }
+  {
+    /* 영상 자료에 원본 파일을 적은 위조 한 건 — 허락 · 확인 표시까지 다 달아도 */
+    const forgedVid = { ...files(), [CATALOG_KEY]: licVidCat, [key('vid_beta22')]: vidDetail({ asset: { ...ASSET, key: 'admin-references/v1/assets/vid_beta22.pdf' } }) };
+    check('영상 자료의 asset(PDF 라도) → 한 건 거절', !parseDetail(forgedVid[key('vid_beta22')], vidE).ok);
+    const viaLoad = await loadDetailFor(ADMIN, 'vid_beta22', memSource(forgedVid).source);
+    check('화면 로더도 거절(malformed)', !viaLoad.ok && viaLoad.reason === 'malformed');
+    const mm = memSource(forgedVid);
+    const f = recFetch(() => fakeUpstream(206, { 'content-range': 'bytes 0-4/100' }));
+    const r = await serveOriginal({ viewer: ADMIN, id: 'vid_beta22', rangeHeader: 'bytes=0-4', source: mm.source, fetchAsset: f.fetchAsset });
+    check('원본 통로: 영상 자료는 한 건도 안 읽고 404, 원본 받기 0번', r.status === 404 && f.calls.length === 0 && mm.reads.length === 1 && mm.reads[0] === CATALOG_KEY);
+  }
+
+  /* PDF · 소리 원본은 그대로 */
+  {
+    const f = recFetch(() => fakeUpstream(206, { 'content-range': 'bytes 0-9/1000' }));
+    const r = await serveOriginal({ viewer: ADMIN, id: 'lic_delta4', rangeHeader: 'bytes=0-9', source: memSource(files()).source, fetchAsset: f.fetchAsset });
+    check('PDF 원본은 그대로 206 · application/pdf · 저장 금지', r.status === 206 && r.headers.get('content-type') === 'application/pdf' && /no-store/.test(r.headers.get('cache-control') ?? '') && f.calls[0]?.key === ASSET.key);
+    const audio = parseDetail(detail('lic_delta4', 'document', { asset: { ...ASSET, key: 'admin-references/v1/assets/lic_delta4.m4a', mime: 'audio/mp4' } }), LICENSED_ENTRY());
+    check('소리 원본(.m4a · audio/mp4)은 문서 자료에 그대로 허용 · 종류 audio', audio.ok && publicDetailOf(audio.value, LICENSED_ENTRY()).originalKind === 'audio');
+    const img = parseDetail(detail('lic_delta4', 'document', { asset: { ...ASSET, key: 'admin-references/v1/assets/lic_delta4.png', mime: 'image/png' } }), LICENSED_ENTRY());
+    check('그림 원본(png)도 그대로', img.ok && publicDetailOf(img.value, LICENSED_ENTRY()).original === 'eligible');
+  }
+
+  /* 화면 코드 — 링크만, 플레이어 · 썸네일 · 서버 읽기 없음 */
+  const rd = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
+  const parts = rd('app/(app)/admin/references/[id]/detail-parts.tsx');
+  const page = rd('app/(app)/admin/references/[id]/page.tsx');
+  const ext = parts.slice(parts.indexOf('export function ExternalVideoNotice'));
+  check("원본 영상 링크: '원본 영상 보기' · 새 창 · noopener noreferrer", ext.includes('원본 영상 보기') && ext.includes('target="_blank"') && ext.includes('rel="noopener noreferrer"') && ext.includes('href={video.url}'));
+  check("링크 없으면 '원본 링크 확인 중' · 그 갈래에 링크 없음", (() => { const pend = ext.slice(ext.indexOf('if (!video)'), ext.indexOf('return (', ext.indexOf('if (!video)') + 20) + 400); return pend.includes('원본 링크 확인 중') && !pend.slice(0, pend.indexOf('</p>')).includes('href='); })());
+  check('링크가 영상 · 음성 확인을 뜻하지 않는다고 적음', ext.includes('다 확인했다는 뜻은 아니에요'));
+  check('영상 자료는 우리 원본 통로 상태 대신 원본 영상 링크', page.includes("entry.kind === 'video' ?") && page.includes('<ExternalVideoNotice video={detail.externalVideo} />'));
+  const allFiles = ['lib/admin-references/schema.ts', 'lib/admin-references/load.ts', 'lib/admin-references/view.ts', 'lib/admin-references/original.ts', 'app/(app)/admin/references/page.tsx', 'app/(app)/admin/references/[id]/page.tsx', 'app/(app)/admin/references/[id]/detail-parts.tsx'].map(rd).join('\n');
+  check('플레이어 · iframe · 썸네일 · 찾기 결과 링크 없음', !/<iframe|<video|ytimg|youtube-nocookie|\/embed\/|results\?search_query/.test(allFiles));
+  check('서버가 영상 주소를 읽지 않음(검사 · 화면 모듈에 fetch 없음)', !['lib/admin-references/schema.ts', 'lib/admin-references/load.ts', 'lib/admin-references/view.ts'].map(rd).join('\n').includes('fetch('));
+  check('우리 통로로 여는 형식 목록에 영상 없음', !/'video\//.test(rd('lib/admin-references/schema.ts').split('export const ASSET_MIMES')[1].split('\n')[0]));
 }
 
 console.log(`\n통과 ${passed} · 실패 ${failed}`);

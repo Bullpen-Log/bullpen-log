@@ -1,9 +1,10 @@
 import { ExternalLink, Lock } from '@/components/icon';
 import type { OriginalStatus } from '@/lib/admin-references/load';
+import type { ExternalVideo } from '@/lib/admin-references/schema';
 import { TABLE_CELL_REM, tableMinRem } from '@/lib/admin-references/view';
 
 /**
- * 참고자료 한 건의 표 · 원본 상태 한 줄(EX-REF02). 서버 컴포넌트로만 그린다(브라우저 컴포넌트 표시 없음).
+ * 참고자료 한 건의 표 · 원본 상태 한 줄(EX-REF02) · 원본 영상 링크(EX-REF03). 서버 컴포넌트로만 그린다(브라우저 컴포넌트 표시 없음).
  */
 
 const cellBox = { minWidth: `${TABLE_CELL_REM.min}rem`, maxWidth: `${TABLE_CELL_REM.max}rem` } as const;
@@ -64,7 +65,7 @@ export function OriginalNotice({ status, href }: { status: OriginalStatus; href:
           <ExternalLink aria-hidden className="h-3.5 w-3.5" />
         </a>
         <span>
-          저자 허락을 받은 원본이에요. 대표관리자만 볼 수 있어요. 쪽 · 시간 표시를 누르면 원본을 열어요. 그 쪽 · 시각으로 바로 가는지는 PDF · 영상을 보는
+          저자 허락을 받은 원본이에요. 대표관리자만 볼 수 있어요. 쪽 · 시간 표시를 누르면 원본을 열어요. 그 쪽 · 시각으로 바로 가는지는 원본을 여는
           프로그램에 따라 달라요.
         </span>
       </p>
@@ -81,5 +82,39 @@ export function OriginalNotice({ status, href }: { status: OriginalStatus; href:
       <Lock aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
       {text}
     </p>
+  );
+}
+
+const dateText = (iso: string) =>
+  new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'long', day: 'numeric' }).format(new Date(iso));
+
+/**
+ * 영상 자료의 원본 — 원래 올라온 곳(지금은 YouTube)으로 가는 링크 하나(EX-REF03). 우리 서버는 영상을 두지도 · 받지도 · 틀지도 않는다
+ * (플레이어 · iframe · 썸네일 · 통로 없음). 링크가 없으면 '링크 확인 중'만 — 찾기 결과 같은 링크를 만들어 넣지 않는다.
+ * 링크가 연결됐다는 것이 영상 · 음성을 다 확인했다는 뜻이 아님을 같이 적는다(확인한 범위는 위 칸의 기록 그대로).
+ */
+export function ExternalVideoNotice({ video }: { video: ExternalVideo | null }) {
+  if (!video) {
+    return (
+      <p className="flex items-start gap-2 rounded-2xl border border-line bg-surface-2 px-(--block-pad) py-3 text-sm leading-relaxed text-muted">
+        <Lock aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
+        원본 링크 확인 중이에요. 확인된 원본 영상 링크가 연결되면 여기서 원래 사이트로 열 수 있어요. 영상 파일은 우리 서버에 두지 않아요.
+      </p>
+    );
+  }
+  return (
+    <div className="rounded-2xl border border-line bg-surface px-(--block-pad) py-3 text-sm leading-relaxed text-muted">
+      <a href={video.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold text-sky hover:underline">
+        원본 영상 보기
+        <ExternalLink aria-hidden className="h-3.5 w-3.5" />
+      </a>
+      <p className="mt-1 break-words text-ink">
+        {video.title} <span className="text-muted">· {video.author}</span>
+      </p>
+      <p className="mt-1 text-xs">
+        원래 올라온 사이트(YouTube)에서 열려요. 영상 파일은 우리 서버에 두지 않아요. 링크가 연결됐다고 영상 · 음성을 다 확인했다는 뜻은 아니에요. 확인한
+        범위는 위 기록 그대로예요. 링크 확인 {dateText(video.checkedAt)}.
+      </p>
+    </div>
   );
 }

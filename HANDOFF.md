@@ -1,3 +1,7 @@
+## Kim Min / reference review — 2026-11-16 · GPT — External original video links
+
+Reference video entries now open their verified original YouTube page. All14 corpus links were checked by Sub1. Video assets are rejected by the library schema and original proxy; existing authorized PDFs retain their private proxy. Corpus review/translation is ongoing, with published coverage487 text pages and0 credited continuous video/audio seconds. Integrated282 checks passed. Native/signing/schema/storage policy changes are absent. Details: docs/work-orders/EX-REF03-gpt-review.md.
+
 ## Kim Min / exercise review — 2026-11-16 · GPT — References foundation live
 
 The administrator references foundation is live at /admin/references (release1a60c00c). Independent production owner-session checks confirmed list/search/Korean sections and a permitted original PDF. Anonymous original access returns401/private,no-store. Web deployment and native menu OTA publication succeeded. Complete corpus reading, full translation and physical-device review remain ongoing. Evidence and unverified states are recorded in docs/work-orders/EX-REF02-gpt-review.md, Production verification. No install/generate/migration step is needed.
