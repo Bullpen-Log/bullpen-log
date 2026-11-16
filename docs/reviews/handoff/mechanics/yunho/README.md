@@ -54,3 +54,7 @@ Use `docs/shoot/video-review-current-workflow.md` for the current research, cont
 원본 JSON 두 파일은 저장소 밖에 보존했다. **원본의 마지막 수정 시각은 2026-11-10 02:07:24.386875+09:00**이며 운영 공지 업데이트가 섞인 파일 시각이다. 영상 관찰·사용자 판정 시각은 별도로 없어서 만들어 넣지 않았다. 이번 문서 작성은 2026-11-11이며 새 검수·기능 검사는 하지 않았다.
 
 공개본에는 운영 콘텐츠의 제목·분류·고유 검수 ID·서명 없는 파일 식별자·일반 검수 의견만 싣는다. 개인정보·계정/로그인 정보·키·임시 서명 URL·영상 원본·개인 건강정보·브라우저 탭 ID는 넣지 않는다. 향후 사용자 원문에 민감한 내용이 섞이면 해당 부분은 개인 원본에 보존하고 공개본에서 제외했다고만 표시한다. 공통 동기화/재개 설정·커밋/푸시는 총괄 담당이며, 이 세션은 자기 폴더만 작성했다.
+
+## Thumbnail review: 2026-11-16
+
+Review a real representative frame for every owned drill video. Use the checkpoint thumbnail criteria; preserve originals/prior posters and create a new poster identity when correcting. No poster gallery or per-poster approval is required for authorized corrections. Provider-controlled YouTube posters must not be copied/re-edited or reported as custom-adjusted. Verify saved values and visible consumption; disclose app/cache limits. Human-completed backlog is0, corrections applied0. Prior assistant scene samples did not include poster audits. Current Step-back poster assessment and future items remain pending; current1 and all human judgments preserved.
