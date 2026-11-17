@@ -153,7 +153,8 @@ check(
   '⑤ 답의 이름은 지우고 트레드밀은 그대로',
   scrubNames('드라이브라인처럼 짜 줄 수 있어요') === '다른 곳처럼 짜 줄 수 있어요' &&
     scrubNames('Driveline 방식, 트레드 애슬레틱스 방식, Tread Athletics') === '다른 곳 방식, 다른 곳 방식, 다른 곳' &&
-    scrubNames('트레드밀 10분 · treadmill') === '트레드밀 10분 · treadmill',
+    scrubNames('트레드밀 10분 · treadmill') === '트레드밀 10분 · treadmill' &&
+    scrubNames('드라이브라인이라는 곳의 방식, 트레드라는 곳') === '다른 곳의 방식, 다른 곳',
   scrubNames('Driveline 방식, 트레드 애슬레틱스 방식, Tread Athletics')
 );
 check('⑤ 시스템 글은 이름을 안 쓰고 말하지 말라고 한다', scrubNames(COACH_SYSTEM) === COACH_SYSTEM && COACH_SYSTEM.includes('다른 회사 · 기관 · 프로그램 이름'));

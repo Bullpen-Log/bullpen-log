@@ -60,7 +60,7 @@ export const COACH_SYSTEM_BLOCK = `${COACH_SYSTEM}\n\n${cardsBlock()}`;
  * 답에서 두 투구 코칭 기관 이름을 지운다(화면 · AI 답에 이름을 쓰지 않는다 — 2026-10-09 규칙, 2026-11-17 검토 [26]). 지시문이 막아도 사용자가
  * 이름을 대며 물으면 모델이 되받을 수 있어 저장 · 보이기 전에 한 번 더 거른다. '트레드밀'은 건드리지 않는다.
  */
-const NAME_RE = /드라이브\s?라인|\bdriveline\b|트레드(?:\s?애슬레틱스)?(?!밀)|\btread(?:\s?athletics)?\b/gi;
+const NAME_RE = /(?:드라이브\s?라인|\bdriveline\b|트레드(?:\s?애슬레틱스)?(?!밀)|\btread(?:\s?athletics)?\b)(?:\s?이?라는\s?곳)?/gi;
 export function scrubNames(text: string): string {
   return text.replace(NAME_RE, '다른 곳');
 }

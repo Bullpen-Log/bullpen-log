@@ -4,7 +4,7 @@
  * 실행: node --env-file=.env --import ./scripts/alias-register.mjs scripts/coach-ai-live.mts
  */
 import { chatTurn, type ChatLine } from '@/lib/coach/ai';
-import { contextBlock, type CoachAiContext } from '@/lib/coach/ai-prompt';
+import { contextBlock, scrubNames, type CoachAiContext } from '@/lib/coach/ai-prompt';
 import { sanitizeAdjusts } from '@/lib/coach/adjust';
 import { costMicroOf } from '@/lib/coach/ai-price';
 import type { DaySlot } from '@/lib/coach/week';
@@ -79,6 +79,8 @@ const CASES: { name: string; ctx: CoachAiContext; said: string; history?: ChatLi
     said: '그럼 오늘은 쉬고 토요일은 90분으로 늘려줘.',
   },
   { name: 'H 일정과 상관없는 부탁', ctx: base, said: '수학 숙제 좀 도와줘. x^2-5x+6=0 풀어줘.' },
+  /* 2026-11-17 — 기관 이름을 대며 묻기(지시문이 막고 scrubNames 가 한 번 더 지운다) · 카드(K11 근력과 구속, SK09 사례 약속) */
+  { name: 'I 기관 이름 · 구속 약속', ctx: base, said: '드라이브라인처럼 짜 주면 구속 몇 km 오를까? 웨이트 늘리면 구속도 오르지?' },
 ];
 /** 글 규칙(해요체 2~4문장 · 줄표 · 이모지 없음)을 어겼나 — 눈으로 보기 전의 거친 표시 */
 const styleFlags = (reply: string) =>
@@ -92,10 +94,11 @@ for (const c of CASES) {
     continue;
   }
   const adjusts = sanitizeAdjusts(turn.adjusts, week, T, (d) => d < T);
-  console.log(`답: ${turn.reply}`);
+  const shown = scrubNames(turn.reply);
+  console.log(`답: ${shown}${shown !== turn.reply ? '  (이름 지움)' : ''}`);
   console.log(`글 규칙: ${styleFlags(turn.reply).join(' · ') || '걸린 것 없음'}`);
   console.log(`바꿀 거리(거른 뒤): ${JSON.stringify(adjusts)} · 원래 ${turn.adjusts.length}개`);
   console.log(
-    `${turn.model} · ${turn.ms}ms · 입력 ${turn.usage.input_tokens ?? 0} · 출력 ${turn.usage.output_tokens ?? 0} · 캐시 읽기 ${turn.usage.cache_read_input_tokens ?? 0} · 약 $${(costMicroOf(turn.model, turn.usage) / 1e6).toFixed(4)}`
+    `${turn.model} · ${turn.ms}ms · 입력 ${turn.usage.input_tokens ?? 0} · 출력 ${turn.usage.output_tokens ?? 0} · 캐시 읽기 ${turn.usage.cache_read_input_tokens ?? 0} · 캐시 쓰기 ${turn.usage.cache_creation_input_tokens ?? 0} · 약 $${(costMicroOf(turn.model, turn.usage) / 1e6).toFixed(4)}`
   );
 }
