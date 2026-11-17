@@ -127,16 +127,16 @@ for (const lv of MECHANICS_LEVELS) {
         `단계가 수준에 맞음 ${tag}`,
         ds.map((d) => `${d.title}:${d.stage}`).join(', ')
       );
-      const groups = ds.map((d) => groupOf(d.focusPoints[0]));
+      const groups = buildLevelSession({ drills, level: lv.key, index: bi * 6 + si, owned: null }).map((d) => groupOf(d.element));
       ok(
         groups.every((g, i) => i === 0 || groups[i - 1] <= g),
         `투구 차례(하체 → 가운데 → 상체) ${tag}`,
         groups.join()
       );
       ok(new Set(groups).size === 3, `세 묶음에서 하나씩 ${tag}`, groups.join());
-      for (const d of ds) mains.add(d.focusPoints[0]);
+      for (const d of ds) for (const purpose of d.focusPoints) mains.add(purpose);
     });
-    ok(mains.size === 6, `${lv.name} ${weeks}주차: 여섯 요소가 다 나옴`, [...mains].join());
+    ok(mains.size === 6, `${lv.name} ${weeks}주차: 선택된 훈련 목적이 여섯 요소를 함께 다룸`, [...mains].join());
   });
 }
 /*
@@ -239,7 +239,7 @@ for (const [gearLabel, owned] of gearSets) {
       }
       if (owned === null) {
         ok(
-          items.map((x) => x.title).join() === (levelSession(lv.key, i)?.titles.join() ?? ''),
+          items.map((x) => x.title).sort().join() === ([...(levelSession(lv.key, i)?.titles ?? [])].sort().join()),
           `장비를 안 골랐으면 정해진 드릴 그대로 ${tag}`
         );
       }

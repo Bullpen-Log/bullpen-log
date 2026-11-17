@@ -1,6 +1,7 @@
 'use server';
 
 import { exerciseHasV2History } from '@/lib/workout/v2/gate';
+import { orderedFocus } from '@/lib/mechanics/focus-priority';
 import { revalidatePath } from 'next/cache';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -484,9 +485,8 @@ async function tryCreateGuide(formData: FormData): Promise<ActionState> {
 function readFocusPoints(formData: FormData): string[] {
   const main = pickOne(String(formData.get('focusMain') ?? ''), FOCUS_POINTS);
   if (!main) return [];
-  const subs = pickMany(formData.getAll('focusPoints').map(String), FOCUS_POINTS)
-    .filter((p) => p !== main)
-    .slice(0, 2);
+  const subs = orderedFocus(formData.getAll('focusPoints').map(String), FOCUS_POINTS)
+    .filter((p) => p !== main);
   return [main, ...subs];
 }
 

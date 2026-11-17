@@ -1,5 +1,7 @@
 'use client';
 
+import { focusPriority } from '@/lib/mechanics/focus-priority';
+
 import { useMemo, useState } from 'react';
 import { Pencil, Star, Trash2, X } from '@/components/icon';
 import { deleteGuide, setGuideThumbnail } from '@/app/actions/content';
@@ -325,7 +327,7 @@ function MechanicsBrowse({
     /* 고른 요소가 주 요소인 드릴을 앞으로, 그 안에서는 쉬운 단계부터 */
     const picked = filter.focusPoints ?? [];
     const rank = (g: GuideItem) =>
-      (picked.length > 0 && !picked.includes(g.focusPoints[0]) ? 10 : 0) +
+      (picked.length > 0 ? focusPriority(g.focusPoints, picked) * 10 : 0) +
       (g.stage ? DRILL_STAGE_NAMES.indexOf(g.stage as (typeof DRILL_STAGE_NAMES)[number]) : 3);
     return hits
       .map((g, i) => ({ g, i }))

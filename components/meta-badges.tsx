@@ -113,10 +113,10 @@ export function DrillBadges({
         <span
           key={point}
           className={`${chip} ${i === 0 ? 'bg-sky/10 text-sky-strong' : 'bg-surface-2 text-muted'}`}
-          title={i === 0 ? '주 요소' : '보조 요소'}
+          title={`${i + 1}순위 훈련 목적${i === 0 ? ' · 핵심 목적' : ''}`}
         >
           {i === 0 && <Target aria-hidden className="h-3 w-3" />}
-          {point}
+          {i + 1}순위 · {point}
         </span>
       ))}
 

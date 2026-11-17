@@ -17,7 +17,7 @@
  */
 import { REPORT_CRITERIA, RX_START_STAGE } from '@/lib/pitch-3d/v2/report-policy';
 import { DRILL_STAGE_NAMES, type FOCUS_POINTS } from '@/lib/exercise-meta';
-import type { MechanicsDrillView } from '@/lib/mechanics/drills';
+import { drillPurposeViews, type MechanicsDrillView } from '@/lib/mechanics/drills';
 import { mechanicsElement } from '@/lib/mechanics/elements';
 import { doseOf, doseText } from '@/lib/mechanics/program';
 import { prescribedTitles } from '@/lib/mechanics/prescriptions';
@@ -196,7 +196,7 @@ export type ReportDrill = {
 };
 
 export const reportDrillsOf = (views: MechanicsDrillView[]): ReportDrill[] =>
-  views.map((d) => ({
+  drillPurposeViews(views).map((d) => ({
     title: d.title,
     focusPoints: d.focusPoints,
     stage: d.stage,
@@ -827,9 +827,8 @@ export function pickProblems(items: ReportItem[]): { primary: ReportItem | null;
 
 /** 문제·단계 표에 명시된 드릴만 사용한다. 같은 요소라는 이유로 다른 동작을 자동 대입하지 않는다. */
 function prescribed(drills: ReportDrill[], item: ReportItem & { fault: FaultKey }, stage: DrillStage, n: number) {
-  const byTitle = new Map(drills.map((d) => [d.title, d]));
   const picked = prescribedTitles(item.fault, stage, n).flatMap((t) => {
-    const d = byTitle.get(t);
+    const d = drills.find((candidate) => candidate.title === t && candidate.stage === stage && candidate.focusPoints.includes(item.element));
     return d ? [{ title: d.title, thumbUrl: d.thumbUrl, dose: doseText(doseOf(d.category, stage)) }] : [];
   });
   return picked;

@@ -16,7 +16,7 @@ import type { DrillStage } from '@/lib/mechanics/program';
 export const FAULT_DRILLS: Record<FaultKey, Record<DrillStage, string[]>> = {
   /* 다리를 들 때 몸이 투구판 위에 머묾 — 다리 들며 앞으로 가는 이동 */
   'drift.stuck': {
-    기초: ['레그 리프트 드리프트', '지지 레그 리프트 드리프트'],
+    기초: ['레그 리프트 드리프트', '서포티드 레그리프트 드리프트'],
     연결: ['레그 리프트 드리프트 → 힌지', '레터럴 힌지 바운드'],
     통합: ['워킹 와인드업', '드롭 스텝 스로우'],
   },

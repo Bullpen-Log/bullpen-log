@@ -1,3 +1,11 @@
+## Kim Min / mechanics and review owners — 2026-11-17 · GPT — MECH-FOCUS01 r5 accepted release
+
+Actual user chose per-video purposes/priorities and explicitly requested correction plus deployment. Exact19path immutable r5 packet is independently accepted and applied to clean main; all current R15source bytes retained. Per-video ordered purposes/stage govern concrete variants, owned equipment and recipe/report alternatives; beginner fixed sessions cannot select a harder variant. Prior assessment order and small/large labels fixed. No DB/schema/content/history rewrite in this release; human mechanics video9 preserved.
+
+Final integrated web/native types/lint and productionbuild0; independent narrow stage+18consumer seams pass, author3226regression attributed. Known broader3D numerical boundary failure reproduces on immutablebaseline, not newly called pass. Details docs/reviews/mechanics-focus-r5-final-release-20261117.md. Only ordinary web+compatible SinkerJSupdate required, no new native module/binary. R15firstnewruntime marker nowpublished andbothnativeuploadjobsSUCCESS; Apple processing tracked separately. Operational cutover/read-onlyUI+actualOTA verification will follow, not yet claimed here.
+
+Queued user-approved exercise review standard is now shared at docs/shoot/exercise-load-review-standard-20261117.md (exact Support1 file). It explains liveLOAD1/V2OFF checks without authorizing blanket metadata/history writes.03owner received instructions; other-computer/Kim actual receipt not inferred.
+
 ## Kim Min / video-sharing owners — 2026-11-17 · GPT — R15 scoped release accepted, pipelines pending
 
 Actual human approved timeout correction and full internal deployment. Overall independently accepted originald7972580 +fixa19792eb as exact19sourcepaths against cleanmain, excludingR14commits5abe5f91/54976f88 and all foreign dirty work. New gallery original selection adds Photos native module; BOTHapps require new binaries, not just OTA. Web/native types/lint and standalone productionbuild0; independent actual109+delayedsize seam pass. No DB/schema/content writes. Live EXLOAD flags unchanged(load1,V2OFF), auth/FPS/mechanics preserved.

@@ -87,7 +87,7 @@ export function DrillDetail({ item, entry, onReturn, c }: { item: Drill; entry: 
               <Icon name={ELEMENT_ICON[main] ?? 'target'} size={20} color={c.link} />
             </View>
             <View style={{ flex: 1, gap: 2 }}>
-              <Text style={[s.small, { color: c.muted }]}>연습하는 움직임 · 주 요소</Text>
+              <Text style={[s.small, { color: c.muted }]}>훈련 목적 · 1순위</Text>
               <Press onPress={() => setOpen({ kind: 'element', name: main })} accessibilityRole="button" accessibilityLabel={`주 요소 ${main}, 설명 보기`} style={st.elName}>
                 <Text style={[st.elText, { color: c.link }]}>{main}</Text>
                 <Icon name="chevron-right" size={16} color={c.link} />
@@ -97,11 +97,11 @@ export function DrillDetail({ item, entry, onReturn, c }: { item: Drill; entry: 
           {FOCUS_POINT_DESC[main as keyof typeof FOCUS_POINT_DESC] ? <Text style={[s.body, { color: c.ink }]}>{FOCUS_POINT_DESC[main as keyof typeof FOCUS_POINT_DESC]}</Text> : null}
           {more.length > 0 ? (
             <View style={[st.alongRow, { borderTopColor: c.line }]}>
-              <Text style={[s.small, { color: c.muted }]}>함께 쓰는 요소</Text>
+              <Text style={[s.small, { color: c.muted }]}>훈련 목적 · 우선순위</Text>
               <View style={[s.row, { gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end', flex: 1 }]}>
-                {more.map((x) => (
+                {more.map((x, index) => (
                   <Press key={x} onPress={() => setOpen({ kind: 'element', name: x })} accessibilityRole="button" accessibilityLabel={`함께 쓰는 요소 ${x}, 설명 보기`} style={st.elName}>
-                    <Text style={[s.smallBold, { color: c.link }]}>{x}</Text>
+                    <Text style={[s.smallBold, { color: c.link }]}>{index + 2}순위 · {x}</Text>
                     <Icon name="chevron-right" size={14} color={c.link} />
                   </Press>
                 ))}

@@ -15,7 +15,7 @@ import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { ageFromBirthDate } from '@/lib/profile';
 import { equipmentForToday } from '@/lib/report/equipment';
-import { groupDrills, type MechanicsDrillView, type MechanicsVariant } from '@/lib/mechanics/drills';
+import { drillPurposeViews, groupDrills, type MechanicsDrillView, type MechanicsVariant } from '@/lib/mechanics/drills';
 import { MECHANICS_PAIN_WINDOW_DAYS, mechanicsFoldOf } from '@/lib/mechanics/fold';
 import {
   assessMechanicsSession,
@@ -231,7 +231,7 @@ export async function loadMechanicsProgram(userId: string): Promise<{
   const owned = new Set(gear);
   program.equipment = gear;
   const variants = new Map(drills.flatMap((d) => d.variants.map((v) => [v.id, v] as const)));
-  const byTitle = new Map(drills.map((d) => [d.title, d] as const));
+  const byVariant = new Map(drillPurposeViews(drills).flatMap((d) => d.variants.map((v) => [v.id, d] as const)));
   const toAlternative = (d: MechanicsDrillView, guideId: string): SessionAlternative => ({
     title: d.title,
     guideId,
@@ -277,13 +277,13 @@ export async function loadMechanicsProgram(userId: string): Promise<{
   if (program.focus?.skill && painFold) program.focus.skill.blockedReason = painFold.reason;
   const rebuiltSession = items.flatMap((item): SessionDrillView[] => {
     const variant = variants.get(item.guideId);
-    const drill = byTitle.get(item.title);
-    if (!variant || !drill) return [];
+    const drill = byVariant.get(item.guideId);
+    if (!variant || !drill || drill.title !== item.title) return [];
     const alternatives = [
       toAlternative(drill, item.guideId),
       ...item.swaps.flatMap((w) => {
-        const d = byTitle.get(w.title);
-        return d ? [toAlternative(d, w.guideId)] : [];
+        const d = byVariant.get(w.guideId);
+        return d?.title === w.title ? [toAlternative(d, w.guideId)] : [];
       }),
     ];
     return [{ ...item, variant, alternatives }];

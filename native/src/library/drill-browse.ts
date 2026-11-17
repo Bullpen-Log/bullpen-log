@@ -1,3 +1,4 @@
+import { focusPriority } from '@/lib/mechanics/focus-priority';
 import { LATER_CATEGORY } from '@/lib/categories';
 import { DRILL_STAGE_NAMES } from '@/lib/exercise-meta';
 import { searchKey } from '@/lib/korean';
@@ -60,7 +61,7 @@ export function browseDrills<T extends DrillItem>(list: readonly T[], view: Dril
   const focus = view.filters.focusPoints;
   const out = list.filter((g) => (view.scope === 'all' || isFav(g)) && matchesDrillQuery(g, terms) && matchesDrillFilters(g, view.filters));
   if (view.sort === 'name') return out.sort((a, b) => a.title.localeCompare(b.title, 'ko') || tail(a, b));
-  const lead = (g: DrillItem) => (focus.length > 0 && !focus.includes(g.focusPoints[0]) ? 1 : 0);
+  const lead = (g: DrillItem) => (focus.length > 0 ? focusPriority(g.focusPoints, focus) : 0);
   return out.sort((a, b) => lead(a) - lead(b) || stageRank(a.stage) - stageRank(b.stage) || tail(a, b));
 }
 

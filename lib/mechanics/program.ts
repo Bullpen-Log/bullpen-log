@@ -1,3 +1,5 @@
+import { focusPriority } from '@/lib/mechanics/focus-priority';
+import { drillPurposeViews, toolPriority } from '@/lib/mechanics/drills';
 import { readMechanicsReview, reviewView, type MechanicsReview, type MechanicsReviewView } from '@/lib/mechanics/comparison';
 /**
  * 메카닉 연습의 공통 규칙. 2026-10-25: 기존 드릴 구성을 유지한다.
@@ -698,7 +700,7 @@ export type ProgramDrill = {
   focusPoints: string[];
   stage: string | null;
   /** equipment 가 없으면 맨몸으로 본다 */
-  variants: { id: string; category: string; tool: string; equipment?: string[] }[];
+  variants: { id: string; category: string; tool: string; equipment?: string[]; focusPoints?: string[]; stage?: string | null }[];
 };
 
 /** 투수라면 누구나 가진 것 — 프로필 장비 목록에 없어도 된다 */
@@ -820,7 +822,29 @@ function usableVariant(drill: ProgramDrill, owned: ReadonlySet<string> | null) {
 }
 
 /** 처방 칸 꼬리표 — 드릴 이름마다(처방 칸이 아니면 없음) */
-type RxTag = { element: MechanicsElementName; level: 'improve' | 'edge'; cue: string };
+type RxTag = { element: MechanicsElementName; level: 'improve' | 'edge'; cue: string; stage?: string; purposes?: string[] };
+
+/** Candidates are concrete purpose/stage cohorts, never a family-wide union. */
+function candidatesFor(drills: ProgramDrill[], title: string, tag?: RxTag | null) {
+  return drillPurposeViews(drills).filter((d) => d.title === title &&
+    (!tag || (d.focusPoints.includes(tag.element) && (!tag.stage || d.stage === tag.stage) &&
+      (tag.purposes ?? []).every((purpose) => d.focusPoints.includes(purpose)))))
+    .sort((a, b) => (tag ? focusPriority(a.focusPoints, [tag.element]) - focusPriority(b.focusPoints, [tag.element]) : 0) ||
+      (tag?.purposes?.length ? focusPriority(a.focusPoints, tag.purposes) - focusPriority(b.focusPoints, tag.purposes) : 0) ||
+      toolPriority(a.variants[0]?.tool ?? '') - toolPriority(b.variants[0]?.tool ?? '') ||
+      (a.variants[0]?.id ?? '').localeCompare(b.variants[0]?.id ?? ''));
+}
+
+function stageAllowed(drill: ProgramDrill, rx: ElementRx[], stageFor: (r: ElementRx) => string) {
+  return !rx.some((r) => drill.focusPoints.includes(r.element) &&
+    SKILL_STAGES.indexOf(drill.stage as DrillStage) > SKILL_STAGES.indexOf(stageFor(r) as DrillStage));
+}
+
+/** Ordinary level sessions must check the concrete video's stage before equipment selection. */
+function drillsAtLevel(drills: ProgramDrill[], level: LevelKey) {
+  const allowed = mechanicsLevel(level).stages;
+  return drillPurposeViews(drills).filter((drill) => allowed.includes(drill.stage as DrillStage));
+}
 
 /**
  * 이름이 같은 동작 묶음 안에서 사용할 도구만 고른다. 누락된 필수 이름·장비는 assessMechanicsSession이 별도로 보고한다.
@@ -839,7 +863,6 @@ function itemsFromTitles({
   owned: ReadonlySet<string> | null;
   tags?: ReadonlyMap<string, RxTag>;
 }): SessionItem[] {
-  const byTitle = new Map(drills.map((d) => [d.title, d] as const));
   const picks: {
     drill: ProgramDrill;
     variant: ProgramDrill['variants'][number];
@@ -849,12 +872,11 @@ function itemsFromTitles({
   }[] = [];
 
   for (const title of titles) {
-    const drill = byTitle.get(title);
-    if (!drill) continue;
     const tag = tags.get(title) ?? null;
-    const own = usableVariant(drill, owned);
-    if (own) {
-      picks.push({ drill, variant: own, replaced: null, need: [], tag });
+    const eligible = candidatesFor(drills, title, tag);
+    const selected = eligible.find((d) => usableVariant(d, owned));
+    if (selected) {
+      picks.push({ drill: selected, variant: usableVariant(selected, owned)!, replaced: null, need: [], tag });
       continue;
     }
     /*
@@ -866,7 +888,8 @@ function itemsFromTitles({
   }
 
   return picks.flatMap(({ drill, variant, replaced, need, tag }, i) => {
-    const element = drill.focusPoints[0];
+    const element = tag?.element ?? drill.focusPoints[0];
+    if (tag && !drill.focusPoints.includes(tag.element)) return [];
     if (!isElementName(element)) return [];
     const stage = stageOf(drill);
     const cues = mechanicsElement(element)?.cues ?? [];
@@ -908,7 +931,7 @@ export function buildLevelSession({
 }): SessionItem[] {
   const plan = levelSession(level, index);
   if (!plan) return [];
-  return itemsFromTitles({ drills, titles: plan.titles, index, owned });
+  return itemsFromTitles({ drills: drillsAtLevel(drills, level), titles: plan.titles, index, owned }).sort((a, b) => ELEMENT_NAMES.indexOf(a.element) - ELEMENT_NAMES.indexOf(b.element));
 }
 
 /* ------------------------- 3D 리포트 처방(6-2 · 6-4절) ------------------------- */
@@ -954,11 +977,12 @@ export function focusPlan({
   tags: Map<string, RxTag>;
 } {
   const week = focusWeek(done);
+  drills = drillPurposeViews(drills);
   const slots = Math.max(1, base.length);
   const picks: { title: string; tag: RxTag }[] = [];
-  const add = (title: string | undefined, r: ElementRx) => {
-    if (!title || !drills.some((d) => d.title === title) || picks.some((p) => p.title === title) || picks.length >= slots) return;
-    picks.push({ title, tag: { element: r.element, level: r.level, cue: r.cue } });
+  const add = (title: string | undefined, r: ElementRx, stage = rxWeek(r, week)?.stage, purposes?: string[]) => {
+    if (!title || !candidatesFor(drills, title, { ...r, stage, purposes }).length || picks.some((p) => p.title === title) || picks.length >= slots) return;
+    picks.push({ title, tag: { element: r.element, level: r.level, cue: r.cue, stage, purposes } });
   };
   const [main, next] = rx;
   if (main) for (const d of (rxWeek(main, week)?.drills ?? []).slice(0, main.slots)) add(d.title, main);
@@ -967,7 +991,7 @@ export function focusPlan({
     add(w?.drills.find((d) => !picks.some((p) => p.title === d.title))?.title, next);
   }
   if (main && (criteria !== REPORT_CRITERIA || rxWeek(main, week)?.stage === '통합')) {
-    const both = drills.find(
+    const both = [...drills].sort((a, b) => focusPriority(a.focusPoints, [main.element]) - focusPriority(b.focusPoints, [main.element]) || (next ? focusPriority(a.focusPoints, [next.element]) - focusPriority(b.focusPoints, [next.element]) : 0)).find(
       (d) =>
         d.stage === '통합' &&
         d.focusPoints.includes(main.element) &&
@@ -975,22 +999,18 @@ export function focusPlan({
         !picks.some((p) => p.title === d.title)
     );
     const own = main.weeks.find((w) => w.stage === '통합')?.drills.find((d) => !picks.some((p) => p.title === d.title));
-    add(next ? (both?.title ?? own?.title) : own?.title, main);
+    if (next && both) add(both.title, main, '통합', [next.element]);
+    else add(own?.title, main, '통합');
   }
   const tags = new Map(picks.map((p) => [p.title, p.tag] as const));
-  const stageOrder = ['기초', '연결', '통합'];
   const allowedStage = (title: string) => {
     if (criteria !== REPORT_CRITERIA) return true;
-    const drill = drills.find((d) => d.title === title);
-    return !rx.some(
-      (r) =>
-        drill?.focusPoints.includes(r.element) &&
-        stageOrder.indexOf(drill.stage ?? '') > stageOrder.indexOf(rxWeek(r, week)?.stage ?? '기초')
-    );
+    const candidates = candidatesFor(drills, title);
+    return candidates.length === 0 || candidates.some((d) => stageAllowed(d, rx, (r) => rxWeek(r, week)?.stage ?? '기초'));
   };
   const titles = [...picks.map((p) => p.title), ...base.filter((t) => !tags.has(t) && allowedStage(t))].slice(0, slots);
   const order = (t: string) => {
-    const el = tags.get(t)?.element ?? drills.find((d) => d.title === t)?.focusPoints[0];
+    const el = tags.get(t)?.element ?? candidatesFor(drills, t)[0]?.focusPoints[0];
     const i = ELEMENT_NAMES.indexOf(el as MechanicsElementName);
     return i < 0 ? ELEMENT_NAMES.length : i;
   };
@@ -1079,6 +1099,8 @@ export function buildProgramSession({
   if (!focusActive(state.focus)) return buildLevelSession({ drills, level: state.level, index: state.index, owned });
   const index = Math.min(state.index, SESSIONS_PER_LEVEL - 1);
   const base = levelSession(state.level, index)?.titles ?? [];
+  if (state.focus.criteria === REPORT_CRITERIA) drills = drillPurposeViews(drills).filter((d) =>
+    stageAllowed(d, state.focus!.rx, (r) => rxWeek(r, focusWeek(state.focus!.done))?.stage ?? '기초'));
   const { titles, tags } = focusPlan({ rx: state.focus.rx, done: state.focus.done, base, drills, criteria: state.focus.criteria });
   return itemsFromTitles({ drills, titles, index, owned, tags });
 }
@@ -1100,6 +1122,7 @@ export function assessMechanicsSession({
   const index = Math.min(state.index, SESSIONS_PER_LEVEL - 1);
   const base = levelSession(state.level, index)?.titles ?? [];
   const focus = state.focus;
+  drills = drillPurposeViews(drills);
   if (focus?.progression && !skillFinished(focus.progression)) {
     for (const r of focus.rx) {
       const el = focus.progression.elements.find((e) => e.fault === r.fault)!;
@@ -1111,22 +1134,28 @@ export function assessMechanicsSession({
           .map((d) => d.title) ?? [];
       if (titles.length < r.slots) missing.push({ title: `${r.element} ${el.stage} 필수 드릴`, need: [], reason: 'recipe' });
       for (const title of titles) {
-        const drill = drills.find((d) => d.title === title && d.stage === el.stage);
-        if (!drill) {
+        const stageCandidates = drills.filter((d) => d.title === title && d.stage === el.stage);
+        if (!stageCandidates.length) {
           missing.push({ title, need: [], reason: 'library' });
           continue;
         }
+        const tag: RxTag = { element: r.element, level: r.level, cue: r.cue, stage: el.stage };
+        const eligible = candidatesFor(stageCandidates, title, tag);
+        if (!eligible.length) {
+          missing.push({ title, need: [], reason: 'recipe' });
+          continue;
+        }
         const found = itemsFromTitles({
-          drills,
+          drills: eligible,
           titles: [title],
           index,
           owned,
-          tags: new Map([[title, { element: r.element, level: r.level, cue: r.cue }]]),
+          tags: new Map([[title, tag]]),
         })[0];
         if (!found) {
           missing.push({
             title,
-            need: [...new Set(drill.variants.flatMap((v) => v.equipment ?? []))].filter((e) => !ALWAYS_HAVE.has(e) && !owned?.has(e)),
+            need: [...new Set(eligible.flatMap((d) => d.variants.flatMap((v) => v.equipment ?? [])))].filter((e) => !ALWAYS_HAVE.has(e) && !owned?.has(e)),
             reason: 'gear',
           });
           continue;
@@ -1144,16 +1173,8 @@ export function assessMechanicsSession({
     }
     for (const title of base) {
       if (items.length >= Math.max(base.length, 3) || items.some((i) => i.title === title)) continue;
-      const d = drills.find((d) => d.title === title);
-      if (
-        focus.rx.some(
-          (r) =>
-            d?.focusPoints.includes(r.element) &&
-            SKILL_STAGES.indexOf(d.stage as DrillStage) > SKILL_STAGES.indexOf(skillStage(focus.progression!, r.fault))
-        )
-      )
-        continue;
-      const item = itemsFromTitles({ drills, titles: [title], index, owned })[0];
+      const eligible = drills.filter((d) => stageAllowed(d, focus.rx, (r) => skillStage(focus.progression!, r.fault)));
+      const item = itemsFromTitles({ drills: eligible, titles: [title], index, owned })[0];
       if (item) items.push({ ...item, required: false });
     }
     return { items, missing };
@@ -1162,17 +1183,22 @@ export function assessMechanicsSession({
   const titles = focusActive(focus) ? focusPlan({ rx: focus.rx, done: focus.done, base, drills, criteria: focus.criteria }).titles : base;
   const original = buildProgramSession({ drills, state, owned });
   for (const title of titles) {
-    const d = drills.find((d) => d.title === title);
+    const family = drills.filter((d) => d.title === title);
+    const eligible = focusActive(focus) ? family : drillsAtLevel(family, state.level);
     const item = original.find((i) => i.title === title);
-    if (!d) missing.push({ title, need: [], reason: 'library' });
+    if (!family.length) missing.push({ title, need: [], reason: 'library' });
+    else if (!eligible.length) missing.push({ title, need: [], reason: 'recipe' });
     else if (!item)
       missing.push({
         title,
-        need: [...new Set(d.variants.flatMap((v) => v.equipment ?? []))].filter((e) => !ALWAYS_HAVE.has(e) && !owned?.has(e)),
+        need: [...new Set(eligible.flatMap((d) => d.variants.flatMap((v) => v.equipment ?? [])))].filter((e) => !ALWAYS_HAVE.has(e) && !owned?.has(e)),
         reason: 'gear',
       });
     else items.push({ ...item, required: true });
   }
+  // Keep the builder's movement-chain order after checking every required title.
+  const outputOrder = new Map(original.map((item, index) => [item.title, index]));
+  items.sort((a, b) => outputOrder.get(a.title)! - outputOrder.get(b.title)!);
   return { items, missing };
 }
 

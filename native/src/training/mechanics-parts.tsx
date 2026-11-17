@@ -1,3 +1,5 @@
+import { drillPurposeViews } from '@/lib/mechanics/drills';
+import { focusPriority } from '@/lib/mechanics/focus-priority';
 import { FocusReview } from '~/mechanics/focus-review';
 import { FocusProgress } from '~/mechanics/focus-progress';
 import * as Haptics from 'expo-haptics';
@@ -540,8 +542,8 @@ function FilmHistory({ films, c }: { films: FilmNote[]; c: Palette }) {
 /** 그 요소의 드릴 — 단계마다, 주 요소인 드릴 먼저 · 함께 쓰는 드릴 뒤에 */
 function drillsFor(name: string, drills: MechanicsDrillView[]) {
   return DRILL_STAGES.map((stage) => {
-    const inStage = drills.filter((d) => d.stage === stage.name && d.focusPoints.includes(name));
-    return { stage, primary: inStage.filter((d) => d.focusPoints[0] === name), secondary: inStage.filter((d) => d.focusPoints[0] !== name) };
+    const inStage = drillPurposeViews(drills).filter((d) => d.stage === stage.name && d.focusPoints.includes(name));
+    return { stage, primary: inStage.filter((d) => d.focusPoints[0] === name), secondary: inStage.filter((d) => d.focusPoints[0] !== name).sort((a, b) => focusPriority(a.focusPoints, [name]) - focusPriority(b.focusPoints, [name])) };
   });
 }
 
@@ -734,10 +736,10 @@ export function ElementCard({
                   <Text style={{ color: c.ink, fontWeight: '600', fontSize: 15 }}>{stage.name}</Text> {stage.desc}
                 </Text>
                 {primary.map((d) => (
-                  <DrillRow key={d.title} drill={d} secondary={false} c={c} />
+                  <DrillRow key={`${d.title}:${d.variants[0]?.id}`} drill={d} secondary={false} c={c} />
                 ))}
                 {secondary.map((d) => (
-                  <DrillRow key={d.title} drill={d} secondary c={c} />
+                  <DrillRow key={`${d.title}:${d.variants[0]?.id}`} drill={d} secondary c={c} />
                 ))}
               </View>
             )

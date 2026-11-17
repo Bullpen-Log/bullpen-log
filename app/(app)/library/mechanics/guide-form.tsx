@@ -7,6 +7,7 @@ import { createGuide, updateGuide, type ActionState } from '@/app/actions/conten
 import { guardFormAction } from '@/lib/action-offline';
 import { Button, Field, FormError, Input, Textarea } from '@/components/ui';
 import { CheckboxGroup, RadioGroup } from '@/components/choice-inputs';
+import { orderedFocus } from '@/lib/mechanics/focus-priority';
 import { kept, keptAll } from '@/lib/form-values';
 import { ADMIN_MAX_VIDEO_MB, VideoUpload, type UploadedVideo } from '@/components/video-upload';
 import { MECHANICS_CATEGORY_NAMES } from '@/lib/categories';
@@ -35,6 +36,31 @@ export type GuideDraft = {
   stage: string | null;
   sortOrder: number;
 };
+
+function RankedFocusPicker({ initial }: { initial: string[] }) {
+  const [points, setPoints] = useState(() => orderedFocus(initial, FOCUS_POINTS));
+  const move = (index: number, offset: number) => setPoints((current) => {
+    const next = [...current];
+    [next[index], next[index + offset]] = [next[index + offset], next[index]];
+    return next;
+  });
+  return <fieldset className="space-y-3">
+    <legend className="font-semibold">훈련 목적 · 우선순위</legend>
+    <p className="text-sm text-muted">실제로 개선하려는 목적만 선택하세요. 위에 있을수록 더 집중하는 목적이며 추천에 먼저 반영됩니다.</p>
+    <p className="text-sm text-muted">공을 던진다는 이유만으로 스로잉을 선택하지 마세요. 팔 동작 교정이나 던지는 속도 자체가 목적일 때 선택합니다.</p>
+    <input type="hidden" name="focusMain" value={points[0] ?? ''} />
+    {points.slice(1).map((point) => <input key={point} type="hidden" name="focusPoints" value={point} />)}
+    <div className="flex flex-wrap gap-2">{FOCUS_OPTIONS.map(({ name, desc }) => <label key={name} className="rounded-lg border border-line p-2 text-sm">
+      <input type="checkbox" checked={points.includes(name)} onChange={(event) => setPoints((current) => event.target.checked ? [...current, name] : current.filter((point) => point !== name))} /> {name}<span className="block text-xs text-muted">{desc}</span>
+    </label>)}</div>
+    <ol className="space-y-2">{points.map((point, index) => <li key={point} className="flex items-center gap-2 rounded-lg bg-surface-2 p-2 text-sm">
+      <span className="flex-1">{index + 1}순위 · {point}{index === 0 ? ' · 핵심 목적' : ''}</span>
+      <button type="button" disabled={index === 0} aria-label={`${point} 우선순위 올리기`} onClick={() => move(index, -1)}>위로</button>
+      <button type="button" disabled={index === points.length - 1} aria-label={`${point} 우선순위 내리기`} onClick={() => move(index, 1)}>아래로</button>
+    </li>)}</ol>
+    {!points.length && <p className="text-sm text-muted">훈련 목적을 하나 이상 선택하세요.</p>}
+  </fieldset>;
+}
 
 function SubmitButton({ label }: { label: string }) {
   const { pending } = useFormStatus();
@@ -202,27 +228,10 @@ export function GuideForm({
         />
       </Field>
 
-      {/* 나중에 영상분석에서 찾은 문제와 드릴을 이어주는 항목이다. */}
       <div className="space-y-5 border-t border-sky-soft/30 pt-5">
-        {/*
-          주 요소와 보조 요소를 따로 받는다 — 서버가 주 요소를 맨 앞에 두고 보조를 두 개까지 잇는다
-          (app/actions/content.ts readFocusPoints). 보조에서 주 요소와 같은 것을 골라도 한 번만 들어간다.
-        */}
-        <RadioGroup
-          name="focusMain"
-          label="주 요소 · 필수"
-          hint="이 드릴이 투구의 어느 부분을 가장 키우는지 고르세요."
-          options={FOCUS_OPTIONS}
-          selected={String(pick('focusMain', initial?.focusPoints[0] ?? focus) ?? '') || null}
-          required
-        />
-
-        <CheckboxGroup
-          name="focusPoints"
-          label="보조 요소 · 두 개까지"
-          hint="함께 쓰는 요소가 있으면 고르세요. 두 개를 넘으면 앞의 두 개만 저장돼요."
-          options={FOCUS_POINTS}
-          selected={pickAll('focusPoints', initial?.focusPoints.slice(1))}
+        <RankedFocusPicker
+          key={JSON.stringify([pick('focusMain', initial?.focusPoints[0] ?? focus), pickAll('focusPoints', initial?.focusPoints.slice(1))])}
+          initial={[String(pick('focusMain', initial?.focusPoints[0] ?? focus) ?? ''), ...(pickAll('focusPoints', initial?.focusPoints.slice(1)) ?? [])]}
         />
 
         <RadioGroup
