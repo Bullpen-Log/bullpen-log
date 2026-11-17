@@ -675,7 +675,7 @@
     "personal_health_information_copied": false,
     "signed_urls_copied": false
   },
-  "updated_at": "2026-11-17T05:48:06.176Z",
+  "updated_at": "2026-11-17T05:53:46.828Z",
   "current_workflow_document": "docs/shoot/video-review-current-workflow.md",
   "setup_event": {
     "at": "2026-11-13T15:54:58+09:00",
@@ -850,5 +850,163 @@
   "transition_effect_rule": {
     "at": "2026-11-17T05:34:49.888Z",
     "rule": "다른 영상은 지금 일괄 변경하지 않는다. 이후 각 영상 검수 중 사용자가 편집을 요청하면 필요한 장면 전환에 자연스러운 효과를 적용한다."
+  },
+  "review_evidence_handoff": {
+    "at": "2026-11-17T05:53:46.828Z",
+    "status": "중앙 검수 근거자료 기능 및 등록 도구 준비 대기 — 중앙 저장·등록 완료 아님",
+    "owner": "메커니즘 검수 GPT, handoff mechanics/yunho/checkpoint.json·video-records.json·README.md",
+    "instructions": "실제 사용 확인된 항목을 영상별 근거 사용으로 이관. 날짜나 읽기 범위 모르면 미확인으로 두고 검색만 한 후보나 접근 실패 논문은 실제 열람으로 기록하지 않는다. 4번 2022 논문 연결은 재확인 후 등록.",
+    "uses": [
+      {
+        "number": 1,
+        "review_id": "mv-0457d3ca2b3a1169",
+        "drill_id": "54acde57-f93a-4012-a632-46221b7f23b8",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6668195/",
+        "summary": "투구 강도와 관절 부하·구속 관계를 검토",
+        "limit": "롱토스 연구 요약으로 스텝백 최적 강도·횟수의 직접 근거가 아님",
+        "coverage": "학술지 부록 초록; 확인일 불확실",
+        "consulted_on": null
+      },
+      {
+        "number": 2,
+        "review_id": "mv-8eba0f8a515a6896",
+        "drill_id": "df6410d8-42aa-4443-9b94-3fb40573a604",
+        "url": "https://www.frontiersin.org/journals/sports-and-active-living/articles/10.3389/fspor.2022.975107/full",
+        "summary": "청소년 투구 시 뒷다리 이동과 앞다리·몸통 에너지 전달을 참고",
+        "limit": "일반 투구 자료로 해당 드릴의 구속 향상이나 최적 부하를 입증하지 않음",
+        "coverage": "원문을 읽은 이력, 확인 범위 세부 미기록",
+        "consulted_on": null
+      },
+      {
+        "number": 3,
+        "review_id": "mv-2eddd3dec8d7418e",
+        "drill_id": "eaab7204-3682-4015-89ed-4f2e6f2d6078",
+        "url": "https://www.frontiersin.org/journals/sports-and-active-living/articles/10.3389/fspor.2022.975107/full",
+        "summary": "청소년 투구 시 뒷다리 이동과 앞다리·몸통 에너지 전달을 참고",
+        "limit": "일반 투구 자료로 해당 드릴의 구속 향상이나 최적 부하를 입증하지 않음",
+        "coverage": "원문을 읽은 이력, 확인 범위 세부 미기록",
+        "consulted_on": null
+      },
+      {
+        "number": 4,
+        "review_id": "mv-10c9c9acb449b625",
+        "drill_id": "150090d2-6d52-48ec-965e-81c9d72bed9b",
+        "url": "https://www.frontiersin.org/journals/sports-and-active-living/articles/10.3389/fspor.2022.975107/full",
+        "summary": "청소년 투구 시 뒷다리 이동과 앞다리·몸통 에너지 전달을 참고",
+        "limit": "일반 투구 자료로 해당 드릴의 구속 향상이나 최적 부하를 입증하지 않음",
+        "coverage": "이전 기록이 일반 에너지 전달 연구만 지칭; 해당 출처 연결은 이관 전 재확인 필요",
+        "consulted_on": null
+      },
+      {
+        "number": 4,
+        "review_id": "mv-10c9c9acb449b625",
+        "drill_id": "150090d2-6d52-48ec-965e-81c9d72bed9b",
+        "url": "https://drivelinebaseball.com/blogs/blog/case-study-how-kaleb-roper-used-online-training-to-revamp-his-fastball",
+        "summary": "뒷엉덩이 긴장과 골반 회전 타이밍 설명 참고",
+        "limit": "선수 개인 사례이며 해당 드릴 직접 지침이 아님",
+        "coverage": "공식 글 본문",
+        "consulted_on": "2026-11-16"
+      },
+      {
+        "number": 4,
+        "review_id": "mv-10c9c9acb449b625",
+        "drill_id": "150090d2-6d52-48ec-965e-81c9d72bed9b",
+        "url": "https://drivelinebaseball.com/blogs/blog/efficient-front-leg-mechanics-that-lead-to-high-velocity",
+        "summary": "앞다리 지지와 회전 연결 참고",
+        "limit": "일반 투구 자료, 특정 드릴의 효과를 입증하지 않음",
+        "coverage": "공식 글 본문",
+        "consulted_on": "2026-11-16"
+      },
+      {
+        "number": 4,
+        "review_id": "mv-10c9c9acb449b625",
+        "drill_id": "150090d2-6d52-48ec-965e-81c9d72bed9b",
+        "url": "https://edu.drivelinebaseball.com/courses/mb-for-baseball",
+        "summary": "회전 기술과 메디신볼 훈련 목적의 일반 설명",
+        "limit": "공개 소개만 확인, 유료 강의와 정확한 중량·횟수는 미확인",
+        "coverage": "공개 강좌 소개",
+        "consulted_on": "2026-11-16"
+      },
+      {
+        "number": 5,
+        "review_id": "mv-a10c408f44c9b8a9",
+        "drill_id": "8607fb9c-34ba-49b0-9c24-a17773db1c10",
+        "url": "https://edu.drivelinebaseball.com/courses/mb-for-baseball",
+        "summary": "회전 기술과 메디신볼 훈련 목적의 일반 설명",
+        "limit": "공개 소개만 확인, 유료 강의와 정확한 중량·횟수는 미확인",
+        "coverage": "공개 강좌 소개",
+        "consulted_on": "2026-11-16"
+      },
+      {
+        "number": 5,
+        "review_id": "mv-a10c408f44c9b8a9",
+        "drill_id": "8607fb9c-34ba-49b0-9c24-a17773db1c10",
+        "url": "https://drivelinebaseball.com/blogs/blog/making-movement-changes-weight-room",
+        "summary": "뒷고관절 로딩과 몸 이동·골반 회전 연결의 일반 원리 참고",
+        "limit": "개별 선수 사례, 각 드릴의 직접 구속 효과 근거 아님",
+        "coverage": "공식 글 본문",
+        "consulted_on": "2026-11-16"
+      },
+      {
+        "number": 6,
+        "review_id": "mv-02de50d9947bcd8d",
+        "drill_id": "e3b9cb28-87c7-4ab1-a00c-41a6b23c4fca",
+        "url": "https://drivelinebaseball.com/blogs/blog/making-movement-changes-weight-room",
+        "summary": "뒷고관절 로딩과 몸 이동·골반 회전 연결의 일반 원리 참고",
+        "limit": "개별 선수 사례, 각 드릴의 직접 구속 효과 근거 아님",
+        "coverage": "공식 글 본문",
+        "consulted_on": "2026-11-17"
+      },
+      {
+        "number": 7,
+        "review_id": "mv-665ece52f26c70b2",
+        "drill_id": "a13f7ec8-c23d-4435-bd21-014070015578",
+        "url": "https://drivelinebaseball.com/blogs/blog/making-movement-changes-weight-room",
+        "summary": "뒷고관절 로딩과 몸 이동·골반 회전 연결의 일반 원리 참고",
+        "limit": "개별 선수 사례, 각 드릴의 직접 구속 효과 근거 아님",
+        "coverage": "공식 글 본문",
+        "consulted_on": "2026-11-17"
+      },
+      {
+        "number": 6,
+        "review_id": "mv-02de50d9947bcd8d",
+        "drill_id": "e3b9cb28-87c7-4ab1-a00c-41a6b23c4fca",
+        "url": "https://drivelinebaseball.com/blogs/blog/full-signal-analyses-the-next-step-in-biomechanical-analysis",
+        "summary": "착지 전 몸의 중심 이동 속도와 구속 관련 집단 분석 참고",
+        "limit": "드리프트 단독이나 해당 맨몸 드릴의 인과 효과를 입증하지 않음",
+        "coverage": "공식 글 본문",
+        "consulted_on": "2026-11-17"
+      },
+      {
+        "number": 6,
+        "review_id": "mv-02de50d9947bcd8d",
+        "drill_id": "e3b9cb28-87c7-4ab1-a00c-41a6b23c4fca",
+        "url": "https://treadathletics.com/the-drift/",
+        "summary": "드리프트·목표 방향 이동과 투구 타이밍 연결에 관한 코칭 설명 참고",
+        "limit": "코칭 가설·사례; 개인차가 있고 일정 구속 증가를 보장하지 않음",
+        "coverage": "공식 글 본문",
+        "consulted_on": "2026-11-17"
+      },
+      {
+        "number": 7,
+        "review_id": "mv-665ece52f26c70b2",
+        "drill_id": "a13f7ec8-c23d-4435-bd21-014070015578",
+        "url": "https://treadathletics.com/the-drift/",
+        "summary": "드리프트·목표 방향 이동과 투구 타이밍 연결에 관한 코칭 설명 참고",
+        "limit": "코칭 가설·사례; 개인차가 있고 일정 구속 증가를 보장하지 않음",
+        "coverage": "공식 글 본문",
+        "consulted_on": "2026-11-17"
+      },
+      {
+        "number": 6,
+        "review_id": "mv-02de50d9947bcd8d",
+        "drill_id": "e3b9cb28-87c7-4ab1-a00c-41a6b23c4fca",
+        "url": "https://www.drivelinebaseball.com/wp-content/uploads/2018/07/8WeekOn-Ramp.pdf",
+        "summary": "무릎 들기 중 목표 방향 흐름에 관한 검색 추출 확인",
+        "limit": "PDF 직접 접근 실패, 검색 추출만 확인; 본 드릴 직접 지침 아님",
+        "coverage": "검색 추출만; 본문 미열람",
+        "consulted_on": "2026-11-17"
+      }
+    ]
   }
 }
