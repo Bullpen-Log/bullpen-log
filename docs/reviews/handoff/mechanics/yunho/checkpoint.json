@@ -55,7 +55,12 @@
     "drill_id": "209c141a-82ca-43f2-b7de-dbbae1392568",
     "category": "드리프트",
     "kind": "촬영 전 · 참고 영상",
-    "status": "설명 수정 저장 · 사용자 확인 대기"
+    "status": "설명 수정 저장 · 사용자 확인 대기",
+    "focusPoints": [
+      "상하체 분리",
+      "몸통 회전",
+      "드리프트"
+    ]
   },
   "completed": [
     {
@@ -998,7 +1003,7 @@
     "personal_health_information_copied": false,
     "signed_urls_copied": false
   },
-  "updated_at": "2026-11-17T08:17:44.860Z",
+  "updated_at": "2026-11-17T08:35:38.130Z",
   "current_workflow_document": "docs/shoot/video-review-current-workflow.md",
   "setup_event": {
     "at": "2026-11-13T15:54:58+09:00",
@@ -1368,7 +1373,10 @@
     "corrected_at": "2026-11-17T07:05:11.731Z"
   },
   "focus_classification_rule_20261117": {
-    "at": "2026-11-17T07:47:53.551Z",
-    "rule": "각 영상의 실제 핵심 움직임과 목적에 따라 주 요소를 정하고, 직접 관련 있는 요소만 최대 2개 보조로 연결한다. 단순 옆 이동만으로 드리프트로 분류하지 않는다."
+    "at": "2026-11-17T08:35:38.130Z",
+    "rule": "목적별 중요도 순서로 관련 훈련 목적 모두 선택. 단순 동작 사용 여부로 채우지 않음. 스로잉은 팔 동작 교정·던지는 속도 자체를 집중 훈련할 때만 선택. 순서가 추천 우선순위에 반영되며 단계·장비·통증 조건 유지.",
+    "reviewed_numbers": "1–9",
+    "system_order": "MECH-FOCUS01",
+    "feature_status": "로컬 구현·검사 완료, 운영 반영·실제 편집 저장 흐름 확인 대기"
   }
 }

@@ -85,6 +85,22 @@
           ],
           "status": "applied_and_database_readback_verified",
           "advance_authorized": false
+        },
+        {
+          "at": "2026-11-17T08:35:38.130Z",
+          "user_request": "사용된 움직임이 아닌 훈련 목적과 우선순위로 재분류. 스로잉은 특화 목적만 선택.",
+          "before": [
+            "드리프트",
+            "상하체 분리",
+            "스로잉"
+          ],
+          "after": [
+            "드리프트",
+            "상하체 분리",
+            "몸통 회전"
+          ],
+          "status": "database_readback_verified",
+          "advance_authorized": false
         }
       ],
       "assistant_findings": [],
@@ -227,7 +243,7 @@
       "focusPoints": [
         "드리프트",
         "상하체 분리",
-        "스로잉"
+        "몸통 회전"
       ]
     },
     {
@@ -622,6 +638,21 @@
           ],
           "status": "applied_and_database_readback_verified",
           "advance_authorized": false
+        },
+        {
+          "at": "2026-11-17T08:35:38.130Z",
+          "user_request": "사용된 움직임이 아닌 훈련 목적과 우선순위로 재분류. 스로잉은 특화 목적만 선택.",
+          "before": [
+            "드롭",
+            "몸통 회전"
+          ],
+          "after": [
+            "드롭",
+            "몸통 회전",
+            "상하체 분리"
+          ],
+          "status": "database_readback_verified",
+          "advance_authorized": false
         }
       ],
       "assistant_findings": [],
@@ -684,7 +715,8 @@
       },
       "focusPoints": [
         "드롭",
-        "몸통 회전"
+        "몸통 회전",
+        "상하체 분리"
       ]
     },
     {
@@ -1397,6 +1429,22 @@
             "https://treadathletics.com/wp-content/uploads/2020/12/Late-Arm-Drill-Progression-PDF.pdf"
           ],
           "advance_authorized": false
+        },
+        {
+          "at": "2026-11-17T08:35:38.130Z",
+          "user_request": "사용된 움직임이 아닌 훈련 목적과 우선순위로 재분류. 스로잉은 특화 목적만 선택.",
+          "before": [
+            "스로잉",
+            "드리프트",
+            "몸통 회전"
+          ],
+          "after": [
+            "상하체 분리",
+            "몸통 회전",
+            "드리프트"
+          ],
+          "status": "database_readback_verified",
+          "advance_authorized": false
         }
       ],
       "assistant_findings": [
@@ -1429,9 +1477,9 @@
       "content_change_approved": false,
       "deployment_approved": false,
       "focusPoints": [
-        "스로잉",
-        "드리프트",
-        "몸통 회전"
+        "상하체 분리",
+        "몸통 회전",
+        "드리프트"
       ],
       "pre_review_changes": {
         "at": "2026-11-17T07:52:58.073Z",
