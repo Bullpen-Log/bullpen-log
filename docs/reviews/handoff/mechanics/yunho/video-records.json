@@ -1010,6 +1010,18 @@
           "source_duration_seconds": 13.27,
           "edited_duration_seconds": 12.0,
           "advance_authorized": false
+        },
+        {
+          "at": "2026-11-17T15:39:14.709623+09:00",
+          "review_id": "mv-665ece52f26c70b2",
+          "user_request": "뒷발 쪽에 중심이 과하게 남지 않고 진행 방향으로 이동하도록 설명",
+          "after": "뒷발로 몸을 받치되 상체가 목표 반대쪽으로 지나치게 기울어 몸의 중심이 뒷발 쪽에 과하게 남지 않도록 합니다. 상체만 앞으로 숙이거나 무리하게 멀리 쏠리지 말고, 균형을 유지할 수 있는 범위에서 골반과 몸의 중심을 목표 방향으로 함께 이동합니다.",
+          "status": "applied_and_readback_verified",
+          "sources": [
+            "https://treadathletics.com/the-drift/",
+            "https://drivelinebaseball.com/blogs/blog/the-interaction-of-biomechanics-and-command"
+          ],
+          "advance_authorized": false
         }
       ],
       "assistant_findings": [],
