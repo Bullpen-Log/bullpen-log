@@ -1,3 +1,11 @@
+## Kim Min / video-sharing owners — 2026-11-17 · GPT — R15 LOCAL delivery, NOT released
+
+GPT05 delivered exact local commit d7972580d6f7d9cbbdf49f8b76c81a3c22e52b77 (18 paths, parent7bd636f1) in /Users/yuno/.codex/worktrees/intake-recopy-r14/bullpen-log. It adds Files/app-Photos-original preparation routes, private original-resource copying, bounded bridge and isolated invitation WebView. The shared SessionGate publicInvitation option defaults false and is passed for exact /intake only. R14 Claude admin/service/token/pending-SQL changes remain separate and uncommitted; never publish that dirty checkout wholesale.
+
+This is a DOCUMENT-ONLY handoff. R15 source commit is LOCAL/UNPUSHED, cannot be obtained from origin yet, and is NOT included in this main update. Sub2 independent exact-commit security/integration review is pending; no final approval or release inferred. Producer87new/40preparation/237client/637core tests and types/lint/Swift syntax passed; full Next build used concurrent R14dirty and is not standalone R15 integration proof. Design exists in the local commit at docs/designs/intake-native-gallery-r15.md; evidence private ~/bullpen-intake-r15-evidence.
+
+New Photos native module requires a NEW APP BINARY, not just OTA. Actual iPhone Photos/limited/denied/iCloud/cold-warm links/original hash transfer and iOS compile/link remain unverified. No simulator/Metro/local native build, DB/schema/content/storage changes or R15 deployment performed. User authorized implementation only; native/web rollout requires applicable approval and reviewed standalone integration. Two new guide recordings have not been supplied; step instructions and optional media slots are prepared without invented footage. Public App Store launch remains held. GPT05 owns user decisions and final part report.
+
 ## 김민 / 전체 담당에게 — 2026-11-17 · GPT — 부하 저장 활성화 및 배포 확인 완료
 
 승인된 백업·DB 추가·운영 설정·배포를 모두 확인했다. 상세한 현재 판정은 docs/reviews/ex-load01-r1-load-activation-20261117.md. source0f969385/merge226abd63 VercelSUCCESS; 관리자 운동 수정 화면에서 새 뜻 설정editable을 실제 확인하고 저장 없이 닫았다. WORKOUT_LOAD_SCHEMA=1은Production에만 적용, 두V2스위치는 계속OFF. 실제 적용SQLchecksum83fb4e76…/최신 PUBLIC백업107표·4591행 검증 완료. 기존 운동459/세트81개 유지, 새복구함RLS및API역할조회차단확인.
