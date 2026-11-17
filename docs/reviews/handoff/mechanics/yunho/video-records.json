@@ -1417,10 +1417,15 @@
       "title": "워킹 와인드업",
       "kind": "촬영 전 · 참고 영상",
       "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
-      "status": "설명 수정 저장 · 사용자 확인 대기",
+      "status": "사용자 다음 승인 · 검수 완료",
       "drill_id": "209c141a-82ca-43f2-b7de-dbbae1392568",
-      "user_decision": null,
-      "user_decided_at": null,
+      "user_decision": {
+        "at": "2026-11-17T18:54:49.188808+09:00",
+        "original": "다음",
+        "meaning": "9번 워킹 와인드업 검수 종료 및 10번 이동 승인. 촬영 필요와 기존 기술 미확인 기록은 보존.",
+        "time_semantics": "time recorded by assistant after receiving instruction"
+      },
+      "user_decided_at": "2026-11-17T18:54:49.188808+09:00",
       "user_change_requests": [
         {
           "at": "2026-11-17T08:17:44.860Z",
@@ -1508,10 +1513,10 @@
       "review_id": "mv-fdb0fc2936315a11",
       "category": "드롭",
       "title": "스위치 풋 드롭 힌지 스로우 (작은 공)",
-      "kind": "참고 영상",
-      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
-      "status": "미검수",
-      "drill_id": null,
+      "kind": "직접 촬영 영상",
+      "kind_evidence": "Actual database source=OWN, referenceVideoId=null, videoPath present; playback inspection pending",
+      "status": "실제 영상·설명 대조 준비",
+      "drill_id": "e759318e-e89c-426b-a3d9-b41ea412be90",
       "user_decision": null,
       "user_decided_at": null,
       "user_change_requests": [],
