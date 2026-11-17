@@ -763,7 +763,7 @@
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
   "latest_resume": {
     "current": "EX-Y-P-BANDASSISTSPLIT-dc822a45",
-    "status": "앞뒤 발을 공중에서 번갈아 교대하는 설명으로 수정; 좌우 각각 5회는 각 발이 앞에 오는 착지 기준. 사용자 확인 대기."
+    "status": "User screenshot confirms automatic wrapping intrudes into number and heading-marker columns; mandatory visual review rule recorded; current review retained; rendering fix pending."
   },
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
@@ -1143,7 +1143,7 @@
   "mandatory_plyometric_review_rule_20261116": "For every plyometric exercise, explain the actual movement, training purpose and role in plyometric progression where applicable, and a clear evidence-calibrated link to pitching; distinguish foundational drills from reactive training and indirect associations from proven direct effects. Apply common user-friendly terms, format, prescriptions, and evidence standards. Review each exercise individually.",
   "reference_catalog_rule": "Continue appending all actually consulted references and per-exercise use/limitations to docs/references/exercise-review-sources.json. EX-REF01 admin implementation deferred by user; do not start it during video review.",
   "standing_spacing_rule": "Mandatory: consistent readable blank lines between how-to steps and separate explanatory paragraphs for every subsequently reviewed exercise, preserving meaning and evidence.",
-  "updated_at_utc": "2026-11-17T07:05:15.582Z",
+  "updated_at_utc": "2026-11-17T07:27:59.847Z",
   "step_box_rule": "스텝박스와 점프용 박스를 구분, 대체는 운동 목적과 높이 및 안정성에 따라 판단",
   "step_box_implementation_owner": "01 영상비교; 05 reassignment cancelled per user",
   "numbered_step_readability_rule": "Split long or overloaded how-to steps only where readability improves. Preserve movement sequence, simultaneous actions, immediate transitions, user decisions and blank lines. Do not split for arbitrary length or create unnecessary steps. Apply to every future review.",
@@ -1176,5 +1176,6 @@
     "checked": 43,
     "changed": 43,
     "verification": "Corrected numbered marker alignment saved and DB readback; web display checked; soft-wrap indentation limitation remains."
-  }
+  },
+  "automatic_wrap_review_rule": "필수: 화면 폭 때문에 자동으로 넘어간 줄도 정렬을 확인한다. 번호가 있는 단계에서는 모든 줄이 번호가 아닌 번호 뒤 설명 첫 글자 아래에 시작하고 번호 영역으로 튀어나오지 않아야 한다. 번호 없는 소제목 본문은 모든 줄이 제목 글자 아래에 시작해야 한다. 문장별 줄바꿈과 단계/문단 빈 줄은 유지한다. 좁고 넓은 웹 화면과 앱에서 긴 문장이 실제로 줄바꿈되는 장면을 검수한다. 저장된 공백이나 데이터 확인만으로 합격 처리하지 않는다. 예: 현재 밴드 보조 스플릿 스쿼트 점프 7번 및 투수에게 왜 필요한가 자동 줄바꿈이 왼쪽으로 밀리는 현상. EX-GUIDE-WRAP01 구현 전 미해결."
 }
