@@ -629,6 +629,24 @@ ok(MEDIA_REJECT_TEXT.unsupported_container.includes('MOV'), '고르는 사람 �
   eq(await rate({ timescale: 600, stts: alt }), null, '시간 단위 600 의 240fps(간격 2·3 번갈음)는 받는다');
   const alt120: [number, number][] = Array.from({ length: 600 }, (_, i) => [1, i % 6 === 5 ? 6 : 5]);
   eq(await rate({ timescale: 600, stts: alt120 }), 'capture_rate_low', '간격이 5·6 섞인 약 115fps 는 막는다');
+  /* R13: count 는 같은 간격의 연속 길이일 뿐이다. 떨어져 반복되는 간격도 모두 합산한다. */
+  const jitter: [number, number][] = Array.from({ length: 630 }, (_, i) => [1, i % 2 ? 251 : 249]);
+  const highVariable = await readIntakeMediaFacts(reader(buildMov({ timescale: 60000, stts: [[100, 1000], ...jitter] })));
+  ok(highVariable.averageFps! > 170 && highVariable.averageFps! < 171, '평균 약 170fps 재현 파일');
+  ok(highVariable.stepFps! > 239 && captureRateCode(highVariable) === null, '가장 긴 60fps 연속 구간보다 전체에서 많이 나온 고속 간격으로 판정한다');
+  eq(fpsLabel(highVariable), '약 170fps 감지', '가변 속도의 이름표는 평균 약 170fps 그대로');
+  const joined = await readIntakeMediaFacts(reader(buildMov({ timescale: 120000, stts: [[598, 1001], [2, 2002]] })));
+  const split = await readIntakeMediaFacts(reader(buildMov({
+    timescale: 120000,
+    stts: Array.from({ length: 598 }, () => [1, 1001] as [number, number]).concat([[2, 2002]]),
+  })));
+  eq([split.stepFps, split.frameTiming, captureRateCode(split)], [joined.stepFps, joined.frameTiming, captureRateCode(joined)], '동일한 표본을 여러 행에 적어도 판정이 같다');
+  const lowAverage = await readIntakeMediaFacts(reader(buildMov({ timescale: 60000, stts: [[600, 1000], ...jitter] })));
+  eq(captureRateCode(lowAverage), 'capture_rate_low', '고속 간격을 합쳐도 평균이 약 97fps이면 차단한다');
+  for (let fps = 120; fps <= 240; fps++) {
+    const regular = await readIntakeMediaFacts(reader(buildMov({ timescale: fps * 1000, stts: [[600, 1000]] })));
+    eq([regular.averageFps, regular.stepFps, captureRateCode(regular)], [fps, fps, null], `${fps}fps를 60fps로 바꾸지 않는다`);
+  }
   /* R07: 진단 줄 · 잰 fps 글 — 파일 이름 · 기종을 넣지 않고, 모르면 지어내지 않는다 */
   const f240 = await readIntakeMediaFacts(reader(mov240(1024)));
   eq(measuredFpsText(f240), '239.76', '잰 fps 는 반올림 이름표가 아니라 잰 값(239.76)');

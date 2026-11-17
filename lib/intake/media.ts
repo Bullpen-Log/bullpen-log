@@ -178,7 +178,14 @@ function readStts(b: Uint8Array, stts: Box): { count: number; total: number; tim
   else last.count -= 1;
   const bodyCount = body.reduce((s, r) => s + r.count, 0);
   if (!bodyCount) return { count, total, timing: 'constant', stepDelta: total / count };
-  const main = body.reduce((best, r) => (r.count > best.count ? r : best), body[0]);
+  // stts 의 한 행은 같은 간격이 연속된 구간이다. 같은 delta 가 여러 행에
+  // 흩어져 있어도 모두 합쳐야 가장 흔한 간격을 얻는다(가변 고속 촬영).
+  const countsByDelta = new Map<number, number>();
+  for (const run of body) {
+    countsByDelta.set(run.delta, (countsByDelta.get(run.delta) ?? 0) + run.count);
+  }
+  const grouped = Array.from(countsByDelta, ([delta, count]) => ({ delta, count }));
+  const main = grouped.reduce((best, r) => (r.count > best.count ? r : best), grouped[0]);
   const within = body.filter((r) => Math.abs(r.delta - main.delta) <= main.delta * 0.05).reduce((s, r) => s + r.count, 0);
   return { count, total, timing: within / bodyCount >= 0.98 ? 'constant' : 'variable', stepDelta: main.delta };
 }

@@ -1299,6 +1299,10 @@ eq(unhandled, 0, '처리되지 않은 거절이 없다');
     'R07 검수: 막힘 글이 걸린 기준(평균)을 말하고 간격 · 평균 두 값을 다 적는다',
   );
   ok(!mixed.ok && !/^선택한 파일에서는 240fps가 확인됩니다/.test(mixed.message), 'R07 검수: 240fps 만 적고 120 이상을 요구하는 모순 글이 아니다');
+  const highJitter: [number, number][] = Array.from({ length: 630 }, (_, i) => [1, i % 2 ? 251 : 249]);
+  const highVariable = await inspectPick(asFile(buildMov({ timescale: 60000, stts: [[100, 1000], ...highJitter] }), 'variable.MOV'), limits, none);
+  ok(highVariable.ok && highVariable.picked.facts!.averageFps! > 170, 'R13: 약 170fps 가변 원본이 실제 파일 선택에서 통과한다');
+  if (highVariable.ok) URL.revokeObjectURL(highVariable.picked.url);
   /* 간격 자체가 낮고 고르지 않은 파일 — 낮은 값과 평균을 함께 */
   const lowMixed = await inspectPick(asFile(buildMov({ timescale: 600, stts: [[300, 20], [10, 40]] }), 'lm.MOV'), limits, none);
   ok(!lowMixed.ok && lowMixed.message.startsWith('선택한 파일에서는 30fps가 확인됩니다') && /평균 \d/.test(lowMixed.message), 'R07 검수: 낮은 간격 + 고르지 않음은 두 값을 함께 적는다');

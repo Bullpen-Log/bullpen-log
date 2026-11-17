@@ -3100,6 +3100,16 @@ const verifyAll = async (...ids: string[]) => {
   const facts = (await db.intakeAsset.findUniqueOrThrow({ where: { id: slomoId } })).mediaFacts as { editList: { retimed: boolean }; stepFps: number };
   eq([facts.editList.retimed, facts.stepFps], [true, 240], '재생은 늘렸고 표본은 240');
 
+  /* R13: 약 170fps 가변 파일 — 클라이언트 신고 대신 서버가 읽은 전체 간격을 합산한다. */
+  const jitter: [number, number][] = Array.from({ length: 630 }, (_, index) => [1, index % 2 ? 251 : 249]);
+  const highVariable = buildMov({ timescale: 60000, stts: [[100, 1000], ...jitter], mdatBytes: 2048 });
+  const highVariableId = await sendFile(i.scope, 'side', highVariable, slomoId);
+  eq(await verifyAsset(db, storage, highVariableId, NOW), 'verified', '서버도 평균 약 170fps 원본을 받는다');
+  const highVariableRow = await db.intakeAsset.findUniqueOrThrow({ where: { id: highVariableId } });
+  const highVariableFacts = highVariableRow.mediaFacts as { averageFps: number; stepFps: number };
+  ok(highVariableFacts.averageFps > 170 && highVariableFacts.averageFps < 171 && highVariableFacts.stepFps > 239, '서버가 평균과 전체 최빈 간격을 기록한다');
+  eq([highVariableRow.serverSha256, highVariableRow.storedBytes], [sha(highVariable), BigInt(highVariable.length)], 'fps 검수 이후 원본 바이트 해시도 일치한다');
+
   /* 119.88(1001/120000) — 좁은 허용 폭 안 */
   const ntsc = mov120(2048);
   const ntscId = await sendFile(i.scope, 'rear', ntsc);

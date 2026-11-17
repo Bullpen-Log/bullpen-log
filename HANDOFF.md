@@ -1,3 +1,9 @@
+## Kim Min — 2026-11-17 · GPT — FPS-R13 reviewed correction publication
+
+Completed/reviewed FPS correction: the time-to-sample reader now sums counts for equal frame intervals across all stts rows, rather than picking one longest contiguous row. Controlled730-frame movie averages170.097fps: old representative60 rejected; corrected representative240.964 accepted. Real30/60 and low-average variable files remain rejected;120fps policy unchanged. This may explain the iPhone15 Pro report, but Kim's actual file is unavailable and NOT confirmed.
+
+Product diff is9 lines in lib/intake/media.ts; both browser selection and server verifyAsset use it. Department core633/client237/isolated server892 and full webpack production build passed; overall freshly reran core633/client237 and before-after fixture. Actual localhost3000 served-code fixture also passed. No DB/schema/storage/dependency/native edits. No install/generate step. Re-select original file after release; existing rejected assets are not automatically reprocessed. See docs/reviews/intake-fps-r13-overall-review.md and intake-fps-r13-2026-11-17.md. User newly authorized finishing reviewed releases in overall; production verification pending at this entry. Preserve unrelated EX-LOAD01-R1/EX-REF04/STEPBOX work; do not include dirty shared trees.
+
 ## Kim Min — 2026-11-17 · GPT — APP-AUTOLOGIN01 both TestFlight builds verified
 
 Source4a405f92: both apps rebuilt, compiled changed Swift cookie handling, signed and uploaded successfully under Geum's existing team. Independent Apple API confirmation: BOTH VALID and internal IN_BETA_TESTING.
