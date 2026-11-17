@@ -1000,6 +1000,16 @@
             "https://drivelinebaseball.com/blogs/blog/the-interaction-of-biomechanics-and-command"
           ],
           "advance_authorized": false
+        },
+        {
+          "at": "2026-11-17T15:35:29.675040+09:00",
+          "review_id": "mv-665ece52f26c70b2",
+          "user_request": "운동이 끝나고 자연스럽게 영상이 끝나도록 편집",
+          "status": "applied_and_storage_readback_verified",
+          "edit": "마지막 동작 후 발을 내려 안정된 자세가 되는 12초 지점으로 마무리. 기존 영상 보존.",
+          "source_duration_seconds": 13.27,
+          "edited_duration_seconds": 12.0,
+          "advance_authorized": false
         }
       ],
       "assistant_findings": [],
