@@ -17,3 +17,15 @@ Queued doc-only exercise load review guide was byte-copied from released Support
 ## Serial release safety gate
 
 R15 both native CI jobsSUCCESS and uploadsucceeded. Actual public newruntime binary marker matches b0f2fa8f30d013c38c76f73fa7c1a1bea1c43296/build20261117.90935. This is the duplicate-build safety gate; no need to delay pure JS/web publication for Apple processing. Exact Sinker Apple availability continues to be checked separately, not presumed complete. No manual Vercel publication/provenance bypass. This accepted r5 package is now prepared for ordinary main push; verify next plan built=true/same runtime before declaring OTA complete.
+
+## Observed web and compatible app update
+
+Source9bf44e7f merged latest human exercise review records as6c800f0bae05bbf18505e7c8b7928d7620e5d343. VercelSUCCESS deploymentN1v7HbzUAzM4Yt2tsu8JtrGKpbKt. Native workflow44057596906SUCCESS, both binary jobsSKIPPED, plan fingerprint equals already-built b0f2fa8f30d013c38c76f73fa7c1a1bea1c43296. Actual public manifest/latest match source6c800f0 and update6164d610-5785-436f-af6f-349b8bd1f28e; downloaded13,823,054-byte launch SHA256 matches manifest. No duplicate TestFlight build.
+
+R15 preceding binaries now bothAppleVALID/IN_BETA_TESTING; Sinker20261117.90935 receives this compatible JS update on normal app-update path. Physical receipt not asserted. Department authenticated live READ-only UI check is in progress; no service content save/reclassification used for smoke testing. Documentation guide published in same6c800f0 source; actual remote-computer receipt remains separate.
+
+## Live authenticated READ-only UI acceptance
+
+Department actually refreshed deployed /library/mechanics after preserving old unsaved values locally. All six purpose choices and rank controls visible in web admin form (currently3 selected; six-save NOT tested), correct targeted-throwing guidance. Actual smallHingeDrive purposes drop→torso; large adds separation3; distinct titles retained, both stageintegrated. Closed without saving/reclassifying; no playback/review advancement, returned currentvideo9WalkingWindup. Actual screenshot verifies poster/ranked badges/indented description. Full UI facts/screenshots local ~/bullpen-video-review/2026-11-17-purpose-priority/mechanics-r5-live-ui-check.json and mechanics-r5-live-review.png; copy of facts retained with final release evidence.
+
+Final delivery COMPLETE for authorized web/compatibleOTA scope. Actual six-purpose service save/cache invalidation, user-program real recommendation and physical phone remain untested; isolated full production function fixtures and module probes are explicitly distinguished. No user content changed by release smoke checks.

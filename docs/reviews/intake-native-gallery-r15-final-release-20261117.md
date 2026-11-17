@@ -19,3 +19,14 @@ Release source0cf5269f merged review records as8ada072e75c1b9acfdcb2f5e1a2a86ddd
 Sinker44052178495SUCCESS/job133932710260: real IntakeOriginalModule.swift compile, ARCHIVE SUCCEEDED, Upload succeeded, installed ko=싱커/en=Sinker, bundlecom.sinker.app/version1.1.0/build20261117.90935. Dugout44052413575SUCCESS/job133933243848: same module actualcompile/archive/upload, bundlecom.mhk.dugout/version1.1.0/build20261117.90815. Full17MB logs each retained privately. Actual Dugout Apple UUIDa14081d6-7201-47ee-8008-c4199ba9af72 nowVALID/IN_BETA_TESTING; externalREADY_FOR_BETA_SUBMISSION, no external/public submission. Sinker exact new build Apple processing/availability still PENDING at this record.
 
 Newruntimeb0f2fa8f30d013c38c76f73fa7c1a1bea1c43296; actual compatible update6f8c20ce-e1c0-40e2-b304-60a9fce2334d/latest source8ada/downloaded13,812,733byte launch hash verified. Published binary marker nowmatches runtime andbuild20261117.90935, proving no duplicate binary is required for subsequent same-runtime JS changes. Both remote jobs complete, so accepted MECHweb/JS release may proceed while exact Sinker Apple processing is monitored separately. No localnativebuild/simulator/Metro. Physical reachable iPhone0 per producer read-only device inventory; Photos/deeplink/original-byte end-to-end remains unverified.
+
+## Final Apple availability — complete internal distribution
+
+Direct Apple API now confirms BOTH exact new builds VALID/IN_BETA_TESTING (autoNotify enabled), correct existing new-team app records:
+
+| App | Version/build | Apple build UUID | Source CI |
+|---|---|---|---|
+| Sinker/com.sinker.app/6835422935 |1.1.0/20261117.90935|d91ea2f7-a263-41eb-9eb1-476b0b6357e6|44052178495 / source8ada072e|
+| Dugout/com.mhk.dugout/6835459450 |1.1.0/20261117.90815|a14081d6-7201-47ee-8008-c4199ba9af72|44052413575 / source8ada072e|
+
+External state remains READY_FOR_BETA_SUBMISSION; no external review/public launch submitted. Final authorized web+both internalTestFlight delivery COMPLETE; user must install new TestFlight binaries for Photos module, not infer native installation from OTA. PhysicalPhotos/originalbytes/deeplinks remain unverified. Later accepted MECH same-runtime JS update supersedes launch asset normally; no extra R15 binary or source changes. Private final proof final-verified-apple-builds.json +full logs retained.

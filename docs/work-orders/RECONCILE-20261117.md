@@ -2,6 +2,15 @@
 
 Human authorized overall to reconcile tangled work, ensure responsible departments independently verify completed batches and finish scoped publishing. This authorizes finished, reviewed feature publication; public App Store submission/release remains ON HOLD. Do not promote unfinished branches or dirty shared checkouts into release.
 
+
+## Latest verified releases and active queue — overrides historical entries below
+
+- R15 source8ada072e: authorized web and BOTHnewinternalTestFlight delivery COMPLETE. Sinker20261117.90935/Dugout20261117.90815, actualAppleVALID/IN_BETA_TESTING; realPhotosModulecompile/archive/upload verified. Correct existing userAppleapprecords; no public/external submission, no physicalPhotos/deeplink/hash proof. R14localcommits excluded.
+- MECH-FOCUS01r5 source9bf44e7f/merge6c800f0: final exact19source/independentACCEPT, clean web/native types/lint/fullNextbuild0; actual VercelSUCCESS and compatibleSinkerOTA44057596906/update6164d610…verified source+launchSHA; binariesSKIPPED/sameruntimeb0f2…. Live authenticated READ-only department UI PASS (6choices/rankcontrols/distinct smalllargepurposes, currentvideo9 restored), real save/cache/device unverified. Existing broader3D numerical baselinefailure documented, not called allpass.
+- Exercise load review guide docs/shoot/exercise-load-review-standard-20261117.md published exactly fromSupport1;03owner already instructed; no blanket DB/content authority or inventedMacBookreceipt.
+- EX-REF04: HOLD independent P1created_at-only paginationloss +missing registrar workflow, P2same-msreplay, rootreferenceinputs changed. No accepted release packet, exclude unfinishedsource/extraDBchanges. Existing authorized centralimportledger preserved; user checkpoint belongsSub3.
+- SINKER-WIKI01: actual user newrequest assigned existing02GPT design/review and matchingClaude02 implementation. LocalpreviewFIRST for userreview; not a productionrelease order. No new session, no duplicated main implementation.
+
 ## Authoritative current inventory
 
 | Batch/department | Actual owner/implementation | Review and delivery state | Release action |

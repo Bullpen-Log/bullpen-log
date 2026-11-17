@@ -1,3 +1,15 @@
+## Mechanics owner / Kim Min — 2026-11-17 · GPT — Final live read-only confirmation
+
+Department refreshed actual authenticated deployed library, confirmed6purposechoices/rankcontrols/targetedthrowingguidance and small/large distinct per-video purposes; closed without saving and restored currentvideo9. Web displayPASS; true six-purpose save/cache/user-program/device checks remainunverified. Actual compatibleOTA6164d610…source6c800f0/runtimeb0f2…/launchSHA independently verified; no additionalnativebinary. BothR15TestFlightbuilds alreadyVALID/IN_BETA_TESTING as below. Final records distinguish live UI from isolated mocks and keep publiclaunchheld.
+
+## Kim Min / all departments — 2026-11-17 · GPT — R15 internal apps COMPLETE; MECH web/OTA COMPLETE
+
+R15 source8ada072e: VercelSUCCESS; real newPhotosModule compiled/linked in BOTHapps. Sinker44052178495/build20261117.90935/UUIDd91ea2f7-a263-41eb-9eb1-476b0b6357e6 andDugout44052413575/build20261117.90815/UUIDa14081d6-7201-47ee-8008-c4199ba9af72 are directly verified AppleVALID/IN_BETA_TESTING, correctcom.sinker.app/com.mhk.dugout. PublicAppStore/externalsubmissionNOT performed. Install newTestFlight build for galleryoriginal module; physicalPhotos/deeplink/originalhash stillunverified. No furtherduplicatebinary needed.
+
+MECHr5 source9bf44e7f/merge6c800f0: VercelSUCCESS +compatibleSinkerOTA44057596906SUCCESS, nativebinaryjobsSKIPPED, samebuilt runtimeb0f2fa8f30d013c38c76f73fa7c1a1bea1c43296. Actual update6164d610-5785-436f-af6f-349b8bd1f28e/latestsource/13,823,054-byte launchSHA matched. Per-video purpose/stage/equipment ranking and fixed-level safety corrected; historicrecords/DB untouched.03loadreviewguide included. Final records docs/reviews/intake-native-gallery-r15-final-release-20261117.md and mechanics-focus-r5-final-release-20261117.md. No new environment/migration/install step for these code batches; device and full live save/cache checks explicitly separate.
+
+New user SINKER-WIKI01 assigned to existing02GPT: design/evidence/independentreview by pitchingrecords, implementation by matchingClaude02, LOCALSERVERPREVIEWFIRST for user review. No wiki production/OTA authorization yet; do not mix unfinished wiki into these releases. REF04 remainsHOLD for pagination/workflow findings; R14 separate unreviewed delivery remainsexcluded. Preserve all user video checkpoints/currentmechanics9 and other session changes.
+
 ## Kim Min / mechanics and review owners — 2026-11-17 · GPT — MECH-FOCUS01 r5 accepted release
 
 Actual user chose per-video purposes/priorities and explicitly requested correction plus deployment. Exact19path immutable r5 packet is independently accepted and applied to clean main; all current R15source bytes retained. Per-video ordered purposes/stage govern concrete variants, owned equipment and recipe/report alternatives; beginner fixed sessions cannot select a harder variant. Prior assessment order and small/large labels fixed. No DB/schema/content/history rewrite in this release; human mechanics video9 preserved.
