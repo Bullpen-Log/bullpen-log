@@ -633,7 +633,7 @@
       "title": "P1 레그 리프트 드리프트",
       "kind": "직접 촬영",
       "kind_evidence": "OWN DB row와 자체 영상 재생·썸네일 실물 확인",
-      "status": "설명·썸네일 수정 저장 완료 · 사용자 확인 대기",
+      "status": "영상 편집 적용 완료 · 사용자 확인 대기",
       "drill_id": "e3b9cb28-87c7-4ab1-a00c-41a6b23c4fca",
       "user_decision": null,
       "user_decided_at": null,
@@ -656,6 +656,26 @@
             "checked_on": "2026-11-17",
             "limit": "개별 선수 사례에서 중심 이동과 뒷고관절 관련 일반 원리 참고. 본 드릴의 효과를 직접 입증하지 않음."
           },
+          "advance_authorized": false
+        },
+        {
+          "at": "2026-11-17T05:31:05.143Z",
+          "request": "아니 지금 편집해. 기록하지 말고. 바로바로 편집해",
+          "status": "영상 편집 적용 완료",
+          "source_ranges_seconds": [
+            [
+              0.4,
+              10.4
+            ],
+            [
+              12,
+              21.8
+            ]
+          ],
+          "output_duration_seconds": 19.8,
+          "source_preserved": true,
+          "verification": "새 파일 업로드 후 다운로드 SHA256 일치, DB 경로와 웹 재생 및 전환 약10초 확인",
+          "scope": "기존 앞쪽 각도와 측면 시범을 연결하고 중간 자세 정리 구간 및 시작 끝 일부를 자름. 원본 영상 보존.",
           "advance_authorized": false
         }
       ],
@@ -739,6 +759,26 @@
           },
           "advance_authorized": false
         }
+      },
+      "latest_video_edit": {
+        "at": "2026-11-17T05:31:05.143Z",
+        "request": "아니 지금 편집해. 기록하지 말고. 바로바로 편집해",
+        "status": "영상 편집 적용 완료",
+        "source_ranges_seconds": [
+          [
+            0.4,
+            10.4
+          ],
+          [
+            12,
+            21.8
+          ]
+        ],
+        "output_duration_seconds": 19.8,
+        "source_preserved": true,
+        "verification": "새 파일 업로드 후 다운로드 SHA256 일치, DB 경로와 웹 재생 및 전환 약10초 확인",
+        "scope": "기존 앞쪽 각도와 측면 시범을 연결하고 중간 자세 정리 구간 및 시작 끝 일부를 자름. 원본 영상 보존.",
+        "advance_authorized": false
       }
     },
     {

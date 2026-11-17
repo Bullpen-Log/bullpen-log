@@ -5,7 +5,7 @@
   "scope": "메커니즘 투구 드릴 전체 — 직접 촬영/참고/나중에 촬영 포함",
   "catalog_url": "https://dugout-baseball.com/library/mechanics",
   "base_ref": "aa9d89848bd2ee182ed2151653466c83ed3a9010",
-  "state": "6번 사용자 확인 대기",
+  "state": "6번 편집 영상 사용자 확인 대기",
   "source_last_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
   "source_modified_time_semantics": "로컬 파일 실제 mtime. 이후 운영 공지 갱신을 포함할 수 있으며 영상 관찰/사용자 판정 시각이 아님.",
   "catalog_snapshot": {
@@ -55,7 +55,7 @@
     "drill_id": "e3b9cb28-87c7-4ab1-a00c-41a6b23c4fca",
     "category": "드리프트",
     "kind": "직접 촬영",
-    "status": "초보자 설명 수정 저장 · 컷 편집 대기 · 사용자 확인 대기",
+    "status": "영상 편집 적용 완료 · 사용자 확인 대기",
     "latest_applied_revision": {
       "at": "2026-11-17T04:48:36.247Z",
       "before_title": "P1 레그 리프트 드리프트",
@@ -124,7 +124,27 @@
         "advance_authorized": false
       }
     },
-    "playback": "반복 켜짐·재생 중 확인"
+    "playback": "반복 켜짐·재생 중 확인",
+    "latest_video_edit": {
+      "at": "2026-11-17T05:31:05.143Z",
+      "request": "아니 지금 편집해. 기록하지 말고. 바로바로 편집해",
+      "status": "영상 편집 적용 완료",
+      "source_ranges_seconds": [
+        [
+          0.4,
+          10.4
+        ],
+        [
+          12,
+          21.8
+        ]
+      ],
+      "output_duration_seconds": 19.8,
+      "source_preserved": true,
+      "verification": "새 파일 업로드 후 다운로드 SHA256 일치, DB 경로와 웹 재생 및 전환 약10초 확인",
+      "scope": "기존 앞쪽 각도와 측면 시범을 연결하고 중간 자세 정리 구간 및 시작 끝 일부를 자름. 원본 영상 보존.",
+      "advance_authorized": false
+    }
   },
   "completed": [
     {
@@ -590,8 +610,7 @@
     "6번 일부장면 관찰; 전체 연속/전 프레임 미확인",
     "6번 후반 측면 시범에서 몸을 낮추는 움직임도 있어 드리프트 중심 설명과의 범위를 사용자 검수에서 확인",
     "1~3번 Driveline 사전참고 기준 재점검 대상 및 기존 메모 보존",
-    "원본 편집·트림 요청은 전체 검수 후 일괄 처리",
-    "6번 사용자 요청: 측면·후면 컷 자연스럽게 연결, 전체 영상 검수 종료 후 일괄 편집 대기. 정확한 컷 지점 미정."
+    "원본 편집·트림 요청은 전체 검수 후 일괄 처리"
   ],
   "approval_rules": {
     "advance": "Only explicit user OK/next authorizes advancement; setup does not.",
@@ -628,7 +647,7 @@
     "personal_health_information_copied": false,
     "signed_urls_copied": false
   },
-  "updated_at": "2026-11-17T05:24:28.228Z",
+  "updated_at": "2026-11-17T05:31:05.143Z",
   "current_workflow_document": "docs/shoot/video-review-current-workflow.md",
   "setup_event": {
     "at": "2026-11-13T15:54:58+09:00",
@@ -795,5 +814,9 @@
       6
     ]
   },
-  "specific_footwork_rule_20261117": "이동 설명은 도약 발·착지 발·목표 기준 방향·영상 시범의 왕복 횟수와 총 점프 수를 확인해 명시한다. 확인하지 못한 횟수는 추정해 넣지 않는다."
+  "specific_footwork_rule_20261117": "이동 설명은 도약 발·착지 발·목표 기준 방향·영상 시범의 왕복 횟수와 총 점프 수를 확인해 명시한다. 확인하지 못한 횟수는 추정해 넣지 않는다.",
+  "immediate_video_edit_policy": {
+    "at": "2026-11-17T05:31:05.143Z",
+    "rule": "사용자가 편집을 요청하면 해당 영상 검수 중 바로 편집·적용하고 결과를 확인한다. 모든 영상 검수 후 일괄 편집이라는 이전 지시를 대체한다."
+  }
 }
