@@ -27,3 +27,22 @@ One extra correction by overall: native/tsconfig.json explicitly adds DOM.Iterab
 ## Remaining verification and delivery gate
 
 No simulator/Metro/Expo server/local native build/physical device was run. CI native builds must compile Swift, sign, check actual localized installed names, upload, then Apple API must confirm the exact new build processing and internal beta state. Successful fixture tests are not proof of iOS keychain/cookie persistence on real hardware. Device cold launch, airplane-mode retry, process termination/restart, login/logout/account switch, WebView sync and push registration remain device acceptance checks. Final run IDs/build numbers/Apple states will be appended after observed delivery.
+
+## Additional isolated root type diagnosis
+
+Generated Prisma client from the committed schema into /tmp/autologin-typecheck/client using a minimal temporary config (no environment file, network datasource or shared generated-client writes). Generation exit0. Temporary typecheck mapped @prisma/client to that isolated output; root types still exit2 because the shared installed dependency tree lacks @noble/hashes/sha2.js, @noble/hashes/utils.js and tus-js-client used by unchanged intake files. This is an environment mismatch, not a passed default check; no dependency installation was performed. Logs: /tmp/autologin-isolated-prisma.log and /tmp/autologin-web-types-isolated.log, original .exit sidecars. The actual Vercel deployment for4a405f92 subsequently reported success via GitHub commit status. Native compiler/type gates remain separate.
+
+## Observed release completion — 2026-11-17 KST
+
+Release source4a405f927fb45ec1c877d11b26aac343a3c8ec90, main. No unrelated root dirty work included.
+
+| App | Bundle / Apple record | CI run / job | Version/build | Apple build UUID | Final direct API states |
+|---|---|---|---|---|---|
+| Sinker | com.sinker.app /6835422935 |44028533479 /133854758385 |1.1.0 /20261117.61036 |4893d8de-4bc7-42b5-85af-a646a5d1f18c |VALID / IN_BETA_TESTING |
+| Dugout | com.mhk.dugout /6835459450 |44028702211 /133855145488 |1.1.0 /20261117.60843 |869b9e44-05b8-4552-a3d4-89e3fb1cfcd4 |VALID / IN_BETA_TESTING |
+
+Both native workflow exits0, verified via completed jobs and watch .exit sidecars. Full job logs /tmp/autologin-sinker-ci-full.log and /tmp/autologin-dugout-ci-full.log contain actual BullpenNativeModule.swift compilation, ARCHIVE SUCCEEDED and Upload succeeded. GitHub annotation installed-name checks: Sinker ko=싱커 /en-default=Sinker, Dugout ko=덕아웃 /en-default=Dugout. Existing Geum signing/bundle configuration preserved. Sinker screen-code publish also succeeded; its changed native runtime still requires the new TestFlight build. The main-push plan completed before separate Dugout dispatch, so neither was cancelled by shared plan concurrency.
+
+Apple direct build and buildBetaDetail reads confirmed exact UUIDs above. Sinker initially PROCESSING then VALID; both internal IN_BETA_TESTING. Both external states READY_FOR_BETA_SUBMISSION, NOT submitted to external review/public launch. Local API evidence /tmp/autologin-sinker-build-direct.json, /tmp/autologin-sinker-beta.json, /tmp/autologin-dugout-apple-filter.json, /tmp/autologin-dugout-beta.json. GitHub source commit Vercel status also success.
+
+Release delivery COMPLETE for authorized internal TestFlight scope. Physical-device installation, cold-start persistence, offline retry/account switching and push remain unverified; no simulation is described as device proof. Public App Store submission/release remains ON HOLD.

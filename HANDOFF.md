@@ -1,3 +1,13 @@
+## Kim Min — 2026-11-17 · GPT — APP-AUTOLOGIN01 both TestFlight builds verified
+
+Source4a405f92: both apps rebuilt, compiled changed Swift cookie handling, signed and uploaded successfully under Geum's existing team. Independent Apple API confirmation: BOTH VALID and internal IN_BETA_TESTING.
+
+- Sinker com.sinker.app /6835422935:1.1.0 build20261117.61036; UUID4893d8de-4bc7-42b5-85af-a646a5d1f18c; run44028533479 job133854758385.
+- Dugout com.mhk.dugout /6835459450:1.1.0 build20261117.60843; UUID869b9e44-05b8-4552-a3d4-89e3fb1cfcd4; run44028702211 job133855145488.
+- Actual archive checks preserve ko installed names 싱커/덕아웃 and en/default Sinker/Dugout. Sinker screen-code update and source Vercel deployment also succeeded. No public App Store/external review submitted: launch remains ON HOLD.
+
+Use these NEW TestFlight builds for native cookie changes; OTA alone does not add the Swift queue. Actual phone installation, cold launch/restart persistence, offline retry, logout/account switching and push are not verified. Test scripts use mock transport, not devices. Exact scope/checks/baseline failures and complete evidence paths: docs/work-orders/APP-AUTOLOGIN01-gpt-review.md. No dependency/DB/migration action needed by recipient. Preserve unrelated ongoing EX-LOAD01-R1 /EX-REF04 work; neither is approved for release by this handoff.
+
 ## Kim Min — 2026-11-17 · GPT — APP-AUTOLOGIN01 scoped TestFlight delivery in progress
 
 Human authorized final overall review and BOTH apps through TestFlight, not public App Store launch. Sub2 implementation restores OS cookie jars before either app mounts account consumers, serializes account mutations, prevents stale-account results/cache reuse, and clears offline logout locally without deleting drafts/outboxes. Swift cookie ordering changed, so a new native build is required for both apps. Existing bundles, signing team, ko/en installed labels and session expiry stay unchanged.
