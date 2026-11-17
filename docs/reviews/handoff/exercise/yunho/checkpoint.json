@@ -764,7 +764,7 @@
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
   "latest_resume": {
     "current": "EX-Y-P-POGO-258c0eee",
-    "status": "Expanded tendon recoil explanation saved; user review pending."
+    "status": "Recoil explanation approved as future standard; current pogo video remains open pending explicit next."
   },
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
@@ -1127,6 +1127,12 @@
     "middle_cut_transition": {
       "instruction": "Use a smooth brief dissolve like P036 for future mid-video cuts; adjust duration to footage so motion remains clear.",
       "source": "User approval 2026-11-16"
+    },
+    "plyometric_recoil_easy_explanation": {
+      "user_request": "For future plyometric descriptions include the accessible explanation of how impact, tendon stretch and recoil contribute to the next movement.",
+      "instruction": "When actual footage and the exercise purpose support a rapid landing-to-next-movement, explain in simple language that landing loads and can stretch muscle-tendon tissues; like a stretched elastic band, tendon can recoil; as muscles actively push into the ground, returned elastic energy can contribute to the next movement. Adapt length and placement to each exercise, avoid repetitive boilerplate. This is one contributing mechanism, not the sole cause, guaranteed benefit, or a measured claim about a particular video. Do not assert rapid recoil for a stick landing or stationary pause; describe the actual movement and its purpose.",
+      "source": "User approved pogo wording and requests future application, 2026-11-17",
+      "reference": "https://www.nsca.com/education/articles/kinetic-select/stretch-shortening-cycle/"
     }
   },
   "mandatory_plyometric_review_rule_20261116": "For every plyometric exercise, explain the actual movement, training purpose and role in plyometric progression where applicable, and a clear evidence-calibrated link to pitching; distinguish foundational drills from reactive training and indirect associations from proven direct effects. Apply common user-friendly terms, format, prescriptions, and evidence standards. Review each exercise individually.",
