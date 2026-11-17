@@ -1022,6 +1022,14 @@
             "https://drivelinebaseball.com/blogs/blog/the-interaction-of-biomechanics-and-command"
           ],
           "advance_authorized": false
+        },
+        {
+          "at": "2026-11-17T15:42:11.432541+09:00",
+          "review_id": "mv-665ece52f26c70b2",
+          "user_request": "설명이 길거나 필요하면 번호를 나누는 공통 규칙 적용",
+          "status": "applied_and_readback_verified",
+          "change": "현재 영상의 긴 3번을 동작과 동작 중 주의 사항으로 나누고 이후 번호 조정",
+          "advance_authorized": false
         }
       ],
       "assistant_findings": [],
