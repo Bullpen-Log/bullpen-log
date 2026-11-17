@@ -69,6 +69,30 @@ function sectionOf(g: GuideItem): string {
 }
 const SECTIONS = [...FOCUS_POINTS, STRENGTH_CATEGORY, NO_FOCUS, LATER_CATEGORY];
 
+function GuideDescription({ text }: { text: string }) {
+  if (!/^■\s/m.test(text)) {
+    return <p className="whitespace-pre-wrap">{text}</p>;
+  }
+  const lines = text.replace(/\r\n/g, '\n').split('\n');
+  const content = lines.map((line, index) => {
+    if (!line.trim()) {
+      return <div key={index} aria-hidden="true" className="h-[1em]" />;
+    }
+    if (line.startsWith('■ ')) {
+      return <div key={index}>{line}</div>;
+    }
+    const content = line.trimStart();
+    const match = content.match(/^(\d+\.)\s+(.*)$/);
+    if (match) {
+      return <div key={index} className="flex"><span className="shrink-0 w-[1.5em]">{match[1]}</span><span className="min-w-0 whitespace-pre-wrap">{match[2]}</span></div>;
+    }
+    const priorBoundary = lines.slice(0, index).reverse().find((previous) => !previous.trim() || previous.startsWith('■ ') || /^\s*\d+\.\s/.test(previous));
+    const numbered = !!priorBoundary && /^\s*\d+\.\s/.test(priorBoundary);
+    return <div key={index} className="whitespace-pre-wrap" style={{ paddingLeft: numbered ? '1.5em' : '1.25em' }}>{content}</div>;
+  });
+  return <div>{content}</div>;
+}
+
 /** 펼쳤을 때 보이는 전체 내용 */
 function GuideDetail({
   item,
@@ -196,9 +220,9 @@ function GuideDetail({
           />
         </div>
 
-        <p className="mt-4 flex-1 whitespace-pre-wrap text-sm leading-relaxed text-muted">
-          {item.description}
-        </p>
+        <div className="mt-4 flex-1 text-sm leading-relaxed text-muted">
+          <GuideDescription text={item.description} />
+        </div>
 
         {isAdmin && !item.thumbUrl && item.videoPath && (
           <div className="mt-4 border-t border-line pt-4">

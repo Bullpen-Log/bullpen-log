@@ -1,3 +1,7 @@
+## Kim Min / mechanics reviewer — 2026-11-17 · GPT — Description-only wrapping fix
+
+Mechanics descriptions now use actual body padding and numbered flex markers so wrapped continuation lines remain indented. Only the display helper and sole description region changed; foreign review-selection edits excluded. Text rows/history/native screens unchanged. Narrow320/900 fixture and fresh changed-file lint pass; authenticated production page/device unverified. Standard section syntax ■ plus space; alternate heading formats not newly supported. Exact hashes/evidence: docs/reviews/mechanics-description-wrap-20261117.md. No install/DB step.
+
 ## Kim Min / all departments — 2026-11-17 · GPT — Completed-work reconciliation
 
 User requested reconciliation of GPT/Claude work and publishing finished independently accepted batches. Current table: docs/work-orders/RECONCILE-20261117.md. FPS-R13 source17141d3a Vercel success; actual production served reader170.097/240.964 and true60=60 verified (fixtures, not Kim's actual original). Incidental Sinker OTA run44035348227 success; no duplicate TestFlight builds. APP-AUTOLOGIN01 remains already delivered on both internal TestFlight builds noted below.
