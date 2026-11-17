@@ -484,9 +484,34 @@
       "source": "https://www.drivelinebaseball.com/wp-content/uploads/2022/09/PITCHING-PDF-FINAL.pdf",
       "exercise_status": "담당 채팅에 직접 요청; 확인 및 처리 진행",
       "advance_authorized": false
+    },
+    {
+      "at": "2026-11-17T07:02:59.442Z",
+      "review_id": "mv-8134aada711c9d8b",
+      "user_request": "번호 아래 이어지는 문장을 첫 문장 시작 위치에 맞춰 들여쓰기",
+      "status": "mechanics_8_applied_and_readback_verified",
+      "exercise_status": "운동영상 담당에게 전달, 처리 상태 별도 확인",
+      "advance_authorized": false
+    },
+    {
+      "at": "2026-11-17T07:04:43.898Z",
+      "review_id": "mv-8134aada711c9d8b",
+      "user_request": "■ 제목 아래의 내용도 제목 글자 시작 위치로 들여쓰기",
+      "status": "mechanics_8_applied_and_readback_verified",
+      "exercise_status": "운동영상 담당에게 전달, 적용 진행 여부 별도 확인",
+      "advance_authorized": false
+    },
+    {
+      "at": "2026-11-17T07:05:11.731Z",
+      "review_id": "mv-8134aada711c9d8b",
+      "user_request": "숫자는 원래 위치여도 됨",
+      "status": "mechanics_8_applied_and_readback_verified",
+      "change": "번호는 원래 위치로 복원, 일반 항목 설명과 번호 다음 문장 들여쓰기 유지",
+      "exercise_status": "운동영상 담당에 정정 전달",
+      "advance_authorized": false
     }
   ],
-  "user_change_request_count": 25,
+  "user_change_request_count": 28,
   "last_user_video_decision": {
     "at": "2026-11-17T06:47:23.274Z",
     "original": "다음 영상 검수하자",
@@ -782,7 +807,7 @@
     "personal_health_information_copied": false,
     "signed_urls_copied": false
   },
-  "updated_at": "2026-11-17T06:58:57.769Z",
+  "updated_at": "2026-11-17T07:05:11.731Z",
   "current_workflow_document": "docs/shoot/video-review-current-workflow.md",
   "setup_event": {
     "at": "2026-11-13T15:54:58+09:00",
@@ -1139,5 +1164,16 @@
     "rule": "설명의 모든 문장 마침표 뒤에 줄바꿈. 번호 표시와 소수점은 분리하지 않으며 번호 사이 빈 줄 유지.",
     "applied_to": "메커니즘 1–8번",
     "at": "2026-11-17T06:58:57.769Z"
+  },
+  "numbered_step_indentation_rule_20261117": {
+    "at": "2026-11-17T07:02:59.442Z",
+    "rule": "이렇게 하세요 번호 안에서 다음 줄의 문장 시작을 번호가 아닌 첫 문장 시작에 맞춰 들여쓴다. 문장별 줄바꿈과 번호 사이 빈 줄 유지.",
+    "applied_to": "1–8번"
+  },
+  "section_indentation_rule_20261117": {
+    "at": "2026-11-17T07:04:43.898Z",
+    "rule": "■ 제목 아래 일반 설명은 제목 텍스트 시작에 맞춰 들여쓴다. 번호는 원래 왼쪽 위치에 유지하고 번호 아래 이어지는 문장은 번호 옆 첫 문장에 맞춘다.",
+    "applied_to": "1–8번",
+    "corrected_at": "2026-11-17T07:05:11.731Z"
   }
 }
