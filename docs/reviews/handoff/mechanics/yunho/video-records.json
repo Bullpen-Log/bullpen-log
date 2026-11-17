@@ -1207,10 +1207,23 @@
           "change": "번호는 원래 위치로 복원, 일반 항목 설명과 번호 다음 문장 들여쓰기 유지",
           "exercise_status": "운동영상 담당에 정정 전달",
           "advance_authorized": false
+        },
+        {
+          "at": "2026-11-17T07:30:32.031Z",
+          "review_id": "mv-8134aada711c9d8b",
+          "user_request": "2번 발 디딜 방향 명확화, 투구 연관성과 효과 보강",
+          "status": "applied_and_readback_verified",
+          "change": "오른발을 등 뒤 목표 방향으로 작게 옮긴다는 안내, 이동과 골반·몸통 회전의 연결 및 구속 관련 설명",
+          "sources": [
+            "https://www.drivelinebaseball.com/wp-content/uploads/2024/03/Free_16-Week_In-Season_And_Off-Season_Throwing_Program_2024-03-05.pdf",
+            "https://www.jrlancerbaseball.com/resources/player-development"
+          ],
+          "limitation": "Driveline 서면은 첫발 방향 명시 없음; 별도 야구팀 자료의 목표 방향으로 거리 확보를 바탕으로 작성. 참고 영상의 해당 첫발 방향 프레임 확증 미완료.",
+          "advance_authorized": false
         }
       ],
       "assistant_findings": [
-        "목표에 등을 보이는 시작 자세 수정 완료. 첫발의 정확한 이동 방향과 영상 시범의 세부 대조 추가 확인 필요."
+        "첫발 목표 방향은 보조 자료에 기반, 참고 영상의 첫발 이동 방향은 시각 확증 필요"
       ],
       "source": {
         "source_id": "canonical_local_record",
