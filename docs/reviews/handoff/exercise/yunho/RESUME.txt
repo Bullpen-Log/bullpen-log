@@ -274,3 +274,5 @@ Latest repeat instruction: check shared player repeat ON; do not wait for clip t
 User requires research and necessary corrections before asking for each video review.
 
 User prefers the Korean heading gangdo (intensity), not segi.
+
+2026-11-17: 스피드 불가리안 스플릿 스쿼트 설명에서 모호한 조절, 스텝박스에 등을 대는 표현, 투구 방향 이동만 강조하는 표현을 수정 저장하고 사용자 확인 대기. 앞다리·몸통·팔 연결을 쉬운 말과 간접 근거 수준으로 설명하는 조건을 공통 지침에 추가.
