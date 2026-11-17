@@ -1003,7 +1003,7 @@
     "personal_health_information_copied": false,
     "signed_urls_copied": false
   },
-  "updated_at": "2026-11-17T08:35:38.130Z",
+  "updated_at": "2026-11-17T18:03:55.133731+09:00",
   "current_workflow_document": "docs/shoot/video-review-current-workflow.md",
   "setup_event": {
     "at": "2026-11-13T15:54:58+09:00",
@@ -1377,6 +1377,14 @@
     "rule": "목적별 중요도 순서로 관련 훈련 목적 모두 선택. 단순 동작 사용 여부로 채우지 않음. 스로잉은 팔 동작 교정·던지는 속도 자체를 집중 훈련할 때만 선택. 순서가 추천 우선순위에 반영되며 단계·장비·통증 조건 유지.",
     "reviewed_numbers": "1–9",
     "system_order": "MECH-FOCUS01",
-    "feature_status": "로컬 구현·검사 완료, 운영 반영·실제 편집 저장 흐름 확인 대기"
+    "feature_status": "r4 로컬 보완·목적/장비/단계 검사 완료. 정확한 변경을 독립 검수 및 총괄에 전달. 운영 기능 반영·실기기 확인 대기.",
+    "variant_policy": {
+      "at": "2026-11-17T18:03:55.133731+09:00",
+      "user_choice": "영상별 목적을 유지해 추천 (권장)",
+      "rule": "같은 동작의 도구별 영상이라도 실제 영상에 저장된 훈련 목적·순위·단계를 각각 유지한다. 영상 사이에서 목적을 합치거나 복사하지 않으며 추천은 해당 영상의 목적·단계·장비 조건을 모두 충족해야 한다.",
+      "recorded_by": "gpt-mv-01a1c08f-18e9-7d81-b86c-893734cde6dd",
+      "computer": "current local Mac; model not reverified"
+    },
+    "verification_note": "메커니즘 3226/0, 목적별 영상 선택 및 실제 소비자 함수 검사 통과. 추가 3D 전체 검사 385/1이며 수정 전 원격 기준에서도 동일한 어깨 재투영 경계값 실패 재현. 전체 검사 통과로 표시하지 않음."
   }
 }
