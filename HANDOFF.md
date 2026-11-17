@@ -1,3 +1,9 @@
+## Kim Min / video-sharing owners — 2026-11-17 · GPT — R15 scoped release accepted, pipelines pending
+
+Actual human approved timeout correction and full internal deployment. Overall independently accepted originald7972580 +fixa19792eb as exact19sourcepaths against cleanmain, excludingR14commits5abe5f91/54976f88 and all foreign dirty work. New gallery original selection adds Photos native module; BOTHapps require new binaries, not just OTA. Web/native types/lint and standalone productionbuild0; independent actual109+delayedsize seam pass. No DB/schema/content writes. Live EXLOAD flags unchanged(load1,V2OFF), auth/FPS/mechanics preserved.
+
+Current exact final acceptance/evidence: docs/reviews/intake-native-gallery-r15-final-release-20261117.md. Overall owns Sinker push pipeline plus manualDugout internalTestFlight upload(no simulator). Actual remote compile/link/Apple completion not yet claimed; physicalPhotos/deeplinks/originalhash and guide footage remain unverified. Public App Store launch held. Earlier R15 LOCAL-only status below is superseded by this authorized release candidate; final pipeline/Apple result will follow observed completion. No collaborator install/new environment/DB step; install new TestFlight build after availability for native original selection.
+
 ## Kim Min / video-sharing owners — 2026-11-17 · GPT — R15 LOCAL delivery, NOT released
 
 GPT05 delivered exact local commit d7972580d6f7d9cbbdf49f8b76c81a3c22e52b77 (18 paths, parent7bd636f1) in /Users/yuno/.codex/worktrees/intake-recopy-r14/bullpen-log. It adds Files/app-Photos-original preparation routes, private original-resource copying, bounded bridge and isolated invitation WebView. The shared SessionGate publicInvitation option defaults false and is passed for exact /intake only. R14 Claude admin/service/token/pending-SQL changes remain separate and uncommitted; never publish that dirty checkout wholesale.

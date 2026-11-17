@@ -53,7 +53,7 @@ function useReleaseGuard(path: string) {
   const release = useRelease();
   const decided = useReleaseDecided();
   useEffect(() => {
-    if (!decided || path === '/' || canOpen(path, release)) return;
+    if (!decided || path === '/' || path === '/intake' || canOpen(path, release)) return;
     noticeLocked();
     if (router.canDismiss()) router.dismissAll();
     else router.replace('/');
@@ -64,6 +64,7 @@ export default function RootLayout() {
   useSinglePush();
   /* 딥링크로 앱 화면부터 열면 그 화면이 보이게 시작 화면을 걷는다 — 밑의 웹 껍데기는 가려져 있어 다 그려졌다는 알림이 오지 않았다 */
   const path = usePathname();
+  // Public invitation screen uses its own name/PIN gate, never the service account.
   useReleaseGuard(path);
   const theme = useTheme();
   useEffect(() => {
@@ -96,7 +97,7 @@ export default function RootLayout() {
       {/* 상태바 글자색 — 설정 테마를 따른다(기기 밝기가 아니라) */}
       <StatusBar style={theme === 'light' ? 'dark' : 'light'} />
       {/* 화면 넘김 알림 — 무거운 일(돌아온 탭 새로 받기 · 그날 창 영상)을 움직임이 끝난 뒤에 하게 적어 둔다(shell/transition.ts) */}
-      <SessionGate><Stack
+      <SessionGate publicInvitation={path === '/intake'}><Stack
         screenOptions={{ headerShown: false }}
         screenListeners={{
           transitionStart: (e) => e.target && noteTransition(e.target, 'start', e.data.closing),
@@ -105,6 +106,7 @@ export default function RootLayout() {
           gestureCancel: (e) => e.target && noteTransition(e.target, 'cancel'),
         }}
       >
+        <Stack.Screen name="intake" options={{ gestureEnabled: false, animation: 'none' }} />
         {/* 구속 측정 — 웹은 멀리서 튀어나오는 zoom 전환. 앱은 옅어지며 들어온다(홈 쓸기의 검은 판 위로 이어짐) */}
         <Stack.Screen name="velocity" options={{ animation: 'fade', animationDuration: 220 }} />
         {/* 내 영상 — 홈 쓸기의 판이 화면을 덮은 뒤 옅게 바뀐다(위 막대 단추도 같은 길) */}

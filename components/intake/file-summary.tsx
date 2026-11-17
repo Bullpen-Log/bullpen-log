@@ -11,9 +11,12 @@ export function factLines(facts: IntakeMediaFacts | null): string[] {
   const out = [fpsLabel(facts)];
   if (facts.width && facts.height) {
     const turned = facts.rotation === 90 || facts.rotation === 270;
-    out.push(turned ? `${facts.height}×${facts.width}` : `${facts.width}×${facts.height}`);
+    out.push(
+      turned ? `${facts.height}×${facts.width}` : `${facts.width}×${facts.height}`
+    );
   }
-  if (facts.sampleDurationSec != null) out.push(`표본 시간 ${facts.sampleDurationSec.toFixed(1)}초`);
+  if (facts.sampleDurationSec != null)
+    out.push(`표본 시간 ${facts.sampleDurationSec.toFixed(1)}초`);
   return out;
 }
 
@@ -23,12 +26,14 @@ export function factLines(facts: IntakeMediaFacts | null): string[] {
  */
 export function VideoPreview({ url }: { url: string }) {
   const [failed, setFailed] = useState(false);
-  if (failed) {
+  if (!url || failed) {
     return (
       <div className="flex items-center gap-3 rounded-2xl bg-ink/5 px-4 py-5 text-footnote leading-5 text-muted">
         <FileVideo aria-hidden className="h-6 w-6 shrink-0" />
         <p className="break-keep">
-          이 브라우저에서는 미리 볼 수 없습니다. 영상은 그대로 보낼 수 있습니다.
+          {url
+            ? '이 브라우저에서는 미리 볼 수 없습니다. 영상은 그대로 보낼 수 있습니다.'
+            : '선택한 원본의 파일명과 프레임을 확인합니다. 원본은 변환 없이 전송합니다.'}
         </p>
       </div>
     );

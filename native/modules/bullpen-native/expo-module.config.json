@@ -4,7 +4,8 @@
   ],
   "apple": {
     "modules": [
-      "BullpenNativeModule"
+      "BullpenNativeModule",
+      "IntakeOriginalModule"
     ],
     "appDelegateSubscribers": [
       "LaunchStyleSubscriber"

@@ -204,6 +204,7 @@ export function VideoStep({
   onOriginal,
   onPrepare,
   preparationProgress,
+  replacementLabel,
   hand = null,
   extra,
 }: {
@@ -223,12 +224,13 @@ export function VideoStep({
   onOriginal: () => void;
   onPrepare?: () => void;
   preparationProgress?: string;
+  replacementLabel?: string;
   extra?: ReactNode;
 }) {
   const copy = VIDEO_COPY[view];
   const errorId = `pick-error-${view}`;
   /* 지금 화면에 실제로 있는 고르기 단추의 이름 — 안내 글이 이 이름을 그대로 쓴다(이미 고른 영상이 있으면 REPICK_LABEL) */
-  const pickLabel = picked ? REPICK_LABEL : copy.pick;
+  const pickLabel = replacementLabel ?? (picked ? REPICK_LABEL : copy.pick);
   const rateBlocked = error != null && (errorCode === 'capture_rate_low' || errorCode === 'capture_rate_unknown');
   /* 고르기 단추가 사라지므로 다음 단추로 옮긴다. 막혔으면 다시 고를 수 있게 고르기 단추로 */
   const next = useRef<HTMLButtonElement>(null);

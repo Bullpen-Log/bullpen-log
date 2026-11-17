@@ -3,17 +3,13 @@ import type { IntakeView } from '@/lib/intake/state';
 
 export const PREPARATION_VERSION = 1;
 export const PREPARATION_TTL = 24 * 60 * 60 * 1000;
-export const PREPARATION_STAGES = [
-  'share',
-  'select',
-  'confirm',
-] as const;
+export const PREPARATION_STAGES = ['method', 'share', 'select', 'confirm'] as const;
 export type PreparationStage = (typeof PREPARATION_STAGES)[number];
 export type PreparationReturn = 'side' | 'rear' | 'review' | 'recovery' | 'correction';
 export type Preparation = {
   view: IntakeView;
   stage: PreparationStage;
-  route: 'apple' | 'other';
+  route: 'apple' | 'other' | 'gallery';
   returnTo: PreparationReturn;
 };
 export type PreparationBook = {
@@ -31,7 +27,7 @@ export function preparationOf(value: unknown): Preparation | null {
   if (
     (p.view !== 'side' && p.view !== 'rear') ||
     !PREPARATION_STAGES.includes(stage as PreparationStage) ||
-    (p.route !== 'apple' && p.route !== 'other') ||
+    (p.route !== 'apple' && p.route !== 'other' && p.route !== 'gallery') ||
     !RETURNS.includes(p.returnTo ?? '')
   )
     return null;

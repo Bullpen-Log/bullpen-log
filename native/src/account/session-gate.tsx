@@ -5,11 +5,12 @@ import { hideSplashUnlessIntro } from '~/shell/intro';
 import { usePalette } from '~/lib/ui';
 
 /** Both app roots (including cold deep links) wait before mounting account consumers. */
-export function SessionGate({ children }: { children: ReactNode }) {
+export function SessionGate({ children, publicInvitation = false }: { children: ReactNode; publicInvitation?: boolean }) {
   const c = usePalette();
   const [attempt, setAttempt] = useState(0);
   const [status, setStatus] = useState<'waiting' | 'ready' | 'error'>('waiting');
   useEffect(() => {
+    if (publicInvitation) return;
     let alive = true;
     void (async () => {
       await restoreAccount();
@@ -21,8 +22,8 @@ export function SessionGate({ children }: { children: ReactNode }) {
       }
     });
     return () => { alive = false; };
-  }, [attempt]);
-  if (status === 'ready') return children;
+  }, [attempt, publicInvitation]);
+  if (publicInvitation || status === 'ready') return children;
   return (
     <View style={{ flex: 1, backgroundColor: c.page, alignItems: 'center', justifyContent: 'center', gap: 16 }}>
       {status === 'waiting' ? <ActivityIndicator accessibilityLabel="로그인 확인 중" /> : <>

@@ -1,4 +1,4 @@
-import { Stack } from 'expo-router';
+import { Stack, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -37,12 +37,14 @@ const DUGOUT_INTRO: IntroLook = {
 };
 
 export default function DugoutLayout() {
+  const path = usePathname();
   const theme = useTheme();
   useAppUpdateOnReturn();
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar style={theme === 'light' ? 'dark' : 'light'} />
-      <SessionGate><Stack screenOptions={{ headerShown: false }}>
+      <SessionGate publicInvitation={path === '/intake'}><Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="intake" options={{ gestureEnabled: false, animation: 'none' }} />
         {/* 로그인 — 덕아웃은 로그인 없이도 보니 끌어내려 닫을 수 있는 창 */}
         <Stack.Screen name="login" options={{ presentation: 'modal' }} />
       </Stack></SessionGate>

@@ -2,6 +2,7 @@
  * 고른 파일 살피기 — 브라우저에서만 돈다. 파일 머리만 읽어 사실을 보이고, 큰 파일을 통째로 쥐지 않는다.
  * 재생이 안 되는 것(HEVC · MOV)은 막을 까닭이 아니다. 막는 것은 빈 파일 · 한도 초과 · 바이트로 봐도 영상이 아닌 것 · 120fps 미만 · 촬영 속도를 모르는 것 · 같은 파일이다.
  */
+import { isNativeOriginal } from '@/components/intake/native-original';
 import { INTAKE_ERROR_TEXT } from '@/lib/intake/errors';
 import { formatBytes, type IntakeLimits } from '@/lib/intake/limits';
 import { MEDIA_REJECT_TEXT, captureRateCode, captureRatePickText, mediaRejectCode, readIntakeMediaFacts, type IntakeMediaFacts } from '@/lib/intake/media';
@@ -109,7 +110,7 @@ export async function inspectPick(file: File, limits: IntakeLimits, other: Other
     }
   }
 
-  return { ok: true, picked: { file, url: URL.createObjectURL(file), facts } };
+  return { ok: true, picked: { file, url: isNativeOriginal(file) ? '' : URL.createObjectURL(file), facts } };
 }
 
 /** 파일 진단의 SHA-256 상태 — 어느 파일의 값인지 file 로 묶는다(R07 검수) */
