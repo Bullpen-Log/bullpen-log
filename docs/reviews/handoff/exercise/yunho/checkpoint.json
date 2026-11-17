@@ -764,7 +764,7 @@
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
   "latest_resume": {
     "current": "EX-Y-P-BULGARIAN-854ee1d0",
-    "status": "Description and own thumbnail updated, settings retained; user review pending; verify jump visibility."
+    "status": "스텝박스 명칭과 박스 대체 설명 저장; 장비 선택 기능은 미구현"
   },
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
@@ -1144,5 +1144,6 @@
   "mandatory_plyometric_review_rule_20261116": "For every plyometric exercise, explain the actual movement, training purpose and role in plyometric progression where applicable, and a clear evidence-calibrated link to pitching; distinguish foundational drills from reactive training and indirect associations from proven direct effects. Apply common user-friendly terms, format, prescriptions, and evidence standards. Review each exercise individually.",
   "reference_catalog_rule": "Continue appending all actually consulted references and per-exercise use/limitations to docs/references/exercise-review-sources.json. EX-REF01 admin implementation deferred by user; do not start it during video review.",
   "standing_spacing_rule": "Mandatory: consistent readable blank lines between how-to steps and separate explanatory paragraphs for every subsequently reviewed exercise, preserving meaning and evidence.",
-  "updated_at_utc": "2026-11-17T06:29:14.943147+00:00"
+  "updated_at_utc": "2026-11-17T06:37:07.537Z",
+  "step_box_rule": "스텝박스와 점프용 박스를 구분, 대체는 운동 목적과 높이 및 안정성에 따라 판단"
 }
