@@ -763,7 +763,7 @@
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
   "latest_resume": {
     "current": "EX-Y-P-ACCELISO-986c5b6a",
-    "status": "힘줄의 힘 전달과 늘어난 근육 길이 등척성의 다른 범위 전이 및 빠른 움직임의 간접 연관 설명 저장. 사용자 확인 대기. 전체 영상 재시청 미완료."
+    "status": "아이소메트릭 설명을 어떤 운동인가로 이동, 왜 필요한가를 힘줄·근육 길이·투구 연결 중심으로 정리 저장. 유사 운동에 공통 기준 적용. 사용자 확인 대기; 과거 영상 전체 재시청 미완료."
   },
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
@@ -1143,7 +1143,7 @@
   "mandatory_plyometric_review_rule_20261116": "For every plyometric exercise, explain the actual movement, training purpose and role in plyometric progression where applicable, and a clear evidence-calibrated link to pitching; distinguish foundational drills from reactive training and indirect associations from proven direct effects. Apply common user-friendly terms, format, prescriptions, and evidence standards. Review each exercise individually.",
   "reference_catalog_rule": "Continue appending all actually consulted references and per-exercise use/limitations to docs/references/exercise-review-sources.json. EX-REF01 admin implementation deferred by user; do not start it during video review.",
   "standing_spacing_rule": "Mandatory: consistent readable blank lines between how-to steps and separate explanatory paragraphs for every subsequently reviewed exercise, preserving meaning and evidence.",
-  "updated_at_utc": "2026-11-17T09:47:57.690072+00:00",
+  "updated_at_utc": "2026-11-17T09:53:00.231277+00:00",
   "step_box_rule": "스텝박스와 점프용 박스를 구분, 대체는 운동 목적과 높이 및 안정성에 따라 판단",
   "step_box_implementation_owner": "01 영상비교; 05 reassignment cancelled per user",
   "numbered_step_readability_rule": "Split long or overloaded how-to steps only where readability improves. Preserve movement sequence, simultaneous actions, immediate transitions, user decisions and blank lines. Do not split for arbitrary length or create unnecessary steps. Apply to every future review.",
@@ -1179,7 +1179,7 @@
   },
   "automatic_wrap_review_rule": "필수: 화면 폭 때문에 자동으로 넘어간 줄도 정렬을 확인한다. 번호가 있는 단계에서는 모든 줄이 번호가 아닌 번호 뒤 설명 첫 글자 아래에 시작하고 번호 영역으로 튀어나오지 않아야 한다. 번호 없는 소제목 본문은 모든 줄이 제목 글자 아래에 시작해야 한다. 문장별 줄바꿈과 단계/문단 빈 줄은 유지한다. 좁고 넓은 웹 화면과 앱에서 긴 문장이 실제로 줄바꿈되는 장면을 검수한다. 저장된 공백이나 데이터 확인만으로 합격 처리하지 않는다. 예: 현재 밴드 보조 스플릿 스쿼트 점프 7번 및 투수에게 왜 필요한가 자동 줄바꿈이 왼쪽으로 밀리는 현상. EX-GUIDE-WRAP01 구현 전 미해결.",
   "pitching_link_common_rule": "For every exercise explain what its actual movement trains and how that ability supports pitching and ball speed where appropriate. Use exercise-specific biomechanics and evidence; distinguish indirect association from direct evidence, do not claim guaranteed velocity gain. Apply automatically whenever revising other exercise descriptions. 투구 방향으로 이동하는 것만이 구속의 가장 중요한 요소처럼 표현하지 않는다. 각 운동의 목적에 맞게 지면에 가하는 힘과 골반·몸통·팔의 연결을 쉬운 말로 설명하고 단일 요인으로 구속을 단정하지 않는다.",
-  "isometric_review_rule": "등척성 운동은 단순히 자세를 유지한다고만 설명하지 않고 운동 자세에서 근육에 힘을 지속해 그 자세에서 힘을 내는 능력을 훈련하는 목적을 반영한다. 운동·강도·시간과 동적 운동 또는 투구에 대한 전이 근거 수준을 구분한다.",
+  "isometric_review_rule": "아이소메트릭 관련 운동 필수: 어떤 운동인가에 자세를 크게 바꾸지 않고 힘을 주는 훈련임을 짧게 설명하고 실제 자세를 연결. 이렇게 하세요는 장비·힘을 주는 방향·해당 운동의 목표와 시간에 맞는 노력·호흡·안전 안내. 왜 필요한가는 실제 근육의 저항과 힘줄의 힘 전달, 근육 길이에 따른 근력 전이 및 해당 운동과 투구의 연관을 과제·근거가 허용하는 범위에서 쉽고 간략히 연결. 모든 자세에서 근육이 늘어난다거나 힘줄 적응·빠른 움직임·구속 향상을 보장하지 않는다. 강도는 운동별 적절한 부하·노력·시간을 구체화하고 모든 운동에 동일한 30초 또는 비최대 지시를 강요하지 않는다. 내용 반복을 줄이고 소제목 간 위치·줄바꿈을 통일.",
   "load_recording_review_rule": {
     "guide": "docs/shoot/exercise-load-review-standard-20261117.md",
     "status": "다음 영상 및 현재 항목의 관련 검수 시 적용. 기존 스프린터 아이소 홀드 사용자 확인 대기 보존.",
