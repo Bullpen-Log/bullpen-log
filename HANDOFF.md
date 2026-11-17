@@ -1,3 +1,11 @@
+## Kim Min / all departments — 2026-11-17 · GPT — Completed-work reconciliation
+
+User requested reconciliation of GPT/Claude work and publishing finished independently accepted batches. Current table: docs/work-orders/RECONCILE-20261117.md. FPS-R13 source17141d3a Vercel success; actual production served reader170.097/240.964 and true60=60 verified (fixtures, not Kim's actual original). Incidental Sinker OTA run44035348227 success; no duplicate TestFlight builds. APP-AUTOLOGIN01 remains already delivered on both internal TestFlight builds noted below.
+
+Root aa9d8984+dirty is older than production; dirty auth/player files are NOT automatically unshipped work. Preserve root and other owners; do not reset/pull into it or publish whole tree. EX-LOAD01-R1, STEPBOX and EX-REF04 remain NOT RELEASED pending their owner gates. PL/Japan plans are not implemented deliveries. REVIEW-SYNC revised tool passed independent Sub2 acceptance45tests and exact2-file source is included with updated usage; actual MacBook receipt remains unverified.
+
+Existing user-approved local WORKFLOW/SESSION_COORDINATION/template and support pairing/transport documents are now included for consistent cross-computer rules, preserving MacBook-subordinate section. No new feature, DB/dependency or public launch permission is introduced. No install/generate needed. After receiving the updated docs, reread current owner/status records before work; actual remote receipt by another computer is not assumed.
+
 ## Kim Min — 2026-11-17 · GPT — FPS-R13 reviewed correction publication
 
 Completed/reviewed FPS correction: the time-to-sample reader now sums counts for equal frame intervals across all stts rows, rather than picking one longest contiguous row. Controlled730-frame movie averages170.097fps: old representative60 rejected; corrected representative240.964 accepted. Real30/60 and low-average variable files remain rejected;120fps policy unchanged. This may explain the iPhone15 Pro report, but Kim's actual file is unavailable and NOT confirmed.
