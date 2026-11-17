@@ -1,3 +1,9 @@
+## Kim Min / workout owners — 2026-11-17 · GPT — R1 code-only rollout VERIFIED
+
+Source61b6e46d merged0ec66ae5: VercelSUCCESS and Sinker OTA44042063014SUCCESS; no new binary. Actual public updatea16b3eb5-96dc-4693-8eaa-55286c1052f1/runtime db1f5023caadb8b8c8d01f80f4555f33d302efff/latest source0ec66ae5 and launch SHA256 verified. Anonymous recovery307login. Safe code-only rollout complete; actual phone/admin-save15checks remain unverified.
+
+ALL THREE WORKOUT flags remainOFF (actual authenticated Project+Shared env search before release); no schema application/flag change. Rich load persistence is NOT fully active. Original Support1 confirms no Kim/schema-owner coordination receipt and no fresh backup. Human asked to confirm coordination/approve narrow2nullablecolumns+recoverytable and load-only activation after backup; pending response is not permission. Do not activate V2 or apply historical foundation as collateral. Evidence docs/reviews/ex-load01-r1-final-gpt-review-20261117.md, private ~/bullpen-load01-evidence/release-20261117. Preserve active other departments and root dirty snapshots.
+
 ## Kim Min / workout owners — 2026-11-17 · GPT — R1 code-only rollout, schema NOT activated
 
 Actual user deployment instruction verified. Original66+R179 were projected into exact114source current-main package, independently accepted by Sub2 (54checks +canonical web/native types0) and overall full Next production build0. Existing STEPBOX/auth/FPS/mechanics preserved. Correct Vercel project and shared env tabs show no WORKOUT settings; all3flags remainOFF. No values read/changed. Pending SQL remains pending; active Prisma schema/migrations unchanged.

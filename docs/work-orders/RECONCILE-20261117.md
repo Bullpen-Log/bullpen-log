@@ -66,3 +66,7 @@ R1 is still NOT RELEASE-READY: original EXLOAD66 dependency plus79path patch is 
 ## R1 code-only release gate now passed
 
 Actual new deployment direction verified. Clean-current-main114source projection independently accepted by Sub2 (54new tests +web/native types0); overall all hashes/full Next build0. After actual human Vercel login, correct project Project+Shared env list WORKOUT search returns0 across All Environments; three switches remain off. Safe CODE-ONLY publication approved; schema/rich-storage activation remains unapproved/unperformed with actual Kim coordination, backup and device gaps. Do not treat old incomplete-artifact wording or prior hash misattribution as current. Exact current reviewer packet and eventual observed rollout source control the next status.
+
+## R1 code-only publication observed — current overriding state
+
+R1 code-only source0ec66ae5 VercelSUCCESS and Sinker OTA44042063014SUCCESS. Actual updatea16b3eb5-96dc-4693-8eaa-55286c1052f1 public manifest/source/launch SHA match independently verified; anonymous recovery307login. Three switches absent in authenticated correct Vercel Project+Shared list before publication. Code safety/labels/recovery gates shipped; rich band/combined/unequal/setup storage NOT activated. No actual Kim coordination/backup/DB change. Human coordination+scoped DB approval question pending; V2 activation excluded. See ex-load01-r1-final-gpt-review-20261117.md for original evidence. Older not-ready wording is retained as implementation history, not a denial of this observed CODE-ONLY publication.
