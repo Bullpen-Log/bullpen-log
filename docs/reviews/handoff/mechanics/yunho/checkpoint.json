@@ -662,9 +662,31 @@
       ],
       "note": "드리프트는 레그 리프트 중 몸의 이동 기준, 드롭은 뒷엉덩이 접어 받기, 몸통 회전은 회전 던지기, 상하체 분리는 골반·몸통 순서 목적 중심으로 판단. 웹 전체 목록은 주 요소 한 곳, 관련 필터는 보조 요소도 찾음.",
       "advance_authorized": false
+    },
+    {
+      "at": "2026-11-17T08:17:44.860Z",
+      "review_id": "mv-a75a9eb14332c7ab",
+      "user_request": "참고 영상 시범 소개 삭제, 오른발과 무릎 동작을 명확히, 정지 없이 연결, 동작 수정과 구속 프로그램 목적에 맞는 강도 설명 및 드리프트 주 분류 재검토",
+      "status": "applied_and_readback_verified",
+      "before_focus": [
+        "드리프트",
+        "몸통 회전",
+        "스로잉"
+      ],
+      "after_focus": [
+        "스로잉",
+        "드리프트",
+        "몸통 회전"
+      ],
+      "classification_note": "전체 투구 흐름 통합 훈련이라는 판단에 따라 기존 분류 중 스로잉을 주 요소로 선택. 드리프트와 몸통 회전 보조 유지. 별도 전체 투구 통합 요소는 없음.",
+      "sources": [
+        "https://www.drivelinebaseball.com/wp-content/uploads/2024/03/Free_16-Week_In-Season_And_Off-Season_Throwing_Program_2024-03-05.pdf",
+        "https://treadathletics.com/wp-content/uploads/2020/12/Late-Arm-Drill-Progression-PDF.pdf"
+      ],
+      "advance_authorized": false
     }
   ],
-  "user_change_request_count": 31,
+  "user_change_request_count": 32,
   "last_user_video_decision": {
     "at": "2026-11-17T07:52:58.073Z",
     "original": "다음 영상 검수하자",
@@ -976,7 +998,7 @@
     "personal_health_information_copied": false,
     "signed_urls_copied": false
   },
-  "updated_at": "2026-11-17T07:52:58.073Z",
+  "updated_at": "2026-11-17T08:17:44.860Z",
   "current_workflow_document": "docs/shoot/video-review-current-workflow.md",
   "setup_event": {
     "at": "2026-11-13T15:54:58+09:00",

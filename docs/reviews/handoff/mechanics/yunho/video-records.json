@@ -1375,7 +1375,30 @@
       "drill_id": "209c141a-82ca-43f2-b7de-dbbae1392568",
       "user_decision": null,
       "user_decided_at": null,
-      "user_change_requests": [],
+      "user_change_requests": [
+        {
+          "at": "2026-11-17T08:17:44.860Z",
+          "review_id": "mv-a75a9eb14332c7ab",
+          "user_request": "참고 영상 시범 소개 삭제, 오른발과 무릎 동작을 명확히, 정지 없이 연결, 동작 수정과 구속 프로그램 목적에 맞는 강도 설명 및 드리프트 주 분류 재검토",
+          "status": "applied_and_readback_verified",
+          "before_focus": [
+            "드리프트",
+            "몸통 회전",
+            "스로잉"
+          ],
+          "after_focus": [
+            "스로잉",
+            "드리프트",
+            "몸통 회전"
+          ],
+          "classification_note": "전체 투구 흐름 통합 훈련이라는 판단에 따라 기존 분류 중 스로잉을 주 요소로 선택. 드리프트와 몸통 회전 보조 유지. 별도 전체 투구 통합 요소는 없음.",
+          "sources": [
+            "https://www.drivelinebaseball.com/wp-content/uploads/2024/03/Free_16-Week_In-Season_And_Off-Season_Throwing_Program_2024-03-05.pdf",
+            "https://treadathletics.com/wp-content/uploads/2020/12/Late-Arm-Drill-Progression-PDF.pdf"
+          ],
+          "advance_authorized": false
+        }
+      ],
       "assistant_findings": [
         {
           "finding_id": "MV-AI-008",
@@ -1406,9 +1429,9 @@
       "content_change_approved": false,
       "deployment_approved": false,
       "focusPoints": [
+        "스로잉",
         "드리프트",
-        "몸통 회전",
-        "스로잉"
+        "몸통 회전"
       ],
       "pre_review_changes": {
         "at": "2026-11-17T07:52:58.073Z",
