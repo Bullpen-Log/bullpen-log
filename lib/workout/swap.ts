@@ -1,4 +1,5 @@
-import { intensityLevel } from '@/lib/exercise-meta';
+import { equipmentDisplayName, intensityLevel } from '@/lib/exercise-meta';
+import { equipmentSummary } from '@/lib/equipment-requirements';
 
 /**
  * 운동 중에 운동을 바꾸거나 더하는 규칙.
@@ -81,7 +82,7 @@ export function similarExercises<T extends SwapSource>(
       s.samePattern ? `같은 ${target.movementPattern}` : null,
       /* 부위 이름 안에 '·'가 들어 있어(햄스트링·둔근) 부위끼리는 쉼표로 잇는다 */
       s.shared.slice(0, 2).join(', ') || null,
-      equipmentLabel(s.ex.equipment),
+      equipmentLabel(s.ex.equipment, s.ex.id),
       s.levelGap < 0 ? '더 가벼움' : s.levelGap > 0 ? '더 무거움' : null,
     ]
       .filter(Boolean)
@@ -90,9 +91,10 @@ export function similarExercises<T extends SwapSource>(
 }
 
 /** 쓰는 장비를 한 줄로. 맨몸은 다른 장비가 없을 때만 적는다. */
-export function equipmentLabel(equipment: readonly string[]): string {
+export function equipmentLabel(equipment: readonly string[], exerciseId?: string): string {
   const gear = equipment.filter((e) => e !== '맨몸');
-  return gear.length > 0 ? gear.join(', ') : '맨몸';
+  if (exerciseId && gear.length) return equipmentSummary({ id: exerciseId, equipment: gear });
+  return gear.length > 0 ? gear.map(equipmentDisplayName).join(', ') : '맨몸';
 }
 
 /**

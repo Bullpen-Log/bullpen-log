@@ -410,7 +410,7 @@ export function SwapSheet({
     .filter((p) => p.id !== current.id && (matchesSearch(p.title, text) || matchesSearch(p.category, text)))
     .sort((a, b) => Number(favorites.has(b.id)) - Number(favorites.has(a.id)));
   const halted = choices?.halted ?? null;
-  const kind = (p: SwapPick) => `${p.category} · ${equipmentLabel(p.equipment)}`;
+  const kind = (p: SwapPick) => `${p.category} · ${equipmentLabel(p.equipment, p.id)}`;
 
   const row = (p: SwapPick, sub: string) => {
     const already = inPlan.has(p.id);

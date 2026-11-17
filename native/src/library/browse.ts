@@ -1,5 +1,6 @@
 import { TRAINING_CATEGORY_NAMES } from '@/lib/categories';
 import { searchKey } from '@/lib/korean';
+import { equipmentSearchTags } from '@/lib/equipment-requirements';
 
 /**
  * 운동 영상 목록의 찾기 · 거르기 · 정렬(2026-10-31 시안 01) — 화면 없이 셈만. 시험: scripts/native-library-selftest.mts.
@@ -57,13 +58,13 @@ export const searchTerms = (query: string) => query.split(/\s+/).map(searchKey).
 
 export function matchesQuery(ex: BrowseItem, terms: readonly string[]) {
   if (terms.length === 0) return true;
-  const hay = [ex.title, ex.category, shortCategory(ex.category), ...ex.bodyParts, ...ex.equipment].map(searchKey);
+  const hay = [ex.title, ex.category, shortCategory(ex.category), ...ex.bodyParts, ...equipmentSearchTags(ex)].map(searchKey);
   return terms.every((t) => hay.some((h) => h.includes(t)));
 }
 
 export function matchesFilters(ex: BrowseItem, f: LibraryFilters) {
   const any = (chosen: string[], have: readonly string[]) => chosen.length === 0 || chosen.some((x) => have.includes(x));
-  return any(f.bodyParts, ex.bodyParts) && any(f.intensity, [ex.intensity]) && any(f.equipment, ex.equipment);
+  return any(f.bodyParts, ex.bodyParts) && any(f.intensity, [ex.intensity]) && any(f.equipment, equipmentSearchTags(ex));
 }
 
 /** 워밍업 칸에 드는 운동 id — 분류가 워밍업이거나 루틴 폴더에 담긴 것(중복 없음) */

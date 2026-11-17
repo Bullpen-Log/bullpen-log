@@ -7,6 +7,7 @@ import { Segmented } from '@/components/segmented';
 import { DisclosureButton } from '@/components/disclosure';
 import { ErrorLine } from '@/components/error-line';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
+import { equipmentName } from '@/lib/equipment-requirements';
 import { previewPinned, programChoices, startProgram } from '@/app/actions/program';
 import {
   BASICS_MIN_AGE,
@@ -470,7 +471,7 @@ function StartSheet({
                     key={e}
                     className="inline-flex min-h-10 items-center rounded-full border border-line-strong px-3 text-xs font-semibold text-ink"
                   >
-                    {e}
+                    {equipmentName(e)}
                   </span>
                 ))}
               </div>
@@ -570,7 +571,7 @@ function StartSheet({
                       }
                       className={`min-h-10 rounded-full border px-3 text-sm ${on ? 'border-sky bg-sky text-white' : must ? 'border-ink/40 font-semibold text-ink' : 'border-line text-ink'}`}
                     >
-                      {e}
+                      {equipmentName(e)}
                     </button>
                   );
                 }

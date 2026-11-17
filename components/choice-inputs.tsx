@@ -1,6 +1,7 @@
 'use client';
 
 import { Check } from '@/components/icon';
+import { equipmentName } from '@/lib/equipment-requirements';
 
 /**
  * 운동·드릴 등록 폼에서 쓰는 선택 입력.
@@ -64,7 +65,7 @@ export function CheckboxGroup({
             <span
               className={`${chipBase} ${chipChecked} peer-focus-visible:ring-1 peer-focus-visible:ring-sky`}
             >
-              {option}
+              {['equipment', 'availableEquipment', 'ownedEquipment'].includes(name) ? equipmentName(option) : option}
             </span>
           </label>
         ))}

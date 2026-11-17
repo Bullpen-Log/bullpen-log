@@ -1,0 +1,120 @@
+{
+  "baseline": "2a1818f53964482941e725cc006ac4217697a2bd",
+  "patchSha256": "f5dcca15f7cab0ad3468207a683fa96b697e5d9e4f2bb0c944711abd40c26cb6",
+  "files": [
+    {
+      "path": "lib/equipment-requirements.ts",
+      "beforeSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "afterSha256": "503c6ad9d926a458d48912223685ac8d15ce24e38edd5d8dc25c3ea2336028ae",
+      "adaptedFromRoot": false
+    },
+    {
+      "path": "lib/exercise-meta.ts",
+      "beforeSha256": "cf8b662d00ddc04b8de4eca48b5ba6bbc16052588551979fe5e73d4f7a2efd87",
+      "afterSha256": "fa4632d33cd5f040f653a86c9a3f4db8c281492e0db75dd031d7a7cc9a054541",
+      "adaptedFromRoot": true
+    },
+    {
+      "path": "lib/report/equipment.ts",
+      "beforeSha256": "e97ea0cf75fb8cd3b8dd69c15d724cc588ec28568b41721a19ba6ee8f176e3e1",
+      "afterSha256": "c0296d48b3ed6dfbdbb12c2358ccdaf2caac7f1e224d129180fb859560bc028f",
+      "adaptedFromRoot": false
+    },
+    {
+      "path": "lib/program/program.ts",
+      "beforeSha256": "23f186b3466ac62c551581876b926858bb583273ca1e298cccd03873b209a110",
+      "afterSha256": "4e12148b5d770cf59d6d4a23d3299c998be51f03380f4d6baa5a1892fe3af892",
+      "adaptedFromRoot": true
+    },
+    {
+      "path": "lib/workout/swap.ts",
+      "beforeSha256": "1a378a0967c97a204292025ddba2629391e26602053cff57a37b52507c4392e4",
+      "afterSha256": "fea5b5fb3b3420cd018b4c9dde5f519d9edebddac36c8362314825efa6019b93",
+      "adaptedFromRoot": false
+    },
+    {
+      "path": "lib/report/training-today-data.ts",
+      "beforeSha256": "99d93b7299000753133ad3f89ef7f595d377a19207d05394f3311067a67138e7",
+      "afterSha256": "0933e7ef40149e19befaaadd14ca7f15608096308e652fc1309874c983bed0ff",
+      "adaptedFromRoot": true
+    },
+    {
+      "path": "components/meta-filter.tsx",
+      "beforeSha256": "bea359ad1f7e1c13f2053500aadfd6af34a8c9a261beecb6d38e75ccf792b756",
+      "afterSha256": "d9c6304701a3573186fa2acf6da5e73e5d4081f652305f1b79e8f060f6909561",
+      "adaptedFromRoot": false
+    },
+    {
+      "path": "components/choice-inputs.tsx",
+      "beforeSha256": "204a3fa6e222f76bc57ce1b50439242773acc82c57f0f499b8c0657f8ebd0acb",
+      "afterSha256": "0b5928050233e92107bcd4bbf35b03082ef818acfb7e0db91c470545dacca915",
+      "adaptedFromRoot": false
+    },
+    {
+      "path": "app/(app)/library/training/training-client.tsx",
+      "beforeSha256": "1d82c8a4b6061f1b45cb8dca472af76b866a88b1ac599769b09e074d0fc3ba97",
+      "afterSha256": "9fd918b8f2dd462fdb5dc4b82f89f39cd1b5651f88435334ade0093f838ec0ca",
+      "adaptedFromRoot": true
+    },
+    {
+      "path": "app/(app)/training/add-exercise.tsx",
+      "beforeSha256": "af07921c0889d1b5a8f6d515e3ddc9c17dc14ff0ef051fd7f8e99295db9ff478",
+      "afterSha256": "edf67406dd88b65075d8ff08211fd51729787f28f508636d47411f45ff742f4d",
+      "adaptedFromRoot": false
+    },
+    {
+      "path": "app/(app)/training/program-start.tsx",
+      "beforeSha256": "50c6d5af0141e7e1798305803cfbeddf1d70f373379f0c4753c089e6ba948b2d",
+      "afterSha256": "0ecc79f914c59a458a258ffabcc4b29445b07c7e6d2115bccb4ac4a048c590f8",
+      "adaptedFromRoot": false
+    },
+    {
+      "path": "app/(session)/workout/run/swap-sheet.tsx",
+      "beforeSha256": "7c8379479c43c062b3d4a9d4e69a0d87bd6a7e31dd567e51c871b16d0dd80f09",
+      "afterSha256": "023bbfce463a3399b1f5ad66ee3085f5570688642aac1d08d046907023643124",
+      "adaptedFromRoot": false
+    },
+    {
+      "path": "native/src/library/browse.ts",
+      "beforeSha256": "d44ab34506c32d0ce3ac2cd126923461575c11549c6eb8856409099c5a5a6326",
+      "afterSha256": "4b70bbf1c599079bd03185e86f413282667f12ffdd56117793813a72f5ed23df",
+      "adaptedFromRoot": false
+    },
+    {
+      "path": "native/src/library/detail.tsx",
+      "beforeSha256": "a03eb0e385a87eb988c8e1adbb8d87529ec74ecdfb0537144180a73ba5f6d94a",
+      "afterSha256": "ad397473eab133158f0ecf27f6c311c3b08b36188e0d50636c2e1e263126a894",
+      "adaptedFromRoot": false
+    },
+    {
+      "path": "native/src/library/parts.tsx",
+      "beforeSha256": "69bf11cfeb543f5c8699ba58bff23eb711155202c25c958f72a332b9367271ea",
+      "afterSha256": "9cbe972b771ccc2bb03453b96da7efb8fd654a572e47d9f03933632a1b14789b",
+      "adaptedFromRoot": false
+    },
+    {
+      "path": "native/src/app/library/training.tsx",
+      "beforeSha256": "7461fbf68ae764aa94aab06c23f22d735cf8f43bdbc03b55d2b258ba2ac48d5b",
+      "afterSha256": "33f43d18134339c892c3dec4d8968b8e52b25ccadd21a878f95eddb69e5ae308",
+      "adaptedFromRoot": false
+    },
+    {
+      "path": "native/src/training/today/forms.tsx",
+      "beforeSha256": "d1ab66e7b08b0b7e441625d429ac299e58f96ef51ae7cf4417785aa66e1fc99d",
+      "afterSha256": "bc9149bad782725e1ba20cc6bc9170996e66abf0c70f28cc91f935a3adf54491",
+      "adaptedFromRoot": true
+    },
+    {
+      "path": "native/src/workout/sheets.tsx",
+      "beforeSha256": "29e7b624adc683630731edec78370e4a714cc49947960941b6e55743eda3f34d",
+      "afterSha256": "d2f20f74a681fa2016f3cfc7e9cb0a36d45aa88be5fd83b3874eba233911152d",
+      "adaptedFromRoot": false
+    },
+    {
+      "path": "scripts/ex-stepbox-main-selftest.mts",
+      "beforeSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "afterSha256": "a801fd8e65f04fc8df2d46368515b972289fb115e1302ef40691cf5e4d52d6ec",
+      "adaptedFromRoot": true
+    }
+  ]
+}

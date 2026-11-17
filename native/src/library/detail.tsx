@@ -3,6 +3,7 @@ import { Icon } from '~/shell/icon';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { bodyGroups, formatPrescription } from '@/lib/exercise-meta';
+import { equipmentConditions, equipmentSummary } from '@/lib/equipment-requirements';
 import { areasOf } from '@/lib/armcare/anatomy';
 import { router, type Href } from 'expo-router';
 import { rpc } from '~/lib/rpc';
@@ -40,10 +41,10 @@ export function ExerciseDetail({ item, entry, c }: { item: Exercise; entry: Deta
   const [tab, setTab] = useState<'how' | 'history'>('how');
   /* 내 기록은 처음 열 때 붙이고, 그 뒤로는 탭을 오가도 다시 받지 않게 둔다 */
   const [historyOpened, setHistoryOpened] = useState(false);
-  const meta = [shortCategory(item.category), ...item.equipment].join(' · ');
+  const meta = [shortCategory(item.category), equipmentSummary(item)].filter(Boolean).join(' · ');
   const base = formatPrescription(item);
   /* 부위는 큰 부위(어깨 · 팔꿈치 · 몸통 · 하체 · 전신)로 묶어 보인다 — 저장 값은 그대로(lib/exercise-meta bodyGroups) */
-  const extra = [...bodyGroups(item.bodyParts), item.intensity, ...(item.difficulty ? [item.difficulty] : []), ...item.equipment];
+  const extra = [...bodyGroups(item.bodyParts), item.intensity, ...(item.difficulty ? [item.difficulty] : []), equipmentSummary(item)].filter(Boolean);
   return (
     <View style={{ gap: 16 }}>
       <View style={{ gap: 4 }}>
@@ -51,6 +52,7 @@ export function ExerciseDetail({ item, entry, c }: { item: Exercise; entry: Deta
           {item.title}
         </Text>
         {meta ? <Text style={[s.small, { color: c.muted }]}>{meta}</Text> : null}
+        {equipmentConditions(item).map((note) => <Text key={note} style={[s.small, { color: c.muted }]}>{note}</Text>)}
       </View>
       <DetailMedia key={item.id} item={item} c={c} />
       <Segmented

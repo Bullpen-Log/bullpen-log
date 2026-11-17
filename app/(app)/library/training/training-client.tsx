@@ -21,6 +21,7 @@ import {
 } from '@/app/actions/content';
 import { toggleExerciseFavorite } from '@/app/actions/favorite';
 import { matchesSearch } from '@/lib/korean';
+import { equipmentConditions, equipmentSearchTags, primaryEquipment } from '@/lib/equipment-requirements';
 import { FavoriteButton } from '@/components/favorite-button';
 import { TRAINING_CATEGORIES } from '@/lib/categories';
 import {
@@ -161,6 +162,7 @@ function ExerciseDetail({
             <X className="h-5 w-5 desk:h-4 desk:w-4" />
           </button>
         </div>
+        {equipmentConditions(item).map((note) => <p key={note} className="mb-3 text-xs leading-relaxed text-muted">이 운동은 스텝박스를 기본으로 안내합니다. {note}</p>)}
         <ExerciseForm
           category={item.category}
           initial={draft}
@@ -287,8 +289,9 @@ function ExerciseDetail({
           bodyParts={item.bodyParts}
           intensity={item.intensity}
           difficulty={item.difficulty}
-          equipment={item.equipment}
+          equipment={primaryEquipment(item)}
         />
+        {equipmentConditions(item).map((note) => <p key={note} className="text-sm leading-relaxed text-muted">대체 장비: {note}</p>)}
 
         {/*
           암케어 운동이 키우는 근육 — 부위별 보강과 같은 말로. 누르면 3D 그림·설명 창
@@ -535,7 +538,7 @@ function TrainingBrowse({
           bodyParts: ex.bodyParts,
           // 강도는 하나뿐이지만 검사 방식을 맞추려 배열로 넘긴다.
           intensity: [ex.intensity],
-          equipment: ex.equipment,
+          equipment: equipmentSearchTags(ex),
         })
       ),
     [visible, filter]

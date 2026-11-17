@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActionSheetIOS, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BODY_PARTS, EXERCISE_EQUIPMENT, INTENSITY_NAMES } from '@/lib/exercise-meta';
+import { equipmentName, equipmentSummary } from '@/lib/equipment-requirements';
 import type { WarmupFolder } from '@/app/(app)/library/training/training-client';
 import { Bar, leave } from '~/community/parts';
 import { useMenu } from '~/shell/menu-store';
@@ -170,10 +171,10 @@ export default function ExerciseLibraryScreen() {
                 key={`${g.key}:${v}`}
                 onPress={() => toggleFilter(g.key, v)}
                 accessibilityRole="button"
-                accessibilityLabel={`${v} 필터 해제`}
+                accessibilityLabel={`${g.key === 'equipment' ? equipmentName(v) : v} 필터 해제`}
                 style={[st.selected, { backgroundColor: c.skyTint }]}
               >
-                <Text style={[st.chipText, { color: c.link }]}>{v}</Text>
+                <Text style={[st.chipText, { color: c.link }]}>{g.key === 'equipment' ? equipmentName(v) : v}</Text>
                 <Icon name="x" size={13} color={c.link} />
               </Press>
             ))
@@ -306,7 +307,7 @@ export default function ExerciseLibraryScreen() {
 function ExerciseCard({ ex, wide, c }: { ex: Exercise; wide: boolean; c: Palette }) {
   const star = useFav('exercise', ex.id, ex.favorite);
   const video = hasVideo(ex);
-  const meta = [shortCategory(ex.category), ...ex.equipment].join(' · ');
+  const meta = [shortCategory(ex.category), equipmentSummary(ex)].filter(Boolean).join(' · ');
   return (
     <View style={[st.card, { backgroundColor: c.card, boxShadow: c.float }]}>
       <Pressable

@@ -1,4 +1,5 @@
 import { formatWeight, type WeightUnit } from '@/lib/units';
+import { equipmentName } from '@/lib/equipment-requirements';
 
 /**
  * 운동·드릴에 붙이는 분류 항목.
@@ -199,6 +200,7 @@ export const EXERCISE_EQUIPMENT = [
   // 받침
   '벤치',
   '박스',
+  '스텝박스',
 ] as const;
 
 /**
@@ -482,6 +484,9 @@ export const DRILL_EQUIPMENT = [
 ] as const;
 
 /* ---------------------------------- 공통 ---------------------------------- */
+
+/** 장비 저장값은 유지하고 화면 이름만 구분한다(EX-STEPBOX01). */
+export function equipmentDisplayName(name: string): string { return equipmentName(name); }
 
 export const INTENSITY_NAMES: readonly string[] = INTENSITY_LEVELS.map((l) => l.name);
 export const DIFFICULTY_NAMES: readonly string[] = DIFFICULTY_LEVELS.map((l) => l.name);

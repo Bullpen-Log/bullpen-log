@@ -1568,7 +1568,7 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
     match: (ex) =>
       inCategory(ex, '파워') &&
       (ex.movementPattern === '스쿼트' || ex.movementPattern === '런지') &&
-      ex.equipment.every((e) => e === '맨몸' || e === '박스'),
+      ex.equipment.every((e) => e === '맨몸' || e === '박스' || e === '스텝박스'),
     rank: (ex) => [ex.perSide ? 1 : 0, ex.title.includes('점프') ? 0 : 1],
   },
   medball: {
@@ -1722,6 +1722,7 @@ const BASICS_EQUIPMENT = new Set([
   '케틀벨',
   '메디신볼',
   '박스',
+  '스텝박스',
   '벤치',
   '철봉',
   'TRX',

@@ -1,4 +1,5 @@
 import 'server-only';
+import { missingEquipment, requirementLabel } from '@/lib/equipment-requirements';
 import { prisma } from '@/lib/prisma';
 import type { getCurrentUser } from '@/lib/dal';
 import { favoriteExerciseIds } from '@/lib/favorites';
@@ -479,7 +480,7 @@ export async function loadTodayPicker(user: TodayUser, today: Date): Promise<Tod
       prescription: formatPrescription(ex),
       inPlan: inPlan.has(ex.id),
       unsafe: !safe.has(ex.id),
-      missing: ex.equipment.filter((e) => e !== '맨몸' && !owned.has(e)),
+      missing: user.ownedEquipment.length ? missingEquipment(ex, owned).map(requirementLabel) : [],
     };
   });
 }

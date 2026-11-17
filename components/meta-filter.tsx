@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { SlidersHorizontal, X } from '@/components/icon';
 import { Modal } from '@/components/modal';
+import { equipmentName } from '@/lib/equipment-requirements';
 
 type FilterGroup = {
   key: string;
@@ -74,7 +75,7 @@ export function MetaFilter({
                       : 'border-transparent bg-ink/6 text-ink/80 desk:border-line desk:bg-surface-2 desk:text-muted desk:hover:border-sky-soft desk:hover:text-ink'
                   }`}
                 >
-                  {option}
+                  {group.key === 'equipment' ? equipmentName(option) : option}
                 </button>
               );
             })}

@@ -1,4 +1,5 @@
 import { EXERCISE_EQUIPMENT } from '@/lib/exercise-meta';
+import { canUseEquipment, primaryEquipment, type EquipmentSource } from '@/lib/equipment-requirements';
 
 /**
  * 가진 장비로 할 수 있는 운동만 남긴다.
@@ -41,11 +42,11 @@ export function equipmentForToday(
   return [ALWAYS_OWNED, ...availableToday.filter((name) => name !== ALWAYS_OWNED)];
 }
 
-type WithEquipment = { equipment: string[] };
+type WithEquipment = EquipmentSource;
 
 /** 이 운동을 가진 장비로 할 수 있는가 — 재활 세션의 장비 바꿔 넣기(lib/armcare/rehab.ts)도 쓴다 */
 export function canDo(ex: WithEquipment, owned: Set<string>): boolean {
-  return ex.equipment.every((name) => name === ALWAYS_OWNED || owned.has(name));
+  return canUseEquipment(ex, owned);
 }
 
 export type EquipmentFilterResult<T> = {
@@ -95,14 +96,19 @@ export function filterByEquipment<T extends WithEquipment>(
    * 숫자로 알려주기 위한 것이다.
    */
   let bestAddition: EquipmentFilterResult<T>['bestAddition'] = null;
+  let bestPrimaryUnlocks = -1;
   for (const name of suggestFrom ?? SELECTABLE_EQUIPMENT) {
     if (owned.has(name)) continue;
     const withIt = new Set(owned).add(name);
-    const unlocks = library.filter(
+    const unlocked = library.filter(
       (ex) => !canDo(ex, owned) && canDo(ex, withIt)
-    ).length;
-    if (unlocks > 0 && (bestAddition == null || unlocks > bestAddition.unlocks)) {
+    );
+    const unlocks = unlocked.length;
+    // 같은 수가 늘어나면 대체품보다 기본 장비를 먼저 권한다. 기존 필수 장비끼리의 동률 순서는 그대로다.
+    const primaryUnlocks = unlocked.filter((ex) => primaryEquipment(ex).includes(name)).length;
+    if (unlocks > 0 && (bestAddition == null || unlocks > bestAddition.unlocks || (unlocks === bestAddition.unlocks && primaryUnlocks > bestPrimaryUnlocks))) {
       bestAddition = { name, unlocks };
+      bestPrimaryUnlocks = primaryUnlocks;
     }
   }
 

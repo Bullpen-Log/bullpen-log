@@ -18,6 +18,7 @@ import {
 } from '@/lib/exercise-meta';
 import { MoreButton } from '@/components/disclosure';
 import { haptic } from '@/lib/haptics';
+import { equipmentConditions, equipmentSearchTags, missingEquipment, primaryEquipment, requirementLabel } from '@/lib/equipment-requirements';
 
 /**
  * 목록에 운동을 더하는 창.
@@ -106,7 +107,7 @@ export function AddExercise({
         matchesFilter(filter, {
           bodyParts: ex.bodyParts,
           intensity: [ex.intensity],
-          equipment: ex.equipment,
+          equipment: equipmentSearchTags(ex),
         }) &&
         /*
          * 띄어쓰기는 무시하고 견준다.
@@ -223,9 +224,7 @@ export function AddExercise({
               {matched.slice(0, limit).map((ex) => {
                 const already = inPlan.has(ex.id);
                 const notSafe = !safe.has(ex.id);
-                const missing = ex.equipment.filter(
-                  (e) => e !== '맨몸' && !owned.has(e)
-                );
+                const missing = ownedEquipment.length ? missingEquipment(ex, owned).map(requirementLabel) : [];
                 const prescription = formatPrescription(ex);
 
                 return (
@@ -256,8 +255,9 @@ export function AddExercise({
                         bodyParts={ex.bodyParts}
                         intensity={ex.intensity}
                         difficulty={ex.difficulty}
-                        equipment={ex.equipment}
+                        equipment={primaryEquipment(ex)}
                       />
+                      {equipmentConditions(ex).map((note) => <p key={note} className="text-xs leading-relaxed text-muted">{note}</p>)}
                       {/*
                         걸리는 것이 있으면 말해준다. 막지는 않는다 —
                         하고 말고는 본인이 정한다.

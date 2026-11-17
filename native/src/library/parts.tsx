@@ -7,6 +7,7 @@ import type { Palette } from '~/lib/ui';
 import { Icon, type IconName } from '~/shell/icon';
 import { Sheet } from '~/workout/sheets';
 import { Press } from '~/shell/press';
+import { equipmentName } from '@/lib/equipment-requirements';
 
 /**
  * 라이브러리 앱 화면(native/src/app/library — 운동 영상 · 투구 드릴 목록과 상세)이 같이 쓰는 조각 — 받은 목록 기억 · 줄 · 찾기 칸 · 칩 · 별.
@@ -240,7 +241,7 @@ export function FilterSheet({
                   onPress={() => toggle(g.key, v)}
                   style={[st.opt, { backgroundColor: on ? c.sky : c.chip }]}
                 >
-                  <Text style={{ color: on ? '#fff' : c.ink, fontSize: 15, fontWeight: '600' }}>{v}</Text>
+                  <Text style={{ color: on ? '#fff' : c.ink, fontSize: 15, fontWeight: '600' }}>{g.key === 'equipment' ? equipmentName(v) : v}</Text>
                 </Press>
               );
             })}

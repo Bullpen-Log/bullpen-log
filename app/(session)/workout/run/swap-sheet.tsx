@@ -279,7 +279,7 @@ export function SwapSheetView({
   };
 
   /** 분류와 장비 — 즐겨찾기·최근·찾기 줄의 둘째 줄 */
-  const kind = (p: SwapPick) => `${p.category} · ${equipmentLabel(p.equipment)}`;
+  const kind = (p: SwapPick) => `${p.category} · ${equipmentLabel(p.equipment, p.id)}`;
 
   const favoritePicks = pickable(choices?.favoriteIds ?? []);
   const recentPicks = pickable(choices?.recentIds ?? []);

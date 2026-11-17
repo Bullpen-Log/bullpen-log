@@ -1,3 +1,9 @@
+## Kim Min / exercise owners — 2026-11-17 · GPT — STEPBOX standalone integration
+
+Direct GPT01 completed step-box choice/contextual support alternatives; Sub2 independently accepted exact standalone19-file package against2a1818f5. Dirty root20-file/R1-relative patch is NOT release source. Overall verified all19base/final hashes and preserved latest mechanics/FPS/rules; absent unfinished load/contract.ts and R1 code excluded. Future R1 must retain its own approved additive support token without absorbing foreign changes.
+
+Existing raw 박스/history/user rows remain unchanged; distinct 스텝박스 and exact exercise-ID qualified alternative use one matcher across browsing/program/today/replacement controls. No DB or native module change. Independent121functional/SSR5/root-native types pass; real device/authenticated save still unverified. Exact release manifest/review: docs/reviews/stepbox-release-manifest-20261117.json and stepbox-final-integration-20261117.md. Full build and actual deployment will be recorded after observed success. Public App Store remains held. No recipient install/generate/migration step.
+
 ## Kim Min / mechanics reviewer — 2026-11-17 · GPT — Description-only wrapping fix
 
 Mechanics descriptions now use actual body padding and numbered flex markers so wrapped continuation lines remain indented. Only the display helper and sole description region changed; foreign review-selection edits excluded. Text rows/history/native screens unchanged. Narrow320/900 fixture and fresh changed-file lint pass; authenticated production page/device unverified. Standard section syntax ■ plus space; alternate heading formats not newly supported. Exact hashes/evidence: docs/reviews/mechanics-description-wrap-20261117.md. No install/DB step.
