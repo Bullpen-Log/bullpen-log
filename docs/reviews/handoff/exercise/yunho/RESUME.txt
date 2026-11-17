@@ -286,3 +286,5 @@ User prefers the Korean heading gangdo (intensity), not segi.
 2026-11-17: 사용자 요청으로 제목을 Sprinter Iso Hold로 간결하게 수정·저장. 이 촬영 영상의 원본 자료 제목은 미확인. 사용자 확인 대기.
 
 2026-11-17: 사용자 정정에 따라 사용자 표시 제목을 스프린터 아이소 홀드로 변경. 사용자 확인 대기.
+
+장비·부하 기록 검수 추가 기준: docs/shoot/exercise-load-review-standard-20261117.md. 현재 스프린터 아이소 홀드 사용자 확인 대기와 기존 판정을 보존한다. 장비·무게/밴드·기록/1RM 기준을 관련 항목에 적용하며 메타데이터 일괄 변경 및 서비스 테스트는 하지 않는다.
