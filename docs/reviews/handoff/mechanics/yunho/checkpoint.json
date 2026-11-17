@@ -522,9 +522,30 @@
       ],
       "limitation": "Driveline 서면은 첫발 방향 명시 없음; 별도 야구팀 자료의 목표 방향으로 거리 확보를 바탕으로 작성. 참고 영상의 해당 첫발 방향 프레임 확증 미완료.",
       "advance_authorized": false
+    },
+    {
+      "at": "2026-11-17T07:45:15.039Z",
+      "review_id": "mv-8134aada711c9d8b",
+      "user_request": "작게 디딘다고 제한하지 않고 드릴을 다른 관련 움직임에도 중복 분류",
+      "status": "applied_and_readback_verified",
+      "before_focus": [
+        "드리프트",
+        "몸통 회전"
+      ],
+      "after_focus": [
+        "상하체 분리",
+        "몸통 회전",
+        "드리프트"
+      ],
+      "note": "웹 전체 목록은 주 요소 한 곳에 표시하며 보조 요소 필터 및 관련 프로그램에 연결됨. 중복 카드 자동 노출 여부는 별도.",
+      "sources": [
+        "https://drivelinebaseball.com/blogs/blog/leveraging-assessment-data-build-throwing-programming",
+        "https://www.drivelinebaseball.com/wp-content/uploads/2024/03/Free_16-Week_In-Season_And_Off-Season_Throwing_Program_2024-03-05.pdf"
+      ],
+      "advance_authorized": false
     }
   ],
-  "user_change_request_count": 29,
+  "user_change_request_count": 30,
   "last_user_video_decision": {
     "at": "2026-11-17T06:47:23.274Z",
     "original": "다음 영상 검수하자",
@@ -820,7 +841,7 @@
     "personal_health_information_copied": false,
     "signed_urls_copied": false
   },
-  "updated_at": "2026-11-17T07:30:32.031Z",
+  "updated_at": "2026-11-17T07:45:15.039Z",
   "current_workflow_document": "docs/shoot/video-review-current-workflow.md",
   "setup_event": {
     "at": "2026-11-13T15:54:58+09:00",
