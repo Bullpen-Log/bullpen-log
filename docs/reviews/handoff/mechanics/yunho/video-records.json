@@ -988,6 +988,18 @@
             "https://drivelinebaseball.com/blogs/blog/making-movement-changes-weight-room"
           ],
           "advance_authorized": false
+        },
+        {
+          "at": "2026-11-17T15:32:52.411266+09:00",
+          "review_id": "mv-665ece52f26c70b2",
+          "user_request": "드리프트 중 상체가 뒷다리 쪽으로 과하게 쏠려 중심이 뒤에 남지 않도록 동작 안내 추가",
+          "status": "applied_and_readback_verified",
+          "after": "상체가 목표 반대쪽으로 지나치게 기울어 몸의 중심이 뒷발 쪽에 남지 않도록 합니다. 상체만 목표 쪽으로 숙이지도 말고, 골반과 몸의 중심이 함께 목표 방향으로 이동하도록 발과 손으로 균형을 조절합니다.",
+          "sources": [
+            "https://treadathletics.com/the-drift/",
+            "https://drivelinebaseball.com/blogs/blog/the-interaction-of-biomechanics-and-command"
+          ],
+          "advance_authorized": false
         }
       ],
       "assistant_findings": [],
