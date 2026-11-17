@@ -1003,7 +1003,7 @@
     "personal_health_information_copied": false,
     "signed_urls_copied": false
   },
-  "updated_at": "2026-11-17T18:13:28.408507+09:00",
+  "updated_at": "2026-11-17T18:46:34.736107+09:00",
   "current_workflow_document": "docs/shoot/video-review-current-workflow.md",
   "setup_event": {
     "at": "2026-11-13T15:54:58+09:00",
@@ -1377,7 +1377,7 @@
     "rule": "목적별 중요도 순서로 관련 훈련 목적 모두 선택. 단순 동작 사용 여부로 채우지 않음. 스로잉은 팔 동작 교정·던지는 속도 자체를 집중 훈련할 때만 선택. 순서가 추천 우선순위에 반영되며 단계·장비·통증 조건 유지.",
     "reviewed_numbers": "1–9",
     "system_order": "MECH-FOCUS01",
-    "feature_status": "r5 독립 검수 및 부서 기술 검수 통과. 사용자 승인에 따라 총괄의 최종 통합·사이트·앱 배포 진행 대기. 운영 배포 완료 미확인.",
+    "feature_status": "r5 운영 웹·앱 업데이트 배포 완료. 로그인한 운영 화면에서 목적 순위와 공 종류별 분류 확인, 앱 업데이트 제공 응답과 배포 커밋 일치 확인. 9번 워킹 와인드업 사용자 검수 대기 유지.",
     "variant_policy": {
       "at": "2026-11-17T18:03:55.133731+09:00",
       "user_choice": "영상별 목적을 유지해 추천 (권장)",
@@ -1415,6 +1415,21 @@
       "deployment_approved": true,
       "deployment_confirmed": false,
       "phone_verified": false
+    },
+    "r5_operational_release": {
+      "status": "r5 운영 웹·앱 업데이트 배포 완료. 로그인한 운영 화면에서 목적 순위와 공 종류별 분류 확인, 앱 업데이트 제공 응답과 배포 커밋 일치 확인. 9번 워킹 와인드업 사용자 검수 대기 유지.",
+      "ui_verdict": "목적 선택 6개, 현재 선택 3개, 순위 이동 버튼과 특화 목적 스로잉 안내 확인. 작은 공 드롭→몸통 회전, 큰 공 드롭→몸통 회전→상하체 분리 각각 유지. 저장·재분류·재생·검수 이동 없음.",
+      "limits": "운영에서 6개 목적 저장이나 사용자 프로그램 변경은 하지 않음. 실제 휴대폰 확인 미실시. 추천 동작은 독립 검수·격리된 실제 함수 검사 근거이며 운영 사용자 데이터를 수정하는 시험이 아님.",
+      "at": "2026-11-17T18:46:34.736107+09:00",
+      "source_commit": "6c800f0bae05bbf18505e7c8b7928d7620e5d343",
+      "web_deployment": "N1v7HbzUAzM4Yt2tsu8JtrGKpbKt",
+      "web_verified": true,
+      "app_update_available": true,
+      "runtime": "b0f2fa8f30d013c38c76f73fa7c1a1bea1c43296",
+      "update_id": "6164d610-5785-436f-af6f-349b8bd1f28e",
+      "ota_workflow": 44057596906,
+      "phone_verified": false,
+      "review_advance_authorized": false
     }
   }
 }
