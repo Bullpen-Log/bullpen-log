@@ -1,3 +1,9 @@
+## Kim Min — 2026-11-17 · GPT — APP-AUTOLOGIN01 scoped TestFlight delivery in progress
+
+Human authorized final overall review and BOTH apps through TestFlight, not public App Store launch. Sub2 implementation restores OS cookie jars before either app mounts account consumers, serializes account mutations, prevents stale-account results/cache reuse, and clears offline logout locally without deleting drafts/outboxes. Swift cookie ordering changed, so a new native build is required for both apps. Existing bundles, signing team, ko/en installed labels and session expiry stay unchanged.
+
+Exact scope, independent evidence and honest existing-check failures are recorded in docs/work-orders/APP-AUTOLOGIN01-gpt-review.md. Default native types and changed TS lint pass; overall added DOM.Iterable to native type configuration. Local root types remain affected by stale shared Prisma generated types; existing outbox test has3 baseline assertions inconsistent with its unchanged transient-error retention policy. No DB/dependency/shared generated-client edits, simulator or local native build. Device behavior unverified. CI upload and Apple processing are still pending at this entry; a follow-up will report actual builds. Public App Store release remains ON HOLD.
+
 ## Kim Min — 2026-11-17 · GPT — Localized-name TestFlight delivery verified
 
 Release source60a30a92 has completed both native builds under Geum's Apple team. Each archive check read the actual base Info.plist and ko/en InfoPlist.strings and asserted exact installed labels: Sinker default/en, 싱커 ko; Dugout default/en, 덕아웃 ko. Successful CI annotations include `Installed app names verified`. App Store Connect marketing names, bundle IDs, signing and schemes were preserved. Language selection follows iOS language preferences, not physical country.

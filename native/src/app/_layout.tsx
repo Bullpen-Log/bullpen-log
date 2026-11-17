@@ -13,6 +13,7 @@ import { BullpenNative } from '../../modules/bullpen-native';
 import { useTheme } from '~/lib/ui';
 import { useAppUpdateOnReturn } from '~/shell/app-update';
 import { canOpen, noticeLocked, useRelease, useReleaseDecided } from '~/shell/release';
+import { SessionGate } from '~/account/session-gate';
 
 /** 사이트 첫 화면이 그려질 때까지 시작 화면을 둔다(index.tsx 가 걷는다) — 흰 화면이 번쩍이지 않게 */
 SplashScreen.preventAutoHideAsync();
@@ -95,7 +96,7 @@ export default function RootLayout() {
       {/* 상태바 글자색 — 설정 테마를 따른다(기기 밝기가 아니라) */}
       <StatusBar style={theme === 'light' ? 'dark' : 'light'} />
       {/* 화면 넘김 알림 — 무거운 일(돌아온 탭 새로 받기 · 그날 창 영상)을 움직임이 끝난 뒤에 하게 적어 둔다(shell/transition.ts) */}
-      <Stack
+      <SessionGate><Stack
         screenOptions={{ headerShown: false }}
         screenListeners={{
           transitionStart: (e) => e.target && noteTransition(e.target, 'start', e.data.closing),
@@ -142,7 +143,7 @@ export default function RootLayout() {
           name="org/pick"
           options={{ presentation: 'formSheet', sheetAllowedDetents: 'fitToContents', sheetGrabberVisible: true, sheetCornerRadius: 28 }}
         />
-      </Stack>
+      </Stack></SessionGate>
       {/* '저장했어요' 같은 잠깐 알림(웹 Toaster) — 쌓인 화면 위, 시계 밑 */}
       <Toaster />
       {/* 시작 연출 — 로고 → SINKER, 2026-10-27 승인 2.20초(shell/intro-timeline.ts). 사이트가 늦으면 index.tsx 의 첫 불러오기 판이 이어 받는다 */}

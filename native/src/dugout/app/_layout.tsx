@@ -7,6 +7,7 @@ import { useAppUpdateOnReturn } from '~/shell/app-update';
 import { Intro, SPLASH_W, type IntroLook } from '~/shell/intro';
 import { Toaster } from '~/shell/toast';
 import { DUGOUT_GREEN, DugoutMark } from '~/dugout/mark';
+import { SessionGate } from '~/account/session-gate';
 
 /**
  * 덕아웃 앱(APP_VARIANT=dugout — app.config.js)의 뿌리. 화면 폴더가 싱커(src/app)와 따로라 싱커 화면은 묶이지 않는다.
@@ -41,10 +42,10 @@ export default function DugoutLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar style={theme === 'light' ? 'dark' : 'light'} />
-      <Stack screenOptions={{ headerShown: false }}>
+      <SessionGate><Stack screenOptions={{ headerShown: false }}>
         {/* 로그인 — 덕아웃은 로그인 없이도 보니 끌어내려 닫을 수 있는 창 */}
         <Stack.Screen name="login" options={{ presentation: 'modal' }} />
-      </Stack>
+      </Stack></SessionGate>
       <Toaster />
       <Intro look={DUGOUT_INTRO} />
     </GestureHandlerRootView>

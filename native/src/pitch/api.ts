@@ -6,7 +6,7 @@ import { setCountryNow } from '~/lib/country-store';
 import { applyCountryUnits } from '~/lib/prefs';
 import { phoneAssetId, phoneVideoPath, isPhoneVideoPath } from '@/lib/phone-video-path';
 import { SITE_URL } from '~/lib/site';
-import { markWrite, rpc, syncSession } from '~/lib/rpc';
+import { markWrite, rpc, sessionChanging, sessionEpoch, syncSession } from '~/lib/rpc';
 import { LocalVideo } from '../../modules/local-video';
 
 /**
@@ -70,7 +70,10 @@ export class OfflineError extends ApiError {}
 const READ_ONLY_POSTS = new Set(['/api/pitch-log/video-url', '/api/pitch-log/thumb-url']);
 
 export async function call<T>(path: string, init: { method: string; body?: unknown; timeoutMs?: number }): Promise<T> {
+  const epoch = sessionEpoch();
+  if (sessionChanging()) throw new OfflineError('계정이 변경됐어요. 다시 열어 주세요.');
   await syncSession();
+  if (epoch !== sessionEpoch()) throw new OfflineError('계정이 변경됐어요. 다시 열어 주세요.');
   let res: Response;
   /* 오래 매달리지 않게(저장) — 끊으면 신호 끊김과 같이 다룬다 */
   const abort = init.timeoutMs ? new AbortController() : null;
@@ -90,6 +93,7 @@ export async function call<T>(path: string, init: { method: string; body?: unkno
     if (timer) clearTimeout(timer);
   }
   const body = (await res.json().catch(() => null)) as (T & { error?: string }) | null;
+  if (epoch !== sessionEpoch()) throw new OfflineError('계정이 변경됐어요. 다시 열어 주세요.');
   if (!body || res.status >= 500) throw new OfflineError('서버 응답을 확인하지 못했어요.');
   if (!res.ok) throw new ApiError(body?.error ?? '서버에서 처리하지 못했어요.', res.status);
   /* 주소를 묻기만 하는 POST(영상 · 장면 그림 서명 주소)는 쓰기가 아니다 — 쓰기로 세면 영상을 본 뒤 돌아올 때 판 넷이 다 다시 받았다(2026-10-24) */
@@ -102,9 +106,12 @@ export async function call<T>(path: string, init: { method: string; body?: unkno
 /** coachPaid — 코치 탭(유료)을 쓰나(lib/coach-access.ts, 2026-11-01). 옛 서버 답에는 없다(그때는 무료로 본다) */
 export type Me = { userId: string; nickname: string; isAdmin: boolean; coachPaid?: boolean; today: string; locks: { pitch: boolean }; country?: string; access?: unknown };
 let meCache: Promise<Me> | null = null;
+let meEpoch = -1;
 export function loadMe(): Promise<Me> {
-  if (meCache) return meCache;
+  if (meCache && meEpoch === sessionEpoch()) return meCache;
+  const epoch = sessionEpoch();
   const p = rpc<({ ok: true } & Me) | { ok: false; error: string }>('app.loadAppMe').then((r) => {
+    if (epoch !== sessionEpoch()) throw new OfflineError('계정이 변경됐어요. 다시 열어 주세요.');
     if (!r.ok) throw new ApiError(r.error);
     setReleaseFromMe(r.userId, r.access);
     setCountryNow(countryOf(r.country));
@@ -113,6 +120,7 @@ export function loadMe(): Promise<Me> {
     return r;
   });
   meCache = p;
+  meEpoch = epoch;
   /* 그새 새로 물었으면(로그아웃 → 로그인) 새 물음은 지우지 않는다 */
   p.catch(() => {
     if (meCache === p) meCache = null;

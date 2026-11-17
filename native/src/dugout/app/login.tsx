@@ -1,10 +1,10 @@
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, type TextInputInstance, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AuthState } from '@/app/actions/auth';
-import { accountForm } from '~/account/session';
+import { accountForm, clearSession } from '~/account/session';
 import { READABLE } from '~/lib/layout';
 import { usePalette, type Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
@@ -37,6 +37,10 @@ export default function DugoutLogin() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const passwordRef = useRef<TextInputInstance>(null);
+  // The shell reaches this after web logout/denial. Finish clearing before queued login.
+  useEffect(() => {
+    void clearSession().catch(() => setError('로그인을 정리하지 못했어요. 다시 열어 주세요.'));
+  }, []);
 
   const submit = async () => {
     if (busy) return;

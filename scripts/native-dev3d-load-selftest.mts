@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import ts from 'typescript';
 import { readDeadline } from '../native/src/lib/read-deadline.ts';
 import { createReadShare } from '../native/src/lib/read-share.ts';
+import { createSessionLifecycle } from '../native/src/lib/session-lifecycle.ts';
 
 const source = ts.transpile(readFileSync('native/src/lib/rpc.ts', 'utf8'), { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 });
 let checks = 0;
@@ -15,7 +16,8 @@ function client(sync: () => Promise<unknown>, fetcher: (url: string, opts: Reque
     '@/lib/app-api': { APP_API_HEADER: 'x-test', APP_API_LEVEL: 1 },
     '@/lib/time-zone': { deviceTimeZone: () => null },
     '@/lib/release-access': {}, '~/lib/site': { SITE_URL: 'https://example.invalid' },
-    '../../modules/bullpen-native': { BullpenNative: { sync } },
+    '../../modules/bullpen-native': { BullpenNative: { sync, mirror: async () => 0 } },
+    './session-lifecycle': { createSessionLifecycle },
     './store': { cacheEpoch: () => 1 }, './read-share': { createReadShare },
     './read-deadline': { readDeadline: (run: (s: AbortSignal) => Promise<unknown>, ms: number, error: () => Error, onTimeout: () => void) => {
       eq(ms, 20_000);

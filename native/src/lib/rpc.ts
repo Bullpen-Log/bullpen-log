@@ -6,6 +6,7 @@ import { BullpenNative } from '../../modules/bullpen-native';
 import { readDeadline } from './read-deadline';
 import { createReadShare } from './read-share';
 import { cacheEpoch } from './store';
+import { createSessionLifecycle } from './session-lifecycle';
 
 /**
  * 사이트 서버 동작 부르기 — POST /api/rpc/<파일>.<함수>(app/api/rpc/[action]/route.ts). 로그인은 웹뷰의 'session' 쿠키를 앱 저장소로
@@ -22,13 +23,19 @@ export class RpcError extends Error {
   }
 }
 
-let synced: Promise<unknown> | null = null;
 const HOST = new URL(SITE_URL).hostname;
+const sessions = createSessionLifecycle(async () => {
+  await BullpenNative.sync(HOST);
+  // Restore cookies BEFORE either WebView makes its first authenticated navigation.
+  await BullpenNative.mirror(HOST);
+});
+export const sessionEpoch = sessions.epoch;
+export const sessionChanging = sessions.pending;
+export const changeSession = <T>(run: (version: number) => Promise<T>) => sessions.change(run);
 
 /** 웹뷰의 로그인 쿠키를 앱 요청 저장소로(처음 한 번) — rpc 말고 사이트 API(/api/…)를 부를 때도 먼저 */
 export function syncSession(): Promise<unknown> {
-  synced ??= BullpenNative.sync(HOST).catch(() => 0);
-  return synced;
+  return sessions.ready();
 }
 
 export function rpc<T>(action: string, ...args: unknown[]): Promise<T> {
@@ -41,7 +48,7 @@ export function rpc<T>(action: string, ...args: unknown[]): Promise<T> {
    * 한꺼번에 같은 것을 불렀다(2026-10-26 2차 점검). 가는 중인 읽기가 떠난 뒤에 쓰기가 끝났으면 합치지 않고 새로 부른다(저장 직후 옛 값을 받지 않게).
    */
   /* 계정 세대를 열쇠에 — 로그아웃 뒤 다른 계정이 앞 계정의 가는 중인 읽기(앞 계정 쿠키로 보낸 것)에 합류하지 않게 */
-  return reads.run(`${cacheEpoch()}|${action}${body}`, () => call<T>(action, body, { 'content-type': 'application/json' }));
+  return reads.run(`${sessionEpoch()}|${cacheEpoch()}|${action}${body}`, () => call<T>(action, body, { 'content-type': 'application/json' }));
 }
 
 /**
@@ -84,22 +91,36 @@ const reads = createReadShare();
 const isRead = (action: string) => /\.(load|fetch|get)[A-Z]/.test(action) || READ_ACTIONS.has(action);
 
 async function call<T>(action: string, payload: string | FormData, headers: Record<string, string>): Promise<T> {
+  const accountAction = action.startsWith('auth.') || action === 'push.unregisterPushDevice';
+  // A screen belonging to the outgoing account must not queue work under the next cookie.
+  // Reuse the existing retryable code so old outbox consumers retain their drafts.
+  if (!accountAction && sessionChanging()) throw new RpcError('계정이 변경됐어요. 다시 열어 주세요.', 'offline');
+  const epoch = sessionEpoch();
+  const current = () => {
+    if (epoch !== sessionEpoch()) throw new RpcError('계정이 변경됐어요. 다시 열어 주세요.', 'offline');
+  };
   const session = syncSession();
-  // 관리자 목록 읽기에만 제한한다. 공유된 읽기도 시간 초과 시 끝나 재시도할 수 있다.
-  if (action === 'swing-lab.loadAppSwingList') {
+  // Bound startup validation, account transitions and the existing admin-list read,
+  // including hydration and body waiting. Mutations are never automatically retried.
+  if (action === 'swing-lab.loadAppSwingList' || action === 'app.loadAppMe' || action.startsWith('auth.') || action === 'push.unregisterPushDevice') {
     return readDeadline(async (signal) => {
       await session;
-      if (signal.aborted) throw new RpcError('목록 읽기 시간이 초과됐어요.', 'timeout');
-      return request<T>(action, payload, headers, signal);
-    }, 20_000, () => new RpcError('목록 읽기 시간이 초과됐어요. 다시 불러와 주세요.', 'timeout'), () => {
-      if (synced === session) synced = null;
+      if (!action.startsWith('auth.') && action !== 'push.unregisterPushDevice') await sessions.idle();
+      current();
+      if (signal.aborted) throw new RpcError('요청 시간이 초과됐어요.', 'timeout');
+      return request<T>(action, payload, headers, current, signal);
+    }, 20_000, () => new RpcError('요청 시간이 초과됐어요. 다시 시도해 주세요.', 'timeout'), () => {
+      if (action === 'swing-lab.loadAppSwingList' || action === 'app.loadAppMe') sessions.retryHydration();
     });
   }
   await session;
-  return request<T>(action, payload, headers);
+  // Account mutations are already serialized by account/session.ts; other calls wait.
+  if (!action.startsWith('auth.')) await sessions.idle();
+  current();
+  return request<T>(action, payload, headers, current);
 }
 
-async function request<T>(action: string, payload: string | FormData, headers: Record<string, string>, signal?: AbortSignal): Promise<T> {
+async function request<T>(action: string, payload: string | FormData, headers: Record<string, string>, current: () => void, signal?: AbortSignal): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`${SITE_URL}/api/rpc/${action}`, {
@@ -118,6 +139,8 @@ async function request<T>(action: string, payload: string | FormData, headers: R
     | { ok: true; redirect: string }
     | { ok: false; error: string }
     | null;
+  // No old-account result, redirect or cache write may escape after an account change.
+  current();
   if (res.status === 426) throw new RpcError('앱을 업데이트해 주세요.', 'update');
   /* 출시 전 베타에 잠긴 기능(2026-10-29, lib/release-gate.ts) — 일반 오류와 갈라 다시 시도하지 않는다(대기열은 멈추고 남긴다) */
   if (res.status === 403 && body && !body.ok && body.error === FEATURE_LOCKED_BETA) throw new RpcError(`${BETA_LOCK_TITLE} ${BETA_LOCK_BODY}`, FEATURE_LOCKED_BETA);

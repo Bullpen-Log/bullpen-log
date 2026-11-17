@@ -53,7 +53,7 @@ export default function LoginScreen() {
 
   const { native } = useLocalSearchParams<{ native?: string }>();
   useEffect(() => {
-    if (native === '1') void clearSession();
+    if (native === '1') void clearSession().catch(() => setError('로그인을 정리하지 못했어요. 다시 열어 주세요.'));
     else {
       /* 딥링크 — 이미 로그인돼 있으면 로그인 화면을 둘 까닭이 없다 */
       resetMe();

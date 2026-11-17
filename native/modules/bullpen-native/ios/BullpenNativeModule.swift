@@ -31,6 +31,24 @@ public class BullpenNativeModule: Module {
         return host == d || host.hasSuffix("." + d)
     }
     static func isSession(_ c: HTTPCookie, _ host: String) -> Bool { c.name == session && matches(c, host) }
+    static func unexpired(_ c: HTTPCookie) -> Bool { c.expiresDate.map { $0 > Date() } ?? true }
+    /// Main-thread cookie operations that started before a clear must never restore a login.
+    static var sessionGeneration = 0
+    /// WK writes are asynchronous: queuing only their dispatch is not enough. Complete
+    /// every write before allowing clear or another mirror to snapshot either jar.
+    static var cookieOperations: [() -> Void] = []
+    static func enqueueCookieOperation(_ operation: @escaping () -> Void) {
+        DispatchQueue.main.async {
+            cookieOperations.append(operation)
+            if cookieOperations.count == 1 { operation() }
+        }
+    }
+    static func finishCookieOperation() {
+        DispatchQueue.main.async {
+            cookieOperations.removeFirst()
+            cookieOperations.first?()
+        }
+    }
     static func sameKey(_ a: HTTPCookie, _ b: HTTPCookie) -> Bool { a.name == b.name && a.domain == b.domain && a.path == b.path }
     /// 앱 저장소의 'session' 을 keep 그대로 — keep 에 없는 것은 지우고, keep 의 것은 다시 넣는다
     static func restoreSessions(_ keep: [HTTPCookie], _ host: String) {
@@ -73,11 +91,20 @@ public class BullpenNativeModule: Module {
         }
 
         AsyncFunction("sync") { (host: String, promise: Promise) in
-            DispatchQueue.main.async {
+            Self.enqueueCookieOperation {
+                let resolve: (Any?) -> Void = { value in promise.resolve(value); Self.finishCookieOperation() }
+                let generation = Self.sessionGeneration
+                let appSessions = (HTTPCookieStorage.shared.cookies ?? []).filter { Self.isSession($0, host) && Self.unexpired($0) }
                 WKWebsiteDataStore.default().httpCookieStore.getAllCookies { cookies in
-                    let mine = cookies.filter { Self.matches($0, host) }
+                    guard generation == Self.sessionGeneration else { return resolve(0) }
+                    // Native login writes here first. An older WebView cookie must not replace it.
+                    // Import a WebView session only when migrating an otherwise empty native jar.
+                    let mine = cookies.filter {
+                        Self.matches($0, host) && Self.unexpired($0) && (!Self.isSession($0, host) || appSessions.isEmpty)
+                    }
                     mine.forEach { HTTPCookieStorage.shared.setCookie($0) }
-                    promise.resolve(mine.count)
+                    Self.restoreSessions(appSessions.isEmpty ? mine.filter { Self.isSession($0, host) } : appSessions, host)
+                    resolve(mine.count)
                 }
             }
         }
@@ -89,24 +116,29 @@ public class BullpenNativeModule: Module {
         /// 차례가 중요하다: 웹뷰 쿠키가 바뀔 때마다 react-native-webview 가 웹뷰의 쿠키 전부를 앱 저장소로 되옮긴다(cookiesDidChange). 그래서
         /// 웹뷰의 옛 로그인을 먼저 지우고 → 앱 것을 넣고 → 끝에 앱 저장소의 'session' 을 처음 본 그대로 되돌린다(그 사이 되옮겨진 옛 값이 남지 않게).
         AsyncFunction("mirror") { (host: String, promise: Promise) in
-            DispatchQueue.main.async {
+            Self.enqueueCookieOperation {
+                let resolve: (Any?) -> Void = { value in promise.resolve(value); Self.finishCookieOperation() }
+                let generation = Self.sessionGeneration
                 let store = WKWebsiteDataStore.default().httpCookieStore
-                let app = (HTTPCookieStorage.shared.cookies ?? []).filter { Self.matches($0, host) }
+                let app = (HTTPCookieStorage.shared.cookies ?? []).filter { Self.matches($0, host) && Self.unexpired($0) }
                 store.getAllCookies { web in
+                    guard generation == Self.sessionGeneration else { return resolve(0) }
                     let stale = DispatchGroup()
                     for c in web where Self.isSession(c, host) && !app.contains(where: { Self.sameKey($0, c) }) {
                         stale.enter()
                         store.delete(c) { stale.leave() }
                     }
                     stale.notify(queue: .main) {
+                        guard generation == Self.sessionGeneration else { return resolve(0) }
                         let put = DispatchGroup()
                         for c in app {
                             put.enter()
                             store.setCookie(c) { put.leave() }
                         }
                         put.notify(queue: .main) {
+                            guard generation == Self.sessionGeneration else { return resolve(0) }
                             Self.restoreSessions(app, host)
-                            promise.resolve(app.count)
+                            resolve(app.count)
                         }
                     }
                 }
@@ -116,7 +148,9 @@ public class BullpenNativeModule: Module {
         /// 로그인 화면에 왔다 = 로그아웃 상태 — 두 저장소의 'session' 을 지운다(앞사람 로그인이 앱 요청 · 웹뷰에 남지 않게).
         /// 웹뷰부터 지운다 — 앱 것을 먼저 지우면 웹뷰가 바뀌는 사이 옛 로그인이 앱 저장소로 되옮겨질 수 있다.
         AsyncFunction("clearSession") { (host: String, promise: Promise) in
-            DispatchQueue.main.async {
+            Self.enqueueCookieOperation {
+                let resolve: (Any?) -> Void = { value in promise.resolve(value); Self.finishCookieOperation() }
+                Self.sessionGeneration += 1
                 let store = WKWebsiteDataStore.default().httpCookieStore
                 store.getAllCookies { web in
                     let group = DispatchGroup()
@@ -126,7 +160,7 @@ public class BullpenNativeModule: Module {
                     }
                     group.notify(queue: .main) {
                         Self.restoreSessions([], host)
-                        promise.resolve(nil)
+                        resolve(nil)
                     }
                 }
             }
