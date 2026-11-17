@@ -1,8 +1,19 @@
+## Kim Min — 2026-11-17 · GPT — Localized-name TestFlight delivery verified
+
+Release source60a30a92 has completed both native builds under Geum's Apple team. Each archive check read the actual base Info.plist and ko/en InfoPlist.strings and asserted exact installed labels: Sinker default/en, 싱커 ko; Dugout default/en, 덕아웃 ko. Successful CI annotations include `Installed app names verified`. App Store Connect marketing names, bundle IDs, signing and schemes were preserved. Language selection follows iOS language preferences, not physical country.
+
+- Sinker: com.sinker.app / app6835422935 / build20261117.42605 / build UUID41085e16-39a2-437a-88c8-503be318ebb9 / successful run44016538032, job133815856551.
+- Dugout: com.mhk.dugout / app6835459450 / build20261117.42234 / build UUID85cf4eb1-5e05-4178-bbce-1ab6a5514a31 / successful run44016418433, job133815340255.
+- Independent Apple API verification: BOTH processingState VALID and internalBuildState IN_BETA_TESTING. ExternalBuildState remains READY_FOR_BETA_SUBMISSION; external beta review/submission is separate.
+- Original push run44016399291 was cancelled at the shared plan-concurrency stage by the Dugout dispatch, before a Sinker archive. Sinker was then explicitly dispatched after the competing plan finished; the two successful runs above are the delivery evidence. No duplicate successful upload was required.
+
+Config/locale resolution, workflow YAML assertions, changed-config lint, root typecheck and diff checks passed. No simulator, Metro, local native build, dependency/DB change or physical-device test was performed. Existing dirty working directories and collaborators' review records were preserved. Users need the new TestFlight build to receive bundled labels; OTA cannot change an installed bundle label. Actual icon text after installation and on-device language switching remain unverified.
+
 ## Kim Min — 2026-11-17 · GPT — Localized installed names and authorized TestFlight rebuild
 
 User selected installed labels 싱커 / 덕아웃, then requested English overseas labels and authorized both apps through TestFlight. iOS ko resources retain 싱커 / 덕아웃; en resources and explicit default CFBundleDisplayName use Sinker / Dugout. Selection follows iOS language preferences, not physical country. Keep Expo/Xcode project names, bundle IDs, signing, schemes and App Store Connect marketing names unchanged. Both archive checks now assert exact default/ko/en labels before upload and log the nonsecret result.
 
-The bounded configuration and CI checks were edited directly by the overall GPT. New native builds are required; OTA cannot change an installed bundle label. Release is authorized and in progress; record exact runs/builds and Apple processing separately from on-device appearance. No local native build or simulator is used.
+The bounded configuration and CI checks were edited directly by the overall GPT. New native builds are required; OTA cannot change an installed bundle label. Release completed; the verified runs/builds and remaining device limits are recorded in the newer entry above. No local native build or simulator is used.
 
 ## Kim Min — 2026-11-17 · GPT — Geum Apple team TestFlight verified
 
