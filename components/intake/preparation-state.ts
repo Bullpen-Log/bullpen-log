@@ -3,13 +3,13 @@ import type { IntakeView } from '@/lib/intake/state';
 
 export const PREPARATION_VERSION = 1;
 export const PREPARATION_TTL = 24 * 60 * 60 * 1000;
-export const PREPARATION_STAGES = ['method', 'share', 'select', 'confirm'] as const;
+export const PREPARATION_STAGES = ['share', 'select', 'confirm'] as const;
 export type PreparationStage = (typeof PREPARATION_STAGES)[number];
 export type PreparationReturn = 'side' | 'rear' | 'review' | 'recovery' | 'correction';
 export type Preparation = {
   view: IntakeView;
   stage: PreparationStage;
-  route: 'apple' | 'other' | 'gallery';
+  route: 'apple' | 'other';
   returnTo: PreparationReturn;
 };
 export type PreparationBook = {
@@ -23,15 +23,26 @@ export function preparationOf(value: unknown): Preparation | null {
   if (!value || typeof value !== 'object') return null;
   const p = value as Partial<Preparation>;
   const storedStage = (value as { stage?: unknown }).stage;
-  const stage = storedStage === 'export' || storedStage === 'save' ? 'share' : p.stage;
+  const storedRoute = (value as { route?: unknown }).route;
+  // Old app-choice checkpoints are navigation hints only, never a reason to
+  // send a recipient out of the public website or to discard their draft.
+  const route = storedRoute === 'gallery' ? 'apple' : storedRoute;
+  const stage =
+    storedStage === 'method'
+      ? route === 'other'
+        ? 'select'
+        : 'share'
+      : storedStage === 'export' || storedStage === 'save'
+        ? 'share'
+        : p.stage;
   if (
     (p.view !== 'side' && p.view !== 'rear') ||
     !PREPARATION_STAGES.includes(stage as PreparationStage) ||
-    (p.route !== 'apple' && p.route !== 'other' && p.route !== 'gallery') ||
+    (route !== 'apple' && route !== 'other') ||
     !RETURNS.includes(p.returnTo ?? '')
   )
     return null;
-  return { view: p.view, stage: stage!, route: p.route, returnTo: p.returnTo! };
+  return { view: p.view, stage: stage!, route, returnTo: p.returnTo! };
 }
 export const safePreparation = (p: Preparation, hasFile: boolean): Preparation =>
   p.stage === 'confirm' && !hasFile ? { ...p, stage: 'select' } : p;

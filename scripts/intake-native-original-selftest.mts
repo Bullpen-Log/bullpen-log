@@ -55,11 +55,11 @@ for (const bad of [
 eq(READ_BYTES, ORIGINAL_CHUNK_BYTES);
 const prep = {
   view: 'side',
-  stage: 'method',
-  route: 'gallery',
+  stage: 'share',
+  route: 'apple',
   returnTo: 'side',
 } as const;
-eq(preparationOf(prep), prep);
+eq(preparationOf({ ...prep, stage: 'method', route: 'gallery' }), prep);
 eq(safePreparation({ ...prep, stage: 'confirm' }, false).stage, 'select');
 
 let bytes = buildMov({

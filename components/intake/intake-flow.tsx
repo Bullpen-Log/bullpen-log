@@ -378,7 +378,7 @@ function Flow({ token }: { token: string }) {
   const defaultPreparation = (view: IntakeView, returnTo: PreparationReturn): Preparation => {
     const cached = data ? readPreparation(data.state.submissionId)?.positions[view] : null;
     const route = cached?.route ?? (isAppleTouch({ userAgent: navigator.userAgent, maxTouchPoints: navigator.maxTouchPoints }) ? 'apple' : 'other');
-    return safePreparation({ view, returnTo, route, stage: picked[view] ? 'confirm' : cached?.stage ?? 'method' }, picked[view] != null);
+    return safePreparation({ view, returnTo, route, stage: picked[view] ? 'confirm' : cached?.stage ?? (route === 'apple' ? 'share' : 'select') }, picked[view] != null);
   };
   const setPreparationPosition = (p: Preparation | null, push = true) => {
     preparationRef.current = p;
@@ -767,12 +767,12 @@ function Flow({ token }: { token: string }) {
   const candidate = preparation ?? (normalView ? defaultPreparation(normalView, normalView) : null);
   const activePreparation = ['side', 'rear', 'review', 'recovery', 'correction'].includes(step) && !viewResult
     ? preparationForState(candidate, data.state, { side: picked.side != null, rear: picked.rear != null }) : null;
-  const prepareFrom = (view: IntakeView) => openPreparation(view, step as PreparationReturn, 'method');
+  const prepareFrom = (view: IntakeView) => openPreparation(view, step as PreparationReturn, 'share');
   const prepBack = () => {
     if (depth.current > 0) { window.history.back(); return; }
     if (!activePreparation) return;
     const index = PREPARATION_STAGES.indexOf(activePreparation.stage);
-    if (index > 0) setPreparationPosition({ ...activePreparation, stage: activePreparation.route === 'other' && activePreparation.stage === 'select' ? 'method' : PREPARATION_STAGES[index - 1] }, false);
+    if (index > 0 && activePreparation.route === 'apple') setPreparationPosition({ ...activePreparation, stage: PREPARATION_STAGES[index - 1] }, false);
     else if (normalView) { setPreparationPosition(null, false); setStep(PREVIOUS[normalView] ?? 'name'); }
     else setPreparationPosition(null, false);
   };

@@ -1,3 +1,9 @@
+## Kim Min / video-sharing owners — 2026-11-17 · GPT — R16 public link must be APP-FREE
+
+User clarified recipients must submit via received web link, without installing/using Sinker. GPT05 acknowledged R15method interpretation error; this WEB-ONLY correction takes precedence for public UX. Exact6pathcandidate4dd5226 changes only3public preparation files+tests/docs. It removes app/nativegallery/handoff choice, restores originalFilesguide->picker->confirm/upload, normalizes oldgallery/method/back checkpoints while preserving serverstate/filegates and original guidevideos/player.
+
+No native/lib/DB/uploadpolicy/namePIN/consent/frame/hash/TUS change; no new appbuild/OTA. Earlier R15TestFlight distribution remains historical fact, NOT a recipient requirement. Independent50prep+15actualSSR passes with nativepresent/absent identical; maincanonicaltypes/lint/cleanNextbuild0. R16source/evidence docs/reviews/intake-web-only-r16-final-release-20261117.md. Public webdeployment/servedsource confirmation follows actualsuccess; physicalphone picker/upload unverified. No fake camera-original guarantee. Preserve unrelatedMECHr5/currentreview progress/Wiki local-first and heldR14/REF04.
+
 ## Mechanics owner / Kim Min — 2026-11-17 · GPT — Final live read-only confirmation
 
 Department refreshed actual authenticated deployed library, confirmed6purposechoices/rankcontrols/targetedthrowingguidance and small/large distinct per-video purposes; closed without saving and restored currentvideo9. Web displayPASS; true six-purpose save/cache/user-program/device checks remainunverified. Actual compatibleOTA6164d610…source6c800f0/runtimeb0f2…/launchSHA independently verified; no additionalnativebinary. BothR15TestFlightbuilds alreadyVALID/IN_BETA_TESTING as below. Final records distinguish live UI from isolated mocks and keep publiclaunchheld.

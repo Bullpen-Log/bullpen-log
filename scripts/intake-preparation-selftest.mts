@@ -23,6 +23,20 @@ const p: Preparation = {
   returnTo: 'side',
 };
 eq(preparationOf(p), p);
+eq(preparationOf({ ...p, stage: 'method' }), p);
+eq(preparationOf({ ...p, stage: 'method', route: 'other' }), {
+  ...p,
+  stage: 'select',
+  route: 'other',
+});
+eq(preparationOf({ ...p, stage: 'method', route: 'gallery' }), p);
+for (const stage of ['share', 'select', 'confirm'] as const)
+  eq(preparationOf({ ...p, route: 'gallery', stage }), { ...p, route: 'apple', stage });
+eq(
+  safePreparation(preparationOf({ ...p, route: 'gallery', stage: 'confirm' })!, false)
+    .stage,
+  'select'
+);
 for (const stage of ['export', 'save']) eq(preparationOf({ ...p, stage }), p);
 for (const patch of [
   { view: 'bad' },
@@ -118,6 +132,23 @@ eq(
 const now = Date.now();
 const book = { version: 1, updatedAt: now, active: p, positions: { side: p } };
 eq(parsePreparationBook(JSON.stringify(book), now)?.active, p);
+const legacyBook = {
+  ...book,
+  active: { ...p, stage: 'method', route: 'gallery' },
+  positions: {
+    side: { ...p, stage: 'method', route: 'gallery' },
+    rear: { ...p, view: 'rear', returnTo: 'rear', stage: 'confirm', route: 'gallery' },
+  },
+};
+eq(parsePreparationBook(JSON.stringify(legacyBook), now)?.active, p);
+eq(parsePreparationBook(JSON.stringify(legacyBook), now)?.positions.side, p);
+eq(parsePreparationBook(JSON.stringify(legacyBook), now)?.positions.rear, {
+  ...p,
+  view: 'rear',
+  returnTo: 'rear',
+  stage: 'confirm',
+});
+
 for (const raw of [
   null,
   '{}',
