@@ -1143,7 +1143,7 @@
   "mandatory_plyometric_review_rule_20261116": "For every plyometric exercise, explain the actual movement, training purpose and role in plyometric progression where applicable, and a clear evidence-calibrated link to pitching; distinguish foundational drills from reactive training and indirect associations from proven direct effects. Apply common user-friendly terms, format, prescriptions, and evidence standards. Review each exercise individually.",
   "reference_catalog_rule": "Continue appending all actually consulted references and per-exercise use/limitations to docs/references/exercise-review-sources.json. EX-REF01 admin implementation deferred by user; do not start it during video review.",
   "standing_spacing_rule": "Mandatory: consistent readable blank lines between how-to steps and separate explanatory paragraphs for every subsequently reviewed exercise, preserving meaning and evidence.",
-  "updated_at_utc": "2026-11-17T09:12:18.687139+00:00",
+  "updated_at_utc": "2026-11-17T09:21:47.471431+00:00",
   "step_box_rule": "스텝박스와 점프용 박스를 구분, 대체는 운동 목적과 높이 및 안정성에 따라 판단",
   "step_box_implementation_owner": "01 영상비교; 05 reassignment cancelled per user",
   "numbered_step_readability_rule": "Split long or overloaded how-to steps only where readability improves. Preserve movement sequence, simultaneous actions, immediate transitions, user decisions and blank lines. Do not split for arbitrary length or create unnecessary steps. Apply to every future review.",
@@ -1186,5 +1186,42 @@
     "scope": "실제·등록 장비, 받침과 중량, 기구별 무게 기준, 밴드 역할·제품, 대체·복합, 목표·실적 및 1RM 적합성을 관련된 경우 확인. 관리자 화면은 읽기로 확인하고 잠긴 설정과 미확인 판은 우회하지 않음.",
     "limits": "새 기준만으로 메타데이터·기록 뜻·기존 이력·코드 일괄 변경 및 서비스 테스트 금지. 아이폰 실제 저장 왕복 미확인.",
     "guide_availability": "로컬 문서. 원격 공유 확인 전 해당 경로가 다른 컴퓨터에 있다고 가정하지 않음; 아래 핵심 기준은 이 체크포인트에도 포함."
+  },
+  "latest_review_recheck": {
+    "status": "46개 검수 기록 현 항목 후보와 관리자 기록 미리보기 확인. 제목이 다른 1건은 저장 설명 일치로 연결했으나 영상 판 동일성 미확인. 16건 설명 수정 저장. 전면 영상 재시청 미완료.",
+    "changes_saved_verified": 16,
+    "changed_titles": [
+      "불가리안 스플릿 스쿼트 점프",
+      "로우 포고 홉",
+      "밴드 보조 스플릿 스쿼트 점프",
+      "스플릿 스탠스 발목 아이소메트릭 프레스",
+      "랜드마인 회전 펀치",
+      "스플릿 스탠스 스로우 (큰 공)",
+      "싱글렉 박스 점프",
+      "박스 점프",
+      "제자리 멀리뛰기 (브로드 점프)",
+      "발 넓게 벌려 제자리 멀리뛰기 (와이드 스탠스 브로드 점프)",
+      "제자리 수직 점프 (버티컬 점프)",
+      "레터럴 셔플 스로우 (큰 공)",
+      "메디신볼 턴 앤 번 샷풋 (밀어 던지기)",
+      "밴드 보조 스쿼트 점프",
+      "뎁스 점프 투 박스",
+      "무릎 꿇고 메디신볼 오버헤드 스로우"
+    ],
+    "unmatched": "무릎 꿇고 메디신볼 오버헤드 스로우 후보 89b14e01: 과거 기록의 저장 설명과 변경 전 DB 정확히 일치. 영상 판 동일성 미확인.",
+    "checked_admin": [
+      "불가리안 스플릿 스쿼트 점프: 횟수만·1RM 꺼짐; 상세 스텝박스 대체 안내, 편집기 태그 박스",
+      "밴드 보조 스플릿 스쿼트 점프: 밴드 상표/계열/단계 + 횟수, 보조 밴드 코드 예외·1RM 꺼짐"
+    ],
+    "remaining": "각 영상 시범 및 편집의 재시청과 세부 근거 확인은 미완료. 두 기록 설정 문제는 담당 설정 및 사용자별 수정 지시 범위 확인 후 처리. 원본 동일성 미확인 운동 1개는 대조 필요.",
+    "settings_preview": {
+      "count": 46,
+      "method": "운영 관리자 수정 화면의 기록 칸 미리보기 및 예외 설정 읽기. 실사용 저장/기록 이력 왕복은 확인하지 않음.",
+      "problems": [
+        "뎁스 드롭 플라이오 푸쉬업: 시범 원판은 손을 받치는 장비인데 무게(든 원판 합) 선택 입력이 표시됨.",
+        "스플릿 스탠스 발목 아이소메트릭 프레스: 랙에 고정된 바벨을 위로 미는데 봉 포함 무게 필수 입력이 표시됨."
+      ],
+      "other": "밴드 보조 스쿼트/스플릿 스쿼트/플라이오 푸시업은 보조 역할의 코드 예외 표시. 45개 미리보기 1RM 꺼짐. 설정 변경·실제 기록 저장하지 않음."
+    }
   }
 }
