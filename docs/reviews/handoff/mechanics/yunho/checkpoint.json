@@ -51,7 +51,7 @@
   "current": {
     "number": 7,
     "review_id": "mv-665ece52f26c70b2",
-    "title": "손으로 균형 잡고 레그 리프트 드리프트",
+    "title": "서포티드 레그리프트 드리프트",
     "drill_id": "a13f7ec8-c23d-4435-bd21-014070015578",
     "category": "드리프트",
     "kind": "직접 촬영",
@@ -410,9 +410,65 @@
       "after_title": "손으로 균형 잡고 레그 리프트 드리프트",
       "status": "applied_and_readback_verified",
       "advance_authorized": false
+    },
+    {
+      "at": "2026-11-17T15:05:56.236546+09:00",
+      "review_id": "mv-665ece52f26c70b2",
+      "user_request": "서포티드 레그리프트 드리프트로 변경하고 용어 설명 위치 정리",
+      "before_title": "손으로 균형 잡고 레그 리프트 드리프트",
+      "after_title": "서포티드 레그리프트 드리프트",
+      "description_change": "어떤 운동인가에 레그 리프트·드리프트의 뜻을 설명하고 투수에게 왜 필요한가에는 투구 흐름·타이밍과 구속 관련성을 설명",
+      "source": "https://drivelinebaseball.com/blogs/blog/making-movement-changes-weight-room",
+      "status": "applied_and_readback_verified",
+      "advance_authorized": false
+    },
+    {
+      "at": "2026-11-17T15:08:31.008818+09:00",
+      "user_request": "드리프트를 필요성 설명에 사용하고 같은 설명 양식을 지금까지 검수한 영상과 이후 검수에 적용",
+      "status": "applied_and_readback_verified",
+      "drills": 7,
+      "advance_authorized": false,
+      "sources": [
+        "https://www.drivelinebaseball.com/wp-content/uploads/2022/09/PITCHING-PDF-FINAL.pdf",
+        "https://drivelinebaseball.com/blogs/blog/making-movement-changes-weight-room"
+      ]
+    },
+    {
+      "at": "2026-11-17T15:32:52.411266+09:00",
+      "review_id": "mv-665ece52f26c70b2",
+      "user_request": "드리프트 중 상체가 뒷다리 쪽으로 과하게 쏠려 중심이 뒤에 남지 않도록 동작 안내 추가",
+      "status": "applied_and_readback_verified",
+      "after": "상체가 목표 반대쪽으로 지나치게 기울어 몸의 중심이 뒷발 쪽에 남지 않도록 합니다. 상체만 목표 쪽으로 숙이지도 말고, 골반과 몸의 중심이 함께 목표 방향으로 이동하도록 발과 손으로 균형을 조절합니다.",
+      "sources": [
+        "https://treadathletics.com/the-drift/",
+        "https://drivelinebaseball.com/blogs/blog/the-interaction-of-biomechanics-and-command"
+      ],
+      "advance_authorized": false
+    },
+    {
+      "at": "2026-11-17T15:35:29.675040+09:00",
+      "review_id": "mv-665ece52f26c70b2",
+      "user_request": "운동이 끝나고 자연스럽게 영상이 끝나도록 편집",
+      "status": "applied_and_storage_readback_verified",
+      "edit": "마지막 동작 후 발을 내려 안정된 자세가 되는 12초 지점으로 마무리. 기존 영상 보존.",
+      "source_duration_seconds": 13.27,
+      "edited_duration_seconds": 12.0,
+      "advance_authorized": false
+    },
+    {
+      "at": "2026-11-17T15:39:14.709623+09:00",
+      "review_id": "mv-665ece52f26c70b2",
+      "user_request": "뒷발 쪽에 중심이 과하게 남지 않고 진행 방향으로 이동하도록 설명",
+      "after": "뒷발로 몸을 받치되 상체가 목표 반대쪽으로 지나치게 기울어 몸의 중심이 뒷발 쪽에 과하게 남지 않도록 합니다. 상체만 앞으로 숙이거나 무리하게 멀리 쏠리지 말고, 균형을 유지할 수 있는 범위에서 골반과 몸의 중심을 목표 방향으로 함께 이동합니다.",
+      "status": "applied_and_readback_verified",
+      "sources": [
+        "https://treadathletics.com/the-drift/",
+        "https://drivelinebaseball.com/blogs/blog/the-interaction-of-biomechanics-and-command"
+      ],
+      "advance_authorized": false
     }
   ],
-  "user_change_request_count": 16,
+  "user_change_request_count": 21,
   "last_user_video_decision": {
     "at": "2026-11-17T05:48:06.176Z",
     "original": "다음",
@@ -708,7 +764,7 @@
     "personal_health_information_copied": false,
     "signed_urls_copied": false
   },
-  "updated_at": "2026-11-17T15:03:02.148182+09:00",
+  "updated_at": "2026-11-17T15:39:14.709623+09:00",
   "current_workflow_document": "docs/shoot/video-review-current-workflow.md",
   "setup_event": {
     "at": "2026-11-13T15:54:58+09:00",
@@ -1047,5 +1103,10 @@
     "result": "메커니즘 제목 77개 수정. 운동영상 제목에서는 해당 번호 없음.",
     "current_video_title": "기둥 짚고 레그 리프트 드리프트",
     "at": "2026-11-17T14:55:34.680545+09:00"
+  },
+  "terminology_description_rule_20261117": {
+    "rule": "어떤 운동인가에서 제목의 핵심 전문 용어를 짧고 쉬운 말로 설명하고, 투수에게 왜 필요한가에서 그 용어를 사용해 투구 동작과 훈련 목적을 연결한다. 영상 동작과 일치하도록 작성하고 드라이브라인 자료를 참고한다.",
+    "applied_to": "1–7번 영상",
+    "at": "2026-11-17T15:08:31.008818+09:00"
   }
 }
