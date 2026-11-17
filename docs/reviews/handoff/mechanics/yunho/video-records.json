@@ -4519,5 +4519,15 @@
     "source": "Independent r4 reviewer and department read-only reproduction",
     "implementation_started": false,
     "deployment_approved": false
+  },
+  "system_r5_release_request": {
+    "user_request": "보완해. 배포까지 다 해",
+    "status": "r5 단계 제한 보완 및 로컬 검사 완료. 독립 검수 후 사이트·앱 배포까지 사용자 승인됨. 배포 완료는 아직 확인 전.",
+    "scope": "일반 수준별 추천에서 허용된 실제 영상의 단계를 먼저 확인하고 장비를 선택한다. 맞는 영상이 없으면 확인 안내를 표시한다. 영상별 목적·우선순위 및 영상 검수 9번을 유지한다.",
+    "at": "2026-11-17T18:11:55.583553+09:00",
+    "deployment_approved": true,
+    "deployment_confirmed": false,
+    "revision": "MECH-FOCUS01 r5",
+    "review_video_advance_authorized": false
   }
 }
