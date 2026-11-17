@@ -1182,6 +1182,14 @@
           "source": "https://www.drivelinebaseball.com/wp-content/uploads/2022/09/PITCHING-PDF-FINAL.pdf",
           "exercise_status": "담당 채팅에 직접 요청; 확인 및 처리 진행",
           "advance_authorized": false
+        },
+        {
+          "at": "2026-11-17T07:02:59.442Z",
+          "review_id": "mv-8134aada711c9d8b",
+          "user_request": "번호 아래 이어지는 문장을 첫 문장 시작 위치에 맞춰 들여쓰기",
+          "status": "mechanics_8_applied_and_readback_verified",
+          "exercise_status": "운동영상 담당에게 전달, 처리 상태 별도 확인",
+          "advance_authorized": false
         }
       ],
       "assistant_findings": [
