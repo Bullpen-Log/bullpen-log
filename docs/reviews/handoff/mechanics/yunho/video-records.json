@@ -852,7 +852,7 @@
       "number": 7,
       "review_id": "mv-665ece52f26c70b2",
       "category": "드리프트",
-      "title": "손으로 짚고 레그 리프트 드리프트",
+      "title": "손으로 균형 잡고 레그 리프트 드리프트",
       "kind": "직접 촬영",
       "kind_evidence": "OWN DB 및 영상 재생 확인",
       "status": "설명·썸네일 수정 저장 · 사용자 확인 대기",
@@ -881,6 +881,16 @@
           "before_title": "기둥 짚고 레그 리프트 드리프트",
           "after_title": "손으로 짚고 레그 리프트 드리프트",
           "description_change": "벽이나 기둥처럼 움직이지 않고 튼튼한 곳을 짚는다고 명확히 설명",
+          "advance_authorized": false
+        },
+        {
+          "at": "2026-11-17T15:03:02.148182+09:00",
+          "review_id": "mv-665ece52f26c70b2",
+          "user_request": "영어 원문과 비슷한 느낌으로 제목 변경",
+          "original_title": "P1 Supported Leg Lift Drift",
+          "before_title": "손으로 짚고 레그 리프트 드리프트",
+          "after_title": "손으로 균형 잡고 레그 리프트 드리프트",
+          "status": "applied_and_readback_verified",
           "advance_authorized": false
         }
       ],
