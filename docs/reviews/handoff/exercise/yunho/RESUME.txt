@@ -1,3 +1,5 @@
+LATEST 2026-11-17T04:44:29.241Z: Single pogo step3 now instructs using Achilles recoil to connect to the next jump. User review pending.
+
 LATEST 2026-11-17T04:39:31.343Z: Single-leg pogo steps2–5 revised for user; calf and Achilles mechanisms, immediate rebound, knee alignment. User review pending.
 
 LATEST 2026-11-17T04:29:04.957Z: Single-leg low pogo open; description and own thumbnail corrected; settings retained. User review pending.
