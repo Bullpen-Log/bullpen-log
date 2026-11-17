@@ -763,7 +763,7 @@
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
   "latest_resume": {
     "current": "EX-Y-P-ACCELISO-986c5b6a",
-    "status": "등척성 수축에 의한 하체 근육의 저항·훈련 적응과 투구 기초 연관 문구 저장. 사용자 확인 대기. 이전 전체 영상 재시청 미완료."
+    "status": "힘줄의 힘 전달과 늘어난 근육 길이 등척성의 다른 범위 전이 및 빠른 움직임의 간접 연관 설명 저장. 사용자 확인 대기. 전체 영상 재시청 미완료."
   },
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
@@ -1143,7 +1143,7 @@
   "mandatory_plyometric_review_rule_20261116": "For every plyometric exercise, explain the actual movement, training purpose and role in plyometric progression where applicable, and a clear evidence-calibrated link to pitching; distinguish foundational drills from reactive training and indirect associations from proven direct effects. Apply common user-friendly terms, format, prescriptions, and evidence standards. Review each exercise individually.",
   "reference_catalog_rule": "Continue appending all actually consulted references and per-exercise use/limitations to docs/references/exercise-review-sources.json. EX-REF01 admin implementation deferred by user; do not start it during video review.",
   "standing_spacing_rule": "Mandatory: consistent readable blank lines between how-to steps and separate explanatory paragraphs for every subsequently reviewed exercise, preserving meaning and evidence.",
-  "updated_at_utc": "2026-11-17T09:45:04.658799+00:00",
+  "updated_at_utc": "2026-11-17T09:47:57.690072+00:00",
   "step_box_rule": "스텝박스와 점프용 박스를 구분, 대체는 운동 목적과 높이 및 안정성에 따라 판단",
   "step_box_implementation_owner": "01 영상비교; 05 reassignment cancelled per user",
   "numbered_step_readability_rule": "Split long or overloaded how-to steps only where readability improves. Preserve movement sequence, simultaneous actions, immediate transitions, user decisions and blank lines. Do not split for arbitrary length or create unnecessary steps. Apply to every future review.",
