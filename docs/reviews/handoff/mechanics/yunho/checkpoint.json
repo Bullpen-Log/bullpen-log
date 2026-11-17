@@ -51,7 +51,7 @@
   "current": {
     "number": 7,
     "review_id": "mv-665ece52f26c70b2",
-    "title": "기둥 짚고 레그 리프트 드리프트",
+    "title": "손으로 짚고 레그 리프트 드리프트",
     "drill_id": "a13f7ec8-c23d-4435-bd21-014070015578",
     "category": "드리프트",
     "kind": "직접 촬영",
@@ -389,9 +389,20 @@
       "mechanics_titles_updated": 77,
       "exercise_titles_with_p_number": 0,
       "advance_authorized": false
+    },
+    {
+      "at": "2026-11-17T14:57:33.644219+09:00",
+      "review_id": "mv-665ece52f26c70b2",
+      "drill_id": "a13f7ec8-c23d-4435-bd21-014070015578",
+      "user_request": "기둥은 필수가 아니며 벽 등 손으로 짚을 수 있는 곳이면 된다. 지지라는 어려운 말도 피한다.",
+      "status": "applied_and_readback_verified",
+      "before_title": "기둥 짚고 레그 리프트 드리프트",
+      "after_title": "손으로 짚고 레그 리프트 드리프트",
+      "description_change": "벽이나 기둥처럼 움직이지 않고 튼튼한 곳을 짚는다고 명확히 설명",
+      "advance_authorized": false
     }
   ],
-  "user_change_request_count": 14,
+  "user_change_request_count": 15,
   "last_user_video_decision": {
     "at": "2026-11-17T05:48:06.176Z",
     "original": "다음",
@@ -687,7 +698,7 @@
     "personal_health_information_copied": false,
     "signed_urls_copied": false
   },
-  "updated_at": "2026-11-17T14:55:34.680545+09:00",
+  "updated_at": "2026-11-17T14:57:33.644219+09:00",
   "current_workflow_document": "docs/shoot/video-review-current-workflow.md",
   "setup_event": {
     "at": "2026-11-13T15:54:58+09:00",
