@@ -14,7 +14,7 @@
     "회복 및 보강"
   ],
   "current_review_id": "EX-Y-P-ACCELISO-986c5b6a",
-  "current_title": "가속 포지션 아이소 홀드",
+  "current_title": "스텝박스 앞발 올려 버티기",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": "스피드 불가리안 확인 후 다음 진행",
@@ -763,7 +763,7 @@
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
   "latest_resume": {
     "current": "EX-Y-P-ACCELISO-986c5b6a",
-    "status": "설명과 장비 스텝박스 저장 및 영상 표시; 사용자 확인 대기. 3×30초 좌우, 휴식 180초, 중간/중급 유지. 박스 대체 필터는 별도 확인 필요."
+    "status": "가속 포지션 아이소 홀드에서 스텝박스 앞발 올려 버티기로 제목 수정. 등척성에서 힘을 내는 훈련 목적 보완·저장. 사용자 확인 대기."
   },
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
@@ -1143,7 +1143,7 @@
   "mandatory_plyometric_review_rule_20261116": "For every plyometric exercise, explain the actual movement, training purpose and role in plyometric progression where applicable, and a clear evidence-calibrated link to pitching; distinguish foundational drills from reactive training and indirect associations from proven direct effects. Apply common user-friendly terms, format, prescriptions, and evidence standards. Review each exercise individually.",
   "reference_catalog_rule": "Continue appending all actually consulted references and per-exercise use/limitations to docs/references/exercise-review-sources.json. EX-REF01 admin implementation deferred by user; do not start it during video review.",
   "standing_spacing_rule": "Mandatory: consistent readable blank lines between how-to steps and separate explanatory paragraphs for every subsequently reviewed exercise, preserving meaning and evidence.",
-  "updated_at_utc": "2026-11-17T08:32:12.390641+00:00",
+  "updated_at_utc": "2026-11-17T09:01:38.524927+00:00",
   "step_box_rule": "스텝박스와 점프용 박스를 구분, 대체는 운동 목적과 높이 및 안정성에 따라 판단",
   "step_box_implementation_owner": "01 영상비교; 05 reassignment cancelled per user",
   "numbered_step_readability_rule": "Split long or overloaded how-to steps only where readability improves. Preserve movement sequence, simultaneous actions, immediate transitions, user decisions and blank lines. Do not split for arbitrary length or create unnecessary steps. Apply to every future review.",
@@ -1178,5 +1178,6 @@
     "verification": "Corrected numbered marker alignment saved and DB readback; web display checked; soft-wrap indentation limitation remains."
   },
   "automatic_wrap_review_rule": "필수: 화면 폭 때문에 자동으로 넘어간 줄도 정렬을 확인한다. 번호가 있는 단계에서는 모든 줄이 번호가 아닌 번호 뒤 설명 첫 글자 아래에 시작하고 번호 영역으로 튀어나오지 않아야 한다. 번호 없는 소제목 본문은 모든 줄이 제목 글자 아래에 시작해야 한다. 문장별 줄바꿈과 단계/문단 빈 줄은 유지한다. 좁고 넓은 웹 화면과 앱에서 긴 문장이 실제로 줄바꿈되는 장면을 검수한다. 저장된 공백이나 데이터 확인만으로 합격 처리하지 않는다. 예: 현재 밴드 보조 스플릿 스쿼트 점프 7번 및 투수에게 왜 필요한가 자동 줄바꿈이 왼쪽으로 밀리는 현상. EX-GUIDE-WRAP01 구현 전 미해결.",
-  "pitching_link_common_rule": "For every exercise explain what its actual movement trains and how that ability supports pitching and ball speed where appropriate. Use exercise-specific biomechanics and evidence; distinguish indirect association from direct evidence, do not claim guaranteed velocity gain. Apply automatically whenever revising other exercise descriptions. 투구 방향으로 이동하는 것만이 구속의 가장 중요한 요소처럼 표현하지 않는다. 각 운동의 목적에 맞게 지면에 가하는 힘과 골반·몸통·팔의 연결을 쉬운 말로 설명하고 단일 요인으로 구속을 단정하지 않는다."
+  "pitching_link_common_rule": "For every exercise explain what its actual movement trains and how that ability supports pitching and ball speed where appropriate. Use exercise-specific biomechanics and evidence; distinguish indirect association from direct evidence, do not claim guaranteed velocity gain. Apply automatically whenever revising other exercise descriptions. 투구 방향으로 이동하는 것만이 구속의 가장 중요한 요소처럼 표현하지 않는다. 각 운동의 목적에 맞게 지면에 가하는 힘과 골반·몸통·팔의 연결을 쉬운 말로 설명하고 단일 요인으로 구속을 단정하지 않는다.",
+  "isometric_review_rule": "등척성 운동은 단순히 자세를 유지한다고만 설명하지 않고 운동 자세에서 근육에 힘을 지속해 그 자세에서 힘을 내는 능력을 훈련하는 목적을 반영한다. 운동·강도·시간과 동적 운동 또는 투구에 대한 전이 근거 수준을 구분한다."
 }
