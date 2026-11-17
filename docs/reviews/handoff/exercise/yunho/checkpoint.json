@@ -13,13 +13,13 @@
     "암케어",
     "회복 및 보강"
   ],
-  "current_review_id": "EX-Y-P-DUMBBELLJUMP-a80fa8a6",
-  "current_title": "덤벨 스쿼트 점프",
+  "current_review_id": "EX-Y-P-BANDASSIST-412e7916",
+  "current_title": "밴드 보조 스쿼트 점프",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
-  "last_human_decision": "User requested next from single-leg pogo.",
+  "last_human_decision": "User requested next after dumbbell squat jump.",
   "next_after_approval": {
-    "title": "밴드 보조 스쿼트 점프",
+    "title": "밴드 저항 스쿼트 점프 (에센트릭)",
     "status": "Only on explicit user next; verify planned order"
   },
   "order": {
@@ -763,8 +763,8 @@
   "reporting_preference": "Show before and after of each change and distinguish previous sessions from current edits.",
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
   "latest_resume": {
-    "current": "EX-Y-P-DUMBBELLJUMP-a80fa8a6",
-    "status": "Dumbbell squat jump explanation and own thumbnail corrected; settings retained. User review pending."
+    "current": "EX-Y-P-BANDASSIST-412e7916",
+    "status": "Description, intensity, difficulty and own thumbnail updated; user review pending."
   },
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
@@ -1138,5 +1138,5 @@
   "mandatory_plyometric_review_rule_20261116": "For every plyometric exercise, explain the actual movement, training purpose and role in plyometric progression where applicable, and a clear evidence-calibrated link to pitching; distinguish foundational drills from reactive training and indirect associations from proven direct effects. Apply common user-friendly terms, format, prescriptions, and evidence standards. Review each exercise individually.",
   "reference_catalog_rule": "Continue appending all actually consulted references and per-exercise use/limitations to docs/references/exercise-review-sources.json. EX-REF01 admin implementation deferred by user; do not start it during video review.",
   "standing_spacing_rule": "Mandatory: consistent readable blank lines between how-to steps and separate explanatory paragraphs for every subsequently reviewed exercise, preserving meaning and evidence.",
-  "updated_at_utc": "2026-11-16T13:12:26.798Z"
+  "updated_at_utc": "2026-11-17T05:20:29.230718+00:00"
 }
