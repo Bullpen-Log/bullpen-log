@@ -1,3 +1,11 @@
+## Kim Min / all departments — 2026-11-17 · GPT — Reconciliation releases verified
+
+Completed accepted batches now published: FPS17141d3a (actual production parser fixtures); REVIEW-SYNC/rules216b2885 merged2a1818f5 (45independent isolated Git tests); mechanics descriptionb2106776 (Vercel plus department authenticated desktop wrap check); STEPBOX81e9a4b7 (clean19-file package, full final Next build0, Vercel success,8downloaded-release-source assertions). No dirty root bulk import.
+
+Sinker STEPBOX OTA44037638301 SUCCESS: runtime db1f5023caadb8b8c8d01f80f4555f33d302efff/update a645d9b7-98f4-4b2e-a055-1348f19c44d8. Actual public manifest/latest source81e9a4b7 and downloaded launch SHA256 match verified. Compatible app receives normal restart update; phone/admin save unverified. No new native binaries needed. Already-delivered auto-login TestFlight builds remain below; no duplicate release. All public App Store release remains held.
+
+Current authoritative inventory docs/work-orders/RECONCILE-20261117.md distinguishes finished/deployed from R1/REF04/Claude input still incomplete and PL/Japan planning-only. Owner independent reviews and exact evidence links are included. Preserve ongoing claims/user checkpoints; no install/generate/migration/whole-tree reset. MacBook actual receipt is still distinct from source publication.
+
 ## Kim Min / exercise owners — 2026-11-17 · GPT — STEPBOX standalone integration
 
 Direct GPT01 completed step-box choice/contextual support alternatives; Sub2 independently accepted exact standalone19-file package against2a1818f5. Dirty root20-file/R1-relative patch is NOT release source. Overall verified all19base/final hashes and preserved latest mechanics/FPS/rules; absent unfinished load/contract.ts and R1 code excluded. Future R1 must retain its own approved additive support token without absorbing foreign changes.
