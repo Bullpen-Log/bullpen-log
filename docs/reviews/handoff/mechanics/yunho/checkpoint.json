@@ -1003,7 +1003,7 @@
     "personal_health_information_copied": false,
     "signed_urls_copied": false
   },
-  "updated_at": "2026-11-17T18:11:55.583553+09:00",
+  "updated_at": "2026-11-17T18:13:28.408507+09:00",
   "current_workflow_document": "docs/shoot/video-review-current-workflow.md",
   "setup_event": {
     "at": "2026-11-13T15:54:58+09:00",
@@ -1377,7 +1377,7 @@
     "rule": "목적별 중요도 순서로 관련 훈련 목적 모두 선택. 단순 동작 사용 여부로 채우지 않음. 스로잉은 팔 동작 교정·던지는 속도 자체를 집중 훈련할 때만 선택. 순서가 추천 우선순위에 반영되며 단계·장비·통증 조건 유지.",
     "reviewed_numbers": "1–9",
     "system_order": "MECH-FOCUS01",
-    "feature_status": "r5 단계 제한 보완 및 로컬 검사 완료. 독립 검수 후 사이트·앱 배포까지 사용자 승인됨. 배포 완료는 아직 확인 전.",
+    "feature_status": "r5 독립 검수 및 부서 기술 검수 통과. 사용자 승인에 따라 총괄의 최종 통합·사이트·앱 배포 진행 대기. 운영 배포 완료 미확인.",
     "variant_policy": {
       "at": "2026-11-17T18:03:55.133731+09:00",
       "user_choice": "영상별 목적을 유지해 추천 (권장)",
@@ -1405,6 +1405,16 @@
       "deployment_confirmed": false,
       "revision": "MECH-FOCUS01 r5",
       "review_video_advance_authorized": false
+    },
+    "r5_accepted": {
+      "status": "r5 독립 검수 및 부서 기술 검수 통과. 사용자 승인에 따라 총괄의 최종 통합·사이트·앱 배포 진행 대기. 운영 배포 완료 미확인.",
+      "verdict": "영상별 목적·순위 보존, 일반 수준별 단계 제한, 장비 부족 안내 및 실제 웹·앱 소비자 검사 18개를 독립 검수에서 확인. 검수된 19개 파일만 배포 대상으로 전달.",
+      "evidence": "MECH-FOCUS01 r5; 19 files; patch SHA256 da7f22f1f10c40a3295cb3e32822e1daeac838381c6ab9efa81040ec3956697a; base 68131bccb7efe9b4799f9c52362fed560fb7c4fc",
+      "at": "2026-11-17T18:13:28.408507+09:00",
+      "independent_verdict": "ACCEPT",
+      "deployment_approved": true,
+      "deployment_confirmed": false,
+      "phone_verified": false
     }
   }
 }
