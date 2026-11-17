@@ -677,6 +677,16 @@
           "verification": "새 파일 업로드 후 다운로드 SHA256 일치, DB 경로와 웹 재생 및 전환 약10초 확인",
           "scope": "기존 앞쪽 각도와 측면 시범을 연결하고 중간 자세 정리 구간 및 시작 끝 일부를 자름. 원본 영상 보존.",
           "advance_authorized": false
+        },
+        {
+          "at": "2026-11-17T05:32:52.706Z",
+          "request": "컷편집으로 중간이 변할때는 자연스러운 전환효과를 넣으라고 했을텐데",
+          "status": "적용 완료",
+          "effect": "약 9.6~10초에 0.4초 디졸브",
+          "duration_seconds": 19.4,
+          "verification": "전환 중간 이미지, 업로드 해시, 운영 플레이어 재생 확인",
+          "source_preserved": true,
+          "advance_authorized": false
         }
       ],
       "assistant_findings": [],
@@ -761,23 +771,13 @@
         }
       },
       "latest_video_edit": {
-        "at": "2026-11-17T05:31:05.143Z",
-        "request": "아니 지금 편집해. 기록하지 말고. 바로바로 편집해",
-        "status": "영상 편집 적용 완료",
-        "source_ranges_seconds": [
-          [
-            0.4,
-            10.4
-          ],
-          [
-            12,
-            21.8
-          ]
-        ],
-        "output_duration_seconds": 19.8,
+        "at": "2026-11-17T05:32:52.706Z",
+        "request": "컷편집으로 중간이 변할때는 자연스러운 전환효과를 넣으라고 했을텐데",
+        "status": "적용 완료",
+        "effect": "약 9.6~10초에 0.4초 디졸브",
+        "duration_seconds": 19.4,
+        "verification": "전환 중간 이미지, 업로드 해시, 운영 플레이어 재생 확인",
         "source_preserved": true,
-        "verification": "새 파일 업로드 후 다운로드 SHA256 일치, DB 경로와 웹 재생 및 전환 약10초 확인",
-        "scope": "기존 앞쪽 각도와 측면 시범을 연결하고 중간 자세 정리 구간 및 시작 끝 일부를 자름. 원본 영상 보존.",
         "advance_authorized": false
       }
     },

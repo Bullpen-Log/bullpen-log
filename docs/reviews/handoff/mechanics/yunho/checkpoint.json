@@ -55,7 +55,7 @@
     "drill_id": "e3b9cb28-87c7-4ab1-a00c-41a6b23c4fca",
     "category": "드리프트",
     "kind": "직접 촬영",
-    "status": "영상 편집 적용 완료 · 사용자 확인 대기",
+    "status": "전환 효과 적용 · 사용자 확인 대기",
     "latest_applied_revision": {
       "at": "2026-11-17T04:48:36.247Z",
       "before_title": "P1 레그 리프트 드리프트",
@@ -126,23 +126,13 @@
     },
     "playback": "반복 켜짐·재생 중 확인",
     "latest_video_edit": {
-      "at": "2026-11-17T05:31:05.143Z",
-      "request": "아니 지금 편집해. 기록하지 말고. 바로바로 편집해",
-      "status": "영상 편집 적용 완료",
-      "source_ranges_seconds": [
-        [
-          0.4,
-          10.4
-        ],
-        [
-          12,
-          21.8
-        ]
-      ],
-      "output_duration_seconds": 19.8,
+      "at": "2026-11-17T05:32:52.706Z",
+      "request": "컷편집으로 중간이 변할때는 자연스러운 전환효과를 넣으라고 했을텐데",
+      "status": "적용 완료",
+      "effect": "약 9.6~10초에 0.4초 디졸브",
+      "duration_seconds": 19.4,
+      "verification": "전환 중간 이미지, 업로드 해시, 운영 플레이어 재생 확인",
       "source_preserved": true,
-      "verification": "새 파일 업로드 후 다운로드 SHA256 일치, DB 경로와 웹 재생 및 전환 약10초 확인",
-      "scope": "기존 앞쪽 각도와 측면 시범을 연결하고 중간 자세 정리 구간 및 시작 끝 일부를 자름. 원본 영상 보존.",
       "advance_authorized": false
     }
   },
@@ -647,7 +637,7 @@
     "personal_health_information_copied": false,
     "signed_urls_copied": false
   },
-  "updated_at": "2026-11-17T05:31:05.143Z",
+  "updated_at": "2026-11-17T05:32:52.706Z",
   "current_workflow_document": "docs/shoot/video-review-current-workflow.md",
   "setup_event": {
     "at": "2026-11-13T15:54:58+09:00",
@@ -818,5 +808,9 @@
   "immediate_video_edit_policy": {
     "at": "2026-11-17T05:31:05.143Z",
     "rule": "사용자가 편집을 요청하면 해당 영상 검수 중 바로 편집·적용하고 결과를 확인한다. 모든 영상 검수 후 일괄 편집이라는 이전 지시를 대체한다."
+  },
+  "transition_effect_rule": {
+    "at": "2026-11-17T05:32:52.706Z",
+    "rule": "컷 편집으로 장면이 바뀌는 곳은 자연스러운 전환 효과를 적용하고 영상에서 확인한다."
   }
 }
