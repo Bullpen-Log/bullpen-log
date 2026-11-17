@@ -1,3 +1,11 @@
+# EX-LOAD01 — 승인된 저장 구조 적용 인계
+
+2026-11-17 사용자가 김민과의 DB 작업 조율 완료 및 백업 후 적용을 명시적으로 승인했다. SQL은 `prisma/migrations/20261116150000_ex_load01_recording_contract/migration.sql`로 이동했고, 짝인 모델을 `prisma/schema.prisma`에 함께 반영한다. 이 문서 아래는 준비 당시 계약이며 현재 적용 결과는 `docs/reviews/ex-load01-r1-load-activation-20261117.md`를 따른다.
+
+새 복구함은 개인 원래 요청을 보관하므로 같은 거래에서 RLS 기본 거부와 외부 API 역할 권한 회수를 적용한다. 기존 데이터 재작성이나 v2 기반 구조 적용은 하지 않는다. `rollback.sql`은 파괴적인 참고용이며 서비스 DB에서 실행하지 않는다. 통상적인 비활성화는 `WORKOUT_LOAD_SCHEMA`만 끈다.
+
+---
+
 # EX-LOAD01 — 장비 기록 계약 · 밴드 · 원래 요청 복구 — 아직 적용하지 않은 마이그레이션
 
 이 폴더는 `prisma migrate deploy`(Vercel 빌드 포함)가 보지 않는다. **EX-LOAD01 납품은 준비만이다 — 공유(운영) DB 적용은 별도 승인.**

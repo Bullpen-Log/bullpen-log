@@ -10,7 +10,7 @@
  * 실행: node --import ./scripts/alias-register.mjs scripts/load-r1-concurrency-selftest.mts
  */
 import assert from 'node:assert/strict';
-import { execSync } from 'node:child_process';
+import { V2_FIXTURE_SQL, fixtureSchemaSql } from './load-fixture-schema.mts';
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { PGLiteSocketServer } from '@electric-sql/pglite-socket';
@@ -56,11 +56,11 @@ function norm(over: Partial<NormalizeInput> & { contract: RecordingContract }): 
   return r;
 }
 
-const LOAD_SQL = 'prisma/pending-migrations/20261116150000_ex_load01_recording_contract/migration.sql';
-const V2_SQL = 'prisma/pending-migrations/20261113120000_workout_v2_foundation/migration.sql';
+const LOAD_SQL = 'prisma/migrations/20261116150000_ex_load01_recording_contract/migration.sql';
+const V2_SQL = V2_FIXTURE_SQL;
 
 const pg = await PGlite.create();
-await pg.exec(execSync('npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
+await pg.exec(fixtureSchemaSql());
 for (const f of [V2_SQL, LOAD_SQL]) await pg.exec(readFileSync(f, 'utf8'));
 const socket = new PGLiteSocketServer({ db: pg, port: 0, host: '127.0.0.1' });
 await socket.start();

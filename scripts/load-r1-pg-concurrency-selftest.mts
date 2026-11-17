@@ -14,7 +14,7 @@
  * 실행: R1_PG_URL='postgresql://r1test@127.0.0.1:<port>/r1_isolated' node --import ./scripts/alias-register.mjs scripts/load-r1-pg-concurrency-selftest.mts
  */
 import assert from 'node:assert/strict';
-import { execSync } from 'node:child_process';
+import { V2_FIXTURE_SQL, fixtureSchemaSql } from './load-fixture-schema.mts';
 import { readFileSync } from 'node:fs';
 import pg from 'pg';
 import { PrismaClient, type Prisma } from '@prisma/client';
@@ -89,8 +89,8 @@ await admin.query(`DROP DATABASE IF EXISTS ${runDb}`);
 await admin.query(`CREATE DATABASE ${runDb}`);
 const setup = new pg.Client({ connectionString: urlFor(runDb) });
 await setup.connect();
-await setup.query(execSync('npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
-for (const f of ['prisma/pending-migrations/20261113120000_workout_v2_foundation/migration.sql', 'prisma/pending-migrations/20261116150000_ex_load01_recording_contract/migration.sql'])
+await setup.query(fixtureSchemaSql());
+for (const f of [V2_FIXTURE_SQL, 'prisma/migrations/20261116150000_ex_load01_recording_contract/migration.sql'])
   await setup.query(readFileSync(f, 'utf8'));
 await setup.end();
 

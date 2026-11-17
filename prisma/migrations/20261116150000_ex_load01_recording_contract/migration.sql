@@ -1,6 +1,8 @@
--- EX-LOAD01 — 장비 기록 계약 · 밴드 · 원래 요청 복구(더하기만). 아직 적용하지 않는다 — README 의 차례.
+-- EX-LOAD01 — 장비 기록 계약 · 밴드 · 원래 요청 복구(더하기만).
 -- 옛 줄은 다시 쓰지 않는다: 새 칸은 모두 NULL 허용, 새 표는 새로 만든다. 옛 코드는 새 칸을 모르고 그대로 돈다.
 -- v2 보류 마이그레이션(20261113120000_workout_v2_foundation)과 서로 기대지 않는다(어느 차례로 적용해도 된다).
+
+BEGIN;
 
 -- 세트마다 얼린 무게 스냅샷(lib/workout/load/snapshot.ts LoadSnapshot v1): 실제 계약 · 고른 변형 · 정규화한 무게(밴드 · 섞임 ·
 -- 서로 다른 무게 · 기구 열쇠) · 상태 · 출처. NULL = 스냅샷 없는 옛 줄(읽기 관문이 판의 계약 · 장비로 본다).
@@ -32,3 +34,18 @@ CREATE UNIQUE INDEX IF NOT EXISTS "WorkoutLoadRecovery_owner_set_hash_key"
   ON "WorkoutLoadRecovery" ("ownerId", "sessionId", "exerciseId", "setNo", "originalHash");
 CREATE INDEX IF NOT EXISTS "WorkoutLoadRecovery_ownerId_state_idx" ON "WorkoutLoadRecovery" ("ownerId", "state");
 CREATE INDEX IF NOT EXISTS "WorkoutLoadRecovery_setId_idx" ON "WorkoutLoadRecovery" ("setId");
+
+-- 원래 요청에는 개인 기록이 담긴다. 기본 권한을 상속하는 외부 API 역할은 접근하지 못하게 한다.
+-- 정책을 만들지 않으므로 RLS는 기본 거부다. 서버의 기존 DB 소유자 연결만 사용한다.
+ALTER TABLE "WorkoutLoadRecovery" ENABLE ROW LEVEL SECURITY;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+    REVOKE ALL ON TABLE "WorkoutLoadRecovery" FROM anon;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    REVOKE ALL ON TABLE "WorkoutLoadRecovery" FROM authenticated;
+  END IF;
+END $$;
+
+COMMIT;

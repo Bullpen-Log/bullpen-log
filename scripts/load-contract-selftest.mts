@@ -14,7 +14,7 @@
  * 실행: node --import ./scripts/alias-register.mjs scripts/load-contract-selftest.mts
  */
 import assert from 'node:assert/strict';
-import { execSync } from 'node:child_process';
+import { V2_FIXTURE_SQL, fixtureSchemaSql, legacyLoadClientOptions, removeLoadSchemaFromFixture } from './load-fixture-schema.mts';
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { PGLiteSocketServer } from '@electric-sql/pglite-socket';
@@ -584,20 +584,23 @@ await test('original payload hash: presence vs null, different invalid kg differ
 
 async function isolated(apply: string[]) {
   const pg = await PGlite.create();
-  await pg.exec(execSync('npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
+  await pg.exec(fixtureSchemaSql());
   for (const f of apply) await pg.exec(readFileSync(f, 'utf8'));
+  // Simulate pre-promotion DB and client selection, not the current generated client's full schema.
+  const legacyFixture = !apply.includes(LOAD_SQL);
+  if (legacyFixture) await removeLoadSchemaFromFixture(pg);
   const socket = new PGLiteSocketServer({ db: pg, port: 0, host: '127.0.0.1' });
   await socket.start();
   const port = (socket as unknown as { server: { address(): { port: number } } }).server.address().port;
   const url = `postgresql://postgres@127.0.0.1:${port}/postgres?sslmode=disable`;
   assert.ok(url.includes('127.0.0.1'));
-  const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: url, max: 1 }) });
+  const db = new PrismaClient({ ...(legacyFixture ? legacyLoadClientOptions() : {}), adapter: new PrismaPg({ connectionString: url, max: 1 }) });
   return { pg, socket, db };
 }
 
-const LOAD_SQL = 'prisma/pending-migrations/20261116150000_ex_load01_recording_contract/migration.sql';
+const LOAD_SQL = 'prisma/migrations/20261116150000_ex_load01_recording_contract/migration.sql';
 const ROLLBACK_SQL = 'prisma/pending-migrations/20261116150000_ex_load01_recording_contract/rollback.sql';
-const V2_SQL = 'prisma/pending-migrations/20261113120000_workout_v2_foundation/migration.sql';
+const V2_SQL = V2_FIXTURE_SQL;
 
 async function seed(db: PrismaClient, tag: string, equipment: string[], exId?: string) {
   const u = await db.user.create({ data: { email: `${tag}@load.test`, nickname: tag, password: 'x' } });

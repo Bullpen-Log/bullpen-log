@@ -35,7 +35,7 @@ export const LIBRARY_TAG = 'library';
 /** 날짜를 문자열로 바꾼 운동 한 줄. 캐시에서 나오는 실제 모양이다. */
 export type CachedExercise = Omit<
   ExerciseVideo,
-  'createdAt' | 'hiddenAt' | 'detailsFilledAt'
+  'createdAt' | 'hiddenAt' | 'detailsFilledAt' | 'loadSemantics'
 > & {
   createdAt: string;
   hiddenAt: string | null;

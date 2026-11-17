@@ -1102,6 +1102,8 @@ model DailyFeaturedVideo {
 
 model ExerciseVideo {
   id               String                 @id @default(uuid())
+  /// 관리자 장비 의미 설정. NULL이면 기존 장비 계약을 따른다.
+  loadSemantics    Json?
   title            String
   category         String
   description      String                 @db.Text
@@ -1414,6 +1416,8 @@ model UserExerciseSet {
 
   /// 실제로 든 무게(kg). 맨몸이면 없다. 0.5kg 자리까지 남긴다.
   weightKg    Float?
+  /// 세트 당시 장비 계약과 정규화한 부하 스냅샷. NULL은 기존 기록이다.
+  load        Json?
   /// 실제로 한 횟수. 시간형 운동이면 없다.
   reps        Int?
   /// 실제로 버틴 시간(초). 횟수형 운동이면 없다.
@@ -3228,4 +3232,27 @@ model IntakeRateLimit {
 
   @@id([key, windowStart])
   @@index([windowStart])
+}
+
+model WorkoutLoadRecovery {
+  id              String   @id
+  ownerId         String
+  actorId         String
+  setId           String
+  sessionId       String
+  exerciseId      String
+  setNo           Int
+  clientSetId     String?
+  originalHash    String
+  originalPayload Json
+  /// LEGACY_UNSUPPORTED_LOAD · LEGACY_INVALID_LOAD · ORG_UNSUPPORTED_LOAD
+  reason          String
+  protocol        Int?
+  /// open | resolved | discarded — 저절로 지우지 않는다
+  state           String   @default("open")
+  createdAt       DateTime @default(now())
+
+  @@unique([ownerId, sessionId, exerciseId, setNo, originalHash], map: "WorkoutLoadRecovery_owner_set_hash_key")
+  @@index([ownerId, state])
+  @@index([setId])
 }

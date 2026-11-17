@@ -15,7 +15,7 @@
  * 실행: node --import ./scripts/alias-register.mjs scripts/load-r1-admin-selftest.mts
  */
 import assert from 'node:assert/strict';
-import { execSync } from 'node:child_process';
+import { fixtureSchemaSql, legacyLoadClientOptions, removeLoadSchemaFromFixture } from './load-fixture-schema.mts';
 import { readFileSync } from 'node:fs';
 import { register } from 'node:module';
 import { PGlite } from '@electric-sql/pglite';
@@ -305,13 +305,18 @@ const server = await import('@/lib/workout/load/server');
 const sessionPlan = await import('@/lib/workout/session-plan');
 const deleteUser = await import('@/lib/delete-user');
 
-const LOAD_SQL = 'prisma/pending-migrations/20261116150000_ex_load01_recording_contract/migration.sql';
-const SCHEMA_SQL = execSync('npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+const LOAD_SQL = 'prisma/migrations/20261116150000_ex_load01_recording_contract/migration.sql';
+const SCHEMA_SQL = fixtureSchemaSql();
 
 async function isolated(apply: string[]) {
   const pg = await PGlite.create();
   await pg.exec(SCHEMA_SQL);
+  // Mimic Supabase's inherited table grants before the active migration revokes them.
+  if (apply.includes(LOAD_SQL)) await pg.exec('CREATE ROLE anon; CREATE ROLE authenticated; GRANT ALL ON TABLE "WorkoutLoadRecovery" TO anon, authenticated;');
   for (const f of apply) await pg.exec(readFileSync(f, 'utf8'));
+  // Simulate pre-promotion DB and client selection, not the current generated client's full schema.
+  const legacyFixture = !apply.includes(LOAD_SQL);
+  if (legacyFixture) await removeLoadSchemaFromFixture(pg);
   /* DB 로 가는 프로토콜 바이트를 모두 모은다(이름이 든 SQL 이 한 번이라도 갔는지) */
   const wire: string[] = [];
   const raw = pg as unknown as { execProtocolRawStream: (m: Uint8Array, o: unknown) => Promise<unknown> };
@@ -323,7 +328,7 @@ async function isolated(apply: string[]) {
   const socket = new PGLiteSocketServer({ db: pg, port: 0, host: '127.0.0.1' });
   await socket.start();
   const port = (socket as unknown as { server: { address(): { port: number } } }).server.address().port;
-  const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: `postgresql://postgres@127.0.0.1:${port}/postgres?sslmode=disable`, max: 1 }) });
+  const db = new PrismaClient({ ...(legacyFixture ? legacyLoadClientOptions() : {}), adapter: new PrismaPg({ connectionString: `postgresql://postgres@127.0.0.1:${port}/postgres?sslmode=disable`, max: 1 }) });
   return { pg, socket, db, wire };
 }
 
@@ -431,6 +436,19 @@ await (async () => {
   const storedOf = async (id: string) =>
     (await on.db.$queryRawUnsafe<{ s: unknown }[]>(`SELECT "loadSemantics" AS s FROM "ExerciseVideo" WHERE "id" = $1`, id))[0]?.s ?? null;
   try {
+    await test('recovery security: inherited anon/authenticated grants revoked and zero-policy RLS denies reads', async () => {
+      const meta = await on.pg.query<{ relrowsecurity: boolean; policies: number }>(`SELECT c.relrowsecurity, (SELECT count(*)::int FROM pg_policy p WHERE p.polrelid = c.oid) AS policies FROM pg_class c WHERE c.oid = '"WorkoutLoadRecovery"'::regclass`);
+      assert.equal(meta.rows[0].relrowsecurity, true);
+      assert.equal(meta.rows[0].policies, 0);
+      for (const role of ['anon', 'authenticated']) {
+        const grants = await on.pg.query<{ allowed: boolean }>(`SELECT has_table_privilege('${role}', '"WorkoutLoadRecovery"', 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') AS allowed`);
+        assert.equal(grants.rows[0].allowed, false, `${role}: inherited grants removed`);
+        await on.pg.exec(`SET ROLE ${role}`);
+        try { await assert.rejects(on.pg.query('SELECT "originalPayload" FROM "WorkoutLoadRecovery"'), /permission denied/); }
+        finally { await on.pg.exec('RESET ROLE'); }
+      }
+    });
+
     const admin = await seedUser(on.db, 'on-admin', 'ADMIN');
     const member = await seedUser(on.db, 'on-member');
     g.__R1A.user = admin;

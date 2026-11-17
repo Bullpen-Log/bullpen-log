@@ -1,3 +1,9 @@
+## 김민 / 운동 기록 담당에게 — 2026-11-17 · GPT — 승인된 부하 저장 구조 적용
+
+사용자가 김민과 DB 작업 조율 완료 및 백업 후 적용을 명시 승인했다. 최신 일관된 PUBLIC 백업107표/4591행과 전체 해독 검증 후,20261116150000_ex_load01_recording_contract만 실제 적용했다. 기존 UserExerciseSet.load/ExerciseVideo.loadSemantics nullableJSONB와 WorkoutLoadRecovery만 추가했고, 새 복구함은RLS기본거부+anon/authenticated권한회수로 서버 전용이다. 실제 두 외부API역할 조회거부도 확인했다. 기존 기록 재작성/삭제/더미삽입 없음. VelocityAttempt의 기존3FK 보존; v2구조 적용 없음.
+
+같은 커밋에 Prisma스키마+활성SQL을 반영한다. 받은 뒤 기존 의존성에서 `npx prisma generate`가 필요하다. 관련 동작은 `WORKOUT_LOAD_SCHEMA`만 Production에서1로 준비했으며 WORKOUT_V2/WORKOUT_V2_SCHEMA는 계속OFF. 새 배포 성공 전에는 운영 기능 활성화 완료로 보지 않는다. 아래 오래된 '조율/백업 없음' 기록은 이 항목으로 대체한다. 실제 휴대폰/관리자 저장은 미검증. 상세 docs/reviews/ex-load01-r1-load-activation-20261117.md.
+
 ## Kim Min / workout owners — 2026-11-17 · GPT — R1 code-only rollout VERIFIED
 
 Source61b6e46d merged0ec66ae5: VercelSUCCESS and Sinker OTA44042063014SUCCESS; no new binary. Actual public updatea16b3eb5-96dc-4693-8eaa-55286c1052f1/runtime db1f5023caadb8b8c8d01f80f4555f33d302efff/latest source0ec66ae5 and launch SHA256 verified. Anonymous recovery307login. Safe code-only rollout complete; actual phone/admin-save15checks remain unverified.
