@@ -421,9 +421,20 @@
       "source": "https://drivelinebaseball.com/blogs/blog/making-movement-changes-weight-room",
       "status": "applied_and_readback_verified",
       "advance_authorized": false
+    },
+    {
+      "at": "2026-11-17T15:08:31.008818+09:00",
+      "user_request": "드리프트를 필요성 설명에 사용하고 같은 설명 양식을 지금까지 검수한 영상과 이후 검수에 적용",
+      "status": "applied_and_readback_verified",
+      "drills": 7,
+      "advance_authorized": false,
+      "sources": [
+        "https://www.drivelinebaseball.com/wp-content/uploads/2022/09/PITCHING-PDF-FINAL.pdf",
+        "https://drivelinebaseball.com/blogs/blog/making-movement-changes-weight-room"
+      ]
     }
   ],
-  "user_change_request_count": 17,
+  "user_change_request_count": 18,
   "last_user_video_decision": {
     "at": "2026-11-17T05:48:06.176Z",
     "original": "다음",
@@ -719,7 +730,7 @@
     "personal_health_information_copied": false,
     "signed_urls_copied": false
   },
-  "updated_at": "2026-11-17T15:05:56.236546+09:00",
+  "updated_at": "2026-11-17T15:08:31.008818+09:00",
   "current_workflow_document": "docs/shoot/video-review-current-workflow.md",
   "setup_event": {
     "at": "2026-11-13T15:54:58+09:00",
@@ -1058,5 +1069,10 @@
     "result": "메커니즘 제목 77개 수정. 운동영상 제목에서는 해당 번호 없음.",
     "current_video_title": "기둥 짚고 레그 리프트 드리프트",
     "at": "2026-11-17T14:55:34.680545+09:00"
+  },
+  "terminology_description_rule_20261117": {
+    "rule": "어떤 운동인가에서 제목의 핵심 전문 용어를 짧고 쉬운 말로 설명하고, 투수에게 왜 필요한가에서 그 용어를 사용해 투구 동작과 훈련 목적을 연결한다. 영상 동작과 일치하도록 작성하고 드라이브라인 자료를 참고한다.",
+    "applied_to": "1–7번 영상",
+    "at": "2026-11-17T15:08:31.008818+09:00"
   }
 }
