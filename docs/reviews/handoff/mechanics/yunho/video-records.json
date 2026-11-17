@@ -1255,10 +1255,14 @@
       "title": "드롭 스텝 스로우",
       "kind": "촬영 전 · 참고 영상",
       "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
-      "status": "참고 영상 및 수정 설명 사용자 확인 대기",
+      "status": "사용자 다음 지시로 검수 진행",
       "drill_id": "041083fe-82e6-47b3-865e-fe48d8dc64a6",
-      "user_decision": null,
-      "user_decided_at": null,
+      "user_decision": {
+        "at": "2026-11-17T07:52:58.073Z",
+        "original": "다음 영상 검수하자",
+        "meaning": "8번에서 9번으로 진행. 추가 확인 사항 기록 보존."
+      },
+      "user_decided_at": "2026-11-17T07:52:58.073Z",
       "user_change_requests": [
         {
           "at": "2026-11-17T06:50:31.430Z",
@@ -1365,10 +1369,10 @@
       "review_id": "mv-a75a9eb14332c7ab",
       "category": "드리프트",
       "title": "워킹 와인드업",
-      "kind": "참고 영상",
+      "kind": "촬영 전 · 참고 영상",
       "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
-      "status": "미검수",
-      "drill_id": null,
+      "status": "설명 수정 저장 · 사용자 확인 대기",
+      "drill_id": "209c141a-82ca-43f2-b7de-dbbae1392568",
       "user_decision": null,
       "user_decided_at": null,
       "user_change_requests": [],
@@ -1393,13 +1397,26 @@
         "json_pointer": "/queue/8"
       },
       "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
-      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "video_observation": "Driveline 참고 영상 재생, 플라이오볼 시범 확인. 정확한 발걸음 수는 표본만으로 확정하지 않음.",
       "filming_needed": {
-        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
-        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+        "status": "촬영 필요",
+        "reason": "현재 화면 촬영 전 · 참고 영상 및 자체 영상 없음",
+        "available": "참고 영상"
       },
       "content_change_approved": false,
-      "deployment_approved": false
+      "deployment_approved": false,
+      "focusPoints": [
+        "드리프트",
+        "몸통 회전",
+        "스로잉"
+      ],
+      "pre_review_changes": {
+        "at": "2026-11-17T07:52:58.073Z",
+        "description": "동작 설명 및 방향, 용어·줄바꿈, 투구 연관성 정리. 전력 투구 주 1~2회 일반 처방 삭제, 개인의 투구량·회복 고려. 참고 영상 플라이오볼 시범을 일반 사용자 필수 조건으로 확정하지 않음.",
+        "source": "https://www.drivelinebaseball.com/wp-content/uploads/2017/02/driveline-baseball_8-week-program.pdf",
+        "human_review": "대기",
+        "thumbnail": "유튜브 제공 참고 영상 썸네일, 자체 촬영 전"
+      }
     },
     {
       "number": 10,

@@ -5,7 +5,7 @@
   "scope": "메커니즘 투구 드릴 전체 — 직접 촬영/참고/나중에 촬영 포함",
   "catalog_url": "https://dugout-baseball.com/library/mechanics",
   "base_ref": "aa9d89848bd2ee182ed2151653466c83ed3a9010",
-  "state": "8번 사용자 확인 대기",
+  "state": "9번 사용자 확인 대기",
   "source_last_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
   "source_modified_time_semantics": "로컬 파일 실제 mtime. 이후 운영 공지 갱신을 포함할 수 있으며 영상 관찰/사용자 판정 시각이 아님.",
   "catalog_snapshot": {
@@ -49,14 +49,13 @@
     "identity_rule": "review_id는 로컬 검수 ID이며 DB ID가 아님. drill_id=null은 미확인. asset_id/path는 서명 없는 안전 식별자. 같은 영상의 다른 도구 드릴도 별개 항목."
   },
   "current": {
-    "number": 8,
-    "review_id": "mv-8134aada711c9d8b",
-    "title": "드롭 스텝 스로우",
-    "drill_id": "041083fe-82e6-47b3-865e-fe48d8dc64a6",
+    "number": 9,
+    "review_id": "mv-a75a9eb14332c7ab",
+    "title": "워킹 와인드업",
+    "drill_id": "209c141a-82ca-43f2-b7de-dbbae1392568",
     "category": "드리프트",
     "kind": "촬영 전 · 참고 영상",
-    "status": "참고 영상 및 수정 설명 사용자 확인 대기",
-    "finding": "첫발 목표 방향은 보조 자료에 기반, 참고 영상의 첫발 이동 방향은 시각 확증 필요"
+    "status": "설명 수정 저장 · 사용자 확인 대기"
   },
   "completed": [
     {
@@ -129,9 +128,19 @@
         "original": "다음 영상 검수하자",
         "meaning": "7번에서 8번으로 진행"
       }
+    },
+    {
+      "number": 8,
+      "review_id": "mv-8134aada711c9d8b",
+      "title": "드롭 스텝 스로우",
+      "decision": {
+        "at": "2026-11-17T07:52:58.073Z",
+        "original": "다음 영상 검수하자",
+        "meaning": "8번에서 9번으로 진행. 추가 확인 사항 기록 보존."
+      }
     }
   ],
-  "completed_count": 7,
+  "completed_count": 8,
   "user_change_requests": [
     {
       "at": "2026-11-16T18:18:52.578870+09:00",
@@ -657,17 +666,17 @@
   ],
   "user_change_request_count": 31,
   "last_user_video_decision": {
-    "at": "2026-11-17T06:47:23.274Z",
+    "at": "2026-11-17T07:52:58.073Z",
     "original": "다음 영상 검수하자",
-    "meaning": "7번에서 8번으로 진행"
+    "meaning": "8번에서 9번으로 진행. 추가 확인 사항 기록 보존."
   },
   "last_user_video_change_request": null,
   "user_decision_event_timestamps_available": false,
   "next": {
-    "number": 9,
-    "review_id": "mv-a75a9eb14332c7ab",
-    "title": "워킹 와인드업",
-    "category": "드리프트",
+    "number": 10,
+    "review_id": "mv-fdb0fc2936315a11",
+    "title": "스위치 풋 드롭 힌지 스로우 (작은 공)",
+    "category": "드롭",
     "kind": "참고 영상",
     "drill_id": null,
     "status": "미검수"
@@ -863,6 +872,22 @@
       "title": "P3 레터럴 힌지 바운드 스로우 (큰 메디신볼)",
       "status": "촬영 필요",
       "available": "참고 영상만 있음"
+    },
+    {
+      "number": 8,
+      "review_id": "mv-8134aada711c9d8b",
+      "drill_id": "041083fe-82e6-47b3-865e-fe48d8dc64a6",
+      "title": "드롭 스텝 스로우",
+      "status": "촬영 필요",
+      "available": "참고 영상만 있음"
+    },
+    {
+      "number": 9,
+      "review_id": "mv-a75a9eb14332c7ab",
+      "drill_id": "209c141a-82ca-43f2-b7de-dbbae1392568",
+      "title": "워킹 와인드업",
+      "status": "촬영 필요",
+      "available": "참고 영상만 있음"
     }
   ],
   "filming_needed_note": "현재 직접 촬영 1번은 제외. 빈 목록이 모든 영상 촬영 완료를 뜻하지 않음. 나머지는 차례에 확인.",
@@ -951,7 +976,7 @@
     "personal_health_information_copied": false,
     "signed_urls_copied": false
   },
-  "updated_at": "2026-11-17T07:47:53.551Z",
+  "updated_at": "2026-11-17T07:52:58.073Z",
   "current_workflow_document": "docs/shoot/video-review-current-workflow.md",
   "setup_event": {
     "at": "2026-11-13T15:54:58+09:00",
