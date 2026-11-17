@@ -1190,6 +1190,14 @@
           "status": "mechanics_8_applied_and_readback_verified",
           "exercise_status": "운동영상 담당에게 전달, 처리 상태 별도 확인",
           "advance_authorized": false
+        },
+        {
+          "at": "2026-11-17T07:04:43.898Z",
+          "review_id": "mv-8134aada711c9d8b",
+          "user_request": "■ 제목 아래의 내용도 제목 글자 시작 위치로 들여쓰기",
+          "status": "mechanics_8_applied_and_readback_verified",
+          "exercise_status": "운동영상 담당에게 전달, 적용 진행 여부 별도 확인",
+          "advance_authorized": false
         }
       ],
       "assistant_findings": [

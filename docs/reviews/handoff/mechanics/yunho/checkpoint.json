@@ -492,9 +492,17 @@
       "status": "mechanics_8_applied_and_readback_verified",
       "exercise_status": "운동영상 담당에게 전달, 처리 상태 별도 확인",
       "advance_authorized": false
+    },
+    {
+      "at": "2026-11-17T07:04:43.898Z",
+      "review_id": "mv-8134aada711c9d8b",
+      "user_request": "■ 제목 아래의 내용도 제목 글자 시작 위치로 들여쓰기",
+      "status": "mechanics_8_applied_and_readback_verified",
+      "exercise_status": "운동영상 담당에게 전달, 적용 진행 여부 별도 확인",
+      "advance_authorized": false
     }
   ],
-  "user_change_request_count": 26,
+  "user_change_request_count": 27,
   "last_user_video_decision": {
     "at": "2026-11-17T06:47:23.274Z",
     "original": "다음 영상 검수하자",
@@ -790,7 +798,7 @@
     "personal_health_information_copied": false,
     "signed_urls_copied": false
   },
-  "updated_at": "2026-11-17T07:02:59.442Z",
+  "updated_at": "2026-11-17T07:04:43.898Z",
   "current_workflow_document": "docs/shoot/video-review-current-workflow.md",
   "setup_event": {
     "at": "2026-11-13T15:54:58+09:00",
@@ -1151,6 +1159,11 @@
   "numbered_step_indentation_rule_20261117": {
     "at": "2026-11-17T07:02:59.442Z",
     "rule": "이렇게 하세요 번호 안에서 다음 줄의 문장 시작을 번호가 아닌 첫 문장 시작에 맞춰 들여쓴다. 문장별 줄바꿈과 번호 사이 빈 줄 유지.",
+    "applied_to": "1–8번"
+  },
+  "section_indentation_rule_20261117": {
+    "at": "2026-11-17T07:04:43.898Z",
+    "rule": "■ 제목 아래 내용은 제목 텍스트 시작 위치로 들여쓰기하며, 번호 및 번호 안 문장의 상대적 들여쓰기 유지.",
     "applied_to": "1–8번"
   }
 }
