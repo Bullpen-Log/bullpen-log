@@ -14,7 +14,7 @@
     "회복 및 보강"
   ],
   "current_review_id": "EX-Y-P-ACCELISO-986c5b6a",
-  "current_title": "스텝박스 달리기 출발 자세 아이소 홀드",
+  "current_title": "스프린터 아이소 홀드",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": "스피드 불가리안 확인 후 다음 진행",
@@ -763,7 +763,7 @@
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
   "latest_resume": {
     "current": "EX-Y-P-ACCELISO-986c5b6a",
-    "status": "명칭을 스텝박스 달리기 출발 자세 아이소 홀드로 수정 저장. 사용자 확인 대기."
+    "status": "제목을 한글 스프린터 아이소 홀드로 수정 저장. 사용자 확인 대기."
   },
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
@@ -1143,7 +1143,7 @@
   "mandatory_plyometric_review_rule_20261116": "For every plyometric exercise, explain the actual movement, training purpose and role in plyometric progression where applicable, and a clear evidence-calibrated link to pitching; distinguish foundational drills from reactive training and indirect associations from proven direct effects. Apply common user-friendly terms, format, prescriptions, and evidence standards. Review each exercise individually.",
   "reference_catalog_rule": "Continue appending all actually consulted references and per-exercise use/limitations to docs/references/exercise-review-sources.json. EX-REF01 admin implementation deferred by user; do not start it during video review.",
   "standing_spacing_rule": "Mandatory: consistent readable blank lines between how-to steps and separate explanatory paragraphs for every subsequently reviewed exercise, preserving meaning and evidence.",
-  "updated_at_utc": "2026-11-17T09:06:07.887454+00:00",
+  "updated_at_utc": "2026-11-17T09:08:49.909520+00:00",
   "step_box_rule": "스텝박스와 점프용 박스를 구분, 대체는 운동 목적과 높이 및 안정성에 따라 판단",
   "step_box_implementation_owner": "01 영상비교; 05 reassignment cancelled per user",
   "numbered_step_readability_rule": "Split long or overloaded how-to steps only where readability improves. Preserve movement sequence, simultaneous actions, immediate transitions, user decisions and blank lines. Do not split for arbitrary length or create unnecessary steps. Apply to every future review.",
