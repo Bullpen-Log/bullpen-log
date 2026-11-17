@@ -1512,10 +1512,10 @@
       "number": 10,
       "review_id": "mv-fdb0fc2936315a11",
       "category": "드롭",
-      "title": "스위치 풋 드롭 힌지 스로우 (작은 공)",
+      "title": "스위치 풋 드롭 힌지 스로우 (작은 메디신볼)",
       "kind": "직접 촬영 영상",
-      "kind_evidence": "Actual database source=OWN, referenceVideoId=null, videoPath present; playback inspection pending",
-      "status": "실제 영상·설명 대조 준비",
+      "kind_evidence": "Database OWN + original owned video successfully played in production UI; previous reference-only queue label corrected",
+      "status": "사전 수정·저장·재확인 완료 · 사용자 검수 대기",
       "drill_id": "e759318e-e89c-426b-a3d9-b41ea412be90",
       "user_decision": null,
       "user_decided_at": null,
@@ -1526,13 +1526,83 @@
         "json_pointer": "/queue/9"
       },
       "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
-      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "video_observation": "0–1.35초 준비 자세, 2.05초 오른발 들기, 2.30초 오른발 이동·착지, 2.55초 체중 받기, 2.80초 왼발 목표 방향 내딛기, 3.15초 던지기 구간을 재생·정지·확대해 확인. 전체 연속 재생 정밀 검수나 반복 한 바퀴 시험은 하지 않음.",
       "filming_needed": {
-        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
-        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+        "status": "직접 촬영 영상 있음 · 이번 확인 범위에서 필수 재촬영 요청 없음",
+        "reason": "전면 한 구도에서 양발과 공이 보임. 측면에서의 고관절 접힘 각도는 별도 정밀 평가하지 않음."
       },
       "content_change_approved": false,
-      "deployment_approved": false
+      "deployment_approved": false,
+      "focusPoints": [
+        "드롭",
+        "몸통 회전"
+      ],
+      "stage": "연결",
+      "equipment": [
+        "메디신볼"
+      ],
+      "pre_review_changes": {
+        "at": "2026-11-17T19:09:38.123564+09:00",
+        "authority": "사용자의 사전 수정·OWN 대표 장면 수정 공통 승인에 따라 적용. 이 영상의 사용자 최종 판정은 대기.",
+        "summary": "제목의 작은 공을 작은 메디신볼로 통일. 공중에서 앞뒤 발을 교환한다는 설명을 실제 오른발 먼저 이동·왼발 목표 방향 내딛기로 수정. 용어·소제목·문장별 줄바꿈·번호와 이어지는 문장 들여쓰기 통일. 공 무게가 동작·팔 힘에 미치는 효과 단정 삭제, 목적별 강도 정리. 보조 목적을 드리프트에서 몸통 회전으로 변경. 연결 단계·메디신볼 장비 유지.",
+        "before": {
+          "title": "스위치 풋 드롭 힌지 스로우 (작은 공)",
+          "description": "■ 어떤 운동인가\n가볍게 뛰어 공중에서 앞뒤 발을 바꿔 딛고, 엉덩이를 접으며 착지한 뒤 던지는 동작입니다. 작은 메디신볼은 공보다 무거워 동작이 느려지고, 팔보다 몸으로 던지는 느낌을 찾기 좋습니다. 무거울수록 팔에 힘이 들어가기 쉬우니 팔은 느슨하게 둡니다.\n\n■ 이렇게 하세요\n1. 옆으로 서서 가볍게 뜁니다.\n2. 공중에서 앞뒤 발을 바꿔 딛습니다.\n3. 착지하면서 뒷엉덩이와 뒤꿈치 쪽에 앉듯 엉덩이를 접습니다.\n4. 그 자리에서 곧바로 골반부터 돌려 던집니다.\n\n■ 왜 하나요\n뒷다리로 체중을 받아 앉는 감각(힌지)을 빠르게 찾는 연습입니다. 뒷엉덩이에 감긴 힘이 풀리며 골반이 상체보다 먼저 돕니다. 무릎과 발끝 쪽으로 받으면 몸이 위로 떠서 힘이 샙니다.\n\n■ 세기\n처음 몇 번은 동작을 익히고, 몸에 익으면 빠르게 던집니다. 거리나 속도를 재 두면 힘이 느는지 볼 수 있습니다.",
+          "focusPoints": [
+            "드롭",
+            "드리프트"
+          ],
+          "stage": "연결",
+          "equipment": [
+            "메디신볼"
+          ]
+        },
+        "after": {
+          "title": "스위치 풋 드롭 힌지 스로우 (작은 메디신볼)",
+          "description": "■ 어떤 운동인가\r\n   양발을 가까이 둔 자세에서 발을 빠르게 바꿔 디디고, 오른쪽 엉덩이에 체중을 받은 뒤 목표 쪽으로 이동·회전해 작은 메디신볼을 양손으로 던지는 드릴입니다.\r\n   스위치 풋은 발을 빠르게 바꿔 디디는 동작, 드롭은 착지하며 몸의 높이를 낮추는 동작을 뜻합니다.\r\n   힌지는 엉덩이를 뒤로 빼며 고관절을 접는 동작입니다.\r\n\r\n■ 이렇게 하세요\r\n   아래는 영상처럼 목표가 몸의 왼쪽에 있는 오른손 투수 방향 기준입니다.\r\n   왼손 투수는 발과 이동 방향을 반대로 바꿔 수행합니다.\r\n\r\n1. 목표를 몸의 왼쪽에 두고 두 발을 가까이 둡니다.\r\n   작은 메디신볼을 양손으로 몸 앞에 잡고, 던질 곳과 공이 튀어나올 공간에 사람이 없는지 확인합니다.\r\n\r\n2. 오른발을 먼저 들어 목표 반대쪽으로 옮겨 딛습니다.\r\n   오른발을 딛는 흐름에 맞춰 왼발을 들어, 두 발의 지지를 빠르게 바꿉니다.\r\n\r\n3. 오른발로 체중을 받으며 오른쪽 무릎과 고관절을 굽혀 엉덩이를 뒤로 뺍니다.\r\n   이때 왼발은 목표 방향으로 내디디기 시작합니다.\r\n   허리를 둥글게 말거나 상체만 숙이지 말고 고관절을 접습니다.\r\n\r\n4. 왼발을 목표 쪽으로 내딛는 동안 체중 이동과 골반·몸통 회전을 연결합니다.\r\n   착지한 뒤 한 번 멈췄다가 돌지 않고, 움직임을 이어 공을 양손으로 던집니다.\r\n   오른발은 골반이 도는 흐름에 따라 자연스럽게 돌아가게 합니다.\r\n\r\n5. 공을 놓은 뒤에는 팔과 오른쪽 다리가 자연스럽게 따라 나오게 하고 균형을 잡습니다.\r\n   자세를 정돈한 뒤 다음 동작을 시작합니다.\r\n   통증이 생기면 중단합니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n   투구에서는 뒷다리에 체중이 실리는 동안 고관절을 접는 움직임을, 목표 쪽 이동과 골반·몸통 회전으로 연결합니다.\r\n   이 드릴은 빠르게 발을 바꿔 디디며 드롭과 힌지로 체중을 받는 동작을 몸통 회전과 양손 던지기에 이어 붙이는 연습입니다.\r\n   낮아진 자세에서 오래 머무르거나 위로 벌떡 일어서기보다, 체중을 받은 뒤 목표 쪽 이동과 회전이 끊기지 않는지를 확인합니다.\r\n   연습한 연결이 실제 투구에서도 나타나는지는 투구 영상과 함께 확인합니다.\r\n\r\n■ 강도\r\n   먼저 공 없이 발을 바꾸는 순서와 착지 자세를 익힙니다.\r\n   이후 균형을 유지하며 양손으로 던질 수 있는 메디신볼 무게를 선택합니다.\r\n   동작 수정이 목적이면 발 순서와 체중 이동을 확인할 수 있는 강도로 수행합니다.\r\n   파워·구속 프로그램에서는 충분히 준비한 뒤 해당 프로그램에서 정한 공 무게와 강도에 맞춰 빠르게 던집니다.\r\n   공이 무거워 동작이 끊기거나 팔로 억지로 밀게 되면 무게와 속도를 낮춥니다.",
+          "focusPoints": [
+            "드롭",
+            "몸통 회전"
+          ],
+          "stage": "연결",
+          "equipment": [
+            "메디신볼"
+          ]
+        },
+        "save_readback": "Actual authenticated admin update saved, direct database readback matches, reload shows title/purpose/description and new representative poster",
+        "sources": [
+          {
+            "url": "https://drivelinebaseball.com/blogs/blog/making-movement-changes-weight-room",
+            "use": "Rear hip loading and medicine-ball rotational patterning",
+            "limit": "Individual coaching case; not this exact drill or proof of velocity improvement"
+          },
+          {
+            "url": "https://drivelinebaseball.com/blogs/blog/leveraging-assessment-data-build-throwing-programming",
+            "use": "Sequencing and rotational lower-half cues without early upward extension",
+            "limit": "Individual plyo-ball case; indirect application to this medicine-ball variation"
+          }
+        ],
+        "poster": {
+          "summary": "실제 시범 약 2.8초의 발을 벌리고 회전 준비하는 장면으로 교체. 브라우저에 표시된 영상 프레임 영역을 잘라 만든 420×236 JPEG. 원본 영상 및 이전 썸네일은 보존하고 이전 썸네일의 저장소 존재도 확인함.",
+          "sha256": "3cc51ff789fc15760faa97258e5641231d6223b0e43e6ebf3beb3d9167bd2c96",
+          "source_video_unchanged": true,
+          "prior_poster_retained_verified": true,
+          "visible_web_consumption_verified": true,
+          "native_device_unverified": true
+        },
+        "human_review": "pending",
+        "viewing_focus": "오른발이 목표 반대쪽으로 먼저 이동해 착지하고, 왼발이 목표 쪽으로 나오는 흐름과 착지 후 회전·던지기의 연결을 확인."
+      },
+      "playback": {
+        "at": "2026-11-17T19:09:38.123564+09:00",
+        "playing": true,
+        "loop": true,
+        "rate": 1,
+        "duration_seconds": 4.5,
+        "ready_state": 4,
+        "repeat_cycle_tested": false
+      },
+      "review_advance_authorized": false
     },
     {
       "number": 11,

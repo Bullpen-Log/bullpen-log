@@ -5,7 +5,7 @@
   "scope": "메커니즘 투구 드릴 전체 — 직접 촬영/참고/나중에 촬영 포함",
   "catalog_url": "https://dugout-baseball.com/library/mechanics",
   "base_ref": "aa9d89848bd2ee182ed2151653466c83ed3a9010",
-  "state": "10번 검수 준비",
+  "state": "10번 사용자 확인 대기",
   "source_last_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
   "source_modified_time_semantics": "로컬 파일 실제 mtime. 이후 운영 공지 갱신을 포함할 수 있으며 영상 관찰/사용자 판정 시각이 아님.",
   "catalog_snapshot": {
@@ -51,11 +51,19 @@
   "current": {
     "number": 10,
     "review_id": "mv-fdb0fc2936315a11",
-    "title": "스위치 풋 드롭 힌지 스로우 (작은 공)",
+    "title": "스위치 풋 드롭 힌지 스로우 (작은 메디신볼)",
     "drill_id": "e759318e-e89c-426b-a3d9-b41ea412be90",
     "category": "드롭",
     "kind": "직접 촬영 영상",
-    "status": "실제 영상·설명 대조 준비"
+    "status": "사전 수정·저장·재확인 완료 · 사용자 검수 대기",
+    "focusPoints": [
+      "드롭",
+      "몸통 회전"
+    ],
+    "stage": "연결",
+    "equipment": [
+      "메디신볼"
+    ]
   },
   "completed": [
     {
@@ -927,17 +935,16 @@
   "filming_needed_note": "현재 직접 촬영 1번은 제외. 빈 목록이 모든 영상 촬영 완료를 뜻하지 않음. 나머지는 차례에 확인.",
   "playback_policy": {
     "requested": "Repeat current item; advance only when explicitly directed by user.",
-    "status": "Production shared player loop ON verified in UI.",
+    "status": "Current owned video10 playing; loop ON observed; no end-cycle wait",
     "observed": {
-      "observed_at": "2026-11-13T15:54:58+09:00",
-      "source": "production shared LibraryVideo visible UI",
+      "observed_at": "2026-11-17T19:09:38.123564+09:00",
+      "source": "Actual production owned LibraryVideo",
       "paused": false,
       "loop": true,
-      "repeat_requested": true,
+      "rate": 1,
       "repeat_applied": true,
-      "evidence": "Pause button visible; loop checkbox checked; screenshot shows loop ON",
       "repeat_cycle_tested": false,
-      "repeat_cycle_test_required": false
+      "current_number": 10
     },
     "per_video_check_required": true,
     "wait_for_repeat_cycle": false
@@ -1010,7 +1017,7 @@
     "personal_health_information_copied": false,
     "signed_urls_copied": false
   },
-  "updated_at": "2026-11-17T18:54:49.188808+09:00",
+  "updated_at": "2026-11-17T19:09:38.123564+09:00",
   "current_workflow_document": "docs/shoot/video-review-current-workflow.md",
   "setup_event": {
     "at": "2026-11-13T15:54:58+09:00",
