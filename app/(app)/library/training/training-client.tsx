@@ -41,7 +41,7 @@ import { ThumbnailFixer } from '@/components/thumbnail-fixer';
 import { MetaFilter, matchesFilter, type FilterState } from '@/components/meta-filter';
 import { Button, Card, EmptyState } from '@/components/ui';
 import { ConfirmDeleteForm } from '@/components/confirm-delete';
-import { ExerciseForm, type ExerciseDraft } from './exercise-form';
+import { ExerciseForm, LoadSemanticsProvider, type ExerciseDraft, type LoadSemanticsAdmin } from './exercise-form';
 import { MuscleRow } from '@/components/muscle-chips';
 
 export type ExerciseItem = {
@@ -461,10 +461,25 @@ function WarmupFolderRow({
   );
 }
 
-type TrainingClientProps = { exercises: ExerciseItem[]; isAdmin: boolean; warmupFolders?: WarmupFolder[]; reviewSelection?: ReviewSelection<ExerciseItem> & { description?: string } };
+type TrainingClientProps = {
+  exercises: ExerciseItem[];
+  isAdmin: boolean;
+  warmupFolders?: WarmupFolder[];
+  reviewSelection?: ReviewSelection<ExerciseItem> & { description?: string };
+  /** EX-LOAD01 R1-04 — 관리자 뜻 설정(스위치 · 저장값). 관리자에게만 page.tsx 가 넘긴다 — 등록 · 수정 폼이 읽는다(exercise-form.tsx) */
+  loadSemantics?: LoadSemanticsAdmin;
+};
+
+export function TrainingClient(props: TrainingClientProps) {
+  return (
+    <LoadSemanticsProvider value={props.loadSemantics}>
+      <TrainingClientView {...props} />
+    </LoadSemanticsProvider>
+  );
+}
 
 /** Optional focused launch uses the existing authorized detail/player, not a second review system. */
-export function TrainingClient(props: TrainingClientProps) {
+function TrainingClientView(props: TrainingClientProps) {
   const [closed, setClosed] = useState(false);
   const selected = props.reviewSelection;
   if (closed || !selected || selected.status === 'none') return <TrainingBrowse {...props} />;

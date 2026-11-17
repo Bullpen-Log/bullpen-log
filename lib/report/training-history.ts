@@ -1,4 +1,5 @@
 import 'server-only';
+import { logViewReader } from '@/lib/workout/load/server';
 import { appNow } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
@@ -309,6 +310,8 @@ export async function trainingDay(
     : readPlanExerciseIds(setup?.plan).filter((id) => !doneIds.has(id));
   /* 이미 들고 있는 목록에서 고른다 — 몇 개 찾자고 DB 를 한 번 더 묻지 않는다 */
   const missed = await exercisesByIds(plannedIds);
+  /* EX-LOAD01 — 그날 요약의 kg 은 읽기 관문의 보일 무게만(그날 판의 계약 · 장비로). 맨몸 운동의 옛 kg · 확인 전 kg 은 보이지 않는다 */
+  const viewOf = await logViewReader(userId, logs.map((l) => ({ exerciseId: l.exerciseId, date })));
 
   const todayKey = toDateKey(appNow());
 
@@ -326,7 +329,7 @@ export async function trainingDay(
         setsDone: l.setsDone,
         repsDone: l.repsDone,
         holdSecondsDone: l.holdSecondsDone,
-        weightKg: l.weightKg,
+        weightKg: viewOf({ exerciseId: l.exerciseId, date, weightKg: l.weightKg }).displayKg,
       })),
       ...missed.map((ex) => ({
         id: ex.id,

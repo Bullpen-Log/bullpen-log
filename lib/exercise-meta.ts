@@ -1,3 +1,4 @@
+import { contractNeedsWeight, contractUsesWeight } from '@/lib/workout/load/contract';
 import { formatWeight, type WeightUnit } from '@/lib/units';
 import { equipmentName } from '@/lib/equipment-requirements';
 
@@ -79,19 +80,16 @@ export function bodyGroups(parts: readonly string[]): string[] {
  * 그냥 통과해버린다. 숫자로 비교하면 그런 구멍이 생기지 않는다.
  */
 export const INTENSITY_LEVELS = [
-  {
-    level: 1,
-    name: '매우 낮음',
-    desc: '스트레칭·가동성. 통증만 없다면 매일 해도 되는 수준',
-  },
-  { level: 2, name: '낮음', desc: '회복·이완 수준. 많이 던진 날에도 할 수 있음' },
-  { level: 3, name: '중간', desc: '평소 훈련일에 하는 수준' },
-  { level: 4, name: '높음', desc: '무게를 다루는 근력 운동. 다음 날 뻐근함이 남음' },
-  {
-    level: 5,
-    name: '매우 높음',
-    desc: '최대 근력·전력 점프. 며칠 회복이 필요하고 등판 전후에는 피함',
-  },
+  /*
+   * desc 는 단계를 고르는 사람(관리자 등록 폼)을 위한 '대략 어떤 운동인가' 설명이다.
+   * 안전을 약속하는 말('매일 해도 된다' · '던진 날에도 된다')은 쓰지 않는다(EX-RX01, 2026-11-13) —
+   * 몸 상태 · 통증 · 등판 일정에 따른 판단은 일정 엔진과 사용자 몫이다. name · level 은 저장값이라 그대로.
+   */
+  { level: 1, name: '매우 낮음', desc: '스트레칭·가동성 위주의 가벼운 운동' },
+  { level: 2, name: '낮음', desc: '회복·이완 위주의 가벼운 운동' },
+  { level: 3, name: '중간', desc: '평소 훈련일에 하는 정도의 운동' },
+  { level: 4, name: '높음', desc: '무게를 다루는 근력 운동. 다음 날 근육이 뻐근할 수 있음' },
+  { level: 5, name: '매우 높음', desc: '최대 근력·전력 점프. 회복에 시간이 더 걸릴 수 있어 등판 일정과 함께 봄' },
 ] as const;
 
 /** 이름 → 단계 숫자. 목록에 없는 값은 가장 위험한 쪽으로 본다. */
@@ -128,9 +126,10 @@ export const INTENSITY_CAP = {
 } as const;
 
 export const DIFFICULTY_LEVELS = [
-  { name: '초급', desc: '처음 봐도 따라 할 수 있음' },
-  { name: '중급', desc: '기본 동작이 익숙해야 함' },
-  { name: '상급', desc: '숙련자용' },
+  /* 기술 난이도 설명이다 — '누구나 할 수 있다'는 약속처럼 읽히지 않게 쓴다(EX-RX01). name 은 저장값이라 그대로 */
+  { name: '초급', desc: '동작이 비교적 단순함' },
+  { name: '중급', desc: '기본 동작에 익숙하면 좋음' },
+  { name: '상급', desc: '동작이 복잡하거나 숙련이 필요함' },
 ] as const;
 
 /**
@@ -264,13 +263,21 @@ export const MOVEMENT_PATTERNS = [
   { name: '고립', desc: '한 근육만 따로 키운다 — 컬 · 레이즈 · 삼두 익스텐션' },
 ] as const;
 
+/*
+ * EX-LOAD01 — 두 판단은 이제 장비 기록 계약(lib/workout/load/contract.ts)의 투영이다. 따로 장비 목록을 들고 셈하지 않는다
+ * (예전에는 usesWeight 가 머신을 받고 케이블을 안 받았고, next-weight 의 weightKindOf 는 반대였다). 위 두 목록은 뜻 설명으로만 남긴다.
+ */
+void WEIGHTED_EQUIPMENT;
+void REQUIRED_WEIGHT_EQUIPMENT;
+
+/** 무게 숫자를 받는 장비인가 — 자유 중량 · 케이블 · 머신 · 도구 무게. 맨몸 · 받침 · 밴드 · 섞여 정하지 못한 것은 아니다 */
 export function usesWeight(equipment: readonly string[]): boolean {
-  return equipment.some((e) => WEIGHTED_EQUIPMENT.includes(e));
+  return contractUsesWeight(equipment);
 }
 
-/** 이 운동은 무게를 안 적으면 완료로 남길 수 없는가 */
+/** 이 운동은 무게를 안 적으면 완료로 남길 수 없는가(바벨 · 덤벨) */
 export function needsWeight(equipment: readonly string[]): boolean {
-  return equipment.some((e) => REQUIRED_WEIGHT_EQUIPMENT.includes(e));
+  return contractNeedsWeight(equipment);
 }
 
 /* ------------------------------ 세트·횟수·휴식 ----------------------------- */

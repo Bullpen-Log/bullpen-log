@@ -1,4 +1,6 @@
 import 'server-only';
+import { readContextsFor } from '@/lib/workout/load/server';
+import { viewSetLoad } from '@/lib/workout/load/gate';
 import { prisma } from '@/lib/prisma';
 import { toDateKey } from '@/lib/pitch-stats';
 import { exercisesByIds } from '@/lib/library-cache';
@@ -75,6 +77,22 @@ export async function recentAmounts(
   });
 
   /*
+   * EX-LOAD01 — '지난번' kg 은 미리 채워도 되는 값만(lib/workout/load/gate.ts prefillKg): 같은 뜻의 자유 중량 · 같은 운동의 도구 무게.
+   * 맨몸 운동에 옛 앱이 보낸 kg · 판이 없는 날의 확인 전 kg · 기구 정체를 모르는 케이블 · 머신 설정값(GPT 서브1 결정)은 null —
+   * 횟수 · 시간 · 날짜는 그대로 둔다. 요약 줄의 근거는 그날 판(얼린 계약 · 장비)이다.
+   */
+  const days = logs.length
+    ? await prisma.trainingSession.findMany({
+        where: { userId, date: { in: [...new Set(logs.map((l) => l.date.getTime()))].map((t) => new Date(t)) } },
+        select: { id: true, date: true },
+      })
+    : [];
+  const sessionOfDay = new Map(days.map((d) => [d.date.getTime(), d.id]));
+  const ctxOf = await readContextsFor(logs.map((l) => ({ exerciseId: l.exerciseId, sessionId: sessionOfDay.get(l.date.getTime()) ?? null })));
+  const safeKg = (l: (typeof logs)[number]) =>
+    l.weightKg == null ? null : viewSetLoad(ctxOf(l.exerciseId, sessionOfDay.get(l.date.getTime()) ?? null), { weightKg: l.weightKg }).prefillKg;
+
+  /*
    * 운동별로 최근 몇 개만 남긴다.
    *
    * 조회를 운동마다 따로 하면 열다섯 번을 왕복하게 되므로 한 번에 읽고
@@ -82,10 +100,11 @@ export async function recentAmounts(
    */
   for (const log of logs) {
     const kept = result.get(log.exerciseId);
+    const row = { ...log, weightKg: safeKg(log), date: toDateKey(log.date) };
     if (kept == null) {
-      result.set(log.exerciseId, [{ ...log, date: toDateKey(log.date) }]);
+      result.set(log.exerciseId, [row]);
     } else if (kept.length < KEEP) {
-      kept.push({ ...log, date: toDateKey(log.date) });
+      kept.push(row);
     }
   }
 

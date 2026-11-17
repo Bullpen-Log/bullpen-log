@@ -1,5 +1,6 @@
 'use server';
 
+import { withOwnerLock } from '@/lib/workout/v2/gate';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { appNow, appNowMs } from '@/lib/clock';
@@ -8,7 +9,11 @@ import { addToTodayPlan } from '@/app/actions/plan-edit';
 import { eventLine, notifyEventPlayers } from '@/lib/org/notify-org';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { dbDate } from '@/lib/nutrition/days';
-import { allExercises, allGuides, trainingGuides, visibleExercises } from '@/lib/library-cache';
+import { allExercises, allGuides, exercisesByIds, trainingGuides, visibleExercises } from '@/lib/library-cache';
+import { equipmentDisplayName } from '@/lib/exercise-meta';
+import type { RecordingContract } from '@/lib/workout/load/contract';
+import { contractOfLibrary, loadStructured } from '@/lib/workout/load/server';
+import { prepareOrgWork } from '@/lib/org/team-work-core';
 import { isDateKey, ORG_DUPLICATE_MS } from '@/lib/org/rules';
 import { coachOrgCan, myMember } from '@/lib/org/app-access';
 import { orgAuthz } from '@/lib/org/authz';
@@ -37,12 +42,17 @@ import {
   cleanValues,
   isPlanScope,
   isValueMode,
+  lineLoadOf,
+  lineWeightText,
   memberPlans,
   planTargets,
   readException,
   readValues,
   resolveLines,
   sameAsGroup,
+  type LineLoadCheck,
+  type LineLoadInfo,
+  type LoadIssue,
   type MemberException,
   type PitchValue,
   type PlanScope,
@@ -80,18 +90,35 @@ async function activePlayers(orgId: string) {
   });
 }
 
-type Line = { name: string; dose: string; kind: 'exercise' | 'drill' };
+/**
+ * 처방 줄 한 줄의 화면 모양. EX-LOAD01 R1-03 — dose 의 kg 은 그 운동의 계약이 무게를 받을 때만('40kg(한 손)'). 받지 않는 운동(맨몸 · 밴드 · 확인 중)이나
+ * 계약을 모르는 운동(지운 운동)의 kg 은 보통 무게로 보이지 않고 rawKg(선택 칸 — 기록하지 않는 무게)로만 싣는다. load 는 그 운동의 계약 요약(선택 칸).
+ */
+type Line = { name: string; dose: string; kind: 'exercise' | 'drill'; rawKg?: number; load?: LineLoadInfo };
 async function nameMaps() {
   const [ex, gd] = await Promise.all([allExercises(), allGuides()]);
   return new Map<string, string>([...ex.map((e) => [e.id, e.title] as const), ...gd.map((g) => [g.id, g.title] as const)]);
 }
-const doseOf = (l: WorkLine) => [homeworkDose(l), l.weightKg ? `${l.weightKg}kg` : ''].filter(Boolean).join(' · ');
-function lineViews(lines: readonly WorkLine[], names: ReadonlyMap<string, string>): Line[] {
-  return lines.map((i) => ({
-    name: names.get(i.exerciseId ?? i.guideId ?? '') ?? '지운 운동',
-    dose: doseOf(i),
-    kind: i.exerciseId ? ('exercise' as const) : ('drill' as const),
-  }));
+/** EX-LOAD01 R1-03 — 운동 번호들의 권위 있는 기록 계약(지금 라이브러리 장비 · 검토 예외 — 서버가 푼다, 화면이 보낸 장비는 안 믿는다) */
+async function libraryContracts(ids: Iterable<string>): Promise<Map<string, RecordingContract>> {
+  const want = [...new Set(ids)].filter(Boolean);
+  if (want.length === 0) return new Map();
+  return new Map((await exercisesByIds(want)).map((e) => [e.id, contractOfLibrary(e)]));
+}
+const loadsOf = (contracts: ReadonlyMap<string, RecordingContract>) => new Map([...contracts].map(([id, c]) => [id, lineLoadOf(c, equipmentDisplayName)]));
+function lineViews(lines: readonly WorkLine[], names: ReadonlyMap<string, string>, loads?: ReadonlyMap<string, LineLoadInfo>, contracts?: ReadonlyMap<string, RecordingContract>): Line[] {
+  return lines.map((i) => {
+    const info = i.exerciseId ? (loads?.get(i.exerciseId) ?? null) : null;
+    /* 무게 글은 공용 말하기로(계약이 있으면) — 받지 않는 kg 은 rawKg 로만 */
+    const { text, rawKg } = lineWeightText(i, info, i.exerciseId ? (contracts?.get(i.exerciseId) ?? null) : null);
+    return {
+      name: names.get(i.exerciseId ?? i.guideId ?? '') ?? '지운 운동',
+      dose: [homeworkDose(i), text ?? ''].filter(Boolean).join(' · '),
+      kind: i.exerciseId ? ('exercise' as const) : ('drill' as const),
+      ...(rawKg != null ? { rawKg } : {}),
+      ...(info ? { load: info } : {}),
+    };
+  });
 }
 
 /* ── 코치: 훈련 하나 — 계획(활동 · 명단) · 실제 확인(조 실제 · 예외 · 선수마다 값) · 결과 · 등판 ── */
@@ -121,6 +148,11 @@ export type EventMemberView = {
   sameAsGroup: string[];
   /** 안 푼 정정 요청 */
   fixes: { id: string; body: string }[];
+  /**
+   * EX-LOAD01 R1-03 — 코치 기록의 무게 · 수량 검사에 걸리는 곳(쓰기 전 미리 보기 — 지금 라이브러리 계약으로). 있으면 '이대로 확인'에서 이 선수는
+   * 아무것도 쓰지 않고 저장 실패(load_rejected)로 남는다. 없으면 null. 선택 칸(옛 화면은 모른다)
+   */
+  loadIssue?: LoadIssue | null;
   /** 확정 등판이 선수의 오늘 체크인 답과 날이 다르면 한 줄 — 체크인 공유를 켠 선수만(계약 9-6 ①-5 E) */
   outingNote: string | null;
   outing: { role: OutingRole; pitchLimit: number | null; status: string } | null;
@@ -166,6 +198,18 @@ export type EventDetail = {
   tags: string[];
   /** 운동 · 드릴 이름(예외 고치기 화면) */
   names: Record<string, string>;
+  /**
+   * EX-LOAD01 R1-03 — 이 훈련 처방 줄 운동의 기록 계약 요약(운동 번호 → 서버가 지금 라이브러리로 푼 계약). 웹 · 앱 예외 화면이 kg 칸을 낼지 · 칸 이름을
+   * 이것으로 정한다. 선택 칸(옛 서버 답에는 없다 — 화면은 예전 대비책으로)
+   */
+  loads?: Record<string, LineLoadInfo>;
+  /**
+   * EX-LOAD01 R1-03 — 같은 운동들의 계약 전체(웹 · 앱 예외 화면이 운동 화면과 같은 고르개 · 같은 세트 만들기로 밴드 · 섞인 무게 · 서로 다른 무게 ·
+   * 기구 이름을 고르게). 선택 칸
+   */
+  contracts?: Record<string, RecordingContract>;
+  /** 구조화 저장이 켜져 있나(밴드 · 기구 이름 · 양손 무게를 받을 수 있나) — 선택 칸, 없으면 꺼짐으로 본다 */
+  loadStructured?: boolean;
   /** 보는 사람의 권한으로 가린 종류(교정 F05, lib/org/dto-scope.ts) — 비면 다 보임 */
   hidden?: HiddenKind[];
 };
@@ -198,6 +242,15 @@ export async function loadEventDetail(orgId: string, eventId: string): Promise<{
     return outingConflicts({ today, outings: [one], throwPlanToday: plan, calendarOutings: [] }).length ? `선수 일정과 달라요 — 오늘 체크인 '${plan}'` : null;
   };
   const planById = new Map(t.plans.map((p) => [p.id, p]));
+  /* EX-LOAD01 R1-03 — 처방 줄 운동의 계약(코치 화면의 kg 칸 · 글) + 쓰기 전 검사(지금 라이브러리 계약으로 — 실제 쓰기는 선수 판의 얼린 계약으로 다시 본다) */
+  const contracts = await libraryContracts(t.defaults.keys());
+  const loads = loadsOf(contracts);
+  const structured = loadStructured();
+  const loadIssueOf = (r: (typeof t.rows)[number]): LoadIssue | null => {
+    if (!r.w.writeTraining || r.w.work.length === 0) return null;
+    const p = prepareOrgWork(r.w.work, (id) => contracts.get(id) ?? null, (id) => names.get(id) ?? null, structured);
+    return p.ok ? null : { code: p.code, error: p.error, exerciseId: p.exerciseId, setIndex: p.setIndex };
+  };
   const members: EventMemberView[] = t.rows.map((r) => {
     const o = out.get(r.id);
     return {
@@ -217,6 +270,7 @@ export async function loadEventDetail(orgId: string, eventId: string): Promise<{
       selfSets: r.linkedSets,
       sameAsGroup: (r.exception?.items ?? []).filter((e) => planById.has(e.planId) && sameAsGroup(e, planById.get(e.planId)!, t.defaults)).map((e) => e.planId),
       fixes: fixes.filter((f) => f.memberId === r.id).map((f) => ({ id: f.id, body: f.body })),
+      loadIssue: loadIssueOf(r),
       outingNote: outingNoteOf(r.id, r.member?.userId ?? null),
       outing: o && isOutingRole(o.role) ? { role: o.role, pitchLimit: o.pitchLimit, status: o.status } : null,
     };
@@ -260,15 +314,18 @@ export async function loadEventDetail(orgId: string, eventId: string): Promise<{
         replacesPlanId: p.replacesPlanId,
         valueMode: p.valueMode,
         items: [...p.items],
-        lines: lineViews(p.items, names),
+        lines: lineViews(p.items, names, loads, contracts),
         actual,
-        actualLines: lineViews(actual, names),
+        actualLines: lineViews(actual, names, loads, contracts),
         actualSet: p.actualItems != null,
       };
     }),
     others,
     tags: [...new Set(members.filter((m) => !m.left).flatMap((m) => m.tags))].sort((a, b) => a.localeCompare(b, 'ko')),
     names: Object.fromEntries([...used].filter((id) => id && names.has(id)).map((id) => [id, names.get(id)!])),
+    loads: Object.fromEntries(loads),
+    contracts: Object.fromEntries(contracts),
+    loadStructured: structured,
   }, c.lens);
 }
 
@@ -556,6 +613,33 @@ async function knownLibrary() {
   return { exercises: new Set(ex.map((e) => e.id)), guides: new Set(gd.map((g) => g.id)) };
 }
 
+/**
+ * EX-LOAD01 R1-03 — 예외 줄의 kg 검사(받을 때) — 그 운동의 권위 있는 계약이 무게를 받지 않으면 kg 을 받지 않고 고칠 곳을 알린다(맨몸 · 밴드 · 확인 중에
+ * 새 kg 이 쌓이지 않게). 화면이 보낸 장비는 안 믿는다. 옛 앱이 kg 칸을 보여도 그 저장만 막고 까닭을 돌려준다(답 모양 그대로).
+ */
+async function lineLoadCheck(): Promise<LineLoadCheck> {
+  const ex = await allExercises();
+  const byId = new Map(ex.map((e) => [e.id, e]));
+  const cache = new Map<string, RecordingContract | null>();
+  const contractOf = (id: string) => {
+    if (!cache.has(id)) {
+      const row = byId.get(id);
+      cache.set(id, row ? contractOfLibrary(row) : null);
+    }
+    return cache.get(id) ?? null;
+  };
+  return {
+    massOf: (id) => {
+      const c = contractOf(id);
+      return c ? lineLoadOf(c).mass : null;
+    },
+    nameOf: (id) => byId.get(id)?.title ?? null,
+    /* 무게 기록 칸(밴드 · 섞인 무게 · 서로 다른 무게 · 기구 이름)은 운동 화면과 같은 정규화로 받을 때 먼저 본다 */
+    contractOf,
+    structured: loadStructured(),
+  };
+}
+
 /** 조 실제 — 활동 하나가 실제로 한 처방(무게는 조 공통으로 안 적는다). null 이면 계획으로 되돌림 */
 export async function saveActual(orgId: string, eventId: string, planId: string, items: unknown): Promise<{ ok: boolean; error?: string }> {
   const c = await coachOrgCan(orgId, 'training.recordForAthlete');
@@ -590,7 +674,7 @@ export async function saveMemberResult(orgId: string, eventId: string, memberId:
   if (!r.roster.includes(String(memberId))) return { ok: false, error: '이 훈련 명단의 선수가 아니에요.' };
   const mine = memberPlans(await readSessionPlans(r.event.id), r.roster, String(memberId));
   const o = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
-  const exception = cleanException(o.exception, mine.map((p) => p.id), await knownLibrary());
+  const exception = cleanException(o.exception, mine.map((p) => p.id), await knownLibrary(), await lineLoadCheck());
   if (exception && 'error' in exception) return { ok: false, error: exception.error };
   const values = cleanValues(o.values, mine.filter((p) => p.valueMode === 'individual').map((p) => p.id));
   if ('error' in values) return { ok: false, error: values.error };
@@ -671,7 +755,11 @@ async function settleCheck(event: SessionEvent & { confirmedById: string | null 
   if (answer !== 'link' && answer !== 'separate') return { ok: false, error: '팀 훈련이었는지 골라 주세요.' };
   if (!m.userId) return { ok: false, error: '앱 연결 전 선수예요.' };
   if (answer === 'link')
-    await prisma.userExerciseSet.updateMany({ where: { userId: m.userId, date: event.date, enteredById: null, orgEventId: null, exerciseId }, data: { orgEventId: event.id } });
+    {
+    const owner = m.userId;
+    /* 선수 기록의 일정 표시만 바꾼다(목표 연결 · 값은 그대로) — v2 를 켜면 같은 선수 잠금 안에서(EX-RX01 R2A) */
+    await withOwnerLock(owner, (tx) => tx.userExerciseSet.updateMany({ where: { userId: owner, date: event.date, enteredById: null, orgEventId: null, exerciseId }, data: { orgEventId: event.id } }));
+  }
   else {
     const row = await prisma.orgEventAttendee.findUnique({ where: { eventId_memberId: { eventId: event.id, memberId: m.id } }, select: { exception: true } });
     const e = readException(row?.exception) ?? { items: [], extra: [], separate: [] };
@@ -994,7 +1082,7 @@ export async function linkMyWork(memberId: string, eventId: string, since?: unkn
   const ids = session ? [] : await myMenuExercises(r.m.org.id, r.m.id, e);
   const from = !session && typeof since === 'number' && Number.isFinite(since) ? new Date(since) : null;
   if (!session && !ids.length && !from) return { ok: true, linked: 0 };
-  const res = await prisma.userExerciseSet.updateMany({
+  const res = await withOwnerLock(r.user.id, (tx) => tx.userExerciseSet.updateMany({
     where: {
       userId: r.user.id,
       date: e.date,
@@ -1005,7 +1093,7 @@ export async function linkMyWork(memberId: string, eventId: string, since?: unkn
       ...(from ? { recordedAt: { gte: from } } : {}),
     },
     data: { orgEventId: e.id },
-  });
+  }));
   if (res.count) await reapplyMine(e, r.m.id);
   return { ok: true, linked: res.count };
 }
@@ -1029,7 +1117,7 @@ export async function menuToToday(memberId: string, eventId: string): Promise<{ 
 export async function unlinkMyWork(memberId: string, eventId: string): Promise<{ ok: boolean; error?: string }> {
   const r = await myMember(memberId);
   if (!r) return { ok: false, error: '풀 수 없어요.' };
-  const res = await prisma.userExerciseSet.updateMany({ where: { userId: r.user.id, orgEventId: String(eventId), enteredById: null }, data: { orgEventId: null } });
+  const res = await withOwnerLock(r.user.id, (tx) => tx.userExerciseSet.updateMany({ where: { userId: r.user.id, orgEventId: String(eventId), enteredById: null }, data: { orgEventId: null } }));
   const e = res.count && r.m.status === 'ACTIVE' ? await myEventOf(r.m.org.id, r.m.id, eventId) : null;
   if (e) await reapplyMine(e, r.m.id);
   return { ok: true };

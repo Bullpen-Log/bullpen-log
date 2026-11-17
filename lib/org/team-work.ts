@@ -9,6 +9,7 @@
  * - 판에 붙인 코치 운동은 fromOrg 표시 — 세트가 다 지워지면 판에서도 뺀다. 코치 운동만 남은 'org' 판에 세트가 하나도 없으면 판째 지운다.
  */
 import type { FrozenExercise, FrozenPlan } from '@/lib/workout/session-plan';
+import type { RecordedLoad } from '@/lib/workout/load/recorded';
 
 export const ORG_THEME_KEY = 'org' as const;
 export const ORG_THEME_LABEL = '팀 · 레슨장 운동';
@@ -17,8 +18,69 @@ export const ORG_SET_BASE = 100;
 export const ORG_WORK_ITEMS_MAX = 20;
 export const ORG_WORK_SETS_MAX = 10;
 
-export type OrgSet = { weightKg: number | null; reps: number | null; holdSeconds: number | null };
+/**
+ * EX-LOAD01 R1-03 — 세트의 무게 기록 칸(선택). 새 화면이 밴드 · 섞인 무게 · 서로 다른 무게 · 기구 이름을 보낼 때 운동 화면의 세트와 같은 약속으로
+ * 싣는다(loadProtocol · loadResolver · load(RecordedLoad 모양) · variant). **칸이 없으면 옛 길**(kg 숫자만)이다 — 없음과 null 은 다르다.
+ * 거르는 곳은 모양만 보고 그대로 두고(지우지 않는다), 뜻은 쓰는 곳(lib/org/team-work-core.ts prepareOrgWork)이 권위 있는 계약으로 본다.
+ */
+export type OrgLoadFields = {
+  loadProtocol?: number;
+  loadResolver?: number;
+  load?: RecordedLoad | null;
+  variant?: 'band' | 'mass' | null;
+};
+export type OrgSet = { weightKg: number | null; reps: number | null; holdSeconds: number | null } & OrgLoadFields;
 export type OrgWorkItem = { exerciseId: string; sets: OrgSet[] };
+
+/** 무게 기록 칸 한 묶음의 JSON 크기 상한 — 밴드 셋 · 양손 무게 · 기구 이름이면 넉넉하다 */
+const LOAD_JSON_MAX = 4000;
+export const ORG_LOAD_SHAPE_ERROR = '무게 기록 형식이 올바르지 않아요. 앱을 업데이트한 뒤 다시 적어 주세요.';
+
+/**
+ * 들어온 줄 · 세트에서 무게 기록 칸만 꺼낸다 — 모양만 본다(숫자 · 객체 · 고른 변형). 칸이 없으면(undefined) 그대로 없음, 있으면 그대로 싣는다.
+ * 값이 받을 수 있는 것인지(밴드 단계 · 역할 · 기준 · 판)는 쓸 때 계약으로 본다(여기서 고치거나 바꾸지 않는다).
+ */
+export function readOrgLoadFields(o: Record<string, unknown>): OrgLoadFields | { error: string } {
+  const out: OrgLoadFields = {};
+  if (o.loadProtocol !== undefined) {
+    if (typeof o.loadProtocol !== 'number' || !Number.isFinite(o.loadProtocol)) return { error: ORG_LOAD_SHAPE_ERROR };
+    out.loadProtocol = o.loadProtocol;
+  }
+  if (o.loadResolver !== undefined) {
+    if (typeof o.loadResolver !== 'number' || !Number.isFinite(o.loadResolver)) return { error: ORG_LOAD_SHAPE_ERROR };
+    out.loadResolver = o.loadResolver;
+  }
+  if (o.load !== undefined) {
+    if (o.load !== null && (typeof o.load !== 'object' || Array.isArray(o.load) || typeof (o.load as { kind?: unknown }).kind !== 'string')) return { error: ORG_LOAD_SHAPE_ERROR };
+    let json: string;
+    try {
+      json = JSON.stringify(o.load);
+    } catch {
+      return { error: ORG_LOAD_SHAPE_ERROR };
+    }
+    if (json.length > LOAD_JSON_MAX) return { error: ORG_LOAD_SHAPE_ERROR };
+    /* JSON 으로 한 번 옮겨 담는다(저장 · 지문이 보낸 값과 같게, 함수 · 순환 같은 것은 못 들어온다) */
+    out.load = JSON.parse(json) as RecordedLoad | null;
+  }
+  if (o.variant !== undefined) {
+    if (o.variant !== null && o.variant !== 'band' && o.variant !== 'mass') return { error: ORG_LOAD_SHAPE_ERROR };
+    out.variant = o.variant;
+  }
+  return out;
+}
+
+/**
+ * 새 화면의 칸(load · variant · loadResolver)을 실었는데 약속 번호(loadProtocol)가 없다 — 옛 길로 읽으면 그 칸을 말없이 버리게 되므로(스키마
+ * 미적용의 옛 쓰기는 load 를 보지 않는다) 받지 않는다. 맞으면 null.
+ */
+export function orgLoadFieldsError(f: OrgLoadFields): string | null {
+  if (f.loadProtocol === undefined && (f.load !== undefined || f.variant !== undefined || f.loadResolver !== undefined)) return ORG_LOAD_SHAPE_ERROR;
+  return null;
+}
+
+/** 무게 기록 칸이 하나라도 있는가 */
+export const hasOrgLoadFields = (f: OrgLoadFields) =>
+  f.loadProtocol !== undefined || f.loadResolver !== undefined || f.load !== undefined || f.variant !== undefined;
 
 const num = (v: unknown, min: number, max: number, int: boolean): number | null => {
   const n = typeof v === 'number' ? v : v == null || v === '' ? NaN : Number(v);
@@ -34,12 +96,15 @@ export function cleanOrgWork(raw: unknown, known: ReadonlySet<string>): OrgWorkI
   for (const r of raw) {
     const o = (r && typeof r === 'object' ? r : {}) as Record<string, unknown>;
     if (typeof o.exerciseId !== 'string' || !known.has(o.exerciseId)) return { error: '없는 운동이 섞여 있어요. 다시 골라 주세요.' };
-    const sets = (Array.isArray(o.sets) ? o.sets : [])
-      .map((x) => {
-        const s = (x && typeof x === 'object' ? x : {}) as Record<string, unknown>;
-        return { weightKg: num(s.weightKg, 0.5, 500, false), reps: num(s.reps, 1, 200, true), holdSeconds: num(s.holdSeconds, 1, 600, true) };
-      })
-      .filter((s) => s.weightKg != null || s.reps != null || s.holdSeconds != null);
+    const sets: OrgSet[] = [];
+    for (const x of Array.isArray(o.sets) ? o.sets : []) {
+      const s = (x && typeof x === 'object' ? x : {}) as Record<string, unknown>;
+      /* EX-LOAD01 R1-03 — 무게 기록 칸은 지우지 않고 그대로(모양만 본다). 뜻은 쓸 때 계약으로 */
+      const lf = readOrgLoadFields(s);
+      if ('error' in lf) return lf;
+      const set: OrgSet = { weightKg: num(s.weightKg, 0.5, 500, false), reps: num(s.reps, 1, 200, true), holdSeconds: num(s.holdSeconds, 1, 600, true), ...lf };
+      if (set.weightKg != null || set.reps != null || set.holdSeconds != null || set.load != null) sets.push(set);
+    }
     const list = [...(out.get(o.exerciseId) ?? []), ...sets];
     if (list.length > ORG_WORK_SETS_MAX) return { error: `한 운동의 세트는 ${ORG_WORK_SETS_MAX}개까지예요.` };
     out.set(o.exerciseId, list);

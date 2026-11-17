@@ -1,4 +1,6 @@
 import 'server-only';
+import { historyKgReader } from '@/lib/workout/load/server';
+import { E1RM_ALLOWLIST } from '@/lib/workout/load/e1rm-allowlist';
 import { referenceThumbUrl } from '@/lib/reference-video';
 import { appNow } from '@/lib/clock';
 import { Prisma } from '@prisma/client';
@@ -252,6 +254,7 @@ export async function programHistory(
       exerciseId: { in: [...exerciseIds] },
     },
     select: {
+      id: true,
       sessionId: true,
       exerciseId: true,
       setNo: true,
@@ -261,12 +264,18 @@ export async function programHistory(
     },
     orderBy: { setNo: 'asc' },
   });
+  /*
+   * EX-LOAD01 — 다음 무게 추천의 기준은 지금 운동과 같은 뜻(견줌 열쇠)의 무게만(lib/workout/load/server.ts historyKgReader).
+   * 확인 전 · 맞지 않는 kg 과 기구 정체 없는 케이블 · 머신 설정값은 기준에서 빠진다(그 세트의 횟수 · RIR 은 그대로).
+   */
+  const kgOf = await historyKgReader(sets, 'metric');
+  const gatedSets = sets.map((x) => ({ ...x, weightKg: kgOf(x) }));
   for (const s of sessions) {
     const plan = readFrozenPlan(s.plan);
     if (!plan) continue;
     for (const ex of plan.exercises) {
       if (!exerciseIds.includes(ex.id) || !ex.programSlot) continue;
-      const mine = sets.filter((x) => x.sessionId === s.id && x.exerciseId === ex.id);
+      const mine = gatedSets.filter((x) => x.sessionId === s.id && x.exerciseId === ex.id);
       if (mine.length === 0) continue;
       const entry = historyEntry(keyOf(s.date) as string, ex, mine);
       const list = out.get(ex.id) ?? [];
@@ -302,11 +311,17 @@ export async function trainingMaxes(
         lt: today < after ? today : after,
       },
     },
-    select: { exerciseId: true, date: true, weightKg: true, reps: true, rir: true },
+    select: { id: true, sessionId: true, exerciseId: true, date: true, weightKg: true, reps: true, rir: true },
   });
+  /*
+   * EX-LOAD01 — 기준 무게(TM)는 추정 1RM 이라 검토한 허용 목록(lib/workout/load/e1rm-allowlist.ts)의 자유 중량 기록만으로 셈한다.
+   * 허용 목록 밖 운동을 % 방식 칸에 고정했으면 TM 이 없어 숫자 없이 안내한다(전달 문서의 출시 점검 항목).
+   */
+  const e1Of = await historyKgReader(sets, 'e1rm');
+  const gated = sets.map((s) => ({ ...s, weightKg: e1Of(s) }));
   for (const id of exerciseIds) {
     const tm = tmFromSets(
-      sets.filter((s) => s.exerciseId === id),
+      gated.filter((s) => s.exerciseId === id),
       startKey
     );
     if (tm != null) out.set(id, tm);
@@ -1142,11 +1157,13 @@ export async function programResult(
         const mine = (history.get(id) ?? [])
           .filter((e) => e.date >= startKey && !e.light)
           .sort((a, b) => (a.date < b.date ? -1 : 1));
+        /* EX-LOAD01 — 추정 1RM 은 검토한 허용 목록의 운동만 보인다(그 밖은 숫자 없이) */
+        const e1rm = E1RM_ALLOWLIST.has(id);
         return {
           label: variantLabel(v),
           title: byId.get(id) ?? '',
-          from: best(mine.slice(0, 6)),
-          to: best(mine.slice(-6)),
+          from: e1rm ? best(mine.slice(0, 6)) : null,
+          to: e1rm ? best(mine.slice(-6)) : null,
         };
       }),
   };

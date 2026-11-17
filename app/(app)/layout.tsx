@@ -253,7 +253,7 @@ export default async function AppLayout({
       <RefreshOnReturn />
 
       {/* 신호 없이 남겨 폰에 담긴 운동 세트를 어느 화면에서든 이어서 보낸다 */}
-      {!beta && <SendPendingSets />}
+      {!beta && <SendPendingSets ownerId={user.id} />}
       {isNative && !beta && <LibrarySync />}
 
       {/*

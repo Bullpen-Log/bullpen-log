@@ -1,0 +1,38 @@
+// EX-LOAD01 — migration.sql 과 짝인 Prisma 스키마 추가분(제안). **아직 prisma/schema.prisma 에 합치지 않았다.**
+// 합치는 때: migration.sql 을 prisma/migrations/ 로 옮기는 같은 커밋에서(README). 그 전에는 코드가 새 칸 · 표를 $queryRaw/$executeRaw 로만,
+// 그리고 WORKOUT_LOAD_SCHEMA=1 일 때만 다룬다(lib/workout/load/server.ts) — 생성된 클라이언트에 기대지 않는다.
+
+// model UserExerciseSet {
+//   ...
+//   /// 세트 무게 스냅샷(lib/workout/load/snapshot.ts). NULL = 스냅샷 없는 옛 줄
+//   load Json?
+// }
+
+// model ExerciseVideo {
+//   ...
+//   /// 관리자 뜻 설정(밴드 역할 · 같이/골라 쓰기 · 받침 · 무게 더한 변형 · 1RM)
+//   loadSemantics Json?
+// }
+
+model WorkoutLoadRecovery {
+  id              String   @id
+  ownerId         String
+  actorId         String
+  setId           String
+  sessionId       String
+  exerciseId      String
+  setNo           Int
+  clientSetId     String?
+  originalHash    String
+  originalPayload Json
+  /// LEGACY_UNSUPPORTED_LOAD · LEGACY_INVALID_LOAD · ORG_UNSUPPORTED_LOAD
+  reason          String
+  protocol        Int?
+  /// open | resolved | discarded — 저절로 지우지 않는다
+  state           String   @default("open")
+  createdAt       DateTime @default(now())
+
+  @@unique([ownerId, sessionId, exerciseId, setNo, originalHash], map: "WorkoutLoadRecovery_owner_set_hash_key")
+  @@index([ownerId, state])
+  @@index([setId])
+}

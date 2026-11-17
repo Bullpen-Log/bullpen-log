@@ -724,9 +724,13 @@ console.log(
   check("'org' 판을 다시 열면 새 판의 이름 · 프로그램 표시", reopened.themeKey === 'lower' && reopened.program?.key === '531' && reopened.themeLabel === '프로그램 · 2번 세션');
   check('코치 운동은 앞에 · 같은 운동은 한 번', reopened.exercises.map((e) => e.id).join() === 'sq,dl');
   check('선수 판 다시 열기는 예전 그대로(앞 판 이름 유지)', mergeReopened(daily, program).themeKey === 'lower' && mergeReopened(daily, program).themeLabel === '하체');
-  const store = src('lib/org/team-work-store.ts');
-  check('한 활동의 코치 세트는 통째로 지우고 다시 넣음', store.includes('deleteMany({ where: { sessionId: id, orgEventId: a.orgEventId, enteredById: { not: null } } })'));
-  check('세트를 바꾼 뒤 요약은 세트에서 다시 셈(summaryWrites)', store.includes('summaryWrites(a.userId'));
+  /* EX-LOAD01 R1-03 — 쓰기 핵심은 lib/org/team-work-core.ts(격리 시험이 같은 코드를 돈다) · 요약은 같은 거래 안 applySummaryTx(lib/workout/summary-core.ts) */
+  const core = src('lib/org/team-work-core.ts');
+  check('한 활동의 코치 세트는 통째로 지우고 다시 넣음', core.includes('deleteMany({ where: { sessionId: id, orgEventId: a.orgEventId, enteredById: { not: null } } })'));
+  check(
+    '세트를 바꾼 뒤 요약은 세트에서 다시 셈(같은 거래의 applySummaryTx)',
+    core.includes('await applySummaryTx(') && src('lib/workout/summary-core.ts').includes('summarizeSets(summaryRows)') && src('lib/org/team-work-store.ts').includes('writeOrgWorkCore(orgWorkDeps(), a)')
+  );
   check('프로그램이 org 판을 다른 운동 시작으로 안 봄', src('lib/program/load.ts').includes('!session.org && session.program?.key !== row.programKey'));
   check("저절로 닫기는 진행 중인 판만(마친 'org' 판은 안 건드림)", src('lib/workout/close-stale.ts').includes("status: 'ACTIVE', date: { lt: dayStart(now) }"));
 }
@@ -992,7 +996,7 @@ console.log(
     check('공유 바꿈 · 나감은 대표 · 코치에게(앱 · PC)', src('app/actions/app-org.ts').includes('님이 나갔어요') && src('app/actions/app-org.ts').includes('님이 보여 주는 기록을 바꿨어요') && src('app/actions/sharing.ts').includes('notifyCoaches(member.orgId'));
     check(
       '코치 세트 바꾸기는 선수 세트(일정에 이은 것)를 안 지움',
-      src('lib/org/team-work-store.ts').includes('deleteMany({ where: { sessionId: id, orgEventId: a.orgEventId, enteredById: { not: null } } })')
+      src('lib/org/team-work-core.ts').includes('deleteMany({ where: { sessionId: id, orgEventId: a.orgEventId, enteredById: { not: null } } })')
     );
     check(
       "'코치가 남긴 수행' · 팀 훈련 기록 카드는 코치 세트 · 팀 투구 줄만",

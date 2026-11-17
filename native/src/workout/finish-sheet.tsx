@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { formatSeconds } from '@/lib/exercise-meta';
+import { type Href, router } from 'expo-router';
 import { formatWeight, type WeightUnit } from '@/lib/units';
+import { describeSet, heldReasonOf } from '@/lib/workout/load/describe';
+import type { RecordingContract } from '@/lib/workout/load/contract';
 import { summarizeSets } from '@/lib/workout/summarize';
 import type { RunExercise } from '@/lib/workout/run-exercises';
 import type { Palette } from '~/lib/ui';
@@ -19,6 +21,9 @@ import { Sheet } from './sheets';
  *   - 그날 이미 남긴 강도 · 메모가 있으면 읽어 보인다. 손대지 않으면 다시 보내지 않는다(빈 메모로 덮지 않음).
  *   - 못 보낸 세트가 있으면 일반 마치기를 잠그고 무엇이 왜 남았는지 · 다시 보내기를 보인다. '이 세트 빼고 마치기'는 자세히 안에.
  *   - 마치는 중 · 결과 확인 중에는 입력을 잠그고 초안은 남긴다.
+ *   - EX-LOAD01-R1 — 세트 글은 원래 무게 기록 그대로(밴드 · 섞임 · 양손 다른 무게 · 기구 이름, lib/workout/load/describe.ts) — kg 숫자 하나로
+ *     줄이지 않는다. 받지 않는 운동의 옛 kg 은 '계산에서 뺐어요'로 따로. 못 보낸 세트가 붙들렸으면 그 까닭을 줄마다 보이고, 붙든 세트는
+ *     '보내는 중'으로 말하지 않는다(사람이 고치거나 버려야 한다 — 운동 화면 · 복구 화면).
  */
 export type FinishPhase = 'idle' | 'busy' | 'unknown' | 'checking';
 
@@ -88,7 +93,24 @@ export function FinishSheet({
   const memoNeedsIntensity = memo.trim() !== '' && intensity == null;
   const exerciseCount = summarizeSets(sets).length;
   const titleOf = new Map(exercises.map((e) => [e.id, e.title]));
+  const contractOf = new Map<string, RecordingContract>(exercises.map((e) => [e.id, e.load]));
+  const heldCount = pending.filter((p) => !!p.held).length;
+  /*
+   * EX-LOAD01-R1 — 보내는 중(보내기가 다음에 다시 보낸다)과 보류(held — 저장 확인이 없어 멈춘 것. 저절로 다시 보내지 않는다)를 가른다.
+   * 예전에는 보류한 세트까지 '서버로 가는 중'이라고 말했다(렌더 검토 D3).
+   */
+  const sendingCount = pending.length - heldCount;
+  /*
+   * 마치기는 이 판의 못 보낸 세트가 하나도 없을 때만(보류 포함 — GPT 완료 기준 결정). 보류한 원래 값을 두고 판을 닫으면 서버가 끝난 판이라
+   * 다시 받지 않는다. 보류는 못 보낸 기록에서 다시 보내거나 고치거나(확인 뒤) 버려야 풀린다.
+   */
   const canFinish = !locked && pending.length === 0 && !memoNeedsIntensity;
+  /* 복구 화면 — 다시 보내기 · 고치기 · 버리기(내 계정 줄만, 버리기는 한 번 묻는다). 운동 판 · 날짜는 바꾸지 않는다 */
+  const openRecovery = () => {
+    onClose();
+    router.push('/workout-recovery' as Href);
+  };
+  const line = (x: Parameters<typeof setText>[0]) => setText(x, unit, contractOf.get(x.exerciseId) ?? null);
 
   const footer = (
     <View style={{ gap: 8 }}>
@@ -134,7 +156,15 @@ export function FinishSheet({
           <Stat label="운동" value={`${exerciseCount}`} unit="개" c={c} />
         </View>
         {pending.length > 0 ? (
-          <Text style={[st.small, { color: c.muted }]}>세트 {pending.length}개는 아직 서버로 가는 중이라 이 수에 포함돼 있어요.</Text>
+          <Text style={[st.small, { color: c.muted }]}>
+            {[
+              sendingCount > 0 ? `세트 ${sendingCount}개는 아직 서버로 가는 중이에요.` : null,
+              heldCount > 0 ? `세트 ${heldCount}개는 저장 확인이 없어 보류돼 있어요.` : null,
+              '아직 저장되지 않은 세트도 이 수에 들어 있어요.',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+          </Text>
         ) : null}
         {sets.length > 0 ? (
           <Press accessibilityRole="button" accessibilityState={{ expanded: listOpen }} onPress={() => setListOpen((v) => !v)} style={st.fold}>
@@ -151,7 +181,7 @@ export function FinishSheet({
                 <View key={sum.exerciseId} style={[st.exRow, { borderTopColor: c.line }]}>
                   <Text style={[st.bodyBold, { color: c.ink }]}>{titleOf.get(sum.exerciseId) ?? '목록에서 뺀 운동'}</Text>
                   <Text style={[st.small, { color: c.muted }]}>
-                    {mine.map((x) => setText(x, unit)).join(' · ')}
+                    {mine.map(line).join(' · ')}
                   </Text>
                 </View>
               );
@@ -256,35 +286,71 @@ export function FinishSheet({
       {pending.length > 0 ? (
         <View style={[st.box, { backgroundColor: persistFailed ? c.danger + '14' : c.warnBg }]}>
           <Text style={[st.bodyBold, { color: c.ink }]}>
-            {persistFailed ? `세트 ${pending.length}개를 이 기기에 저장하지 못했어요` : `세트 ${pending.length}개가 아직 서버로 가지 않았어요`}
+            {persistFailed
+              ? `세트 ${pending.length}개를 이 기기에 저장하지 못했어요`
+              : sendingCount === 0
+                ? `세트 ${heldCount}개가 보류돼 있어요`
+                : heldCount > 0
+                  ? `세트 ${pending.length}개가 아직 저장되지 않았어요`
+                  : `세트 ${pending.length}개가 아직 서버로 가지 않았어요`}
           </Text>
           <Text style={[st.small, { color: c.muted }]}>
             {persistFailed
               ? '지금은 앱 메모리에만 있어요. 앱을 닫기 전에 다시 보내 주세요.'
-              : offline
-                ? '신호가 없어요. 신호가 잡히면 저절로 보내져요. 보내진 뒤에 마칠 수 있어요.'
-                : '보내는 중이에요. 끝나면 마칠 수 있어요.'}
+              : heldCount > 0
+                ? `${heldCount}개는 저장 확인이 없어 보류했어요. 저절로 다시 보내지 않아요. 자세히에서 까닭을 보고, 못 보낸 기록에서 다시 보내거나 고치거나 버리면 마칠 수 있어요.${
+                    sendingCount > 0 ? (offline ? ` 나머지 ${sendingCount}개는 신호가 잡히면 저절로 보내져요.` : ` 나머지 ${sendingCount}개는 보내는 중이에요.`) : ''
+                  }`
+                : offline
+                  ? '신호가 없어요. 신호가 잡히면 저절로 보내져요. 보내진 뒤에 마칠 수 있어요.'
+                  : '보내는 중이에요. 끝나면 마칠 수 있어요.'}
           </Text>
-          <Press accessibilityRole="button" disabled={locked} onPress={onRetrySend} style={st.inlineBtn}>
-            <Text style={[st.bodyBold, { color: c.link }]}>지금 다시 보내기</Text>
-          </Press>
+          {/* 다시 보내기는 보내는 중인 세트만 보낸다(보류는 건너뛴다) — 보류만 남았으면 이 단추 대신 복구 화면으로 */}
+          {sendingCount > 0 || persistFailed ? (
+            <Press accessibilityRole="button" disabled={locked} onPress={onRetrySend} style={st.inlineBtn}>
+              <Text style={[st.bodyBold, { color: c.link }]}>지금 다시 보내기</Text>
+            </Press>
+          ) : null}
+          {heldCount > 0 && !persistFailed ? (
+            <Press accessibilityRole="button" disabled={locked} onPress={openRecovery} style={st.inlineBtn}>
+              <Text style={[st.bodyBold, { color: c.link }]}>못 보낸 기록 보기</Text>
+            </Press>
+          ) : null}
           <Press accessibilityRole="button" accessibilityState={{ expanded: pendingOpen }} onPress={() => setPendingOpen((v) => !v)} style={st.fold}>
             <Text style={[st.small, { flex: 1, color: c.muted }]}>자세히</Text>
             <Icon name={pendingOpen ? 'chevron-up' : 'chevron-down'} size={14} color={c.muted} />
           </Press>
           {pendingOpen ? (
             <View style={{ gap: 6 }}>
-              {pending.map((p) => (
-                <Text key={`${p.exerciseId}-${p.setNo}`} style={[st.small, { color: c.ink }]}>
-                  {titleOf.get(p.exerciseId) ?? '운동'} · {p.setNo}번 세트 · {setText(p, unit)}
-                </Text>
-              ))}
-              <Text style={[st.small, { color: c.muted }]}>
-                계속 보내지지 않으면 이 세트를 빼고 마칠 수 있어요. 서버에 이미 들어간 세트인지 먼저 확인하고, 없는 것만 빼요.
-              </Text>
-              <Press accessibilityRole="button" disabled={locked} onPress={onExclude} style={st.inlineBtn}>
-                <Text style={[st.bodyBold, { color: c.danger }]}>이 세트 빼고 마치기</Text>
-              </Press>
+              {pending.map((p) => {
+                const reason = heldReasonOf(p.held);
+                return (
+                  <View key={`${p.exerciseId}-${p.setNo}`} style={{ gap: 2 }}>
+                    <Text style={[st.small, { color: c.ink }]}>
+                      {titleOf.get(p.exerciseId) ?? '운동'} · {p.setNo}번 세트 · {line(p)}
+                    </Text>
+                    {reason ? (
+                      <Text style={[st.small, { color: c.warn }]}>
+                        보류: {reason.title}
+                        {reason.message ? ` · ${reason.message}` : ''}
+                      </Text>
+                    ) : null}
+                  </View>
+                );
+              })}
+              {/* 빼고 마치기는 보내는 중인 세트만 — 보류한 세트는 여기서 빼거나 지우지 않는다(못 보낸 기록에서 하나씩 확인하고 버린다) */}
+              {sendingCount > 0 ? (
+                <>
+                  <Text style={[st.small, { color: c.muted }]}>
+                    {heldCount > 0
+                      ? `계속 보내지지 않으면 보내는 중인 세트 ${sendingCount}개는 뺄 수 있어요. 보류한 세트 ${heldCount}개는 빼지 않아요. 남아 있으면 마치지 않아요.`
+                      : `계속 보내지지 않으면 보내는 중인 세트 ${sendingCount}개를 빼고 마칠 수 있어요. 서버에 이미 들어간 세트인지 먼저 확인하고, 없는 것만 빼요.`}
+                  </Text>
+                  <Press accessibilityRole="button" disabled={locked} onPress={onExclude} style={st.inlineBtn}>
+                    <Text style={[st.bodyBold, { color: c.danger }]}>{heldCount > 0 ? '보내는 중인 세트 빼기' : '보내는 중인 세트 빼고 마치기'}</Text>
+                  </Press>
+                </>
+              ) : null}
             </View>
           ) : null}
         </View>
@@ -293,11 +359,13 @@ export function FinishSheet({
   );
 }
 
-function setText(x: { weightKg: number | null; reps: number | null; holdSeconds: number | null; rir?: number | null }, unit: WeightUnit) {
-  const w = x.weightKg != null ? `${formatWeight(x.weightKg, unit)} × ` : '';
-  const amount = x.holdSeconds != null ? formatSeconds(x.holdSeconds) : `${x.reps ?? '?'}회`;
-  const rir = x.rir != null ? ` · 여유 ${x.rir >= 4 ? '4+' : x.rir}` : '';
-  return `${w}${amount}${rir}`;
+/** 세트 한 줄 — 원래 무게 기록 그대로(밴드 · 섞임 · 양손 다른 무게 · 기구 이름) · 횟수 · 시간 · 여유(lib/workout/load/describe.ts) */
+function setText(
+  x: { exerciseId: string; weightKg: number | null; reps: number | null; holdSeconds: number | null; rir?: number | null; load?: unknown; variant?: unknown },
+  unit: WeightUnit,
+  contract: RecordingContract | null
+) {
+  return describeSet(x, { contract, fmtKg: (kg) => formatWeight(kg, unit) ?? `${kg}kg` });
 }
 
 function Stat({ label, value, unit, c }: { label: string; value: string; unit: string; c: Palette }) {

@@ -7,6 +7,9 @@ import { requireUser } from '@/lib/dal';
 import { toDateKey } from '@/lib/pitch-stats';
 import { validRecordDate } from '@/lib/workout/record-model';
 import { buildExerciseHistory, type ExerciseHistory } from '@/lib/workout/history';
+import { viewSetLoad } from '@/lib/workout/load/gate';
+import { currentContracts, readContextsFor, readSetLoads } from '@/lib/workout/load/server';
+import { resolveRecordingContract } from '@/lib/workout/load/contract';
 
 /**
  * 운동 하나의 지난 기록 — 운동별 기록 화면(components/exercise-history.tsx)이
@@ -61,6 +64,8 @@ export async function exerciseHistory(input: {
       },
       orderBy: [{ date: 'desc' }, { setNo: 'asc' }],
       select: {
+        id: true,
+        sessionId: true,
         date: true,
         setNo: true,
         weightKg: true,
@@ -92,12 +97,39 @@ export async function exerciseHistory(input: {
     }),
   ]);
 
+  /*
+   * EX-LOAD01 — 줄마다 읽기 관문(lib/workout/load/gate.ts)을 지난다. 견줌 열쇠(key) · 기구 이름(setup) · 서로 다른 무게 도구(parts)도
+   * 넘긴다 — 최고 · 1RM · 양은 같은 열쇠끼리만(buildExerciseHistory), 기구 이름 · 양손 무게는 그 세트에 보인다. 세트는 그 판에 얼린 계약 · 장비로, 요약 줄은 그날 판(있으면)으로,
+   * 판이 없으면 '확인 전'. 최고 · 총량 · 1RM 은 관문을 지난 값만, 화면의 kg 은 보일 값만 — 옛 화면도 같은 답(kind 는 예전 셋)을 받는다.
+   */
+  const logSessions = logs.length
+    ? await prisma.trainingSession.findMany({
+        where: { userId: user.id, date: { in: logs.map((l) => l.date) } },
+        select: { id: true, date: true },
+      })
+    : [];
+  const sessionOfDate = new Map(logSessions.map((x) => [toDateKey(x.date), x.id]));
+  const [ctxOf, structuredLoads, current] = await Promise.all([
+    readContextsFor([
+      ...sets.map((s) => ({ exerciseId, sessionId: s.sessionId })),
+      ...logSessions.map((x) => ({ exerciseId, sessionId: x.id })),
+    ]),
+    readSetLoads(sets.map((s) => s.id)),
+    currentContracts([exerciseId]),
+  ]);
+  const contract = current.get(exerciseId) ?? resolveRecordingContract({ equipment: [] });
+  const gatedSets = sets.map(({ id, sessionId, ...s }) => {
+    const v = viewSetLoad(ctxOf(exerciseId, sessionId), { weightKg: s.weightKg, snapshot: structuredLoads.get(id) ?? null });
+    return { ...s, date: toDateKey(s.date), weightKg: v.displayKg, metricKg: v.metricKg, e1rmKg: v.e1rmKg, loadStatus: v.status, rawKg: v.rawKg, band: v.band, key: v.key, setup: v.setup, parts: v.parts };
+  });
+  const gatedLogs = logs.map((l) => {
+    const key = toDateKey(l.date);
+    const v = viewSetLoad(ctxOf(exerciseId, sessionOfDate.get(key) ?? null), { weightKg: l.weightKg });
+    return { ...l, date: key, weightKg: v.displayKg, metricKg: v.metricKg, e1rmKg: v.e1rmKg, loadStatus: v.status, rawKg: v.rawKg, key: v.key };
+  });
+
   return {
-    history: buildExerciseHistory(
-      sets.map((s) => ({ ...s, date: toDateKey(s.date) })),
-      logs.map((l) => ({ ...l, date: toDateKey(l.date) })),
-      todayKey
-    ),
+    history: buildExerciseHistory(gatedSets, gatedLogs, todayKey, contract),
     note: note?.body ?? null,
   };
 }

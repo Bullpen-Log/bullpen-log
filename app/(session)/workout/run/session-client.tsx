@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { unstable_rethrow, useRouter } from 'next/navigation';
 import {
+  AlertTriangle,
   ArrowLeftRight,
   ChartLine,
   Check,
@@ -24,6 +25,7 @@ import {
   Plus,
   RotateCcw,
   Star,
+  Target,
   Timer,
   Trash2,
   X,
@@ -47,7 +49,33 @@ import { ExerciseNote } from './exercise-note';
 import { ExerciseSheet } from './exercise-sheet';
 import { FinishSheet } from './finish-sheet';
 import { SwapSheet } from './swap-sheet';
-import { drainOutbox, outbox, withPending, type ShownSet } from '@/lib/workout/outbox';
+import { TargetSheet } from './target-sheet';
+import { loadTargetText, pickLoadDraftSource, seedOfLoadTarget } from '@/lib/workout/load/target';
+import { outbox, withPending, type ShownSet } from '@/lib/workout/outbox';
+import { BandChip, BandSheet, SetupSheet } from '@/components/load/band-picker';
+import {
+  EMPTY_LOAD_DRAFT,
+  activeContract,
+  buildSetLoad,
+  checkSetLoad,
+  contractOfExercise,
+  fixedBandRole,
+  loadForm,
+  loadLine,
+  recallBands,
+  recallRole,
+  recallSetup,
+  rememberBands,
+  rememberRole,
+  rememberSetup,
+  startsWithWeight,
+  type BuildResult,
+} from '@/components/load/set-load';
+import { drainSets, withOwner } from '@/components/load/set-outbox';
+import { acceptsMass } from '@/lib/workout/load/contract';
+import { LOAD_PROTOCOL, type LoadCapability } from '@/lib/workout/load/protocol';
+import type { BandComponent } from '@/lib/workout/load/band-catalog';
+import type { BandRoleRecorded } from '@/lib/workout/load/recorded';
 import { placeExercise } from '@/lib/workout/swap';
 import { REST_CLOCK_LIMIT_SECONDS, restSeconds } from '@/lib/workout/rest';
 import {
@@ -62,6 +90,7 @@ import {
 import {
   AMOUNT_LIMITS,
   WEIGHT_STEP,
+  equipmentDisplayName,
   formatSeconds,
   storedKg,
 } from '@/lib/exercise-meta';
@@ -74,6 +103,7 @@ import {
   warmupLine,
 } from '@/lib/program/program';
 import { UNIT_KG, UNIT_LB, roundForDisplay, weightKindOf } from '@/lib/program/next-weight';
+import { displayKg } from '@/lib/workout/target-override';
 
 /**
  * 운동하는 동안의 화면.
@@ -163,7 +193,15 @@ const NO_INPUT_CATEGORIES = new Set(['모빌리티', '워밍업']);
  * 입력 없이 남기는 세트의 양 — 처방 글('2세트 × 30초', '10회 · 한쪽씩')의 마지막 회 · 초 숫자. 못 읽으면 1.
  * 시간형은 초로, 회는 회로(서버가 isHold 로 가른다).
  */
-function plannedAmount(ex: { prescription: string | null; isHold: boolean }): number {
+function plannedAmount(ex: {
+  prescription: string | null;
+  isHold: boolean;
+  plannedReps?: number | null;
+  plannedHoldSeconds?: number | null;
+}): number {
+  /* 숫자로 실려 오면 그것(EX-RX01 — 내 목표 · 추천). 처방 글을 읽으면 '휴식 1분 30초'의 30을 횟수로 잘못 읽을 수 있었다 */
+  const known = ex.isHold ? ex.plannedHoldSeconds : ex.plannedReps;
+  if (known != null && known > 0) return known;
   const m = [...(ex.prescription ?? '').matchAll(/(\d+)\s*(회|초|분)/g)].pop();
   if (!m) return 1;
   const n = Number(m[1]);
@@ -175,6 +213,30 @@ function clockText(seconds: number) {
   const s = seconds % 60;
   return `${m}:${String(s).padStart(2, '0')}`;
 }
+
+/** 숫자판으로 받는 칸 — 무게 · 횟수(시간), 양손 무게가 다르면 왼손 · 오른손(EX-LOAD01) */
+type PadField = 'weight' | 'count' | 'left' | 'right';
+
+/**
+ * 무게 기록(EX-LOAD01)의 화면 값 — 고치기를 시작할 때 들고 있다가 마치면 되돌린다. 다음 세트에 쓸 밴드(목표)와 이미 남긴
+ * 세트의 밴드(실제)는 따로다 — 이것을 바꿔도 남긴 세트는 그대로다(세트마다 제 밴드를 들고 대기열 · 서버에 있다).
+ */
+type LoadUi = {
+  variant: 'band' | 'mass' | null;
+  role: BandRoleRecorded | null;
+  bands: BandComponent[];
+  setupLabel: string;
+  unequal: boolean;
+  left: string;
+  right: string;
+};
+
+/** 밴드 줄의 역할 이름 */
+const BAND_ROLE_TEXT: Record<BandRoleRecorded, string> = {
+  resistance: '저항 밴드',
+  assistance: '보조 밴드',
+  unknown: '밴드 · 역할 모름',
+};
 
 /** 지금 보던 운동을 이 판 번호로 적어 두는 곳(sessionStorage) — 아래 at 설명 */
 const atKey = (sessionId: string) => `bullpen-workout-at:${sessionId}`;
@@ -315,6 +377,9 @@ export function SessionClient({
   openedAt,
   priorSeconds,
   programDay = null,
+  painToday = false,
+  loadCapability,
+  ownerId = null,
 }: {
   /** 이 판의 번호. 폰에 담아 두는 세트가 다른 판으로 새지 않게 붙여 둔다. */
   sessionId: string;
@@ -327,6 +392,17 @@ export function SessionClient({
   openedAt: string;
   /** 다시 연 판이면 앞서 마친 구간들의 운동 시간(초). 처음이면 0. */
   priorSeconds: number;
+  /** 이 판 날짜의 체크인에 통증이 있는가 — 목표 바꾸기 창이 올리지 못하게 미리 알린다(서버도 막는다) */
+  painToday?: boolean;
+  /**
+   * EX-LOAD01 — 서버의 무게 기록 약속(lib/workout/load/protocol.ts). structured 가 아니면(스키마 적용 전 · 옛 서버) 밴드 · 양손 다른
+   * 무게 · 기구 이름은 저장할 수 없어 칸 대신 안내를 낸다(무게 · 횟수 · 시간은 그대로).
+   */
+  loadCapability?: LoadCapability;
+  /**
+   * 지금 계정 — 담는 세트에 붙여, 계정을 바꿔도 다른 계정의 세트를 보내거나 지우지 않게 한다(components/load/set-outbox.ts).
+   */
+  ownerId?: string | null;
 }) {
   const router = useRouter();
   /* 서버에 저장이 끝난 세트. 서버가 돌려준 것만 넣는다. */
@@ -349,6 +425,9 @@ export function SessionClient({
   );
   /* 같은 세트가 양쪽에 있으면 폰 쪽이 이긴다 — 고친 값이 신호 없이도 보인다 */
   const sets = useMemo(() => withPending(saved, pending), [saved, pending]);
+  /* EX-LOAD01 — 붙들린 세트(보내지 않고 사람을 기다린다)와 보낼 차례인 세트를 나눠 알린다 */
+  const heldSets = useMemo(() => pending.filter((p) => p.held), [pending]);
+  const queuedCount = pending.length - heldSets.length;
   /** 마지막으로 보내려다 신호가 없어 멈췄는가 — 알림 문구가 달라진다 */
   const [offline, setOffline] = useState(false);
   /*
@@ -391,6 +470,9 @@ export function SessionClient({
   /* 닫힌 뒤에도 잠시 붙들어 시트가 내려가는 움직임을 보인다(components/modal.tsx useLinger) */
   const sheetShown = useLinger(sheet);
   const swapShown = useLinger(swap);
+  /* 목표 바꾸기 창(target-sheet.tsx, EX-RX01) */
+  const [targetOpen, setTargetOpen] = useState(false);
+  const targetShown = useLinger(targetOpen);
   /*
    * 종료 요약.
    *
@@ -426,10 +508,27 @@ export function SessionClient({
   const wUnit = useSyncExternalStore(subscribeUnits, readWeightUnit, serverWeightUnit);
   const [weight, setWeight] = useState('');
   const [count, setCount] = useState('');
-  const [field, setField] = useState<'weight' | 'count'>(
-    exercises[0].needsWeight ? 'weight' : 'count'
+  /* 첫 칸 — 꼭 적어야 하는 무게가 있는 운동만 무게부터(EX-LOAD01 — 장비 기록 계약이 정한다) */
+  const [field, setField] = useState<PadField>(
+    startsWithWeight(contractOfExercise(exercises[0])) ? 'weight' : 'count'
   );
   const [error, setError] = useState<string | null>(null);
+  /*
+   * EX-LOAD01 — 무게 기록의 화면 값. 무엇을 낼지는 운동의 기록 계약(ex.load)과 서버 약속(loadCapability)만 본다
+   * (components/load/set-load.ts loadForm). 다음 세트에 쓸 밴드 · 기구 이름은 이 기기에 운동마다 기억해 두고 꺼낸다.
+   */
+  const structured = loadCapability?.structured === true;
+  const [variant, setVariant] = useState<'band' | 'mass' | null>(null);
+  const [bandRole, setBandRole] = useState<BandRoleRecorded | null>(null);
+  const [bands, setBands] = useState<BandComponent[]>([]);
+  const [setupLabel, setSetupLabel] = useState('');
+  const [unequal, setUnequal] = useState(false);
+  const [leftW, setLeftW] = useState('');
+  const [rightW, setRightW] = useState('');
+  const [bandOpen, setBandOpen] = useState(false);
+  const bandShown = useLinger(bandOpen);
+  const [setupOpen, setSetupOpen] = useState(false);
+  const setupShown = useLinger(setupOpen);
   /*
    * 고치는 중인 세트.
    *
@@ -448,7 +547,7 @@ export function SessionClient({
   const [editing, setEditing] = useState<{
     setNo: number;
     recordedAt: string;
-    draft: { weight: string; count: string; field: 'weight' | 'count' };
+    draft: { weight: string; count: string; field: PadField; load: LoadUi };
   } | null>(null);
   /*
    * 자세 설명을 펼쳐 둘지.
@@ -481,10 +580,56 @@ export function SessionClient({
     if (i <= 0) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 폰에 적어 둔 자리를 한 번 되찾는다(맞추기 뒤라 효과에서)
     setAt(i);
-    setField(exercises[i].needsWeight ? 'weight' : 'count');
+    setField(startsWithWeight(contractOfExercise(exercises[i])) ? 'weight' : 'count');
   }, [sessionId, exercises]);
 
   const ex = list[at];
+  /* EX-LOAD01 — 이 운동의 기록 계약과 지금 낼 입력 칸(무게 · 밴드 · 기구 이름 · 양손) */
+  const contract = contractOfExercise(ex);
+  const form = loadForm(contract, variant, structured, equipmentDisplayName);
+  const act = activeContract(contract, variant);
+  const massOk = !!act && acceptsMass(act);
+
+  /*
+   * 운동을 볼 때 이 기기에 적어 둔 지난 밴드 · 역할 · 기구 이름을 한 번 꺼낸다 — 같은 운동 · 같은 역할일 때만(set-load.ts recallBands).
+   * 서버 그림과 맞춘 뒤라 효과에서(localStorage 는 서버에 없다). goTo 는 옮기는 그 자리에서 먼저 꺼내고 이 표시를 남긴다.
+   */
+  const recalledFor = useRef<string | null>(null);
+  /*
+   * EX-LOAD01-R1 — 사람이 이 운동의 다음 세트 장비 칸(변형 · 밴드 · 역할 · 기구 이름 · 양손 무게)을 건드렸나. 건드리지 않은 칸만 내 장비 목표로
+   * 채운다(lib/workout/load/target.ts pickLoadDraftSource — 고치던 칸 > 목표 > 기기 기억). 운동을 옮기면 새로 센다.
+   */
+  const [loadTouchedFor, setLoadTouchedFor] = useState<string | null>(null);
+  const loadTouched = loadTouchedFor === ex.id;
+  const touchLoad = () => {
+    if (editing == null && loadTouchedFor !== ex.id) setLoadTouchedFor(ex.id);
+  };
+  useEffect(() => {
+    if (recalledFor.current === ex.id) return;
+    recalledFor.current = ex.id;
+    const c = contractOfExercise(ex);
+    const fixed = fixedBandRole(c);
+    /* 맞는 장비 목표가 있으면 그것이 기기 기억보다 먼저다(기억이 목표를 덮지 않는다) */
+    const seed = ex.targetLoad ? seedOfLoadTarget(ex.targetLoad) : null;
+    const src = pickLoadDraftSource({ touched: loadTouched, target: !!seed, memory: true, previous: false });
+    if (src === 'draft') return;
+    if (src === 'target' && seed) {
+      const shown = (kg: number | null) => (kg == null ? '' : String(round1(toWeight(kg, wUnit))));
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 운동을 처음 볼 때 한 번(recalledFor) 목표로 칸을 채운다(기억 꺼내기와 같은 자리)
+      setVariant(seed.variant);
+      setBandRole(fixed ? null : seed.role);
+      setBands(seed.bands);
+      setSetupLabel(seed.setupLabel);
+      setUnequal(seed.unequal);
+      setLeftW(shown(seed.leftKg));
+      setRightW(shown(seed.rightKg));
+      return;
+    }
+    const role = fixed ? null : recallRole(ownerId, ex.id);
+    setBandRole(role);
+    setBands(recallBands(ownerId, ex.id, fixed ?? role));
+    setSetupLabel(recallSetup(ownerId, ex.id));
+  }, [ex, ownerId, wUnit, loadTouched]);
   useEffect(() => {
     try {
       sessionStorage.setItem(atKey(sessionId), ex.id);
@@ -505,7 +650,9 @@ export function SessionClient({
   /* 프로그램 % 방식 — 이번에 할 세트의 목표(5/3/1 의 65 · 75 · 85%+ 처럼 세트마다 다르다). 고치는 중이면 그 세트 */
   const targetIndex = editIndex >= 0 ? editIndex : mine.length;
   const target = ex.setTargets?.[targetIndex] ?? null;
-  const suggestKg = ex.setTargets ? (target?.kg ?? null) : ex.suggestedKg;
+  /* 내가 정한 목표 무게가 있으면 그것이 먼저(EX-RX01) — 추천은 그대로 두고 '목표 담기'로 보인다 */
+  const suggestKg = ex.targetKg ?? (ex.setTargets ? (target?.kg ?? null) : ex.suggestedKg);
+  const suggestIsMine = ex.targetKg != null;
 
   /*
    * 마지막으로 남긴 세트 — 운동과 상관없이 하나. 쉰 시간은 그때부터다.
@@ -590,21 +737,27 @@ export function SessionClient({
    *
    * 서버가 거절한 것(이미 마친 판, 잘못된 값)은 다시 보내도 안 되므로 빼고
    * 알린다. 신호가 없어 못 보낸 것은 그대로 두고 멈춘다 — 다음 기회에 보낸다.
+   *
+   * EX-LOAD01 — 고쳐야 하는 거절(actionRequired) · 옛 서버가 밴드를 모르고 지나친 답 · 계정을 모르는 줄의 '이 계정의 판이 아님'은
+   * 빼지 않고 붙들어 그 세트 줄에 보인다(고치기 · 버리기). 다른 계정이 담은 줄은 보내지 않는다(components/load/set-outbox.ts).
    */
   const flush = useCallback(async () => {
-    const outcome = await drainOutbox(
+    const outcome = await drainSets({
+      owner: ownerId,
       sessionId,
-      logSet,
-      (_sent, res) => {
+      send: logSet,
+      handle: (_sent, res) => {
+        /* 붙들기 · 빼기는 drainSets(outcomeOf)가 정한다 — 여기서는 화면만. 모양이 틀린 답은 건드리지 않는다(그 줄은 붙들린다) */
+        if (!res || typeof res !== 'object') return;
         if ('error' in res) setError(res.error);
-        else setSaved(res.sets);
+        else if (Array.isArray(res.sets)) setSaved(res.sets);
       },
       /* 화면 이동 같은 Next.js 자체 신호는 잡지 않고 그대로 넘긴다 */
-      unstable_rethrow
-    );
+      rethrow: unstable_rethrow,
+    });
     if (outcome === 'offline') setOffline(true);
     else if (outcome === 'done') setOffline(false);
-  }, [sessionId]);
+  }, [sessionId, ownerId]);
 
   /*
    * 다시 보내는 때: 신호가 돌아왔을 때, 앱으로 돌아왔을 때, 그리고 15초마다.
@@ -639,7 +792,33 @@ export function SessionClient({
     setAt(i);
     setWeight('');
     setCount('');
-    setField(from[i].needsWeight ? 'weight' : 'count');
+    /* EX-LOAD01 — 무게 기록 칸도 새 운동의 것으로. 지난 밴드 · 기구 이름은 이 기기에 적어 둔 것(같은 운동 · 같은 역할)만 */
+    const c = contractOfExercise(from[i]);
+    const fixed = fixedBandRole(c);
+    /* EX-LOAD01-R1 — 새 운동의 칸은 아직 안 건드렸다: 내 장비 목표가 있으면 그것으로, 없으면 이 기기의 지난 고름 */
+    setLoadTouchedFor(null);
+    const seed = from[i].targetLoad ? seedOfLoadTarget(from[i].targetLoad!) : null;
+    if (seed) {
+      const shown = (kg: number | null) => (kg == null ? '' : String(round1(toWeight(kg, wUnit))));
+      setVariant(seed.variant);
+      setBandRole(fixed ? null : seed.role);
+      setBands(seed.bands);
+      setSetupLabel(seed.setupLabel);
+      setUnequal(seed.unequal);
+      setLeftW(shown(seed.leftKg));
+      setRightW(shown(seed.rightKg));
+    } else {
+      const role = fixed ? null : recallRole(ownerId, from[i].id);
+      setVariant(null);
+      setBandRole(role);
+      setBands(recallBands(ownerId, from[i].id, fixed ?? role));
+      setSetupLabel(recallSetup(ownerId, from[i].id));
+      setUnequal(false);
+      setLeftW('');
+      setRightW('');
+    }
+    recalledFor.current = from[i].id;
+    setField(startsWithWeight(c) ? 'weight' : 'count');
     setPad(false);
     setError(null);
     /* 고치던 세트는 앞 운동의 것이다 — 칸을 어차피 비우므로 되돌릴 것도 없다 */
@@ -693,6 +872,30 @@ export function SessionClient({
    * (lib/workout/swap.ts 의 placeExercise). 바꿨으면 그 자리에서, 더했으면 더한
    * 운동으로 넘어간다 — 지금 하려던 것이 그것이다.
    */
+  /** 목표를 바꿨다 · 되돌렸다 — 서버가 돌려준 운동 하나로 그 자리만 갈아 끼운다(남긴 세트 · 순서는 그대로) */
+  const applyTarget = (next: RunExercise) => {
+    setTargetOpen(false);
+    setList((prev) => prev.map((e) => (e.id === next.id ? next : e)));
+    /*
+     * EX-LOAD01-R1 — 새로 정한 장비 목표는 아직 손대지 않은 다음 세트 칸만 채운다. 고치던 칸 · 고치는 세트 · 이미 남긴 세트는 그대로다.
+     * 목표를 지웠으면 칸은 그대로 둔다(지운다고 사람이 고른 것을 비우지 않는다).
+     */
+    if (next.id === ex.id && editing == null && next.targetLoad) {
+      const src = pickLoadDraftSource({ touched: loadTouched, target: true, memory: true, previous: false });
+      if (src === 'target') {
+        const seed = seedOfLoadTarget(next.targetLoad);
+        const shown = (kg: number | null) => (kg == null ? '' : String(round1(toWeight(kg, wUnit))));
+        setVariant(seed.variant);
+        setBandRole(fixedBandRole(contractOfExercise(next)) ? null : seed.role);
+        setBands(seed.bands);
+        setSetupLabel(seed.setupLabel);
+        setUnequal(seed.unequal);
+        setLeftW(shown(seed.leftKg));
+        setRightW(shown(seed.rightKg));
+      }
+    }
+  };
+
   const applySwap = (added: RunExercise, mode: 'replace' | 'add') => {
     setSwap(false);
     const next = placeExercise(list, ex.id, added, mode);
@@ -739,12 +942,33 @@ export function SessionClient({
     });
   };
 
+  /** 지금 무게 기록 칸의 값(고치기 전에 들고 있다가 되돌린다) */
+  const loadUi = (): LoadUi => ({
+    variant,
+    role: bandRole,
+    bands,
+    setupLabel,
+    unequal,
+    left: leftW,
+    right: rightW,
+  });
+  const applyLoadUi = (l: LoadUi) => {
+    setVariant(l.variant);
+    setBandRole(l.role);
+    setBands(l.bands);
+    setSetupLabel(l.setupLabel);
+    setUnequal(l.unequal);
+    setLeftW(l.left);
+    setRightW(l.right);
+  };
+
   /** 고치기를 마치거나 그만둔다 — 누르기 전에 넣고 있던 값을 되돌려 놓는다. */
   const endEdit = () => {
     if (!editing) return;
     setWeight(editing.draft.weight);
     setCount(editing.draft.count);
     setField(editing.draft.field);
+    applyLoadUi(editing.draft.load);
     setEditing(null);
   };
 
@@ -759,12 +983,35 @@ export function SessionClient({
       setNo: target.setNo,
       recordedAt: target.recordedAt,
       /* 다른 세트를 고치다 넘어왔으면 맨 처음 넣고 있던 값을 그대로 들고 간다 */
-      draft: editing?.draft ?? { weight, count, field },
+      draft: editing?.draft ?? { weight, count, field, load: loadUi() },
     });
     /* 저장은 kg 이다 — 보여줄 때는 고른 단위로 (fillLast 와 같다) */
     setWeight(
       target.weightKg != null ? String(round1(toWeight(target.weightKg, wUnit))) : ''
     );
+    /*
+     * EX-LOAD01 — 그 세트에 남긴 무게 기록(밴드 · 양손 무게 · 기구 이름 · 고른 변형)을 칸에 채운다. 이 세트를 고치는 동안만이고,
+     * 마치거나 그만두면 다음 세트에 쓰던 값으로 돌아간다(endEdit).
+     */
+    const l = target.load ?? null;
+    const shown = (kg: number) => String(round1(toWeight(kg, wUnit)));
+    const m = l?.kind === 'mass' ? l : l?.kind === 'combined' ? l.mass : null;
+    const b = l?.kind === 'band' ? l : l?.kind === 'combined' ? l.band : null;
+    const left = m?.parts?.find((p) => p.side === 'left') ?? null;
+    const right = m?.parts?.find((p) => p.side === 'right') ?? null;
+    applyLoadUi({
+      variant:
+        contract.mode === 'alternative'
+          ? (target.variant ?? (b ? 'band' : target.weightKg != null ? 'mass' : null))
+          : null,
+      /* 그 세트에 밴드 기록이 없으면 비워 둔다 — 다음 세트에 쓰던 밴드를 지난 세트에 덮어씌우지 않는다 */
+      role: fixedBandRole(contract) ? null : (b?.role ?? null),
+      bands: b ? [...b.bands] : [],
+      setupLabel: m?.setup?.label ?? '',
+      unequal: !!(left && right),
+      left: left ? shown(left.kg) : '',
+      right: right ? shown(right.kg) : '',
+    });
     const raw = ex.isHold ? target.holdSeconds : target.reps;
     /* 분으로 받는 운동도 초로 남아 있다 — 분으로 바꿔 담는다 */
     const n = raw != null && ex.inMinutes ? Math.round(raw / 60) : raw;
@@ -793,16 +1040,36 @@ export function SessionClient({
      * 소수 둘째 자리까지 남긴다(storedKg). 첫째 자리로 자르면 135lb 가
      * 61.2kg 이 되고, 되돌리면 134.9lb 가 된다 — 적은 적 없는 숫자다.
      */
-    const w = noInput
-      ? null
-      : weight === ''
-        ? null
-        : storedKg(fromWeight(Number(weight), wUnit));
+    const kgOf = (v: string) => (v === '' ? null : storedKg(fromWeight(Number(v), wUnit)));
+    /* EX-LOAD01 — 이 운동(고른 변형)이 kg 을 받지 않으면 kg 은 보내지 않는다(칸도 없다 — 맨몸 · 받침 · 밴드 · 확인 중) */
+    const w = noInput || form.kg === 'none' ? null : kgOf(weight);
+    const leftKg = form.split && unequal ? kgOf(leftW) : null;
+    const rightKg = form.split && unequal ? kgOf(rightW) : null;
     const c = noInput ? plannedAmount(ex) : count === '' ? null : Number(count);
 
-    if (!noInput && ex.needsWeight && (w == null || w <= 0)) {
-      setError('무게를 적어 주세요.');
-      setField('weight');
+    /* 고치는 중이면 그 세트의 번호와 마친 시각을 그대로 쓴다 (editing 설명 참고) */
+    const fixing = editIndex >= 0 ? editing : null;
+
+    /*
+     * EX-LOAD01 — 무게 기록을 장비 기록 계약대로 꾸린다(components/load/set-load.ts buildSetLoad). 무게만인 세트는 weightKg 만
+     * 싣고(load 칸 없음), 밴드 · 섞인 무게 · 양손 다른 무게 · 기구 이름은 서버가 저장할 수 있을 때만 싣는다. 꼭 적어야 하는 무게
+     * (바벨 · 덤벨)는 계약의 massRequired 로 본다.
+     */
+    const built: BuildResult = noInput
+      ? contract.mode === 'alternative' && !variant
+        ? { ok: false, error: '밴드로 했는지 무게로 했는지 골라 주세요.', field: 'variant' }
+        : { ok: true, weightKg: null, ...(contract.mode === 'alternative' && variant ? { variant } : {}) }
+      : buildSetLoad({
+          contract,
+          structured,
+          weightKg: w,
+          draft: { ...EMPTY_LOAD_DRAFT, variant, role: bandRole, bands, setupLabel, unequal, leftKg, rightKg },
+          editing: !!fixing,
+        });
+    if (!built.ok) {
+      setError(built.error);
+      if (built.field === 'weight') setField('weight');
+      else if (built.field === 'split') setField(leftKg == null ? 'left' : 'right');
       return;
     }
     if (c == null || c <= 0) {
@@ -828,16 +1095,22 @@ export function SessionClient({
       setField('count');
       return;
     }
-    if (w != null && w > AMOUNT_LIMITS.weightKg) {
+    const overKg = ([['weight', w], ['left', leftKg], ['right', rightKg]] as const).find(
+      ([, kg]) => kg != null && kg > AMOUNT_LIMITS.weightKg
+    );
+    if (overKg) {
       setError(
         `무게는 ${formatWeight(AMOUNT_LIMITS.weightKg, wUnit)}까지 적을 수 있어요.`
       );
-      setField('weight');
+      setField(overKg[0]);
       return;
     }
-
-    /* 고치는 중이면 그 세트의 번호와 마친 시각을 그대로 쓴다 (editing 설명 참고) */
-    const fixing = editIndex >= 0 ? editing : null;
+    /* 서버와 같은 정규화로 먼저 거른다 — 서버가 받지 않을 세트는 담지 않고 여기서 알린다(새 앱 규칙, EX-LOAD01) */
+    const problem = checkSetLoad(contract, structured, built);
+    if (problem) {
+      setError(problem);
+      return;
+    }
 
     /*
      * 새 세트의 번호는 여기서 정한다. 폰에만 있는 세트까지 세어야 번호가 안
@@ -851,9 +1124,12 @@ export function SessionClient({
 
     const entry = {
       setNo,
-      weightKg: w,
+      weightKg: built.weightKg,
       reps: ex.isHold ? null : c,
       holdSeconds: ex.isHold ? (ex.inMinutes ? c * 60 : c) : null,
+      /* 구조화한 무게(밴드 · 섞임 · 양손 · 기구 이름)만 load 칸에. 무게만인 세트는 칸이 없다(옛 서버도 그대로 받는다) */
+      ...(built.load !== undefined ? { load: built.load, loadResolver: built.loadResolver } : {}),
+      ...(built.variant ? { variant: built.variant } : {}),
     };
 
     /*
@@ -875,13 +1151,31 @@ export function SessionClient({
     if (beatNow) haptic('success');
     else buzz(12);
 
-    /* 폰에 먼저 담는다 — 신호가 없어도 여기서 끝나고, 보내기는 뒤에서 한다 */
-    outbox.add({
-      sessionId,
-      exerciseId: ex.id,
-      ...entry,
-      recordedAt: fixing?.recordedAt ?? new Date().toISOString(),
-    });
+    /*
+     * 폰에 먼저 담는다 — 신호가 없어도 여기서 끝나고, 보내기는 뒤에서 한다. 약속 번호(loadProtocol)와 지금 계정을 붙인다.
+     * 같은 세트를 다시 담으면(고치기) 붙들린 표(held)는 새 값으로 풀린다.
+     */
+    outbox.add(
+      withOwner(
+        {
+          sessionId,
+          exerciseId: ex.id,
+          ...entry,
+          recordedAt: fixing?.recordedAt ?? new Date().toISOString(),
+          loadProtocol: LOAD_PROTOCOL,
+        },
+        ownerId
+      )
+    );
+    /* 다음에 이 운동을 할 때 꺼낼 밴드 · 역할 · 기구 이름(이 기기, 같은 운동 · 같은 역할일 때만). 고치기는 기억을 바꾸지 않는다 */
+    if (!fixing && built.load) {
+      const b = built.load.kind === 'band' ? built.load : built.load.kind === 'combined' ? built.load.band : null;
+      if (b) {
+        rememberBands(ownerId, ex.id, b.role, b.bands);
+        if (!fixedBandRole(contract)) rememberRole(ownerId, ex.id, b.role);
+      }
+    }
+    if (!fixing && form.setup) rememberSetup(ownerId, ex.id, setupLabel);
 
     /* 프로그램 날, 무게 추천 칸의 처방 마지막 세트 — 아래 자리가 '몇 개 더?' 물음으로 바뀐다(설계 §13-7) */
     if (!fixing && asksReserve(ex) && setNo === ex.plannedSets) {
@@ -919,7 +1213,13 @@ export function SessionClient({
     );
     if (!target) return;
     buzz(12);
-    outbox.add({
+    /*
+     * EX-LOAD01 — '몇 개 더?'만 붙인다. 무게 기록은 건드리지 않는다: 아직 못 보낸 세트면 폰에 담긴 그 줄(밴드 · 변형 그대로)에
+     * 붙이고, 서버에 있는 세트면 load 칸을 아예 빼서 보낸다(칸 없음 = 그대로 두기 — 밴드 · 섞인 무게를 지우지 않는다).
+     */
+    const queued = pending.find((p) => p.exerciseId === q.exerciseId && p.setNo === q.setNo);
+    const savedVariant = (target as { variant?: 'band' | 'mass' | null }).variant ?? null;
+    const base = queued ?? {
       sessionId,
       exerciseId: target.exerciseId,
       setNo: target.setNo,
@@ -927,8 +1227,12 @@ export function SessionClient({
       reps: target.reps,
       holdSeconds: target.holdSeconds,
       recordedAt: target.recordedAt,
-      rir: n,
-    });
+      /* 밴드/무게를 고르는 운동은 변형을 함께 보내야 서버가 받는다 — 그 세트의 것(모르면 무게가 있으면 무게) */
+      ...(contractOfExercise(list.find((e) => e.id === target.exerciseId) ?? ex).mode === 'alternative'
+        ? { variant: savedVariant ?? (target.weightKg != null ? ('mass' as const) : ('band' as const)) }
+        : {}),
+    };
+    outbox.add(withOwner({ ...base, rir: n, loadProtocol: LOAD_PROTOCOL }, ownerId));
     void flush();
   };
 
@@ -937,11 +1241,10 @@ export function SessionClient({
    * 세트마다 목표가 다르면 그 세트의 무게와 횟수를 담는다('+' 세트는 횟수를 본인이).
    */
   const fillSuggested = () => {
-    if (suggestKg == null) return;
+    /* kg 을 받지 않는 운동 · 변형(EX-LOAD01)에는 무게를 채우지 않는다 */
+    if (suggestKg == null || form.kg === 'none') return;
     setWeight(
-      String(
-        wUnit === 'lb' ? roundForDisplay(suggestKg, 'lb', weightKindOf(ex.equipment)) : suggestKg
-      )
+      String(displayKg(suggestKg, wUnit, ex.equipment, suggestIsMine))
     );
     if (target && !target.plus) setCount(String(target.reps));
     setError(null);
@@ -973,9 +1276,19 @@ export function SessionClient({
     });
   };
 
+  /**
+   * 붙들린 세트 버리기(EX-LOAD01) — 폰에 담긴 그 줄만 뺀다. 서버에 이미 있는 세트는 지우지 않는다(고친 값만 버리면 서버 값이 다시 보인다).
+   */
+  const discard = (target: ShownSet) => {
+    setError(null);
+    if (editing?.setNo === target.setNo) endEdit();
+    outbox.remove({ sessionId, exerciseId: target.exerciseId, setNo: target.setNo });
+  };
+
   const fillLast = () => {
     if (!ex.last) return;
-    if (ex.last.weightKg != null)
+    /* 지난 무게는 이 운동(고른 변형)이 kg 을 받을 때만 — 맨몸 운동의 옛 kg 을 칸에 채우지 않는다(EX-LOAD01, 서버도 거른다) */
+    if (ex.last.weightKg != null && massOk && form.kg !== 'none' && !(form.split && unequal))
       setWeight(String(round1(toWeight(ex.last.weightKg, wUnit))));
     const raw = ex.isHold ? ex.last.holdSecondsDone : ex.last.repsDone;
     /* 지난번 것도 초로 남아 있다 — 분으로 받는 운동이면 분으로 바꿔 담는다 */
@@ -991,8 +1304,8 @@ export function SessionClient({
    * 고르고 곧바로 이것을 불렀는데, setField 는 바로 반영되지 않아 여기서는
    * 아직 옛 칸이 보였다. 무게 + 를 눌렀더니 횟수가 올라갔다.
    */
-  const bump = (which: 'weight' | 'count', delta: number) => {
-    if (which === 'weight') {
+  const bump = (which: PadField, delta: number) => {
+    if (which !== 'count') {
       /*
        * 한 번에 움직이는 폭도 단위를 따른다. kg 은 2.5, lb 는 5 다 —
        * 원판이 그렇게 생겼다. lb 에서 2.5씩 올리면 있지도 않은 무게가 된다.
@@ -1009,8 +1322,12 @@ export function SessionClient({
           : dumbbell
             ? UNIT_KG.dumbbell
             : WEIGHT_STEP;
-      const next = Math.max(0, (Number(weight) || 0) + delta * step);
-      setWeight(next === 0 ? '' : String(Number(next.toFixed(1))));
+      /* 양손 무게가 다르면 왼손 · 오른손 칸을 따로 움직인다(EX-LOAD01) */
+      const value = which === 'left' ? leftW : which === 'right' ? rightW : weight;
+      const setValue = which === 'left' ? setLeftW : which === 'right' ? setRightW : setWeight;
+      if (which === 'left' || which === 'right') touchLoad();
+      const next = Math.max(0, (Number(value) || 0) + delta * step);
+      setValue(next === 0 ? '' : String(Number(next.toFixed(1))));
     } else {
       const limit = ex.isHold
         ? ex.inMinutes
@@ -1045,7 +1362,7 @@ export function SessionClient({
   };
 
   /** 숫자를 누르면 그 칸을 고르고 자판을 연다 */
-  const openPad = (which: 'weight' | 'count') => {
+  const openPad = (which: PadField) => {
     setField(which);
     setPad(true);
   };
@@ -1141,7 +1458,7 @@ export function SessionClient({
         말없이 폰에 쌓아 두면, 나중에 기록이 비어 보일 때 왜인지 알 수 없다.
         신호가 없다는 것과 세트는 안전하다는 것을 같이 말한다.
       */}
-      {pending.length > 0 && (
+      {queuedCount > 0 && (
         <div
           role="status"
           className={`flex shrink-0 items-center gap-2 px-4 py-2 text-xs leading-relaxed ${
@@ -1151,12 +1468,37 @@ export function SessionClient({
           <CloudOff aria-hidden className="h-3.5 w-3.5 shrink-0" />
           {offline ? (
             <span>
-              신호가 없어요. 세트 {pending.length}개를 폰에 저장해 두었고, 신호가
+              신호가 없어요. 세트 {queuedCount}개를 폰에 저장해 두었고, 신호가
               잡히면 저절로 보내요.
             </span>
           ) : (
-            <span>세트 {pending.length}개 보내는 중…</span>
+            <span>세트 {queuedCount}개 보내는 중…</span>
           )}
+        </div>
+      )}
+      {/*
+        붙들린 세트(EX-LOAD01) — 서버가 고쳐 달라고 돌려준 것 · 저장 확인이 없는 것. 지우지 않고 폰에 두었다가 사람이 고치거나 버린다.
+        다른 운동의 것이면 그 운동으로 가는 단추를 같이 낸다.
+      */}
+      {heldSets.length > 0 && (
+        <div
+          role="alert"
+          className="flex shrink-0 items-center gap-2 bg-warn-bg px-4 py-2 text-xs leading-relaxed text-warn"
+        >
+          <AlertTriangle aria-hidden className="h-3.5 w-3.5 shrink-0" />
+          <span className="min-w-0 flex-1">
+            확인이 필요한 세트가 {heldSets.length}개 있어요. 세트 줄에서 고치거나 버려 주세요.
+          </span>
+          {!heldSets.some((p) => p.exerciseId === ex.id) &&
+            list.some((e) => e.id === heldSets[0].exerciseId) && (
+              <button
+                type="button"
+                onClick={() => goTo(list.findIndex((e) => e.id === heldSets[0].exerciseId))}
+                className="min-h-9 shrink-0 rounded-full px-3 font-semibold"
+              >
+                보기
+              </button>
+            )}
         </div>
       )}
 
@@ -1198,11 +1540,29 @@ export function SessionClient({
             {mine.length > 0 ? '추가' : '교체'}
           </button>
         </div>
-        {ex.prescription && (
-          <p className="mt-1 text-sm text-muted">
-            {ex.prescription}
-            {ex.perSide && ' (좌우 각각)'}
-          </p>
+        {(ex.prescription || ex.target) && (
+          <div className="mt-1 flex items-start gap-2">
+            <p className="min-w-0 flex-1 text-sm text-muted">
+              {ex.target?.override && (
+                <span className="mr-1.5 rounded-full bg-sky/10 px-2 py-0.5 text-caption font-semibold text-sky">
+                  내 목표
+                </span>
+              )}
+              {ex.prescription}
+              {/* 처방 줄에 이미 '(좌우 각각)'이 있으면 다시 붙이지 않는다 */}
+              {ex.perSide && !ex.prescription?.includes('좌우 각각') && ' (좌우 각각)'}
+            </p>
+            {ex.target && (
+              <button
+                type="button"
+                onClick={() => setTargetOpen(true)}
+                className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-full bg-surface px-3 text-xs font-semibold text-ink transition-colors active:bg-ink/6"
+              >
+                <Target aria-hidden className="h-3.5 w-3.5" />
+                목표
+              </button>
+            )}
+          </div>
         )}
         {isOptionalProgramExercise(ex) && (
           <div className="mt-1 flex items-center gap-2 text-xs text-muted">
@@ -1349,13 +1709,19 @@ export function SessionClient({
               첫 세트를 마치면 여기에 쌓여요.
             </p>
           ) : (
+            <>
+            {/* EX-LOAD01-R1 — 남긴 세트는 '한 것'(목표와 따로). 목표를 바꿔도 여기는 그대로다 */}
+            <p className="mb-1 px-1 text-caption font-semibold text-muted">한 것</p>
             <ul className="divide-y divide-line overflow-hidden rounded-2xl bg-surface">
               {mine.map((s, i) => {
                 const fixingThis = i === editIndex;
+                /* EX-LOAD01 — 밴드 · 양손 다른 무게 · 기구 이름 한 줄, 붙들린 세트의 까닭 */
+                const extra = loadLine(s.load, (kg) => formatWeight(kg, wUnit) ?? `${kg}kg`);
+                const held = s.held ?? null;
                 return (
                   <li
                     key={s.setNo}
-                    className={`flex items-center transition-colors ${fixingThis ? 'bg-sky/8' : ''}`}
+                    className={`flex flex-wrap items-center transition-colors ${fixingThis ? 'bg-sky/8' : held ? 'bg-warn-bg' : ''}`}
                   >
                     <button
                       type="button"
@@ -1371,11 +1737,16 @@ export function SessionClient({
                         {i + 1}
                         <span className="sr-only">세트</span>
                       </span>
-                      <span className="text-numeric min-w-0 flex-1 truncate text-lg leading-none text-ink">
-                        {s.weightKg != null && `${formatWeight(s.weightKg, wUnit)} × `}
-                        {s.holdSeconds != null
-                          ? formatSeconds(s.holdSeconds)
-                          : `${s.reps}회`}
+                      <span className="min-w-0 flex-1">
+                        <span className="text-numeric block truncate text-lg leading-none text-ink">
+                          {s.weightKg != null && `${formatWeight(s.weightKg, wUnit)} × `}
+                          {s.holdSeconds != null
+                            ? formatSeconds(s.holdSeconds)
+                            : `${s.reps}회`}
+                        </span>
+                        {extra && (
+                          <span className="mt-1 block truncate text-caption text-muted">{extra}</span>
+                        )}
                       </span>
                       {/* 지난 모든 기록보다 나은 세트 — 남기는 순간 톡 뜨고 손에 두 번 떤다(save) */}
                       {record?.setNo === s.setNo && (
@@ -1388,13 +1759,19 @@ export function SessionClient({
                           여유 {s.rir >= 4 ? '4+' : s.rir}
                         </span>
                       )}
-                      {s.pending && (
+                      {s.pending && !held && (
                         <span
                           title="아직 서버에 보내지 못했어요. 신호가 잡히면 저절로 보내요."
                           className="inline-flex shrink-0 items-center gap-1 text-[10px] font-medium text-warn"
                         >
                           <CloudOff aria-hidden className="h-3 w-3" />
                           대기
+                        </span>
+                      )}
+                      {held && (
+                        <span className="inline-flex shrink-0 items-center gap-1 text-[10px] font-semibold text-warn">
+                          <AlertTriangle aria-hidden className="h-3 w-3" />
+                          확인 필요
                         </span>
                       )}
                       <Pencil
@@ -1416,10 +1793,36 @@ export function SessionClient({
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
+                    {/*
+                      붙들린 세트 — 서버가 받지 않은 까닭과 고치기 · 버리기. 고쳐서 다시 담으면 붙든 표가 풀리고, 버리면 폰에 담긴 그 줄만
+                      뺀다(서버에 이미 있는 세트는 그대로).
+                    */}
+                    {held && (
+                      <div className="basis-full space-y-1.5 px-3.5 pb-2.5">
+                        <p className="text-xs leading-relaxed text-warn">{held.message}</p>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => startEdit(s)}
+                            className="min-h-10 flex-1 rounded-full bg-surface text-xs font-semibold text-ink active:bg-ink/6"
+                          >
+                            고치기
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => discard(s)}
+                            className="min-h-10 flex-1 rounded-full bg-surface text-xs font-semibold text-warn active:bg-ink/6"
+                          >
+                            버리기
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </li>
                 );
               })}
             </ul>
+            </>
           )}
         </div>
       </div>
@@ -1452,12 +1855,12 @@ export function SessionClient({
         )}
 
         {/*
-          무게칸은 언제나 낸다.
+          무게칸은 운동의 장비가 정한다(EX-LOAD01, 2026-11-16 사용자 — 고른 장비가 기록 방식을 정한다).
 
-          예전에는 바벨·덤벨 운동에만 냈다. 그런데 맨몸으로 적어 둔 운동도
-          덤벨을 들고 하거나 조끼를 입고 하는 일이 흔하고, 그때 적을 자리가
-          아예 없었다. 꼭 적어야 하는 것은 바벨·덤벨뿐이고 나머지는 비워
-          두어도 된다.
+          예전에는 모든 운동에 냈는데, 맨몸 점프(포고 홉)에 kg 이 남아 kg 기록 · 추정 1RM 이 생겼다. 이제 맨몸 · 받침 · 장비 확인 중이면
+          kg 칸이 없고(횟수 · 시간만), 바벨 · 덤벨 · 케틀벨 · 원판 · 케이블 · 머신 · 도구는 그 뜻을 칸 이름에 적는다('무게(한 손 · 한 개)' ·
+          '케이블 머신 설정값'). 밴드는 상표 → 계열 → 단계를 고른다(kg 없음). 무게를 단 맨몸 변형은 검토한 운동만 '더한 무게'로 받는다.
+          꼭 적어야 하는 것은 계약의 massRequired(바벨 · 덤벨)뿐이다.
 
           ± 는 늘 보인다. 지난 세트에서 2.5kg 만 올리는 것처럼 흔한 경우는
           자판을 열 것도 없다.
@@ -1475,13 +1878,119 @@ export function SessionClient({
                 {ex.prescription ? `${ex.prescription} · ` : ''}숫자 없이 세트만 체크해요
               </p>
             )}
+            {/* 밴드로 할지 무게로 할지 고르는 운동 — 세트마다 고른다(고른 쪽의 칸이 나온다) */}
+            {form.variants && (
+              <div role="group" aria-label="이 세트에 쓴 것" className="flex gap-1.5">
+                {(
+                  [
+                    ['band', '밴드'],
+                    ['mass', '무게'],
+                  ] as const
+                ).map(([v, label]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    aria-pressed={variant === v}
+                    onClick={() => {
+                      touchLoad();
+                      setVariant(v);
+                      setUnequal(false);
+                      setField(startsWithWeight(contract, v) ? 'weight' : 'count');
+                      setError(null);
+                    }}
+                    className="min-h-10 flex-1 rounded-full bg-ink/6 text-footnote font-semibold text-ink transition-colors aria-pressed:bg-sky aria-pressed:text-white"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+            {!noInput && form.unresolved && (
+              <p className="text-center text-xs text-muted">장비 확인 중인 운동이라 횟수 · 시간만 적어요</p>
+            )}
+            {!noInput && form.band === 'notice' && (
+              <p className="text-center text-xs leading-relaxed text-muted">
+                밴드 기록은 업데이트 뒤에 저장돼요. 지금은 횟수 · 시간만 적어요.
+              </p>
+            )}
+            {/* EX-LOAD01-R1 — 내가 정한 장비 목표(목표)는 아래 칸 · 남긴 세트(한 것)와 따로 적는다 */}
+            {!noInput && editIndex < 0 && ex.targetLoad && (
+              <p className="text-center text-xs leading-relaxed text-muted">
+                <span className="font-semibold text-ink">목표</span> · {loadTargetText(ex.targetLoad, (kg) => formatWeight(kg, wUnit) ?? `${kg}kg`)}
+              </p>
+            )}
+            {!noInput && form.band === 'picker' && (
+              <button
+                type="button"
+                onClick={() => setBandOpen(true)}
+                className="flex min-h-12 w-full items-center gap-2 rounded-2xl bg-ink/6 px-4 py-2 text-left transition-colors active:bg-ink/12"
+              >
+                <span className="shrink-0 text-xs text-muted">
+                  {form.fixedRole
+                    ? BAND_ROLE_TEXT[form.fixedRole]
+                    : bandRole
+                      ? BAND_ROLE_TEXT[bandRole]
+                      : '밴드 · 역할 고르기'}
+                </span>
+                <span className="flex min-w-0 flex-1 flex-wrap justify-end gap-1">
+                  {bands.length ? (
+                    bands.map((b, k) => <BandChip key={k} band={b} />)
+                  ) : (
+                    <span className="text-footnote font-semibold text-sky">밴드 고르기</span>
+                  )}
+                </span>
+              </button>
+            )}
+            {!noInput && form.setup && (
+              <button
+                type="button"
+                onClick={() => setSetupOpen(true)}
+                className="flex min-h-10 w-full items-center justify-between gap-2 rounded-full px-3 text-xs transition-colors active:bg-ink/6"
+              >
+                <span className="text-muted">기구 이름</span>
+                <span className={`min-w-0 truncate font-semibold ${setupLabel.trim() ? 'text-ink' : 'text-sky'}`}>
+                  {setupLabel.trim() || '적기 (같은 기구끼리만 견줘요)'}
+                </span>
+              </button>
+            )}
+            {!noInput && form.split && (
+              <button
+                type="button"
+                aria-pressed={unequal}
+                onClick={() => {
+                  touchLoad();
+                  const next = !unequal;
+                  setUnequal(next);
+                  /* 같은 무게로 적던 값을 양손에 먼저 채운다 — 다른 쪽만 고치면 된다 */
+                  if (next && weight !== '') {
+                    setLeftW(weight);
+                    setRightW(weight);
+                  }
+                  setField(next ? 'left' : 'weight');
+                }}
+                className="mx-auto flex min-h-10 w-fit items-center gap-1.5 rounded-full px-3 text-xs font-semibold text-muted transition-colors aria-pressed:text-sky"
+              >
+                <ArrowLeftRight aria-hidden className="h-3.5 w-3.5" />
+                {unequal ? '양손 같은 무게로' : '양손 무게가 달라요'}
+              </button>
+            )}
             {!noInput && [
-              {
-                key: 'weight' as const,
-                label: `무게${!ex.needsWeight ? ' (없으면 비워두세요)' : ''}`,
-                value: weight,
-                unit: wUnit,
-              },
+              ...(form.kg !== 'none' && !(form.split && unequal)
+                ? [
+                    {
+                      key: 'weight' as const,
+                      label: `${form.kgLabel ?? '무게'}${form.kg === 'optional' ? ' (없으면 비워 두세요)' : ''}`,
+                      value: weight,
+                      unit: wUnit,
+                    },
+                  ]
+                : []),
+              ...(form.kg !== 'none' && form.split && unequal
+                ? [
+                    { key: 'left' as const, label: '왼손 무게', value: leftW, unit: wUnit },
+                    { key: 'right' as const, label: '오른손 무게', value: rightW, unit: wUnit },
+                  ]
+                : []),
               {
                 key: 'count' as const,
                 label: ex.isHold ? timeLabel : '횟수',
@@ -1541,8 +2050,22 @@ export function SessionClient({
             {pad && !noInput && (
               <div className="space-y-1.5 rounded-2xl bg-ink/6 p-1.5">
                 <NumberPad
-                  onChange={field === 'weight' ? setWeight : setCount}
-                  allowDecimal={field === 'weight'}
+                  onChange={
+                    field === 'weight'
+                      ? setWeight
+                      : field === 'left'
+                        ? (update: (prev: string) => string) => {
+                            touchLoad();
+                            setLeftW(update);
+                          }
+                        : field === 'right'
+                          ? (update: (prev: string) => string) => {
+                              touchLoad();
+                              setRightW(update);
+                            }
+                          : setCount
+                  }
+                  allowDecimal={field !== 'count'}
                 />
                 {/*
               다 넣었으면 누른다.
@@ -1554,14 +2077,17 @@ export function SessionClient({
                 <button
                   type="button"
                   onClick={() => {
-                    if (field === 'weight') setField('count');
+                    if (field === 'weight' || field === 'right') setField('count');
+                    else if (field === 'left') setField('right');
                     else setPad(false);
                   }}
                   className="h-12 w-full rounded-xl bg-sky/15 text-sm font-bold text-sky transition-transform short:h-10 motion-safe:active:scale-[0.98]"
                 >
-                  {field === 'weight'
+                  {field === 'weight' || field === 'right'
                     ? `다음 · ${ex.isHold ? timeLabel : '횟수'} →`
-                    : '확인'}
+                    : field === 'left'
+                      ? '다음 · 오른손 무게 →'
+                      : '확인'}
                 </button>
               </div>
             )}
@@ -1586,7 +2112,7 @@ export function SessionClient({
                     그만두기
                   </button>
                 </div>
-              ) : suggestKg != null ? (
+              ) : suggestKg != null && form.kg !== 'none' && !(form.split && unequal) ? (
                 <div className="space-y-0.5">
                   <button
                     type="button"
@@ -1594,14 +2120,12 @@ export function SessionClient({
                     className="mx-auto flex min-h-10 w-fit items-center gap-1.5 rounded-full px-3 text-footnote font-semibold text-sky transition-opacity active:opacity-60"
                   >
                     <RotateCcw aria-hidden className="h-3.5 w-3.5" />
-                    추천{' '}
-                    {wUnit === 'lb'
-                      ? roundForDisplay(suggestKg, 'lb', weightKindOf(ex.equipment))
-                      : suggestKg}
+                    {suggestIsMine ? '목표' : '추천'}{' '}
+                    {displayKg(suggestKg, wUnit, ex.equipment, suggestIsMine)}
                     {wUnit} 담기
                   </button>
                   {/* 자유 운동의 추천은 까닭 한 줄을 붙인다 — 왜 올랐는지(안 올랐는지) 보여야 믿고 담는다(free-weight.ts) */}
-                  {ex.suggestNote && (
+                  {ex.suggestNote && !suggestIsMine && (
                     <p className="text-center text-caption leading-relaxed break-keep text-muted">
                       {ex.suggestNote}
                     </p>
@@ -1689,6 +2213,7 @@ export function SessionClient({
           startedAt={openedAt}
           priorSeconds={priorSeconds}
           pendingCount={pending.length}
+          heldCount={heldSets.length}
           program={programFinish}
           busy={ending}
           error={finishError}
@@ -1697,6 +2222,20 @@ export function SessionClient({
             setFinishError(null);
           }}
           onFinish={(intensity, memo) => {
+            /*
+             * EX-LOAD01-R1 — 마치기 직전에 살아 있는 대기열(이 판)을 다시 본다. 보류를 포함해 못 보낸 세트가 남았으면 서버를 부르지 않는다 —
+             * 창이 열린 뒤 담긴 세트가 관문을 건너뛰어 원래 값을 두고 판을 닫지 않게(GPT 완료 기준 결정).
+             */
+            const left = outbox.snapshot().filter((p) => p.sessionId === sessionId);
+            if (left.length > 0) {
+              const held = left.filter((p) => !!p.held).length;
+              setFinishError(
+                held > 0
+                  ? `보류한 세트 ${held}개가 남아 있어 마치지 않았어요. 못 보낸 기록에서 다시 보내거나 고치거나 버린 뒤에 마쳐 주세요.`
+                  : `세트 ${left.length}개가 아직 서버로 가지 않아 마치지 않았어요. 보내진 뒤에 마쳐 주세요.`
+              );
+              return;
+            }
             setFinishError(null);
             startEnding(async () => {
               try {
@@ -1712,6 +2251,59 @@ export function SessionClient({
               }
             });
           }}
+        />
+      )}
+
+      {bandShown && (
+        <BandSheet
+          /* 운동 · 고치는 세트가 바뀌면 창 값을 새로 채운다 */
+          key={`${ex.id}#${editing?.setNo ?? 'next'}`}
+          open={bandOpen}
+          onClose={() => setBandOpen(false)}
+          exerciseId={ex.id}
+          ownerId={ownerId}
+          title={editIndex >= 0 ? `${ex.title} · ${editIndex + 1}세트` : ex.title}
+          editing={editIndex >= 0}
+          fixedRole={form.fixedRole}
+          role={bandRole}
+          bands={bands}
+          onDone={(next) => {
+            setBandOpen(false);
+            touchLoad();
+            setBandRole(form.fixedRole ? null : next.role);
+            setBands(next.bands);
+            setError(null);
+          }}
+        />
+      )}
+
+      {setupShown && (
+        <SetupSheet
+          key={`${ex.id}#${editing?.setNo ?? 'next'}`}
+          open={setupOpen}
+          onClose={() => setSetupOpen(false)}
+          label={setupLabel}
+          apparatus={equipmentDisplayName(act?.apparatusFamily ?? '기구')}
+          onDone={(label) => {
+            setSetupOpen(false);
+            touchLoad();
+            setSetupLabel(label);
+          }}
+        />
+      )}
+
+      {targetShown && (
+        <TargetSheet
+          /* 운동이 바뀌면 칸을 새로 채운다 */
+          key={ex.id}
+          open={targetOpen}
+          sessionId={sessionId}
+          exercise={ex}
+          painToday={painToday}
+          doneSets={mine.length}
+          wUnit={wUnit}
+          onDone={applyTarget}
+          onClose={() => setTargetOpen(false)}
         />
       )}
 

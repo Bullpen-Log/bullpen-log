@@ -168,11 +168,13 @@ type EventMemberLike = {
   selfSets?: number;
   sameAsGroup?: string[];
   fixes?: unknown[];
+  /** EX-LOAD01 R1-03 — 코치 기록의 무게 · 수량 검사에 걸리는 곳(개인 수행 값이라 training 범위) */
+  loadIssue?: unknown;
   outingNote?: string | null;
 };
 const EVENT_MEMBER_PUBLIC = ['memberId', 'nickname', 'tags', 'hasUser', 'canTrain', 'canPitch', 'left', 'outing'] as const;
-const EVENT_MEMBER_TRAINING = ['exception', 'values', 'status', 'reasons', 'pending', 'held', 'selfSets', 'sameAsGroup', 'fixes'] as const;
-const TRAINING_EMPTY = { exception: null, values: [], status: null, reasons: [], pending: false, held: [], selfSets: 0, sameAsGroup: [], fixes: [] } as const;
+const EVENT_MEMBER_TRAINING = ['exception', 'values', 'status', 'reasons', 'pending', 'held', 'selfSets', 'sameAsGroup', 'fixes', 'loadIssue'] as const;
+const TRAINING_EMPTY = { exception: null, values: [], status: null, reasons: [], pending: false, held: [], selfSets: 0, sameAsGroup: [], fixes: [], loadIssue: null } as const;
 type EventDetailLike = {
   members: EventMemberLike[];
   plans: { memberIds?: string[]; targets?: string[]; actual?: unknown[]; actualLines?: unknown[]; actualSet?: boolean; [k: string]: unknown }[];

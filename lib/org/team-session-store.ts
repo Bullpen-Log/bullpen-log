@@ -7,7 +7,7 @@ import { memberScope } from '@/lib/org/rules';
 import { eventLine } from '@/lib/org/notify-org';
 import { orgOpenHref } from '@/lib/org/space-nav';
 import { eventMemberIds } from '@/lib/org/team';
-import { clearEventWork, writeOrgWork } from '@/lib/org/team-work-store';
+import { clearEventWork, isOrgWorkRejection, writeOrgWork } from '@/lib/org/team-work-store';
 import { effortFields } from '@/lib/pitch-effort';
 import { toDateKey } from '@/lib/pitch-stats';
 import {
@@ -19,6 +19,7 @@ import {
   teamPitchKey,
   workHash,
   type Defaults,
+  type LoadIssue,
   type SessionPlan,
   type WorkLine,
   type WorkStatus,
@@ -81,7 +82,11 @@ export async function defaultsFor(lines: readonly WorkLine[]): Promise<Defaults>
   return new Map(ex.map((e) => [e.id, { sets: e.sets, reps: e.reps, holdSeconds: e.holdSeconds }]));
 }
 
-export type MemberResult = { memberId: string; status: WorkStatus; reasons: string[]; changed: boolean };
+/**
+ * 선수 한 명의 쓰기 결과. EX-LOAD01 R1-03 — loadIssue(선택 칸)는 코치 기록이 무게 · 수량 검사에 걸려 **아무것도 쓰지 않은** 때 고칠 곳(운동 · 세트)이다.
+ * 그 선수는 status 'failed' · reasons ['load_rejected'] 로 남고 투구도 쓰지 않는다(한 선수의 확인은 한 묶음). 고친 뒤 다시 보내면 다시 쓴다.
+ */
+export type MemberResult = { memberId: string; status: WorkStatus; reasons: string[]; changed: boolean; loadIssue?: LoadIssue };
 
 /** 선수마다 지금 셈한 실제(쓰기 전) — 훈련 화면 미리보기와 쓰기가 같이 쓴다 */
 export async function computeTeamWork(event: SessionEvent, memberIds?: readonly string[]) {
@@ -151,16 +156,35 @@ export async function applyTeamWork(a: { event: SessionEvent; coachId: string; m
     const reason = w.reasons.join(',') || null;
     const key = { eventId_memberId: { eventId: event.id, memberId: id } };
     if (!needsWrite(r)) {
-      if (prev && (prev.workStatus !== w.status || prev.workReason !== reason)) await prisma.orgEventAttendee.update({ where: key, data: { workStatus: w.status, workReason: reason } });
-      out.push({ memberId: id, status: w.status, reasons: w.reasons, changed: false });
+      /* 지난 쓰기가 v2 복구함으로 보낸 것이면 그 표시는 남긴다(같은 내용이라 다시 안 썼다) */
+      const keptDeferred = !!prev?.workReason?.split(',').includes('v2_deferred');
+      const sameReason = keptDeferred ? [reason, 'v2_deferred'].filter(Boolean).join(',') : reason;
+      if (prev && (prev.workStatus !== w.status || prev.workReason !== sameReason)) await prisma.orgEventAttendee.update({ where: key, data: { workStatus: w.status, workReason: sameReason } });
+      out.push({ memberId: id, status: w.status, reasons: keptDeferred ? [...w.reasons, 'v2_deferred'] : w.reasons, changed: false });
       continue;
     }
     try {
-      if (m?.userId && w.writeTraining) await writeOrgWork({ userId: m.userId, dateKey, orgEventId: event.id, enteredById: a.coachId, items: w.work });
+      let deferred = false;
+      if (m?.userId && w.writeTraining) {
+        const written = await writeOrgWork({ userId: m.userId, dateKey, orgEventId: event.id, enteredById: a.coachId, items: w.work });
+        /*
+         * EX-LOAD01 R1-03 — 검사에 걸리면 코치 기록은 아무것도 안 썼다(보낸 kg 을 그대로 넣지 않는다). 이 선수는 저장 실패로 두고(지문을 비워 다시 확인하면
+         * 다시 쓴다) 투구도 쓰지 않는다 — 고칠 곳은 loadIssue 로 돌려준다.
+         */
+        if (isOrgWorkRejection(written)) {
+          const data = { workStatus: 'failed', workReason: 'load_rejected', workHash: null, workAt: appNow() };
+          await prisma.orgEventAttendee.upsert({ where: key, create: { eventId: event.id, memberId: id, ...data }, update: data });
+          out.push({ memberId: id, status: 'failed', reasons: ['load_rejected'], changed: false, loadIssue: { code: written.code, error: written.error, exerciseId: written.exerciseId, setIndex: written.setIndex } });
+          continue;
+        }
+        deferred = written === 'deferred';
+      }
       if (m?.userId && w.writePitch) await writeTeamPitch({ userId: m.userId, event, coachId: a.coachId, pitch: w.pitch });
-      const data = { workStatus: w.status, workReason: reason, workHash: hash, workAt: appNow() };
+      /* v2 판이라 코치 세트를 복구함에 남겼으면(쓰지 않음) '기록함'으로만 말하지 않는다 */
+      const shownReason = deferred ? [reason, 'v2_deferred'].filter(Boolean).join(',') : reason;
+      const data = { workStatus: w.status, workReason: shownReason, workHash: hash, workAt: appNow() };
       await prisma.orgEventAttendee.upsert({ where: key, create: { eventId: event.id, memberId: id, ...data }, update: data });
-      out.push({ memberId: id, status: w.status, reasons: w.reasons, changed: true });
+      out.push({ memberId: id, status: w.status, reasons: deferred ? [...w.reasons, 'v2_deferred'] : w.reasons, changed: true });
       if (m?.userId) {
         /* 코치가 다시 확인해 바뀐 선수의 정정 요청은 풀린다 */
         await prisma.orgComment.updateMany({ where: { eventId: event.id, memberId: id, kind: 'fix', resolvedAt: null }, data: { resolvedAt: appNow() } });

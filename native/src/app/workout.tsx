@@ -28,6 +28,7 @@ import {
   warmupLine,
 } from '@/lib/program/program';
 import { UNIT_KG, UNIT_LB, roundForDisplay, weightKindOf } from '@/lib/program/next-weight';
+import { displayKg } from '@/lib/workout/target-override';
 import { formatWeight, fromWeight, round1, toWeight } from '@/lib/units';
 import { newRecord } from '@/lib/workout/bests';
 import { REST_CLOCK_LIMIT_SECONDS, restSeconds } from '@/lib/workout/rest';
@@ -49,6 +50,29 @@ import { useLiveActivity } from '~/shell/live-activity';
 import { ExerciseMedia } from '~/armcare/parts';
 import { HistoryPanel } from '~/training/history';
 import { ListSheet, Sheet, SwapSheet } from '~/workout/sheets';
+import { TargetSheet } from '~/workout/target-sheet';
+import { LOAD_PROTOCOL } from '@/lib/workout/load/protocol';
+import { normalizeSetLoad } from '@/lib/workout/load/recorded';
+import { RESOLVER_VERSION } from '@/lib/workout/load/contract';
+import { loadTargetText, pickLoadDraftSource } from '@/lib/workout/load/target';
+import {
+  EMPTY_LOAD_DRAFT,
+  LoadExtras,
+  LoadNotice,
+  buildSetLoad,
+  contractOf,
+  draftBandSummary,
+  kgLabel,
+  kgRequired,
+  loadDraftOfSet,
+  loadDraftOfTarget,
+  loadPlan,
+  rememberBands,
+  rememberRole,
+  setLoadText,
+  showsKg,
+  type LoadDraft,
+} from '~/workout/load-input';
 import { FinishSheet, type FinishPhase, type FinishProgram } from '~/workout/finish-sheet';
 import type { FinishReceipt } from '@/lib/workout/finish';
 import { useWeightUnit } from '~/lib/weight-unit';
@@ -176,7 +200,15 @@ const NO_INPUT_CATEGORIES = new Set(['모빌리티', '워밍업']);
 const BUNDLE_SHORT_REST = 30;
 
 /** 입력 없이 남기는 세트의 양 — 처방 글('2세트 × 30초', '10회 · 한쪽씩')의 마지막 회 · 초 숫자. 못 읽으면 1(웹과 같다) */
-function plannedAmount(ex: { prescription: string | null; isHold: boolean }): number {
+function plannedAmount(ex: {
+  prescription: string | null;
+  isHold: boolean;
+  plannedReps?: number | null;
+  plannedHoldSeconds?: number | null;
+}): number {
+  /* 숫자로 실려 오면 그것(EX-RX01 — 내 목표 · 추천, 웹과 같다). 처방 글의 '휴식 1분 30초'를 횟수로 잘못 읽지 않게 */
+  const known = ex.isHold ? ex.plannedHoldSeconds : ex.plannedReps;
+  if (known != null && known > 0) return known;
   const m = [...(ex.prescription ?? '').matchAll(/(\d+)\s*(회|초|분)/g)].pop();
   if (!m) return 1;
   const n = Number(m[1]);
@@ -280,6 +312,8 @@ function Run({
   openedAt,
   priorSeconds,
   dailyNote = null,
+  painToday = false,
+  loadCapability,
   c,
 }: RunPayload & { c: Palette }) {
   const inset = useSafeAreaInsets();
@@ -294,6 +328,9 @@ function Run({
   const allPending = useSyncExternalStore(outbox.subscribe, outbox.snapshot);
   const pending = useMemo(() => allPending.filter((p) => p.sessionId === sessionId), [allPending, sessionId]);
   const sets = useMemo(() => withPending(saved, pending), [saved, pending]);
+  /* EX-LOAD01 — 붙든 세트(서버가 고쳐 달라고 한 것 · 저장 확인이 없는 것)는 '보내는 중'이 아니다 — 따로 세어 고치기 · 버리기로 안내한다 */
+  const unsent = useMemo(() => pending.filter((p) => !p.held), [pending]);
+  const heldSets = useMemo(() => pending.filter((p) => p.held), [pending]);
   const [offline, setOffline] = useState(false);
   /* 목록은 상태로 — 순서를 바꾸거나 빼거나 바꿔 넣는다(서버가 다시 그리지 않는다) */
   const [list, setList] = useState<RunExercise[]>(exercises);
@@ -305,8 +342,8 @@ function Run({
     () => new Set(exercises.filter((e) => e.favorite).map((e) => e.id))
   );
   /* 시트 셋 — 열 때마다 key 를 올려 새로 그린다(고르던 강도 · 찾던 글이 다음에 안 남게), 닫은 뒤에도 붙어 있어 내려가는 움직임이 보인다 */
-  const [sheet, setSheet] = useState<{ which: 'list' | 'swap' | 'finish' | null; n: number }>({ which: null, n: 0 });
-  const openSheet = (which: 'list' | 'swap' | 'finish') => setSheet((p) => ({ which, n: p.n + 1 }));
+  const [sheet, setSheet] = useState<{ which: 'list' | 'swap' | 'finish' | 'target' | null; n: number }>({ which: null, n: 0 });
+  const openSheet = (which: 'list' | 'swap' | 'finish' | 'target') => setSheet((p) => ({ which, n: p.n + 1 }));
   const closeSheet = () => setSheet((p) => ({ ...p, which: null }));
   const [finishError, setFinishError] = useState<string | null>(null);
   /* 마치기의 처리 상태 — busy(보내는 중) · unknown(답을 못 받음) · checking(판 상태를 묻는 중). 이 동안 입력은 잠기고 초안은 남는다 */
@@ -329,7 +366,22 @@ function Run({
   const wUnit = useWeightUnit();
   const [weight, setWeight] = useState('');
   const [count, setCount] = useState('');
-  const [field, setField] = useState<'weight' | 'count'>(exercises[0].needsWeight ? 'weight' : 'count');
+  /* EX-LOAD01 — 무게를 꼭 적는 운동인지는 얼린 기록 계약이 정한다(옛 서버의 답이면 예전 needsWeight) */
+  const [field, setField] = useState<'weight' | 'count'>(kgRequired(exercises[0], null) ? 'weight' : 'count');
+  /*
+   * EX-LOAD01 — 다음 세트에 쓸 장비 고름(밴드 · 역할 · 기구 이름 · 양손 다른 무게 · 밴드/무게 고르기). 운동마다 따로(초안과 같이 옮긴다).
+   * 바꿔도 이미 남긴 세트는 그대로다 — 세트마다 그때 고른 값이 실린다.
+   */
+  /* EX-LOAD01-R1 — 처음 칸은 첫 운동의 장비 목표가 있으면 그것(아직 아무도 손대지 않았다) */
+  const [loadDraft, setLoadDraft] = useState<LoadDraft>(() => loadDraftOfTarget(exercises[0]?.targetLoad, wUnit) ?? EMPTY_LOAD_DRAFT);
+  /*
+   * EX-LOAD01-R1 — 사람이 다음 세트 장비 칸을 건드린 운동(운동 번호). 건드리지 않은 칸만 내 장비 목표로 채운다 — 고치던 칸 > 목표 > 기기 기억
+   * (lib/workout/load/target.ts pickLoadDraftSource). 기억으로 채운 것(onRecall)은 건드린 것으로 세지 않는다.
+   */
+  const [loadTouched, setLoadTouched] = useState<ReadonlySet<string>>(() => new Set());
+  const recallLoad = useCallback((update: (prev: LoadDraft) => LoadDraft) => setLoadDraft(update), []);
+  /* 장비 칸(스크롤 안)의 자리 — 아래 막대의 밴드 요약을 누르면 그리로 올린다 */
+  const loadCardY = useRef(0);
   const [error, setError] = useState<string | null>(null);
   /*
    * 고치는 중인 세트 — 줄을 누르면 그 값이 아래 칸에 채워지고 큰 단추가 'N세트 고치기'. 같은 번호로 다시 담아 보내면 서버가 덮어쓴다.
@@ -338,7 +390,7 @@ function Run({
   const [editing, setEditing] = useState<{
     setNo: number;
     recordedAt: string;
-    draft: { weight: string; count: string; field: 'weight' | 'count' };
+    draft: { weight: string; count: string; field: 'weight' | 'count'; load: LoadDraft };
   } | null>(null);
   /* 자세 설명 · 영상 — 운동을 옮겨도 편 채로 둔다(한 번 편 사람은 다음 운동에서도 본다) */
   const [showForm, setShowForm] = useState(false);
@@ -353,16 +405,31 @@ function Run({
         const i = id ? exercises.findIndex((e) => e.id === id) : -1;
         if (i <= 0) return;
         setAt(i);
-        setField(exercises[i].needsWeight ? 'weight' : 'count');
+        setField(kgRequired(exercises[i], null) ? 'weight' : 'count');
+        /* 보던 운동으로 돌아왔다 — 그 운동의 장비 목표로(아직 아무도 손대지 않았다) */
+        setLoadDraft(loadDraftOfTarget(exercises[i].targetLoad, wUnit) ?? EMPTY_LOAD_DRAFT);
       },
       () => undefined
     );
-  }, [sessionId, exercises]);
+  }, [sessionId, exercises, wUnit]);
 
   const ex = list[at];
   useEffect(() => {
     void AsyncStorage.setItem(atKey(sessionId), ex.id).catch(() => undefined);
   }, [sessionId, ex.id]);
+  /* 사람이 고친 것 — 고치는 세트가 아닐 때만 '건드림'으로 센다(고치기는 끝나면 들고 있던 칸으로 돌아간다) */
+  const editingNow = editing != null;
+  const exId = ex.id;
+  const changeLoad = useCallback(
+    (update: (prev: LoadDraft) => LoadDraft) => {
+      setLoadDraft(update);
+      if (!editingNow) setLoadTouched((prev) => (prev.has(exId) ? prev : new Set(prev).add(exId)));
+    },
+    [editingNow, exId]
+  );
+  /* EX-LOAD01 — 이 운동의 얼린 기록 계약(없으면 옛 서버) · 서버가 밴드 · 섞인 무게를 저장할 수 있는가(스키마 적용 뒤에만) */
+  const contract = contractOf(ex);
+  const structured = !!loadCapability?.structured;
 
   /* 마치기 초안 — 이 판 · 이 계정 것만 되살린다(다른 계정 · 다른 판의 초안이 섞이지 않게) */
   const draftKey = `bullpen-workout-finish:${outboxOwner() ?? 'anon'}:${sessionId}`;
@@ -401,10 +468,14 @@ function Run({
   const timeLabel = ex.inMinutes ? '운동 시간' : '버틴 시간';
   const mine = useMemo(() => sets.filter((x) => x.exerciseId === ex.id).sort((a, b) => a.setNo - b.setNo), [sets, ex.id]);
   const editIndex = editing ? mine.findIndex((x) => x.setNo === editing.setNo) : -1;
+  /* EX-LOAD01 — 고치는 세트에 이 운동이 받지 않는 옛 kg 이 있으면(포고 홉의 시험 kg 등) 고치면 빠진다고 미리 말한다 */
+  const editingExcludedKg = editIndex >= 0 ? setLoadText(mine[editIndex], contract, wUnit).excludedKg : null;
   /* 프로그램 % 방식 — 이번에 할 세트의 목표(세트마다 다르다). 고치는 중이면 그 세트 */
   const targetIndex = editIndex >= 0 ? editIndex : mine.length;
   const target = ex.setTargets?.[targetIndex] ?? null;
-  const suggestKg = ex.setTargets ? (target?.kg ?? null) : ex.suggestedKg;
+  /* 내가 정한 목표 무게가 있으면 그것이 먼저(EX-RX01) — 추천은 그대로 두고 '목표 담기'로 보인다 */
+  const suggestKg = ex.targetKg ?? (ex.setTargets ? (target?.kg ?? null) : ex.suggestedKg);
+  const suggestIsMine = ex.targetKg != null;
 
   /* 마지막으로 남긴 세트 — 이 판을 연 뒤의 것만(다시 연 판에서 '47분째 쉬는 중'이 뜨지 않게) */
   const lastSet = useMemo(() => {
@@ -517,17 +588,21 @@ function Run({
    * 운동마다 아직 안 남긴 입력 — 다른 운동으로 갔다 돌아오면 그대로, 다른 운동에는 넘기지 않는다(시안 07). 고치던 세트는 초안이 아니다
    * (고치기는 그 세트의 값이라) — 옮길 때 고치기를 그만두고 고치기 전 초안을 남긴다.
    */
-  const drafts = useRef(new Map<string, { weight: string; count: string; field: 'weight' | 'count' }>());
+  const drafts = useRef(new Map<string, { weight: string; count: string; field: 'weight' | 'count'; load: LoadDraft }>());
   /* 운동을 옮기면 그 운동의 초안(없으면 빈칸)으로 바꾸고 위로 올린다 */
   const goTo = (next: number, from: RunExercise[] = list) => {
     const i = Math.min(from.length - 1, Math.max(0, next));
-    drafts.current.set(ex.id, editing ? editing.draft : { weight, count, field });
+    drafts.current.set(ex.id, editing ? editing.draft : { weight, count, field, load: loadDraft });
     const target = from[i];
     const back = drafts.current.get(target.id);
     setAt(i);
     setWeight(back?.weight ?? '');
     setCount(back?.count ?? '');
-    setField(back?.field ?? (target.needsWeight ? 'weight' : 'count'));
+    /* EX-LOAD01-R1 — 사람이 건드린 칸이면 그대로, 아니면 내 장비 목표, 그것도 없으면 남겨 둔 칸(기기 기억으로 채운 것일 수 있다) */
+    const seed = loadDraftOfTarget(target.targetLoad, wUnit);
+    const src = pickLoadDraftSource({ touched: !!back && loadTouched.has(target.id), target: !!seed, memory: false, previous: !!back });
+    setLoadDraft(src === 'draft' ? back!.load : src === 'target' ? seed! : (back?.load ?? EMPTY_LOAD_DRAFT));
+    setField(back?.field ?? (kgRequired(target, null) ? 'weight' : 'count'));
     setPad(false);
     setError(null);
     setEditing(null);
@@ -560,6 +635,18 @@ function Run({
     else goTo(Math.min(at, next.length - 1), next);
   };
 
+  /** 목표를 바꿨다 · 되돌렸다 — 서버가 돌려준 운동 하나로 그 자리만 갈아 끼운다(남긴 세트 · 순서 · 보던 운동은 그대로) */
+  const applyTarget = (next: RunExercise) => {
+    closeSheet();
+    setList((prev) => prev.map((e) => (e.id === next.id ? next : e)));
+    /*
+     * EX-LOAD01-R1 — 새로 정한 장비 목표는 아직 손대지 않은 다음 세트 칸만 채운다(고치던 칸 · 고치는 세트 · 남긴 세트는 그대로).
+     * 목표를 지웠으면 칸은 그대로 둔다.
+     */
+    const seed = next.id === ex.id && !editing ? loadDraftOfTarget(next.targetLoad, wUnit) : null;
+    if (seed && pickLoadDraftSource({ touched: loadTouched.has(next.id), target: true, memory: true, previous: true }) === 'target') setLoadDraft(seed);
+  };
+
   /** 교체 창에서 운동을 넣었다 — 서버와 같은 규칙으로 목록을 고치고(placeExercise), 바꿨으면 그 자리 · 더했으면 더한 운동으로 */
   const applySwap = (added: RunExercise, mode: SwapMode) => {
     closeSheet();
@@ -590,6 +677,7 @@ function Run({
     setWeight(editing.draft.weight);
     setCount(editing.draft.count);
     setField(editing.draft.field);
+    setLoadDraft(editing.draft.load);
     setEditing(null);
   };
 
@@ -597,8 +685,11 @@ function Run({
   const startEdit = (t: ShownSet) => {
     setError(null);
     if (editing?.setNo === t.setNo) return endEdit();
-    setEditing({ setNo: t.setNo, recordedAt: t.recordedAt, draft: editing?.draft ?? { weight, count, field } });
-    setWeight(t.weightKg != null ? String(round1(toWeight(t.weightKg, wUnit))) : '');
+    setEditing({ setNo: t.setNo, recordedAt: t.recordedAt, draft: editing?.draft ?? { weight, count, field, load: loadDraft } });
+    /* EX-LOAD01 — 그 세트에 그때 쓴 장비(밴드 · 기구 이름 · 양손 무게 · 변형)로 칸을 채운다. 받지 않는 운동의 옛 kg 은 칸에 넣지 않는다 */
+    const setDraft = loadDraftOfSet(t, contract, wUnit);
+    setLoadDraft(setDraft);
+    setWeight(t.weightKg != null && showsKg(contract, setDraft.variant) ? String(round1(toWeight(t.weightKg, wUnit))) : '');
     const raw = ex.isHold ? t.holdSeconds : t.reps;
     /* 분으로 받는 운동도 초로 남아 있다 — 분으로 바꿔 담는다 */
     const n = raw != null && ex.inMinutes ? Math.round(raw / 60) : raw;
@@ -617,13 +708,35 @@ function Run({
 
   const noInput = NO_INPUT_CATEGORIES.has(ex.category);
   const countLabel = ex.inMinutes ? '분' : ex.isHold ? '초' : '회';
+  /*
+   * EX-LOAD01 — 입력 칸은 얼린 기록 계약과 서버 능력(loadCapability)만 보고 고른다. 맨몸 · 받침 · 밴드 · 장비 확인 중이면 kg 칸이 없다
+   * (포고 홉에 kg 이 뜨던 것). 양손 무게가 다르면 큰 kg 칸 대신 장비 칸의 왼손 · 오른손.
+   */
+  const plan = loadPlan(contract, loadDraft.variant, structured);
+  const unequalOn = plan.unequal && loadDraft.unequal;
+  const kgShown = !noInput && showsKg(contract, loadDraft.variant) && !unequalOn;
+  const kgNeeded = !noInput && kgRequired(ex, loadDraft.variant) && !unequalOn;
+  /* kg 칸이 없는데 고른 칸이 무게로 남아 있으면 숫자판이 보이지 않는 무게를 고친다 — 그때는 횟수 칸 */
+  const activeField: 'weight' | 'count' = kgShown ? field : 'count';
+  /* 아래 막대에 다음 세트 장비를 한 줄로(누르면 장비 칸으로) — 밴드 고름 · 양손 다른 무게. 고르는 운동에서 아직 안 골랐으면 고르라고 */
+  const variantAsk = contract?.mode === 'alternative' && !loadDraft.variant;
+  /*
+   * EX-LOAD01-R1 — 밴드 고름 줄은 밴드를 실제로 고를 수 있을 때(plan.bandPicker)만. 구조화 저장이 꺼져 있으면 장비 칸에는 '업데이트 뒤'
+   * 안내뿐이라 '밴드 아직 안 고름 · 바꾸기'가 눌러도 아무것도 못 고르는 줄이었다(렌더 검토 D2). 안내(plan.notice)와 kg · 횟수 칸은 그대로.
+   */
+  const loadSummary = noInput
+    ? null
+    : ((plan.bandPicker ? draftBandSummary(contract, loadDraft) : null) ??
+      (unequalOn ? `양손 무게 · 왼 ${loadDraft.left || '—'} · 오 ${loadDraft.right || '—'}${wUnit}` : null));
+  /* 지난 기록의 kg 은 받는 운동에서만 보이고 채운다(고르는 운동이면 무게 변형의 기록) */
+  const lastKgOk = contract ? showsKg(contract, contract.mode === 'alternative' ? 'mass' : null) : true;
 
   const save = () => {
     setError(null);
     /* 적은 값은 고른 단위 — 저장은 kg, 소수 둘째 자리까지(135lb 가 134.9lb 로 돌아오지 않게) */
-    const w = noInput ? null : weight === '' ? null : storedKg(fromWeight(Number(weight), wUnit));
+    const w = !kgShown || weight === '' ? null : storedKg(fromWeight(Number(weight), wUnit));
     const n = noInput ? plannedAmount(ex) : count === '' ? null : Number(count);
-    if (!noInput && ex.needsWeight && (w == null || w <= 0)) {
+    if (kgNeeded && (w == null || w <= 0)) {
       setError('무게를 적어 주세요.');
       setField('weight');
       return;
@@ -645,6 +758,38 @@ function Run({
       setField('weight');
       return;
     }
+    /*
+     * EX-LOAD01 — 이번 세트의 무게를 계약 · 고름으로 만들고, 서버와 같은 정규화로 담기 전에 먼저 본다(맞지 않으면 담지 않고 알린다 — 담은 뒤
+     * 서버가 거절해 붙들리기 전에). 무게만 적는 세트는 load 를 싣지 않는다(옛 서버도 그대로 받는다).
+     */
+    const built = buildSetLoad({
+      contract,
+      draft: noInput ? { ...EMPTY_LOAD_DRAFT, variant: loadDraft.variant } : { ...loadDraft, unequal: unequalOn },
+      structured,
+      kg: w,
+      unit: wUnit,
+    });
+    if (!built.ok) {
+      setError(built.error);
+      return;
+    }
+    if (contract) {
+      const norm = normalizeSetLoad({
+        hasProtocol: true,
+        protocol: LOAD_PROTOCOL,
+        resolver: built.loadResolver,
+        contract,
+        variant: built.variant,
+        weightKg: built.weightKg,
+        hasLoad: built.load !== undefined,
+        load: built.load,
+        structured,
+      });
+      if (!norm.ok) {
+        setError(norm.error);
+        return;
+      }
+    }
     const fixing = editIndex >= 0 ? editing : null;
     /* 새 세트의 번호는 여기서 — 폰에만 있는 세트까지 세어야 안 겹치고, 번호를 함께 보내야 다시 보내도 한 줄로 남는다 */
     const setNo = fixing?.setNo ?? nextSetNo(mine.map((x) => x.setNo));
@@ -653,10 +798,14 @@ function Run({
     const keptRir = fixing ? mine.find((x) => x.setNo === setNo)?.rir : undefined;
     const entry = {
       setNo,
-      weightKg: w,
+      weightKg: built.weightKg,
       reps: ex.isHold ? null : n,
       holdSeconds: ex.isHold ? (ex.inMinutes ? n * 60 : n) : null,
       ...(keptRir != null ? { rir: keptRir } : {}),
+      /* EX-LOAD01 — 새 화면의 약속 번호(늘), 구조화 무게(밴드 · 섞임 · 양손 다른 무게 · 기구 이름)와 그 해석기 판, 고른 변형 */
+      loadProtocol: LOAD_PROTOCOL,
+      ...(built.load !== undefined ? { load: built.load, loadResolver: built.loadResolver } : {}),
+      ...(built.variant ? { variant: built.variant } : {}),
     };
     /* 이 세트로 지난 최고를 새로 넘었으면 성공 떨림(줄에 '새 최고'), 아니면 가볍게 톡 */
     const before = newRecord(ex, mine, ex.best);
@@ -667,6 +816,13 @@ function Run({
 
     /* 폰에 먼저 담는다 — 신호가 없어도 여기서 끝나고, 보내기는 뒤에서 */
     outbox.add({ sessionId, exerciseId: ex.id, ...entry, recordedAt: fixing?.recordedAt ?? new Date().toISOString() });
+    /* 새 세트에 쓴 밴드 · 역할을 기억한다(계정 · 운동 · 역할마다) — 다음에 이 운동을 열면 미리 골라 둔다. 지난 세트 고치기는 '마지막에 쓴 것'이 아니라 안 남긴다 */
+    const own = outboxOwner();
+    if (!fixing && own && built.load && (built.load.kind === 'band' || built.load.kind === 'combined')) {
+      const bp = built.load.kind === 'band' ? built.load : built.load.band;
+      void rememberBands(own, ex.id, bp.role, bp.bands);
+      if (plan.roleChips && loadDraft.role != null) void rememberRole(own, ex.id, loadDraft.role);
+    }
     /* 프로그램 날, 무게 추천 칸의 처방 마지막 세트 — 아래 자리가 '몇 개 더?' 물음으로 바뀐다 */
     if (!fixing && asksReserve(ex) && setNo === ex.plannedSets) setAskRir({ exerciseId: ex.id, setNo });
     if (fixing) endEdit();
@@ -692,23 +848,36 @@ function Run({
     const t = sets.find((x) => x.exerciseId === exerciseId && x.setNo === setNo);
     if (!t) return;
     tick();
+    /*
+     * EX-LOAD01 — '몇 개 더?'만 붙이는 다시 담기는 구조화 무게(load)를 싣지 않는다(없음 = 서버에 있는 밴드 · 섞인 무게를 그대로 둔다).
+     * 다만 양손 무게가 다른 세트는 kg 칸이 비어 무게를 다시 실어야 '무게를 적어 주세요'로 막히지 않는다(같은 값). 고르는 운동이면 그 세트의 변형.
+     * 받지 않는 운동에 옛 kg 이 남은 세트는 그 kg 을 지우지 않게 예전 약속(번호 없음)으로 보낸다 — 서버가 옛 앱처럼 원래 값을 보존한다.
+     */
+    const cc = contractOf(list.find((e) => e.id === exerciseId) ?? {});
+    const d = loadDraftOfSet(t, cc, wUnit);
+    const kgOk = showsKg(cc, d.variant);
+    const parts = t.load?.kind === 'mass' && t.load.parts && t.load.kg == null ? t.load : undefined;
+    const legacyKg = cc != null && !kgOk && t.weightKg != null;
     outbox.add({
       sessionId,
       exerciseId: t.exerciseId,
       setNo: t.setNo,
-      weightKg: t.weightKg,
+      weightKg: kgOk || legacyKg ? t.weightKg : null,
       reps: t.reps,
       holdSeconds: t.holdSeconds,
       recordedAt: t.recordedAt,
       rir: n,
+      ...(legacyKg ? {} : { loadProtocol: LOAD_PROTOCOL }),
+      ...(!legacyKg && cc?.mode === 'alternative' && d.variant ? { variant: d.variant } : {}),
+      ...(!legacyKg && parts ? { load: parts, loadResolver: RESOLVER_VERSION } : {}),
     });
     void flush();
   };
 
   /** '추천 95kg 담기' — 무게만(횟수는 본인이). 세트마다 목표가 다르면 그 세트의 무게와 횟수('+' 세트는 횟수를 본인이) */
   const fillSuggested = () => {
-    if (suggestKg == null) return;
-    setWeight(String(wUnit === 'lb' ? roundForDisplay(suggestKg, 'lb', weightKindOf(ex.equipment)) : suggestKg));
+    if (suggestKg == null || !kgShown) return;
+    setWeight(String(displayKg(suggestKg, wUnit, ex.equipment, suggestIsMine)));
     if (target && !target.plus) setCount(String(target.reps));
     setError(null);
   };
@@ -742,9 +911,27 @@ function Run({
     }
   };
 
+  /**
+   * EX-LOAD01 — 붙든 세트 [버리기]: 묻고 나서 폰에서만 뺀다(서버에 이미 있는 값은 그대로). 대기열은 이 단추 말고는 붙든 세트를 빼지 않는다.
+   */
+  const discardHeld = (t: ShownSet) => {
+    Alert.alert('이 세트를 버릴까요?', '폰에만 있던 이 세트의 값이 사라져요. 되돌릴 수 없어요.', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '버리기',
+        style: 'destructive',
+        onPress: () => {
+          if (editing?.setNo === t.setNo) endEdit();
+          outbox.discard({ sessionId, exerciseId: t.exerciseId, setNo: t.setNo });
+        },
+      },
+    ]);
+  };
+
   const fillLast = () => {
     if (!ex.last) return;
-    if (ex.last.weightKg != null) setWeight(String(round1(toWeight(ex.last.weightKg, wUnit))));
+    /* EX-LOAD01 — kg 칸이 있는 운동만 지난 kg 을 채운다(맨몸 운동의 옛 시험 kg 을 다시 채우지 않게) */
+    if (ex.last.weightKg != null && kgShown && lastKgOk) setWeight(String(round1(toWeight(ex.last.weightKg, wUnit))));
     const raw = ex.isHold ? ex.last.holdSecondsDone : ex.last.repsDone;
     const n = raw != null && ex.inMinutes ? Math.round(raw / 60) : raw;
     if (n != null) setCount(String(n));
@@ -816,6 +1003,20 @@ function Run({
 
   const finish = async () => {
     if (phase !== 'idle') return;
+    /*
+     * EX-LOAD01-R1 — 마치기 직전에 살아 있는 대기열을 다시 본다(이 계정 · 이 판). 보류를 포함해 못 보낸 세트가 남았으면 마치지 않는다 —
+     * 창이 열린 뒤 · 빼기의 비동기 이어짐이 관문을 건너뛰어 원래 값을 두고 판을 닫지 않게(GPT 완료 기준 결정).
+     */
+    const left = outbox.snapshot().filter((p) => p.sessionId === sessionId);
+    if (left.length > 0) {
+      const held = left.filter((p) => !!p.held).length;
+      setFinishError(
+        held > 0
+          ? `보류한 세트 ${held}개가 남아 있어 마치지 않았어요. 못 보낸 기록에서 다시 보내거나 고치거나 버린 뒤에 마쳐 주세요.`
+          : `세트 ${left.length}개가 아직 서버로 가지 않아 마치지 않았어요. 보내진 뒤에 마쳐 주세요.`
+      );
+      return;
+    }
     setFinishError(null);
     setPhase('busy');
     try {
@@ -845,7 +1046,9 @@ function Run({
    * 걷고(보낸 것으로), 서버에 없는 것만 뺀다. 견줄 수 없으면(신호 없음) 아무것도 빼지 않는다.
    */
   const excludeAndFinish = () => {
-    const mineP = pending;
+    /* EX-LOAD01-R1 — 보류한 세트(held)는 빼지 않는다: 숫자가 서버와 같아도 밴드 · 기구 같은 구조화 값의 저장은 증명되지 않고(가짜 확인),
+       지우면 원래 값을 잃는다. 보류는 못 보낸 기록에 남아 사람이 하나씩 다시 보내거나 버린다(렌더 검토 D3) */
+    const mineP = pending.filter((p) => !p.held);
     const lines = mineP.map((p) => `${list.find((e) => e.id === p.exerciseId)?.title ?? '운동'} ${p.setNo}번 세트`).join('\n');
     Alert.alert(`세트 ${mineP.length}개를 빼고 마칠까요?`, `${lines}\n\n서버에 이미 들어간 세트는 그대로 남기고, 없는 세트만 빼요. 뺀 세트는 되돌릴 수 없어요.`, [
       { text: '취소', style: 'cancel' },
@@ -868,7 +1071,7 @@ function Run({
               setFinishError('서버에 있는 세트를 확인하지 못해 아무것도 빼지 않았어요. 신호가 잡히면 다시 해 주세요.');
               return;
             }
-            const now = outbox.snapshot().filter((p) => p.sessionId === sessionId);
+            const now = outbox.snapshot().filter((p) => p.sessionId === sessionId && !p.held);
             for (const p of now) {
               const there = server.find((x) => x.exerciseId === p.exerciseId && x.setNo === p.setNo);
               const same =
@@ -902,8 +1105,11 @@ function Run({
     ]);
   };
 
+  /* EX-LOAD01 — kg 칸은 계약이 무게를 받을 때만, 이름도 계약이 말한다('무게(봉 포함)' · '무게(한 손 · 한 개)' · '케이블 머신 설정값') */
   const fields = [
-    { key: 'weight' as const, label: `무게${!ex.needsWeight ? ' (없으면 비워두세요)' : ''}`, value: weight, unit: wUnit },
+    ...(kgShown
+      ? [{ key: 'weight' as const, label: `${kgLabel(contract, loadDraft.variant)}${!kgNeeded ? ' (없으면 비워두세요)' : ''}`, value: weight, unit: wUnit }]
+      : []),
     { key: 'count' as const, label: ex.isHold ? timeLabel : '횟수', value: count, unit: countLabel },
   ];
   const nextTitle = at < list.length - 1 ? list[at + 1].title : null;
@@ -963,15 +1169,15 @@ function Run({
           못 보낸 세트가 있을 때만. 폰 저장소에 쓴 것이 확인된 때만 '폰에 저장해 두었다'고 말한다 — 저장소 쓰기가 실패하면 메모리에만 있어
           앱을 닫으면 사라질 수 있다(시안 07 '이 기기 저장 실패')
         */}
-        {pending.length > 0 ? (
+        {unsent.length > 0 ? (
           <View accessibilityRole="alert" style={[s.banner, { backgroundColor: persistFailed ? c.danger + '14' : offline ? c.warnBg : c.chip, flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
             <SymbolView name="icloud.slash" size={16} tintColor={persistFailed ? c.danger : offline ? c.warn : c.muted} />
             <Text style={[s.small, { flex: 1, color: persistFailed ? c.danger : offline ? c.warn : c.muted }]}>
               {persistFailed
-                ? `세트 ${pending.length}개를 이 기기에 저장하지 못했어요. 앱을 닫으면 사라질 수 있어요.`
+                ? `세트 ${unsent.length}개를 이 기기에 저장하지 못했어요. 앱을 닫으면 사라질 수 있어요.`
                 : offline
-                  ? `신호가 없어요. 세트 ${pending.length}개를 폰에 저장해 두었고, 신호가 잡히면 저절로 보내요.`
-                  : `세트 ${pending.length}개 보내는 중…`}
+                  ? `신호가 없어요. 세트 ${unsent.length}개를 폰에 저장해 두었고, 신호가 잡히면 저절로 보내요.`
+                  : `세트 ${unsent.length}개 보내는 중…`}
             </Text>
             {persistFailed ? (
               <Press onPress={() => void outbox.retryPersist().then(() => flush())} accessibilityRole="button" style={s.textBtn}>
@@ -979,6 +1185,27 @@ function Run({
               </Press>
             ) : null}
           </View>
+        ) : null}
+        {/* EX-LOAD01 — 붙든 세트는 지우지 않았다. 어느 운동인지 알려 그 운동의 세트 줄에서 고치거나 버리게 한다(누르면 그 운동으로) */}
+        {heldSets.length > 0 ? (
+          <Press
+            onPress={() => {
+              const i = list.findIndex((e) => e.id === heldSets[0].exerciseId);
+              if (i >= 0 && i !== at) goTo(i);
+            }}
+            accessibilityRole="button"
+            style={[s.banner, { backgroundColor: c.warnBg, flexDirection: 'row', alignItems: 'center', gap: 8 }]}
+          >
+            <SymbolView name="exclamationmark.triangle" size={16} tintColor={c.warn} />
+            <Text style={[s.small, { flex: 1, color: c.warn }]}>
+              확인이 필요한 세트 {heldSets.length}개가 있어요
+              {(() => {
+                const titles = [...new Set(heldSets.map((p) => list.find((e) => e.id === p.exerciseId)?.title ?? '운동'))];
+                return ` · ${titles.slice(0, 2).join(', ')}${titles.length > 2 ? ` 외 ${titles.length - 2}개` : ''}`;
+              })()}
+              . 세트 줄에서 고치거나 버려 주세요.
+            </Text>
+          </Press>
         ) : null}
 
         <ScrollView ref={scrollRef} style={s.fill} contentContainerStyle={[s.content, READABLE]} keyboardShouldPersistTaps="handled">
@@ -1008,11 +1235,22 @@ function Run({
               </Text>
             </Press>
           ) : null}
-          {ex.prescription ? (
-            <Text style={[s.body, { color: c.muted }]}>
-              {ex.prescription}
-              {ex.perSide ? ' (좌우 각각)' : ''}
-            </Text>
+          {ex.prescription || ex.target ? (
+            <Press
+              onPress={ex.target ? () => openSheet('target') : undefined}
+              disabled={!ex.target}
+              accessibilityRole={ex.target ? 'button' : 'text'}
+              accessibilityLabel={ex.target ? `목표 ${ex.prescription ?? ''}, 바꾸려면 누르세요` : undefined}
+              style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6, minHeight: ex.target ? 44 : undefined }}
+            >
+              <Text style={[s.body, { color: c.muted, flex: 1 }]}>
+                {ex.target?.override ? <Text style={{ color: c.link, fontWeight: '700' }}>내 목표 · </Text> : null}
+                {ex.prescription}
+                {/* 처방 줄에 이미 '(좌우 각각)'이 있으면 다시 붙이지 않는다 */}
+                {ex.perSide && !ex.prescription?.includes('좌우 각각') ? ' (좌우 각각)' : ''}
+              </Text>
+              {ex.target ? <Text style={[s.smallBold, { color: c.link, paddingTop: 2 }]}>목표 ›</Text> : null}
+            </Press>
           ) : null}
           {isOptionalProgramExercise(ex) ? (
             <View style={s.optional}>
@@ -1081,7 +1319,13 @@ function Run({
                 onPress={() =>
                   router.push({
                     pathname: '/library/exercise/[id]',
-                    params: { id: ex.id, session: sessionId, today: ex.prescription ? `${ex.prescription}${ex.perSide ? ' (좌우 각각)' : ''}` : '' },
+                    params: {
+                      id: ex.id,
+                      session: sessionId,
+                      today: ex.prescription
+                        ? `${ex.prescription}${ex.perSide && !ex.prescription.includes('좌우 각각') ? ' (좌우 각각)' : ''}`
+                        : '',
+                    },
                   } as Href)
                 }
                 accessibilityRole="link"
@@ -1099,7 +1343,7 @@ function Run({
 
           {ex.last ? (
             <Text style={[s.small, { color: c.muted, marginTop: 4 }]}>
-              지난번 {ex.last.weightKg != null ? `${formatWeight(ex.last.weightKg, wUnit)} × ` : ''}
+              지난번 {ex.last.weightKg != null && lastKgOk ? `${formatWeight(ex.last.weightKg, wUnit)} × ` : ''}
               {ex.isHold
                 ? ex.last.holdSecondsDone != null
                   ? formatSeconds(ex.last.holdSecondsDone)
@@ -1109,20 +1353,52 @@ function Run({
             </Text>
           ) : null}
 
+          {/* EX-LOAD01 — 이번 세트 장비(밴드 · 역할 · 기구 이름 · 양손 다른 무게 · 밴드/무게 고르기). 계약이 그런 칸을 말할 때만 보인다 */}
+          <View
+            onLayout={(e) => {
+              loadCardY.current = e.nativeEvent.layout.y;
+            }}
+          >
+            {/* EX-LOAD01-R1 — 내가 정한 장비 목표(목표)는 아래 칸 · 남긴 세트(한 것)와 따로 적는다 */}
+            {!noInput && editIndex < 0 && ex.targetLoad ? (
+              <Text style={[s.targetLine, { color: c.muted }]}>
+                <Text style={{ color: c.ink, fontWeight: '700' }}>목표</Text> · {loadTargetText(ex.targetLoad, (kg) => formatWeight(kg, wUnit) ?? `${kg}kg`)}
+              </Text>
+            ) : null}
+            <LoadExtras
+              key={ex.id}
+              contract={contract}
+              structured={structured}
+              draft={loadDraft}
+              onChange={changeLoad}
+              onRecall={recallLoad}
+              unit={wUnit}
+              owner={outboxOwner()}
+              exerciseId={ex.id}
+              variantOnly={noInput}
+              remember={editIndex < 0}
+              c={c}
+            />
+          </View>
+
           {/* 오늘 이 운동에서 남긴 세트 — 줄을 누르면 고치고, 오른쪽 휴지통은 지운다 */}
           <View style={{ marginTop: 16 }}>
             {mine.length === 0 ? (
               <Text style={[s.empty, { backgroundColor: c.card, color: c.muted }]}>첫 세트를 마치면 여기에 쌓여요.</Text>
             ) : (
+              <>
+              {/* EX-LOAD01-R1 — 남긴 세트는 '한 것'(목표와 따로). 목표를 바꿔도 여기는 그대로다 */}
+              <Text style={[s.targetLine, { color: c.muted, textAlign: 'left', fontWeight: '700' }]}>한 것</Text>
               <View style={[s.setList, { backgroundColor: c.card, boxShadow: c.float }]}>
                 {mine.map((x, i) => {
                   const fixingThis = i === editIndex;
+                  /* EX-LOAD01 — 무게 글은 그 세트에 실제로 쓴 것: kg(받는 운동만) · 양손 다른 무게 · 밴드 · 기구 이름. 받지 않는 운동의 옛 kg 은 흐리게 따로 */
+                  const lt = setLoadText(x, contract, wUnit);
                   return (
+                    <View key={x.setNo} style={i > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line } : null}>
                     <View
-                      key={x.setNo}
                       style={[
                         s.setRow,
-                        i > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line } : null,
                         fixingThis ? { backgroundColor: c.action + '14' } : null,
                       ]}
                     >
@@ -1136,15 +1412,30 @@ function Run({
                         <View style={[s.setNo, { backgroundColor: fixingThis ? c.sky : c.chip }]}>
                           <Text style={[s.tinyBold, { color: fixingThis ? '#fff' : c.muted }]}>{i + 1}</Text>
                         </View>
-                        <Text numberOfLines={1} style={[s.setText, { color: c.ink }]}>
-                          {x.weightKg != null ? `${formatWeight(x.weightKg, wUnit)} × ` : ''}
-                          {x.holdSeconds != null ? formatSeconds(x.holdSeconds) : `${x.reps}회`}
-                        </Text>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text numberOfLines={1} style={[s.setLine, { color: c.ink }]}>
+                            {lt.kg ? `${lt.kg} × ` : ''}
+                            {x.holdSeconds != null ? formatSeconds(x.holdSeconds) : `${x.reps}회`}
+                          </Text>
+                          {lt.detail ? (
+                            <Text numberOfLines={2} style={[s.tiny, { color: c.muted }]}>
+                              {lt.detail}
+                            </Text>
+                          ) : null}
+                          {lt.excludedKg != null ? (
+                            <Text style={[s.tiny, { color: c.muted }]}>기록된 무게 {formatWeight(lt.excludedKg, wUnit)} · 이 운동은 무게 없이 기록해 계산에서 뺐어요</Text>
+                          ) : null}
+                        </View>
                         {record?.setNo === x.setNo ? <Text style={[s.badge, { backgroundColor: c.action, color: '#fff' }]}>새 최고</Text> : null}
                         {x.rir != null ? (
                           <Text style={[s.badge, { backgroundColor: c.chip, color: c.muted }]}>여유 {x.rir >= 4 ? '4+' : x.rir}</Text>
                         ) : null}
-                        {x.pending ? (
+                        {x.held ? (
+                          <View accessibilityLabel="확인이 필요한 세트" style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                            <SymbolView name="exclamationmark.triangle" size={11} tintColor={c.danger} />
+                            <Text style={[s.tinyBold, { color: c.danger }]}>확인</Text>
+                          </View>
+                        ) : x.pending ? (
                           <View accessibilityLabel="아직 서버에 안 간 세트" style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
                             <SymbolView name="icloud.slash" size={11} tintColor={c.warn} />
                             <Text style={[s.tinyBold, { color: c.warn }]}>대기</Text>
@@ -1161,9 +1452,30 @@ function Run({
                         <Icon name="trash2" size={18} color={c.muted} />
                       </Press>
                     </View>
+                    {/*
+                      EX-LOAD01 — 붙든 세트: 서버가 받지 않았거나 저장했다는 확인이 없다. 지우지 않고 까닭을 보이고, [고치기](다시 담으면 다시 보냄) ·
+                      [버리기](폰에서만 뺀다, 묻고 나서). 계정을 모르는 세트는 고치면 지금 계정 것이 되므로 버리기만.
+                    */}
+                    {x.held ? (
+                      <View style={[s.held, { backgroundColor: c.danger + '12' }]}>
+                        <Text style={[s.small, { color: c.danger }]}>{x.held.message}</Text>
+                        <View style={{ flexDirection: 'row', gap: 4 }}>
+                          {x.held.code !== 'OWNER_UNKNOWN' ? (
+                            <Press onPress={() => startEdit(x)} accessibilityRole="button" accessibilityLabel={`${i + 1}세트 고치기`} style={s.textBtn}>
+                              <Text style={[s.smallBold, { color: c.link }]}>고치기</Text>
+                            </Press>
+                          ) : null}
+                          <Press onPress={() => discardHeld(x)} accessibilityRole="button" accessibilityLabel={`${i + 1}세트 버리기`} style={s.textBtn}>
+                            <Text style={[s.smallBold, { color: c.danger }]}>버리기</Text>
+                          </Press>
+                        </View>
+                      </View>
+                    ) : null}
+                    </View>
                   );
                 })}
               </View>
+              </>
             )}
           </View>
         </ScrollView>
@@ -1183,7 +1495,24 @@ function Run({
                     {ex.prescription ? `${ex.prescription} · ` : ''}숫자 없이 세트만 체크해요
                   </Text>
                 ) : null}
-                {/* 무게칸은 언제나 — 맨몸 운동도 덤벨 · 조끼를 쓰는 일이 흔하다. ± 는 자판 없이 2.5kg 만 올릴 때 */}
+                {/*
+                  EX-LOAD01 — 무게 칸은 그 운동의 장비가 무게를 받을 때만(얼린 기록 계약). 맨몸 · 받침 · 밴드는 횟수 · 시간만 — 조끼를 입는 변형은
+                  검토한 '무게를 더한 맨몸 변형'으로 따로 받는다. ± 는 자판 없이 2.5kg 만 올릴 때
+                */}
+                {!noInput && plan.notice && !variantAsk ? <LoadNotice text={plan.notice} c={c} /> : null}
+                {(loadSummary || variantAsk) && !pad ? (
+                  <Press
+                    onPress={() => scrollRef.current?.scrollTo({ y: Math.max(0, loadCardY.current - 8), animated: true })}
+                    accessibilityRole="button"
+                    accessibilityHint="이번 세트 장비로 올라가요"
+                    style={[s.fillBtn, { minHeight: 36 }]}
+                  >
+                    <Text numberOfLines={1} style={[s.small, { color: variantAsk ? c.warn : c.ink, textAlign: 'center' }]}>
+                      {variantAsk ? '밴드로 했는지 무게로 했는지 골라 주세요' : loadSummary}{' '}
+                      <Text style={{ color: c.link, fontWeight: '600' }}>{variantAsk ? '고르기' : '바꾸기'}</Text>
+                    </Text>
+                  </Press>
+                ) : null}
                 {!noInput
                   ? fields.map((f) => (
                       <View key={f.key} style={s.fieldRow}>
@@ -1204,8 +1533,8 @@ function Run({
                           accessibilityLabel={`${f.label} ${f.value || '비어 있음'}`}
                           style={[
                             s.field,
-                            { backgroundColor: pad && field === f.key ? c.sky + '1a' : c.chip },
-                            pad && field === f.key ? { borderWidth: 2, borderColor: c.sky } : null,
+                            { backgroundColor: pad && activeField === f.key ? c.sky + '1a' : c.chip },
+                            pad && activeField === f.key ? { borderWidth: 2, borderColor: c.sky } : null,
                           ]}
                         >
                           <Text numberOfLines={1} style={[s.small, { color: c.muted, flexShrink: 1 }]}>
@@ -1231,19 +1560,19 @@ function Run({
                 {pad && !noInput ? (
                   <View style={[s.padBox, { backgroundColor: c.chip }]}>
                     <NumberPad
-                      onChange={field === 'weight' ? setWeight : setCount}
-                      allowDecimal={field === 'weight'}
+                      onChange={activeField === 'weight' ? setWeight : setCount}
+                      allowDecimal={activeField === 'weight'}
                       keyHeight={short ? 40 : 48}
                       c={c}
                     />
                     {/* 다 넣었으면 — 무게면 다음 칸으로, 횟수까지 넣었으면 판을 접는다 */}
                     <Press
-                      onPress={() => (field === 'weight' ? setField('count') : setPad(false))}
+                      onPress={() => (activeField === 'weight' ? setField('count') : setPad(false))}
                       accessibilityRole="button"
                       style={[s.padOk, { height: short ? 40 : 48, backgroundColor: c.action + '26' }]}
                     >
                       <Text style={[s.bodyBold, { color: c.link }]}>
-                        {field === 'weight' ? `다음 · ${ex.isHold ? timeLabel : '횟수'} →` : '확인'}
+                        {activeField === 'weight' ? `다음 · ${ex.isHold ? timeLabel : '횟수'} →` : '확인'}
                       </Text>
                     </Press>
                   </View>
@@ -1252,21 +1581,26 @@ function Run({
                 {!pad && !noInput ? (
                   editIndex >= 0 ? (
                     <View style={[s.editing, { backgroundColor: c.action + '1a' }]}>
-                      <Text style={[s.small, { color: c.link, flex: 1 }]}>✎ {editIndex + 1}세트를 고치는 중이에요</Text>
+                      <Text style={[s.small, { color: c.link, flex: 1 }]}>
+                        ✎ {editIndex + 1}세트를 고치는 중이에요
+                        {editingExcludedKg != null
+                          ? `\n기록된 무게(${formatWeight(editingExcludedKg, wUnit)})는 이 운동에서 쓰지 않아 고치면 빠져요`
+                          : ''}
+                      </Text>
                       <Press onPress={endEdit} accessibilityRole="button" style={s.textBtn}>
                         <Text style={[s.smallBold, { color: c.link }]}>그만두기</Text>
                       </Press>
                     </View>
-                  ) : suggestKg != null ? (
+                  ) : suggestKg != null && kgShown ? (
                     <View>
                       <Press onPress={fillSuggested} accessibilityRole="button" style={s.fillBtn}>
                         <Text style={[s.smallBold, { color: c.link }]}>
-                          ↺ 추천 {shown(suggestKg)}
+                          ↺ {suggestIsMine ? '목표' : '추천'} {displayKg(suggestKg, wUnit, ex.equipment, suggestIsMine)}
                           {wUnit} 담기
                         </Text>
                       </Press>
                       {/* 자유 운동의 추천은 까닭 한 줄 — 왜 올랐는지(안 올랐는지) 보여야 믿고 담는다 */}
-                      {ex.suggestNote ? <Text style={[s.tiny, s.center, { color: c.muted }]}>{ex.suggestNote}</Text> : null}
+                      {ex.suggestNote && !suggestIsMine ? <Text style={[s.tiny, s.center, { color: c.muted }]}>{ex.suggestNote}</Text> : null}
                     </View>
                   ) : ex.last ? (
                     <Press onPress={fillLast} accessibilityRole="button" style={s.fillBtn}>
@@ -1363,6 +1697,18 @@ function Run({
         onClose={closeSheet}
         c={c}
       />
+      <TargetSheet
+        key={`target-${sheet.n}-${ex.id}`}
+        open={sheet.which === 'target'}
+        sessionId={sessionId}
+        exercise={ex}
+        painToday={painToday}
+        doneSets={mine.length}
+        unit={wUnit}
+        onDone={applyTarget}
+        onClose={closeSheet}
+        c={c}
+      />
       <FinishSheet
         key={`finish-${sheet.n}`}
         open={sheet.which === 'finish'}
@@ -1415,6 +1761,17 @@ function Run({
             }}
             c={c}
           />
+          {ex.target ? (
+            <MenuRow
+              icon="target"
+              label="목표 바꾸기(세트 · 횟수 · 휴식 · 무게)"
+              onPress={() => {
+                setMenu(false);
+                openSheet('target');
+              }}
+              c={c}
+            />
+          ) : null}
           <MenuRow
             icon="list"
             label="오늘 운동 목록"
@@ -1439,7 +1796,7 @@ function Run({
   );
 }
 
-function MenuRow({ icon, label, onPress, c }: { icon: 'star' | 'plus' | 'arrow-left-right' | 'list' | 'circle-check'; label: string; onPress: () => void; c: Palette }) {
+function MenuRow({ icon, label, onPress, c }: { icon: 'star' | 'plus' | 'arrow-left-right' | 'list' | 'circle-check' | 'target'; label: string; onPress: () => void; c: Palette }) {
   return (
     <Press onPress={onPress} accessibilityRole="button" style={[s.menuRow, { backgroundColor: c.card }]}>
       <Icon name={icon} size={18} color={c.ink} />
@@ -1449,6 +1806,8 @@ function MenuRow({ icon, label, onPress, c }: { icon: 'star' | 'plus' | 'arrow-l
 }
 
 const s = StyleSheet.create({
+  /* EX-LOAD01-R1 — '목표' · '한 것' 한 줄 */
+  targetLine: { fontSize: 13, lineHeight: 18, textAlign: 'center', marginBottom: 6 },
   fill: { flex: 1 },
   menuRow: { minHeight: 52, borderRadius: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
   centerBox: { alignItems: 'center', justifyContent: 'center', padding: 24 },
@@ -1484,6 +1843,9 @@ const s = StyleSheet.create({
   setMain: { flex: 1, minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 14, paddingVertical: 8 },
   setNo: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   setText: { flex: 1, fontSize: 18, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  /* 세트 줄의 첫 줄(무게 × 횟수) — 밑에 밴드 · 기구 이름 줄이 붙을 수 있어 세로 칸 안에 둔다 */
+  setLine: { fontSize: 18, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  held: { paddingLeft: 48, paddingRight: 8, paddingBottom: 8, gap: 2 },
   badge: { fontSize: 11, fontWeight: '600', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, overflow: 'hidden' },
   bottom: { paddingHorizontal: 12, paddingTop: 12, gap: 8, borderTopWidth: StyleSheet.hairlineWidth },
   error: { fontSize: 13, textAlign: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, overflow: 'hidden' },

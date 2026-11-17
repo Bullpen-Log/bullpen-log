@@ -23,6 +23,7 @@ import { Pulse } from '~/shell/motion';
 import { Press } from '~/shell/press';
 import { weekdayKo } from '~/home/plan-model';
 import { ProgramCards } from './program-cards';
+import { RecoveryNotice } from '~/workout/recovery-notice';
 
 /**
  * 트레이닝 탭 첫 화면(앱 화면) — 2026-10-29 확정 디자인: 오늘 트레이닝(상태마다 주 단추 하나) → 암케어 · 메커니즘 작은 카드 둘 →
@@ -165,6 +166,8 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
         </View>
       ) : null}
       {error && data ? <Text style={{ color: c.muted, fontSize: 13 }}>새로 받지 못했어요. 마지막으로 받은 내용이에요.</Text> : null}
+      {/* EX-LOAD01-R1 — 못 보낸 세트(붙들림 · 오래됨 · 읽을 수 없음)가 있을 때만 한 줄 → 복구 화면(/workout-recovery) */}
+      <RecoveryNotice />
 
       {todayCard ? (
         <TodayHero card={todayCard} today={day} onOpen={() => openPart('today')} onWorkout={startWorkout} />

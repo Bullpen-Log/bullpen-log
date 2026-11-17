@@ -1,4 +1,5 @@
 import 'server-only';
+import { historyKgReader } from '@/lib/workout/load/server';
 import { prisma } from '@/lib/prisma';
 import { toDateKey } from '@/lib/pitch-stats';
 import { readFrozenPlan, type FrozenExercise } from '@/lib/workout/session-plan';
@@ -112,6 +113,7 @@ async function recentDays(
       where: { userId, OR: picked },
       orderBy: [{ date: 'desc' }, { setNo: 'asc' }],
       select: {
+        id: true,
         exerciseId: true,
         sessionId: true,
         date: true,
@@ -125,6 +127,8 @@ async function recentDays(
     }),
   ]);
   const plans = new Map(sessions.map((s) => [s.id, readFrozenPlan(s.plan)]));
+  /* EX-LOAD01 — 추천의 기준 무게는 지금 운동과 같은 뜻(견줌 열쇠)인 기록만. 확인 전 · 맞지 않는 kg · 기구 정체 없는 케이블 · 머신은 빠진다 */
+  const kgOf = await historyKgReader(rows, 'metric');
 
   const out = new Map<string, FreeLast[]>();
   for (const [exerciseId, list] of chosen) {
@@ -138,7 +142,7 @@ async function recentDays(
           date: toDateKey(date),
           sets: rows
             .filter((r) => r.exerciseId === exerciseId && r.sessionId === sessionId)
-            .map((r) => ({ weightKg: r.weightKg, reps: r.reps })),
+            .map((r) => ({ weightKg: kgOf(r), reps: r.reps })),
           /* 판에 없거나 숫자가 아니면 없음 — free-weight.ts 가 오늘 처방으로 잰다 */
           plannedReps: typeof planned === 'number' ? planned : null,
         };

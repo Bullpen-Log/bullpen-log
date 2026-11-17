@@ -9,7 +9,10 @@ import { haptic } from '@/lib/haptics';
 import { formatAmount, formatSeconds } from '@/lib/exercise-meta';
 import { formatWeight, type WeightUnit } from '@/lib/units';
 import { volumeIn } from '@/lib/workout/summarize';
-import type { ExerciseHistory, HistoryDay, HistoryKind } from '@/lib/workout/history';
+import type { ExerciseHistory, HistoryDay, HistoryKind, HistorySet } from '@/lib/workout/history';
+import { bandText } from '@/lib/workout/load/band-catalog';
+import { bandRoleWord } from '@/lib/workout/load/describe';
+import type { LoadMode } from '@/lib/workout/load/contract';
 import { MoreButton } from '@/components/disclosure';
 
 /**
@@ -107,11 +110,17 @@ function volumeText(kind: HistoryKind, value: number, unit: WeightUnit) {
   return formatSeconds(value);
 }
 
-/** 세트 하나 — '62.5kg×8' · '12회' · '45초' */
-function setText(
-  s: { weightKg: number | null; reps: number | null; holdSeconds: number | null },
-  unit: WeightUnit
-) {
+/**
+ * EX-LOAD01 — kg 칸을 보이는 기록 방식(무게 · 기구 설정값 · 도구 무게). 칸이 없는 옛 답은 예전처럼 본다(undefined → 무게도 보임).
+ * 밴드 · 섞임 · 맨몸 · 확인 중인 운동은 kg 최고 · 추정 1RM 칸을 내지 않는다(밴드 힘을 kg 으로 바꾸지 않는다).
+ */
+const MASS_MODES: ReadonlySet<LoadMode> = new Set(['externalMass', 'indicatedLoad', 'implementMass']);
+function showsKg(mode: LoadMode | undefined): boolean {
+  return mode === undefined || MASS_MODES.has(mode);
+}
+
+/** 세트 하나 — '62.5kg×8' · '12회' · '45초' · '노랑 · THERABAND … · 12회' */
+function setText(s: HistorySet, unit: WeightUnit) {
   const w =
     s.weightKg != null && s.weightKg > 0 ? formatWeight(s.weightKg, unit) : null;
   const amount =
@@ -120,13 +129,46 @@ function setText(
       : s.reps != null
         ? `${s.reps}회`
         : '?';
-  return w ? `${w}×${amount.replace('회', '')}` : amount;
+  /*
+   * 밴드 세트는 역할(저항 · 보조 · 모름)과 어느 밴드였는지를 같이(단계는 제품 이름 — kg 이 아니다). EX-LOAD01-R1 — 역할을 빼면 저항 줄과
+   * 보조 줄이 같은 글이 되어 견줄 수 없는 것을 같아 보이게 한다(렌더 검토 D1). 앱(native/src/training/history.tsx bandLines)과 같은 말.
+   * 구조화 기록이 없는 옛 밴드 줄(unknownBand)은 '밴드(모름)'으로 — 횟수만 보여 밴드 운동인지조차 안 보이던 것(렌더 검토 O2).
+   */
+  const band = s.band
+    ? `${bandRoleWord(s.band.role)} · ${s.band.bands.length ? s.band.bands.map((b) => bandText(b)).join(' + ') : '어느 밴드인지 모름'}`
+    : s.loadStatus === 'unknownBand'
+      ? '밴드(모름)'
+      : null;
+  /* 서로 다른 무게 도구(왼 · 오른) — 한 숫자가 없어도 기록을 그대로 */
+  const parts =
+    !w && s.parts?.length
+      ? s.parts.map((p) => `${p.side === 'left' ? '왼 ' : p.side === 'right' ? '오른 ' : ''}${formatWeight(p.kg, unit)}${p.count != null && p.count > 1 ? `×${p.count}` : ''}`).join(' · ')
+      : null;
+  const main = w ? `${w}×${amount.replace('회', '')}` : parts ? `${parts} · ${amount}` : amount;
+  /* 기구 이름(사용자가 붙인 것) — 견줌은 같은 기구끼리만이라 어느 기구였는지를 보인다 */
+  const setup = s.setupLabel ? `${s.setupLabel} · ` : '';
+  return band ? `${band} · ${main}` : `${setup}${main}`;
 }
 
 /** 하루의 기록을 한 줄로. 세트별로 남긴 날은 세트를, 아니면 요약을 적는다 */
 function dayText(day: HistoryDay, unit: WeightUnit) {
   if (day.sets) return day.sets.map((s) => setText(s, unit)).join(' · ');
   return formatAmount(day, unit) ?? '한 것으로 표시함';
+}
+
+/**
+ * 계산에서 뺀 무게 한 줄(자세히 볼 때만) — 원래 적힌 kg 은 지우지 않고 여기서만 보인다. '확인 전'(그때 장비를 모름) ·
+ * '맞지 않음'(검토로 그 장비에 무게가 없다고 확인함)을 가른다.
+ */
+function excludedKgText(day: HistoryDay, unit: WeightUnit): string | null {
+  const lines = (day.sets ?? [])
+    .filter((s) => (s.loadStatus === 'unverified' || s.loadStatus === 'incompatible') && s.rawKg != null && s.rawKg > 0)
+    .map((s) => ({ kg: s.rawKg!, why: s.loadStatus }));
+  if (lines.length === 0) return null;
+  const kgs = [...new Set(lines.map((l) => formatWeight(l.kg, unit) ?? `${l.kg}kg`))].join(' · ');
+  return lines.some((l) => l.why === 'incompatible')
+    ? `기록된 무게 ${kgs} · 맞지 않는 무게라 계산에서 뺐어요`
+    : `기록된 무게 ${kgs} · 확인 전이라 계산에서 뺐어요`;
 }
 
 function Stat({
@@ -327,10 +369,13 @@ export function ExerciseHistoryView({
 
   const limit = expanded ? days.length : compact ? SHOWN.compact : SHOWN.full;
   const w = (kg: number) => formatWeight(kg, unit) ?? '';
+  /* EX-LOAD01 — kg 칸은 무게를 재는 운동만, 추정 1RM 은 허용한 운동만(칸이 없는 옛 답은 예전처럼) */
+  const kgCards = showsKg(history.loadMode);
+  const e1rmCard = kgCards && history.e1rmEligible !== false;
 
   /* 첫째 칸 — 무엇으로 재는 운동인지에 따라 */
   const first =
-    kind === 'weight' && history.bestWeight ? (
+    kind === 'weight' && kgCards && history.bestWeight ? (
       <Stat
         label="최고 무게"
         value={w(history.bestWeight.kg)}
@@ -354,7 +399,7 @@ export function ExerciseHistoryView({
 
   /* 둘째 칸 — 무게 운동이면 추정 1RM, 아니면 모두 몇 번 */
   const second =
-    kind === 'weight' && history.bestSet ? (
+    kind === 'weight' && e1rmCard && history.bestSet ? (
       <Stat
         label="추정 1RM"
         value={w(history.bestSet.e1rm)}
@@ -378,9 +423,16 @@ export function ExerciseHistoryView({
         <Stat
           label="최근 4주"
           value={`${history.last28}번`}
-          sub={kind === 'weight' && history.bestSet ? `모두 ${history.total}번` : null}
+          sub={kind === 'weight' && e1rmCard && history.bestSet ? `모두 ${history.total}번` : null}
         />
       </div>
+
+      {kind === 'weight' && kgCards && history.comparison && (history.comparison.setupLabel || history.comparison.otherSetupDays > 0) && (
+        <p className="text-caption leading-relaxed break-keep text-muted">
+          {history.comparison.setupLabel ? `최고 · 볼륨은 ${history.comparison.setupLabel} 기준이에요.` : '최고 · 볼륨은 가장 최근 기구 기준이에요.'}
+          {history.comparison.otherSetupDays > 0 ? ` 다른 기구로 한 ${history.comparison.otherSetupDays}일은 견주지 않았어요.` : ''}
+        </p>
+      )}
 
       {trend.length >= 2 && (
         <div>
@@ -413,6 +465,12 @@ export function ExerciseHistoryView({
               <p className="mt-0.5 text-xs leading-relaxed break-keep tabular-nums text-muted">
                 {dayText(day, unit)}
               </p>
+              {/* 계산에서 뺀 무게 — 자세히 보는 곳(라이브러리 · 트레이닝 기록, 운동 화면은 '더 보기'를 펼쳤을 때)만. 원래 값은 지우지 않고 여기서만 보인다(EX-LOAD01) */}
+              {(expanded || !compact) && excludedKgText(day, unit) && (
+                <p className="mt-0.5 text-caption leading-relaxed break-keep text-muted/70">
+                  {excludedKgText(day, unit)}
+                </p>
+              )}
             </li>
           ))}
         </ul>

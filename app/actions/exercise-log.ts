@@ -1,5 +1,8 @@
 'use server';
 
+import { forSummary, gateRows, planContextOf } from '@/lib/workout/load/plan-gate';
+import { currentContracts, readSetLoads } from '@/lib/workout/load/server';
+import { readFrozenPlan } from '@/lib/workout/session-plan';
 import { allowFeature } from '@/lib/release-gate';
 import { appNow } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
@@ -138,14 +141,17 @@ async function saveDone(
      */
     const session = await prisma.trainingSession.findUnique({
       where: { userId_date: { userId, date } },
-      select: { id: true },
+      select: { id: true, plan: true },
     });
-    const rows = session
+    const raw = session
       ? await prisma.userExerciseSet.findMany({
           where: { sessionId: session.id, exerciseId },
-          select: { exerciseId: true, weightKg: true, reps: true, holdSeconds: true },
+          select: { id: true, exerciseId: true, weightKg: true, reps: true, holdSeconds: true },
         })
       : [];
+    /* EX-LOAD01 — 요약의 kg 은 읽기 관문을 지난 보일 무게만(close-stale summaryWrites 와 같은 규칙) */
+    const [snapshots, current] = await Promise.all([readSetLoads(raw.map((r) => r.id)), currentContracts([exerciseId])]);
+    const rows = forSummary(gateRows(raw, planContextOf(readFrozenPlan(session?.plan)?.exercises, current), snapshots));
     const [summary] = summarizeSets(rows);
     const amounts = summary
       ? {

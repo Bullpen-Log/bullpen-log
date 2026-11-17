@@ -1,6 +1,8 @@
 'use server';
 
+import { exerciseHasV2History } from '@/lib/workout/v2/gate';
 import { revalidatePath } from 'next/cache';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { deleteVideos, isLibraryPath } from '@/lib/storage';
@@ -21,6 +23,14 @@ import {
 import { withInput, type FormValues } from '@/lib/form-values';
 import { clearLibraryCache, exercisesByIds, visibleGuides } from '@/lib/library-cache';
 import { ARMCARE_CATEGORY, cleanTargetMuscles } from '@/lib/armcare/anatomy';
+import { loadStructured } from '@/lib/workout/load/server';
+import { codeOverrideOf } from '@/lib/workout/load/overrides';
+import {
+  planSemanticsWrite,
+  semanticsDecisionOf,
+  writeStoredSemantics,
+  type SemanticsWritePlan,
+} from '@/lib/workout/load/semantics';
 
 export type ActionState =
   | {
@@ -93,8 +103,48 @@ function readTargetMuscles(
   return { targetMuscles: cleanTargetMuscles(formData.getAll('targetMuscles')) };
 }
 
+/**
+ * EX-LOAD01 R1-04 — 관리자 뜻 설정(밴드 역할 · 같이/골라 쓰기 · 받침 · 무게 더한 맨몸 · 추정 1RM) 쓰기 결정.
+ *
+ * 폼이 뜻 설정 칸을 보낼 때만(고칠 수 있을 때만 화면이 넣는다) 본다. 권한(관리자) · 스키마 스위치 · 잠근 검토 · 장비와 맞는지를
+ * DB 를 부르기 전에 모두 본다(lib/workout/load/semantics.ts planSemanticsWrite) — 거절이면 운동 줄도 쓰지 않는다.
+ * 스위치가 꺼져 있으면 'SCHEMA_OFF' 로 거절하고 loadSemantics 이름이 든 SQL 을 한 번도 보내지 않는다.
+ */
+function semanticsPlanOf(
+  formData: FormData,
+  actor: { id: string; role: string },
+  exerciseId: string | null,
+  ctx: { equipment: string[]; category: string; prescription: Prescription; movementPattern?: string | null }
+): SemanticsWritePlan {
+  return planSemanticsWrite({
+    actor,
+    structured: loadStructured(),
+    decision: semanticsDecisionOf(formData),
+    code: codeOverrideOf(exerciseId),
+    ctx: {
+      exerciseId,
+      equipment: ctx.equipment,
+      category: ctx.category,
+      isHold: ctx.prescription.holdSeconds != null && ctx.prescription.reps == null,
+      movementPattern: ctx.movementPattern ?? null,
+    },
+  });
+}
+
+/** 결정대로 저장 칸을 쓴다 — 운동 줄과 같은 거래 안에서. 한 줄이 아니면 던져 거래를 되돌린다 */
+async function applySemanticsPlan(
+  tx: Prisma.TransactionClient,
+  exerciseId: string,
+  plan: SemanticsWritePlan
+): Promise<void> {
+  if (!plan.ok || plan.write === 'none') return;
+  const n = await writeStoredSemantics(tx, exerciseId, plan.write === 'set' ? plan.value : null);
+  if (n !== 1) throw new Error('LOAD_SEMANTICS_WRITE_MISSING');
+}
+
 async function tryCreateExercise(formData: FormData): Promise<ActionState> {
-  if (!(await assertAdmin())) return { error: '관리자만 등록할 수 있습니다.' };
+  const admin = await assertAdmin();
+  if (!admin) return { error: '관리자만 등록할 수 있습니다.' };
 
   const title = String(formData.get('title') ?? '').trim();
   const category = String(formData.get('category') ?? '').trim();
@@ -135,21 +185,33 @@ async function tryCreateExercise(formData: FormData): Promise<ActionState> {
     EXERCISE_EQUIPMENT
   );
 
-  await prisma.exerciseVideo.create({
-    data: {
-      title,
-      category,
-      description,
-      videoPath,
-      thumbPath,
-      bodyParts,
-      intensity,
-      difficulty,
-      equipment,
-      ...readTargetMuscles(formData, category),
-      ...readPrescription(formData),
-    },
-  });
+  /* R1-04 — 뜻 설정은 운동 줄을 만들기 전에 판단한다(거절이면 아무것도 만들지 않는다) */
+  const prescription = readPrescription(formData);
+  const semantics = semanticsPlanOf(formData, admin, null, { equipment, category, prescription });
+  if (!semantics.ok) return { error: semantics.error };
+
+  const data = {
+    title,
+    category,
+    description,
+    videoPath,
+    thumbPath,
+    bodyParts,
+    intensity,
+    difficulty,
+    equipment,
+    ...readTargetMuscles(formData, category),
+    ...prescription,
+  };
+  if (semantics.write === 'set') {
+    /* 새 운동 줄과 뜻 설정을 한 거래에서 — 하나만 남지 않게 */
+    await prisma.$transaction(async (tx) => {
+      const created = await tx.exerciseVideo.create({ data, select: { id: true } });
+      await applySemanticsPlan(tx, created.id, semantics);
+    });
+  } else {
+    await prisma.exerciseVideo.create({ data });
+  }
 
   /* 목록을 캐시해 두었으므로 고친 뒤에는 비워야 화면에 반영된다 */
   clearLibraryCache();
@@ -219,6 +281,8 @@ export async function deleteExercise(formData: FormData) {
   const id = String(formData.get('id') ?? '');
   if (!id) return;
 
+  /* EX-RX01 R2A — v2 판에 기록이 있는 운동은 지우지 않는다(지우면 세트가 따라 지워져 기록 · 목표 연결이 사라지고, 울타리가 막는다). 숨기기를 쓴다 */
+  if (await exerciseHasV2History(id)) return;
   // 기록을 지우면 저장소의 영상 파일도 함께 정리한다.
   const removed = await prisma.exerciseVideo.delete({ where: { id } });
   await deleteVideos(
@@ -240,7 +304,8 @@ export async function updateExercise(
 }
 
 async function tryUpdateExercise(formData: FormData): Promise<ActionState> {
-  if (!(await assertAdmin())) return { error: '관리자만 수정할 수 있습니다.' };
+  const admin = await assertAdmin();
+  if (!admin) return { error: '관리자만 수정할 수 있습니다.' };
 
   const id = String(formData.get('id') ?? '');
   const existing = id ? await prisma.exerciseVideo.findUnique({ where: { id } }) : null;
@@ -290,7 +355,17 @@ async function tryUpdateExercise(formData: FormData): Promise<ActionState> {
     EXERCISE_EQUIPMENT
   );
 
-  await prisma.exerciseVideo.update({
+  /* R1-04 — 뜻 설정은 저장할 장비 · 처방과 맞춰 미리 판단한다(거절이면 운동 줄도 바꾸지 않는다) */
+  const prescription = readPrescription(formData);
+  const semantics = semanticsPlanOf(formData, admin, id, {
+    equipment,
+    category,
+    prescription,
+    movementPattern: existing.movementPattern,
+  });
+  if (!semantics.ok) return { error: semantics.error };
+
+  const updateArgs = {
     where: { id },
     data: {
       title,
@@ -303,7 +378,7 @@ async function tryUpdateExercise(formData: FormData): Promise<ActionState> {
       difficulty,
       equipment,
       ...readTargetMuscles(formData, category),
-      ...readPrescription(formData),
+      ...prescription,
       /*
        * 직접 찍은 영상을 올렸으면 참고 영상에서 벗어난다.
        *
@@ -314,7 +389,16 @@ async function tryUpdateExercise(formData: FormData): Promise<ActionState> {
        */
       ...(replacing ? { source: 'OWN' as const, referenceVideoId: null } : {}),
     },
-  });
+  };
+  if (semantics.write === 'none') {
+    await prisma.exerciseVideo.update(updateArgs);
+  } else {
+    /* 운동 줄과 뜻 설정을 한 거래에서. 이미 얼린 판 · 목표 · 세트는 그 판에 찍힌 계약을 쓰므로 바뀌지 않는다 — 앞으로 얼리는 판부터 */
+    await prisma.$transaction(async (tx) => {
+      await tx.exerciseVideo.update(updateArgs);
+      await applySemanticsPlan(tx, id, semantics);
+    });
+  }
 
   // DB를 먼저 바꾼 뒤에 옛 파일을 지운다. 순서가 반대면 실패 시 영상이 사라진다.
   if (replacing) {
@@ -323,6 +407,7 @@ async function tryUpdateExercise(formData: FormData): Promise<ActionState> {
     );
   }
 
+  /* 뜻 설정도 같은 이름표(LIBRARY_TAG)의 캐시라 이것 하나로 함께 비워진다(lib/library-cache.ts storedLoadSemantics) */
   clearLibraryCache();
   revalidatePath('/library/training');
   return { success: '수정했습니다.' };

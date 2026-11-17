@@ -8,6 +8,10 @@ import { toDateKey } from '@/lib/pitch-stats';
 import { dbDate } from '@/lib/nutrition/days';
 import { isDateKey, ORG_DUPLICATE_MS } from '@/lib/org/rules';
 import { trainingGuides, visibleExercises, allExercises, allGuides } from '@/lib/library-cache';
+import { equipmentDisplayName } from '@/lib/exercise-meta';
+import { contractOfLibrary, readContextsFor, readSetLoads } from '@/lib/workout/load/server';
+import { viewSetLoad } from '@/lib/workout/load/gate';
+import { lineLoadOf, type LineLoadInfo } from '@/lib/org/team-session';
 import { coachOrgCan, myMember } from '@/lib/org/app-access';
 import { ORG_LOST, orgOpenHref, type OpenRecord } from '@/lib/org/space-nav';
 import { commentCounts } from '@/lib/org/comment-load';
@@ -48,7 +52,8 @@ import { createOrgVideoUploadTarget, createPlaybackUrls, deleteVideos, isStorage
 /* 조직을 볼 권한이 없음 — 앱 껍데기가 가로채 공간을 다시 확인한다(계약 8-5) */
 const NO_ACCESS = { ok: false as const, to: ORG_LOST };
 
-export type HomeworkLine = { name: string; dose: string; kind: 'exercise' | 'drill' };
+/** 숙제 한 줄 — 처방(목표)만이다(실제 세트가 아니다). EX-LOAD01 R1-03 — load 는 그 운동의 기록 계약 요약(선택 칸, 숙제에는 kg 처방이 없다) */
+export type HomeworkLine = { name: string; dose: string; kind: 'exercise' | 'drill'; load?: LineLoadInfo };
 export type HomeworkView = {
   id: string;
   status: HomeworkStatus;
@@ -67,14 +72,22 @@ export type HomeworkView = {
 /** 숙제 고르기용 라이브러리 — 트레이닝이 고를 수 있는 운동 · 드릴만(숨김 · '나중에 촬영' 뺌) */
 export async function loadHomeworkLibrary(orgId: string): Promise<
   | { ok: false; to: string }
-  | { ok: true; exercises: { id: string; name: string; category: string }[]; drills: { id: string; name: string; category: string }[] }
+  | {
+      ok: true;
+      /**
+       * EX-LOAD01 R1-03 — equipment · load(선택 칸)는 그 운동의 장비와 서버가 푼 기록 계약 요약. 코치 화면은 kg 칸을 load.mass 로만 정한다
+       * (예전에는 장비가 없어 모든 운동에 kg 칸이 나왔다). 옛 화면은 두 칸을 모른다.
+       */
+      exercises: { id: string; name: string; category: string; equipment?: string[]; load?: LineLoadInfo }[];
+      drills: { id: string; name: string; category: string }[];
+    }
 > {
   const c = await coachOrgCan(orgId, 'training.assign');
   if (!c) return NO_ACCESS;
   const [ex, gd] = await Promise.all([visibleExercises(), trainingGuides()]);
   return {
     ok: true,
-    exercises: ex.map((e) => ({ id: e.id, name: e.title, category: e.category })),
+    exercises: ex.map((e) => ({ id: e.id, name: e.title, category: e.category, equipment: [...e.equipment], load: lineLoadOf(contractOfLibrary(e), equipmentDisplayName) })),
     drills: gd.map((g) => ({ id: g.id, name: g.title, category: g.category })),
   };
 }
@@ -159,7 +172,7 @@ async function settleHomework(userId: string | null, rows: { id: string; status:
     exIds.length
       ? prisma.userExerciseSet.findMany({
           where: { userId, exerciseId: { in: exIds }, enteredById: null, recordedAt: { gte: new Date(from), lte: new Date(to) } },
-          select: { exerciseId: true, reps: true, holdSeconds: true, weightKg: true, sessionId: true, recordedAt: true },
+          select: { id: true, exerciseId: true, reps: true, holdSeconds: true, weightKg: true, sessionId: true, recordedAt: true },
         })
       : [],
     gIds.length
@@ -169,7 +182,17 @@ async function settleHomework(userId: string | null, rows: { id: string; status:
         })
       : [],
   ]);
-  const facts = sets.map((x) => ({ ...x, at: x.recordedAt.getTime() }));
+  /*
+   * EX-LOAD01 R1-03 — 숙제 증거의 무게는 읽기 관문으로(그 세트의 판에 얼린 계약 · 스냅샷). 장비가 받지 않는 옛 kg(맨몸 운동의 kg) 하나만 적힌 세트는
+   * '무엇이든 적은 세트'로 세지 않는다. 횟수 · 시간 증거는 그대로다.
+   */
+  const [ctxOf, snaps] = sets.length
+    ? await Promise.all([readContextsFor(sets.map((x) => ({ exerciseId: x.exerciseId, sessionId: x.sessionId }))), readSetLoads(sets.map((x) => x.id))])
+    : [null, null];
+  const facts = sets.map((x) => {
+    const v = ctxOf ? viewSetLoad(ctxOf(x.exerciseId, x.sessionId), { weightKg: x.weightKg, snapshot: snaps?.get(x.id) ?? null }) : null;
+    return { ...x, at: x.recordedAt.getTime(), loadRecorded: v ? v.displayKg != null || v.band != null || v.parts != null : x.weightKg != null };
+  });
   const changed = new Map<string, { status: HomeworkStatus; doneAt: Date | null; doneSessionId: string | null }>();
   for (const [i, r] of open.entries()) {
     const day = toDateKey(r.createdAt);
@@ -207,6 +230,7 @@ async function homeworkOf(memberId: string, userId: string | null, only?: unknow
     ),
   ]);
   const exName = new Map(ex.map((e) => [e.id, e.title]));
+  const exRow = new Map(ex.map((e) => [e.id, e]));
   const gName = new Map(gd.map((g) => [g.id, g.title]));
   return rows.map((r) => {
     const now = changed.get(r.id);
@@ -222,11 +246,15 @@ async function homeworkOf(memberId: string, userId: string | null, only?: unknow
       hasExercise: items.some((i) => i.exerciseId),
       talk: talk.get(r.id) ?? { total: 0, open: 0 },
       doneByRecord: status === 'done' && !!(now ? now.doneSessionId : r.doneSessionId),
-      lines: items.map((i) => ({
-        name: (i.exerciseId ? exName.get(i.exerciseId) : i.guideId ? gName.get(i.guideId) : null) ?? '지운 운동',
-        dose: homeworkDose(i),
-        kind: i.exerciseId ? ('exercise' as const) : ('drill' as const),
-      })),
+      lines: items.map((i) => {
+        const row = i.exerciseId ? exRow.get(i.exerciseId) : undefined;
+        return {
+          name: (i.exerciseId ? exName.get(i.exerciseId) : i.guideId ? gName.get(i.guideId) : null) ?? '지운 운동',
+          dose: homeworkDose(i),
+          kind: i.exerciseId ? ('exercise' as const) : ('drill' as const),
+          ...(row ? { load: lineLoadOf(contractOfLibrary(row), equipmentDisplayName) } : {}),
+        };
+      }),
     };
   });
 }

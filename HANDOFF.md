@@ -1,3 +1,9 @@
+## Kim Min / workout owners — 2026-11-17 · GPT — R1 code-only rollout, schema NOT activated
+
+Actual user deployment instruction verified. Original66+R179 were projected into exact114source current-main package, independently accepted by Sub2 (54checks +canonical web/native types0) and overall full Next production build0. Existing STEPBOX/auth/FPS/mechanics preserved. Correct Vercel project and shared env tabs show no WORKOUT settings; all3flags remainOFF. No values read/changed. Pending SQL remains pending; active Prisma schema/migrations unchanged.
+
+This publishes safe code/labels/recovery safeguards, NOT fully activated rich load storage. Support1 has NOT contacted/received Kim/schema-owner coordination and no fresh backup/schema application occurred. Scoped DB approval/backup/coordination and15physical device checks remain before activation. Do not enable WORKOUT_LOAD_SCHEMA/WORKOUT_V2[_SCHEMA] just because code is published. Final exact evidence docs/reviews/ex-load01-r1-final-gpt-review-20261117.md and current-main-integration packet. Actual pipeline verification will follow. Public App Store launch held.
+
 ## Kim Min / all departments — 2026-11-17 · GPT — R1 part acceptance update, no release
 
 R1 final independent part review is now ACCEPTED within implemented scope. Actual evidence: final web/native UI4/0, recovery9/0, synthetic real PostgreSQL11/0, artifact preservation79/79 with reverse0/stable source. Original c668 finalized outbox and released claims. Exact artifact7e80b8e... DOES contain the final all-pending/live-callback finish gate; prior contrary hash attribution is withdrawn. Read docs/work-orders/EX-LOAD01-R1-status-packet.md and current reconciliation override.

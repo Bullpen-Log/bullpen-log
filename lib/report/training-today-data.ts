@@ -1,5 +1,7 @@
 import 'server-only';
 import { missingEquipment, requirementLabel } from '@/lib/equipment-requirements';
+import { forSummary, forTonnage, gateRows, planContextOf } from '@/lib/workout/load/plan-gate';
+import { readSetLoads } from '@/lib/workout/load/server';
 import { prisma } from '@/lib/prisma';
 import type { getCurrentUser } from '@/lib/dal';
 import { favoriteExerciseIds } from '@/lib/favorites';
@@ -15,7 +17,7 @@ import { TRAINING_SCREEN_TEXT, trainingScreenOf, type TrainingScreen } from '@/l
 import { remakeFieldsOf, stateNoticeOf, type StateNotice } from '@/lib/report/state-notice';
 import { programDayText } from '@/lib/engine/arbiter';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
-import { summarizeSets, totalVolumeKg, type ExerciseSummary } from '@/lib/workout/summarize';
+import { summarizeSets, totalVolumeKg, volumeOf, type ExerciseSummary } from '@/lib/workout/summarize';
 import { recentAmounts, type PastAmount } from '@/lib/report/exercise-recent';
 import { MIN_CANDIDATES } from '@/lib/report/prescription';
 import {
@@ -174,6 +176,11 @@ export type TrainingToday = {
     minutes: number;
     sets: number;
     volumeKg: number;
+    /**
+     * EX-LOAD01 R1 — 총량을 나눈 것(선택 칸, 옛 화면은 volumeKg 만 본다). volumeKg 는 잰 무게(자유 중량)만이고, 기구 설정값은 기구마다
+     * 따로(stacks — kg 총량이 아니다), 견줄 문맥이 없어 어느 총량에도 넣지 않은 무게 세트 수는 withheldSets.
+     */
+    volume?: ReturnType<typeof volumeOf>;
     lines: { id: string; title: string; summary: ExerciseSummary }[];
   } | null;
   note: { intensity: number | null; memo: string | null };
@@ -225,7 +232,7 @@ export async function loadTrainingToday(user: TodayUser, today: Date): Promise<T
     todaySession?.status === 'FINISHED'
       ? prisma.userExerciseSet.findMany({
           where: { sessionId: todaySession.id },
-          select: { exerciseId: true, weightKg: true, reps: true, holdSeconds: true },
+          select: { id: true, exerciseId: true, weightKg: true, reps: true, holdSeconds: true },
         })
       : Promise.resolve([]);
   /* 아래에서 기다리기 전에 실패해도 '처리 안 된 실패'로 서버가 넘어지지 않게 — 실패는 아래 Promise.all 이 그대로 받는다 */
@@ -273,17 +280,25 @@ export async function loadTrainingToday(user: TodayUser, today: Date): Promise<T
   for (const it of [...(programCard?.upcoming.flatMap((u) => u.items) ?? []), ...(programCard?.rows ?? [])]) {
     if (it.thumbPath) it.thumbUrl = thumbUrls[it.thumbPath] ?? null;
   }
+  const doneSnapshots = await readSetLoads(doneSets.map((s) => s.id));
 
   const done = (() => {
     if (!finished || !todaySession) return null;
     const frozen = readFrozenPlan(todaySession.plan)?.exercises ?? [];
     const order = new Map(frozen.map((e, i) => [e.id, i]));
     const titleOf = new Map(frozen.map((e) => [e.id, e.title]));
+    /*
+     * EX-LOAD01 — 요약의 kg 은 보일 무게, 총량은 견줄 수 있는 무게만(그 판에 얼린 계약 · 장비로). 스냅샷은 스키마 적용 뒤 doneSnapshots.
+     * 판에 없는 운동(빼 버린 운동)의 kg 은 근거가 없어 요약 · 총량에 안 든다.
+     */
+    const gated = gateRows(doneSets, planContextOf(frozen), doneSnapshots);
+    const tonnage = forTonnage(gated);
     return {
       minutes: Math.round(todaySession.activeSeconds / 60),
       sets: doneSets.length,
-      volumeKg: totalVolumeKg(doneSets),
-      lines: summarizeSets(doneSets)
+      volumeKg: totalVolumeKg(tonnage),
+      volume: volumeOf(tonnage),
+      lines: summarizeSets(forSummary(gated))
         .sort((a, b) => (order.get(a.exerciseId) ?? 999) - (order.get(b.exerciseId) ?? 999))
         .map((sum) => ({
           id: sum.exerciseId,

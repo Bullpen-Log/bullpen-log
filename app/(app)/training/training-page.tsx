@@ -24,6 +24,8 @@ import { DoneCard, DoneFold, type DoneLine } from './done-card';
 import { AutoNote } from './auto-note';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
 import { summarizeSets, totalVolumeKg } from '@/lib/workout/summarize';
+import { forSummary, forTonnage, gateRows, planContextOf } from '@/lib/workout/load/plan-gate';
+import { readSetLoads } from '@/lib/workout/load/server';
 import { recentAmounts } from '@/lib/report/exercise-recent';
 import { MIN_CANDIDATES } from '@/lib/report/prescription';
 import { SLOT_ORDER, cutLabelOf } from '@/lib/report/theme';
@@ -425,10 +427,12 @@ export default async function TrainingPage({
     finished && todaySession
       ? prisma.userExerciseSet.findMany({
           where: { sessionId: todaySession.id },
-          select: { exerciseId: true, weightKg: true, reps: true, holdSeconds: true },
+          select: { id: true, exerciseId: true, weightKg: true, reps: true, holdSeconds: true },
         })
       : Promise.resolve([]),
   ]);
+  /* EX-LOAD01 R1-03 — 완료 카드도 읽기 관문으로(앱 오늘 화면 lib/report/training-today-data.ts 와 같은 길). 스냅샷은 스키마 적용 뒤에만 */
+  const doneSnapshots = await readSetLoads(doneSets.map((s) => s.id));
   for (const it of [...(programCard?.upcoming.flatMap((u) => u.items) ?? []), ...(programCard?.rows ?? [])]) {
     if (it.thumbPath) it.thumbUrl = thumbUrls[it.thumbPath] ?? null;
   }
@@ -445,7 +449,12 @@ export default async function TrainingPage({
     const frozen = readFrozenPlan(todaySession.plan)?.exercises ?? [];
     const order = new Map(frozen.map((e, i) => [e.id, i]));
     const titleOf = new Map(frozen.map((e) => [e.id, e.title]));
-    const lines: DoneLine[] = summarizeSets(doneSets)
+    /*
+     * EX-LOAD01 R1-03 — 요약의 kg 은 보일 무게(맨몸 운동의 옛 kg 은 안 보임 · 기구가 갈리면 한 숫자로 안 접음), 총량은 잰 무게만(기구 설정값을
+     * kg 총량에 섞지 않음). 세트 줄의 원래 값은 그대로다.
+     */
+    const gated = gateRows(doneSets, planContextOf(frozen), doneSnapshots);
+    const lines: DoneLine[] = summarizeSets(forSummary(gated))
       .sort(
         (a, b) => (order.get(a.exerciseId) ?? 999) - (order.get(b.exerciseId) ?? 999)
       )
@@ -457,7 +466,7 @@ export default async function TrainingPage({
     return {
       minutes: Math.round(todaySession.activeSeconds / 60),
       sets: doneSets.length,
-      volumeKg: totalVolumeKg(doneSets),
+      volumeKg: totalVolumeKg(forTonnage(gated)),
       lines,
     };
   })();

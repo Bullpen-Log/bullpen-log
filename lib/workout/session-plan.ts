@@ -1,10 +1,12 @@
 import 'server-only';
-import { needsWeight } from '@/lib/exercise-meta';
+import { resolveRecordingContract, type RecordingContract } from '@/lib/workout/load/contract';
+import { overridesFor } from '@/lib/workout/load/overrides';
 import { formatPrescription } from '@/lib/exercise-meta';
 import { planPrescription, readPlanVolume, type PlanVolume } from '@/lib/report/volume';
 import { SLOT_ORDER, type SlotKey, type ThemeKey } from '@/lib/report/theme';
 import { orderSession } from '@/lib/report/exercise-order';
 import { readPlanSwaps, type PlanSwap } from '@/lib/report/plan-swaps';
+import type { UserTarget } from '@/lib/workout/target-override';
 import {
   itemRx,
   lighterRx,
@@ -83,6 +85,21 @@ export type FrozenExercise = {
    * 코치 세트를 지워 세트가 남지 않으면 판에서도 뺀다. 선수 운동에는 없다(undefined).
    */
   fromOrg?: boolean;
+  /**
+   * 사용자가 이 판에서만 바꾼 내 목표(EX-RX01, lib/workout/target-override.ts) — 바꾼 칸만 있다. 위의 planned* · restSeconds ·
+   * suggestedKg 는 '오늘 추천'으로 그대로 두고(프로그램 넘기기 · 다음 무게가 읽는다), 운동 화면만 이 칸을 먼저 따른다.
+   * 판 JSON 안 운동 하나에 붙어 있어 순서 바꾸기 · 다시 열기 · 코치 기록이 그대로 옮긴다. 읽을 때 늘 readUserTarget 으로 다시 거른다.
+   * 바꾼 적 없는 운동 · 옛 판에는 없다(undefined).
+   * EX-LOAD01-R1 — userTarget.load 에 장비 목표(밴드 · 섞임 · 고른 변형 · 기구 이름 · 양손 다른 무게)가 함께 산다(판 JSON 이라 새 DB 칸이
+   * 없어도 된다). 남긴 세트(한 것)와 다른 것이고, 목표를 바꿔도 남긴 세트는 그대로다.
+   */
+  userTarget?: UserTarget;
+  /**
+   * EX-LOAD01 — 이 판을 열 때 얼린 장비 기록 계약(lib/workout/load/contract.ts). 운동 화면의 입력 칸(kg · 한 손 · 기구 설정값 · 밴드 ·
+   * 없음)과 서버의 세트 검사가 이것을 본다. 판을 연 뒤 라이브러리 장비가 바뀌어도 이 판의 세트는 이 계약으로 읽는다.
+   * 그 앞에 찍은 판에는 없다(undefined) — 그 판에 얼린 equipment 로 같은 규칙을 다시 푼다(contractOfFrozen).
+   */
+  load?: RecordingContract;
 };
 
 export type SetTarget = {
@@ -163,6 +180,18 @@ type SourceExercise = {
  * 찍으면 바꿔 넣은 운동만 처방 줄이나 무게 필수 여부가 다르게 나온다.
  */
 export function freezeExercise(ex: SourceExercise, slot: SlotKey): FrozenExercise {
+  /* 버티기 초가 적혀 있고 횟수가 없으면 시간형이다 */
+  const isHold = ex.holdSeconds != null && ex.reps == null;
+  const load = resolveRecordingContract({
+    /* 운동 번호가 있어야 검토한 1RM 허용 목록 · 검토 예외가 붙는다(GPT 서브1 사전 점검 — 빠지면 모든 판의 1RM 이 꺼졌다) */
+    exerciseId: ex.id,
+    equipment: ex.equipment,
+    category: ex.category,
+    isHold,
+    movementPattern: ex.movementPattern ?? null,
+    /* EX-LOAD01-R1(R1-04) — 관리자 뜻 설정(ExerciseVideo.loadSemantics, 스키마 켠 서버의 라이브러리 줄에만 있다)을 판에 함께 얼린다. 없으면 코드 예외만 */
+    overrides: overridesFor(ex.id, (ex as { loadSemantics?: unknown }).loadSemantics),
+  });
   return {
     id: ex.id,
     title: ex.title,
@@ -174,15 +203,19 @@ export function freezeExercise(ex: SourceExercise, slot: SlotKey): FrozenExercis
     plannedHoldSeconds: ex.holdSeconds,
     restSeconds: ex.restSeconds,
     perSide: ex.perSide,
-    needsWeight: needsWeight(ex.equipment),
-    /* 버티기 초가 적혀 있고 횟수가 없으면 시간형이다 */
-    isHold: ex.holdSeconds != null && ex.reps == null,
+    /* EX-LOAD01 — 무게 필수 여부도 계약에서(예전 needsWeight 와 같은 값의 투영) */
+    needsWeight: load.massRequired,
+    isHold,
     equipment: ex.equipment,
     bodyParts: ex.bodyParts,
     intensity: ex.intensity,
     thumbPath: ex.thumbPath,
+    load,
   };
 }
+
+/* EX-LOAD01 — 얼린 운동의 계약 읽기는 순수 모듈에(서버 · 시험 · 앱이 같이 쓴다) */
+export { contractOfFrozen, hasFrozenContract } from '@/lib/workout/load/frozen';
 
 /**
  * 오늘 목록을 세션이 쓸 모양으로 찍는다.

@@ -100,14 +100,19 @@ export function homeworkDose(i: HomeworkItem): string {
   return [i.sets ? `${i.sets}세트` : '', amount, i.note ?? ''].filter(Boolean).join(' · ');
 }
 
-/** 선수가 직접 남긴 세트 하나(코치 대신 세트는 넣지 않는다) — at 은 그 세트를 마친 시각(ms) */
-export type HomeworkSet = { exerciseId: string; reps: number | null; holdSeconds: number | null; weightKg: number | null; sessionId: string; at: number };
+/**
+ * 선수가 직접 남긴 세트 하나(코치 대신 세트는 넣지 않는다) — at 은 그 세트를 마친 시각(ms).
+ * EX-LOAD01 R1-03 — loadRecorded 는 읽기 관문(그 세트를 받을 때의 계약 · 스냅샷)으로 본 '실제로 남긴 무게 · 밴드'가 있나. false 면 weightKg 는
+ * 그 운동이 받지 않는 옛 kg(맨몸 운동의 kg 등)이라 숙제 증거로 세지 않는다. 없으면(undefined) 예전처럼 weightKg 를 본다.
+ */
+export type HomeworkSet = { exerciseId: string; reps: number | null; holdSeconds: number | null; weightKg: number | null; sessionId: string; at: number; loadRecorded?: boolean };
 
-/** 처방에 맞는 세트인가 — 횟수를 냈으면 그 횟수 이상, 초를 냈으면 그 초 이상, 둘 다 없으면 무엇이든 적은 세트 */
+/** 처방에 맞는 세트인가 — 횟수를 냈으면 그 횟수 이상, 초를 냈으면 그 초 이상, 둘 다 없으면 무엇이든 적은 세트(받지 않는 옛 kg 하나만 적힌 세트는 빼고) */
 export function setMeets(item: HomeworkItem, s: HomeworkSet): boolean {
   if (item.reps) return (s.reps ?? 0) >= item.reps;
   if (item.holdSec) return (s.holdSeconds ?? 0) >= item.holdSec;
-  return s.reps != null || s.holdSeconds != null || s.weightKg != null;
+  const load = s.loadRecorded ?? s.weightKg != null;
+  return s.reps != null || s.holdSeconds != null || load;
 }
 
 /**

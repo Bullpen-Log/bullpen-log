@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Check } from '@/components/icon';
 import { Modal } from '@/components/modal';
 import { summarizeSets } from '@/lib/workout/summarize';
@@ -24,6 +25,7 @@ export function FinishSheet({
   startedAt,
   priorSeconds,
   pendingCount,
+  heldCount = 0,
   onFinish,
   onClose,
   busy,
@@ -50,11 +52,19 @@ export function FinishSheet({
    * 보내질 때까지 마치기를 막는다.
    */
   pendingCount: number;
+  /**
+   * EX-LOAD01-R1 — 그 가운데 보류한 세트(held — 저장 확인이 없어 멈춘 것) 수. 보류는 저절로 다시 보내지 않으니 '신호가 잡히면 보내진다'고
+   * 말하지 않는다(렌더 검토 D4). 마치기는 보류를 포함해 못 보낸 세트가 없을 때만 — 보류는 '못 보낸 기록'(/training/recovery)에서 풀린다.
+   */
+  heldCount?: number;
   onFinish: (intensity: number | null, memo: string) => void;
   onClose: () => void;
   busy: boolean;
   error: string | null;
 }) {
+  /* EX-LOAD01-R1 — 보내는 중과 보류를 글로 가른다. 둘 다 마치기를 막는다(GPT 완료 기준 결정) */
+  const held = Math.min(Math.max(heldCount, 0), pendingCount);
+  const sendingCount = pendingCount - held;
   /*
    * 강도는 미리 고르지 않는다 — 5 를 띄워 두면 그대로 두고 넘기는데 이 숫자가 운동 부하 지수에 곱해진다.
    *
@@ -93,10 +103,23 @@ export function FinishSheet({
         위에 있어야 한다. 강도만 안 골랐으면 켜 둔다(마친 뒤 칩이 한 번 더 묻는다).
       */}
       {pendingCount > 0 ? (
-        <p className="text-center text-xs leading-relaxed text-warn">
-          아직 못 보낸 세트가 {pendingCount}개 있어요. 신호가 잡혀 저절로 보내지면 마칠
-          수 있어요.
-        </p>
+        <div className="space-y-1 text-center text-xs leading-relaxed text-warn">
+          {sendingCount > 0 && (
+            <p>
+              아직 못 보낸 세트가 {sendingCount}개 있어요. 신호가 잡혀 저절로 보내지면 마칠
+              수 있어요.
+            </p>
+          )}
+          {held > 0 && (
+            <p>
+              세트 {held}개는 저장 확인이 없어 보류돼 있어요. 저절로 다시 보내지 않아요.{' '}
+              <Link href="/training/recovery" className="font-semibold text-sky underline">
+                못 보낸 기록
+              </Link>
+              에서 까닭을 보고 다시 보내거나 고치거나 버리면 마칠 수 있어요.
+            </p>
+          )}
+        </div>
       ) : (
         memoNeedsIntensity && (
           <p className="text-center text-xs text-muted">

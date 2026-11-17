@@ -45,6 +45,11 @@ export default async function RunPage() {
       openedAt={run.openedAt}
       /* 다시 연 판이면 앞서 마친 구간의 시간. 종료 요약이 여기에 더해 보여준다. */
       priorSeconds={run.priorSeconds}
+      /* 이 판 날짜의 체크인에 통증이 있으면 목표 바꾸기 창이 '올릴 수 없어요'를 미리 알린다(EX-RX01) */
+      painToday={run.painToday ?? false}
+      /* EX-LOAD01 — 서버가 밴드 · 섞인 무게를 저장할 수 있나(없으면 그 칸 대신 안내), 담는 세트에 붙일 지금 계정 */
+      loadCapability={run.loadCapability}
+      ownerId={user.id}
     />
   );
 }

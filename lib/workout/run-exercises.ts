@@ -13,6 +13,11 @@ import type {
   FrozenProgramSlot,
   SetTarget,
 } from '@/lib/workout/session-plan';
+import type { PlanVolume } from '@/lib/report/volume';
+import { basisOf, targetView, type TargetView } from '@/lib/workout/target-override';
+import type { RecordingContract } from '@/lib/workout/load/contract';
+import { contractOfFrozen } from '@/lib/workout/load/frozen';
+import type { LoadTarget } from '@/lib/workout/load/target';
 
 /** 운동 화면(app/(session)/workout/run)이 그리는 운동 하나 */
 export type RunExercise = {
@@ -56,6 +61,39 @@ export type RunExercise = {
   suggestNote: string | null;
   /** 세트마다 다른 처방(% 방식) — 그 세트의 무게 · 횟수 · '+'. 그 밖은 null */
   setTargets: SetTarget[] | null;
+  /**
+   * EX-LOAD01 — 이 판에 얼린 장비 기록 계약(lib/workout/load/contract.ts). 운동 화면은 이것만 보고 입력 칸을 고른다 —
+   * 맨몸 · 받침이면 kg 칸 없음, 바벨 '봉 포함', 덤벨 '한 손', 케이블 '케이블 머신 설정값', 밴드면 상표 → 계열 → 단계.
+   * 이 칸을 모르는 옛 화면은 예전처럼 needsWeight 만 본다.
+   */
+  load: RecordingContract;
+  /**
+   * 지금 따르는 횟수 · 버티는 시간(EX-RX01) — 내 목표가 있으면 그것, 없으면 오늘 추천. 처방 글을 읽어 맞히지 않게 숫자로도 싣는다.
+   * 이 칸을 모르는 옛 화면은 그냥 지나친다(옛 판에도 값이 있다 — 얼린 plannedReps · plannedHoldSeconds).
+   */
+  plannedReps?: number | null;
+  plannedHoldSeconds?: number | null;
+  /** 내 목표 무게(kg) — 사용자가 정했을 때만. 화면이 추천 무게보다 먼저 '목표 담기'로 쓴다. 없으면 null */
+  targetKg?: number | null;
+  /**
+   * EX-LOAD01-R1 — 지금 따르는 장비 목표(밴드 · 섞임 · 고른 변형 · 기구 이름 · 양손 다른 무게, lib/workout/load/target.ts). 통증 날 쉬어 둔 것 ·
+   * 다른 앱 버전이 저장한 것은 빼고 null. 화면은 손대지 않은 다음 세트 칸만 이것으로 채운다(남긴 세트 · 고치던 칸은 그대로).
+   * 이 칸을 모르는 옛 화면은 지나친다.
+   */
+  targetLoad?: LoadTarget | null;
+  /**
+   * 목표 세 층(라이브러리 기본 · 오늘 추천 · 내 목표)과 바꿀 수 있는 칸 · 근거 · 어림 시간(lib/workout/target-override.ts).
+   * 위 prescription · plannedSets · restSeconds 는 이미 '지금 따르는 값'으로 맞춰 둔다 — 쉬는 시계 · 진행 · 세트 점이 같은 값을 본다.
+   */
+  target?: TargetView;
+};
+
+/** 목표 근거를 만들 때 쓰는 판 쪽 정보 — 없으면 운동 하나의 정보만으로 */
+export type RunPlanContext = {
+  goal?: string | null;
+  volume?: PlanVolume | null;
+  /** 그 판 날짜 체크인에 통증이 있나(lib/workout/target-edit.ts loadPainToday) — 있으면 올려 둔 내 목표 칸을 쉬어 둔다 */
+  painToday?: boolean | Promise<boolean>;
 };
 
 /**
@@ -75,9 +113,12 @@ export async function runExercises(
   userId: string,
   entries: readonly FrozenExercise[],
   /** 세션 날짜 — '지난번'은 이날 앞의 기록에서 찾는다 */
-  sessionDate: Date
+  sessionDate: Date,
+  /** 목표 근거(오늘 목표 · 양 조절 까닭) — 판에서 넘긴다 */
+  plan?: RunPlanContext
 ): Promise<RunExercise[]> {
   const ids = entries.map((e) => e.id);
+  const painToday = (await plan?.painToday) === true;
 
   const [details, thumbUrls, past, notes, favorites, bests] = await Promise.all([
     exercisesByIds(ids),
@@ -89,22 +130,47 @@ export async function runExercises(
     exerciseNotes(userId, ids),
     favoriteExerciseIds(userId),
     /* '새 최고'를 가를 기준 — 운동마다 가장 큰 값만 */
-    priorBests(userId, ids, sessionDate),
+    /* EX-LOAD01 — 무게 최고는 이 판의 견줌 열쇠와 같은 기록만(다른 뜻 · 다른 기구와 안 견줌) */
+    priorBests(userId, ids, sessionDate, new Map(entries.map((e) => [e.id, contractOfFrozen(e).key]))),
   ]);
   const byId = new Map(details.map((d) => [d.id, d]));
 
   return entries.map((e) => {
     const d = byId.get(e.id);
+    /* 처방을 찍기 전에 연 판(undefined)은 라이브러리 값으로 */
+    const recRest = e.restSeconds !== undefined ? e.restSeconds : (d?.restSeconds ?? null);
+    /* 라이브러리 기본 — 관리자가 검수한 모두의 값(읽기만). 버티기 운동이면 횟수 칸은 비운다 */
+    const baseline = d
+      ? {
+          sets: d.sets ?? null,
+          reps: e.isHold ? null : (d.reps ?? null),
+          holdSeconds: e.isHold ? (d.holdSeconds ?? null) : null,
+          restSeconds: d.restSeconds ?? null,
+          kg: null,
+        }
+      : null;
+    const t = targetView(
+      e,
+      recRest,
+      baseline,
+      basisOf({
+        suggestNote: e.suggestNote,
+        volumeWhy: plan?.volume?.setDelta ? plan.volume.why : null,
+        programLine: !!e.programSlot,
+        goal: plan?.goal ?? null,
+        cautious: !e.programSlot && /\d+개 남기고/.test(e.prescription ?? ''),
+      }),
+      { painToday }
+    );
     return {
       id: e.id,
       title: e.title,
       category: e.category,
       slot: e.slot,
-      prescription: e.prescription,
-      plannedSets: e.plannedSets,
-      /* 처방을 찍기 전에 연 판(undefined)은 라이브러리 값으로 */
-      restSeconds:
-        e.restSeconds !== undefined ? e.restSeconds : (d?.restSeconds ?? null),
+      /* 내 목표가 있으면 그 값으로 다시 쓴 줄, 없으면 얼린 줄 그대로(옛 판과 같다) */
+      prescription: t.prescription,
+      plannedSets: t.plannedSets,
+      restSeconds: t.restSeconds,
       perSide: e.perSide,
       needsWeight: e.needsWeight,
       isHold: e.isHold,
@@ -126,6 +192,12 @@ export async function runExercises(
       suggestedKg: e.suggestedKg ?? null,
       suggestNote: e.suggestNote ?? null,
       setTargets: e.setTargets ?? null,
+      load: contractOfFrozen(e),
+      plannedReps: t.view.effective.reps,
+      plannedHoldSeconds: t.view.effective.holdSeconds,
+      targetKg: t.targetKg,
+      targetLoad: t.targetLoad,
+      target: t.view,
     };
   });
 }

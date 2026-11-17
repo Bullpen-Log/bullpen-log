@@ -1,4 +1,7 @@
 import 'server-only';
+import { planContextOf } from '@/lib/workout/load/plan-gate';
+import { viewSetLoad } from '@/lib/workout/load/gate';
+import { currentContracts, logViewReader, readSetLoads } from '@/lib/workout/load/server';
 import { prisma } from '@/lib/prisma';
 import { appNow } from '@/lib/clock';
 import { toDateKey } from '@/lib/pitch-stats';
@@ -9,6 +12,7 @@ import { weightKindOf } from '@/lib/program/next-weight';
 import {
   applyRecordSets,
   recordEditable,
+  recordLoadView,
   recordTotals,
   type RecordExercise,
   type RecordNote,
@@ -37,20 +41,24 @@ export async function loadWorkoutRecord(
   const editable = recordEditable(date, today);
   const at = new Date(`${date}T00:00:00Z`);
   if (kind !== 'training') {
+    /* EX-LOAD01 — 암케어 요약의 kg 도 읽기 관문의 보일 무게만(밴드 운동의 옛 kg 은 보이지 않는다) */
+    const armLogs =
+      kind === 'armcare'
+        ? await prisma.userExerciseLog.findMany({
+            where: {
+              userId,
+              date: at,
+              completed: true,
+              exercise: { category: '암케어' },
+            },
+            orderBy: { exerciseId: 'asc' },
+            include: { exercise: true },
+          })
+        : [];
+    const armView = await logViewReader(userId, armLogs);
     const exercises: RecordExercise[] =
       kind === 'armcare'
-        ? (
-            await prisma.userExerciseLog.findMany({
-              where: {
-                userId,
-                date: at,
-                completed: true,
-                exercise: { category: '암케어' },
-              },
-              orderBy: { exerciseId: 'asc' },
-              include: { exercise: true },
-            })
-          ).map((r) => ({
+        ? armLogs.map((r) => ({
             id: r.exerciseId,
             title: r.exercise.title,
             category: r.exercise.category,
@@ -59,7 +67,7 @@ export async function loadWorkoutRecord(
             setsDone: r.setsDone,
             repsDone: r.repsDone,
             holdSecondsDone: r.holdSecondsDone,
-            weightKg: r.weightKg,
+            weightKg: armView(r).displayKg,
             sets: [],
             meta: {
               perHand: weightKindOf(r.exercise.equipment) === 'dumbbell',
@@ -129,6 +137,16 @@ export async function loadWorkoutRecord(
       ),
   ]);
   const frozen = readFrozenPlan(session?.plan);
+  /*
+   * EX-LOAD01 — 세트의 kg 은 읽기 관문을 지나서 보인다(그 판에 얼린 계약 · 장비, 스냅샷이 있으면 그것). 보일 무게 · 총량용 무게를 따로,
+   * 계산에서 뺀 원래 kg 은 rawKg 로(자세히 보기). 세트 줄의 원래 값은 지우지 않는다.
+   */
+  const [snapshots, current] = await Promise.all([
+    readSetLoads(raw.value.map((r) => r.id)),
+    currentContracts(raw.value.map((r) => r.exerciseId)),
+  ]);
+  const ctxOf = planContextOf(frozen?.exercises, current);
+  const viewOf = (s: (typeof raw.value)[number]) => viewSetLoad(ctxOf(s.exerciseId), { weightKg: s.weightKg, snapshot: snapshots.get(s.id) ?? null });
   const byId = new Map(base.exercises.map((e) => [e.id, e]));
   const ids = new Set([
     ...(frozen?.exercises.filter((e) => e.category !== '암케어').map((e) => e.id) ??
@@ -163,13 +181,21 @@ export async function loadWorkoutRecord(
       raw.ok
         ? raw.value
             .filter((s) => s.exerciseId === id)
-            .map((s) => ({
-              setNo: s.setNo,
-              weightKg: s.weightKg,
-              reps: s.reps,
-              holdSeconds: s.holdSeconds,
-              rir: s.rir,
-            }))
+            .map((s) => {
+              const v = viewOf(s);
+              return {
+                setNo: s.setNo,
+                weightKg: v.displayKg,
+                reps: s.reps,
+                holdSeconds: s.holdSeconds,
+                rir: s.rir,
+                metricKg: v.metricKg,
+                loadStatus: v.status,
+                rawKg: v.rawKg,
+                /* EX-LOAD01-R1 — 요약 · 총량이 같은 문맥(기구 열쇠 · 견줌 열쇠)끼리만 접게 관문의 판단을 함께 싣는다 */
+                loadView: recordLoadView(v),
+              };
+            })
         : null,
       editable,
       session?.status === 'ACTIVE'

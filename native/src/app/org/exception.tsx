@@ -12,7 +12,7 @@ import { Segmented } from '~/shell/heading';
 import { toast } from '~/shell/toast';
 import { Box, ChoiceChips, DangerLink, Field } from '~/org/forms';
 import { Card, GroupTitle, Primary } from '~/org/parts';
-import { LineEditor, fromLines, picksOf, plansOfMember, toLines, withPicks, type LineDraft } from '~/org/lines';
+import { LineEditor, fromLines, linesLoadError, picksOf, plansOfMember, toLines, withPicks, type LineDraft } from '~/org/lines';
 import { LibraryBrowser, Num, type LibraryLoad, type Pick } from '~/org/picker';
 import { useDraftGuard } from '~/org/space-store';
 
@@ -39,13 +39,13 @@ function draftOf(d: EventDetail, memberId: string): Draft {
   const plans: Record<string, PlanDraft> = {};
   for (const p of plansOfMember(d, memberId)) {
     const e = m?.exception?.items.find((x) => x.planId === p.id);
-    plans[p.id] = { kind: e?.kind ?? 'same', lines: fromLines(e?.items ?? p.actual, d.names), note: e?.note ?? '' };
+    plans[p.id] = { kind: e?.kind ?? 'same', lines: fromLines(e?.items ?? p.actual, d.names, d.contracts), note: e?.note ?? '' };
   }
   const pitch: Record<string, Pitch> = {};
   for (const v of m?.values ?? []) pitch[v.planId] = { count: String(v.pitchCount), effort: String(v.effortPct), kmh: v.maxVelocity ? String(v.maxVelocity) : '' };
   return {
     plans,
-    extra: fromLines(m?.exception?.extra.flatMap((x) => x.items) ?? [], d.names),
+    extra: fromLines(m?.exception?.extra.flatMap((x) => x.items) ?? [], d.names, d.contracts),
     extraNote: m?.exception?.extra[0]?.note ?? '',
     pitch,
   };
@@ -81,15 +81,20 @@ export default function ExceptionScreen() {
   const save = (reset = false) =>
     run(async () => {
       if (!draft || !member) return null;
+      /* EX-LOAD01 R1-03 — 장비를 고른 줄은 운동 화면 규칙으로 먼저 본다(양손 무게 · 밴드/무게 고르기) */
+      if (!reset) {
+        const loadError = linesLoadError([...mine.filter((pl) => draft.plans[pl.id].kind !== 'same' && draft.plans[pl.id].kind !== 'absent').flatMap((pl) => draft.plans[pl.id].lines), ...draft.extra], d?.contracts, d?.loadStructured === true);
+        if (loadError) return loadError;
+      }
       const items = reset
         ? []
         : mine
             .filter((pl) => draft.plans[pl.id].kind !== 'same')
             .map((pl) => {
               const x = draft.plans[pl.id];
-              return { planId: pl.id, kind: x.kind, ...(x.kind === 'absent' ? {} : { items: toLines(x.lines, true) }), note: x.note.trim() || undefined };
+              return { planId: pl.id, kind: x.kind, ...(x.kind === 'absent' ? {} : { items: toLines(x.lines, true, d?.loads, d?.contracts, d?.loadStructured === true) }), note: x.note.trim() || undefined };
             });
-      const extra = !reset && draft.extra.length ? [{ items: toLines(draft.extra, true), note: draft.extraNote.trim() || undefined }] : [];
+      const extra = !reset && draft.extra.length ? [{ items: toLines(draft.extra, true, d?.loads, d?.contracts, d?.loadStructured === true), note: draft.extraNote.trim() || undefined }] : [];
       const values = reset
         ? []
         : mine
@@ -128,7 +133,7 @@ export default function ExceptionScreen() {
                 </Card>
                 {x.kind === 'reduced' || x.kind === 'substitute' ? (
                   <>
-                    <LineEditor lines={x.lines} onChange={(lines) => setPlan(pl.id, { lines })} weight empty="실제로 한 운동을 골라 주세요." c={c} />
+                    <LineEditor lines={x.lines} onChange={(lines) => setPlan(pl.id, { lines })} weight loads={d?.loads} contracts={d?.contracts} structured={d?.loadStructured === true} empty="실제로 한 운동을 골라 주세요." c={c} />
                     <SmallLink label={browse === pl.id ? '운동 고르기 닫기' : '+ 운동 고르기'} onPress={() => setBrowse(browse === pl.id ? null : pl.id)} c={c} />
                     {browse === pl.id ? <LibraryBrowser lib={lib.data!} picks={picksOf(x.lines)} setPicks={pickTo(pl.id)} max={LINES_MAX} c={c} /> : null}
                   </>
@@ -139,7 +144,7 @@ export default function ExceptionScreen() {
           })}
           <View style={{ gap: 6 }}>
             <GroupTitle title="더 한 운동" c={c} />
-            <LineEditor lines={draft.extra} onChange={(extra) => setEdited({ ...draft, extra })} weight empty="남들이 안 한 운동을 더 했으면 골라요." c={c} />
+            <LineEditor lines={draft.extra} onChange={(extra) => setEdited({ ...draft, extra })} weight loads={d?.loads} contracts={d?.contracts} structured={d?.loadStructured === true} empty="남들이 안 한 운동을 더 했으면 골라요." c={c} />
             {draft.extra.length ? <Box value={draft.extraNote} onChangeText={(extraNote) => setEdited({ ...draft, extraNote })} placeholder="까닭(선택)" maxLength={NOTE_MAX} c={c} /> : null}
             <SmallLink label={browse === 'extra' ? '운동 고르기 닫기' : '+ 운동 고르기'} onPress={() => setBrowse(browse === 'extra' ? null : 'extra')} c={c} />
             {browse === 'extra' ? <LibraryBrowser lib={lib.data} picks={picksOf(draft.extra)} setPicks={pickTo('extra')} max={LINES_MAX} c={c} /> : null}

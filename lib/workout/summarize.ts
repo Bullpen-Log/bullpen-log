@@ -18,6 +18,23 @@ export type SetRow = {
   weightKg: number | null;
   reps: number | null;
   holdSeconds: number | null;
+  /**
+   * EX-LOAD01 R1 — 읽기 관문(lib/workout/load/gate.ts viewSetLoad)이 본 그 세트의 무게 문맥. 있으면(gateRows · forSummary · forTonnage 가 붙인 줄)
+   * 요약 · 총량이 같은 문맥끼리만 접는다. 없으면(옛 부르는 쪽 · 운동 화면의 미리 접기) 예전 그대로.
+   */
+  view?: SummaryLoadView | null;
+};
+
+/** 요약 · 총량이 보는 무게 문맥 — SetLoadView 의 일부(구조가 같아 gateRows 의 view 를 그대로 받는다) */
+export type SummaryLoadView = {
+  /** 견줌 열쇠(계약 열쇠 · 기구 열쇠까지). 없으면 견주지 않는 값 */
+  key: string | null;
+  /** 사용자가 붙인 기구 열쇠 — 기구 설정값(stackSetting)에만 있다 */
+  setup: { key: string; label: string } | null;
+  /** 총량 · 최고에 넣어도 되는 값 */
+  metricKg: number | null;
+  /** 보일 값(기구 설정값 · 도구 무게 포함) */
+  displayKg: number | null;
 };
 
 export type ExerciseSummary = {
@@ -26,7 +43,18 @@ export type ExerciseSummary = {
   repsDone: number | null;
   holdSecondsDone: number | null;
   weightKg: number | null;
+  /**
+   * EX-LOAD01 R1 — 무게가 있는 세트들이 서로 다른 문맥(기구 A · 기구 B · 기구 모름)이라 한 숫자로 접지 않았다. 이때 weightKg 는 null 이다
+   * (기구 설정값을 기구끼리 섞어 '가장 무거운 무게'로 만들지 않는다). 없으면(false · undefined) 예전 뜻.
+   */
+  weightWithheld?: boolean;
 };
+
+/** 같은 문맥끼리만 접는 열쇠 — 기구 설정값은 기구 열쇠, 그 밖은 견줌 열쇠(없으면 '보이기만'으로 한 묶음) */
+function summaryContextOf(v: SummaryLoadView): string {
+  if (v.setup) return `setup:${v.setup.key}`;
+  return v.key ? `key:${v.key}` : 'display';
+}
 
 /**
  * 가장 자주 나온 값. 같으면 큰 쪽.
@@ -68,9 +96,14 @@ export function summarizeSets(rows: readonly SetRow[]): ExerciseSummary[] {
   }
 
   return [...byExercise].map(([exerciseId, list]) => {
-    const weights = list
-      .map((r) => r.weightKg)
-      .filter((w): w is number => w != null && w > 0);
+    const weighted = list.filter((r): r is SetRow & { weightKg: number } => r.weightKg != null && r.weightKg > 0);
+    const weights = weighted.map((r) => r.weightKg);
+    /*
+     * EX-LOAD01 R1 — 관문을 지난 줄(view 있음)이면 무게 문맥이 하나일 때만 '가장 무거운 무게'로 접는다. 기구 A 100 · 기구 B 20 처럼 문맥이
+     * 갈리면 한 숫자로 만들지 않고 비운다(weightWithheld). 세트 수 · 횟수 · 시간은 그대로다.
+     */
+    const contexts = new Set(weighted.filter((r) => r.view).map((r) => summaryContextOf(r.view!)));
+    const mixed = contexts.size > 1 || (contexts.size === 1 && weighted.some((r) => !r.view));
 
     return {
       exerciseId,
@@ -79,7 +112,8 @@ export function summarizeSets(rows: readonly SetRow[]): ExerciseSummary[] {
       holdSecondsDone: mode(
         list.map((r) => r.holdSeconds).filter((v): v is number => v != null)
       ),
-      weightKg: weights.length ? Math.max(...weights) : null,
+      weightKg: weights.length && !mixed ? Math.max(...weights) : null,
+      ...(mixed ? { weightWithheld: true } : {}),
     };
   });
 }
@@ -99,6 +133,8 @@ export function formatSummary(s: ExerciseSummary, unit: WeightUnit = 'kg'): stri
   if (s.holdSecondsDone != null) parts.push(formatSeconds(s.holdSecondsDone));
   const weight = formatWeight(s.weightKg, unit);
   if (weight) parts.push(weight);
+  /* EX-LOAD01 R1 — 기구마다 다른 설정값을 한 숫자로 합치지 않았다 */
+  else if (s.weightWithheld) parts.push('무게는 기구마다 따로');
   return parts.join(' · ');
 }
 
@@ -116,10 +152,50 @@ export function formatSummary(s: ExerciseSummary, unit: WeightUnit = 'kg'): stri
  */
 export function totalVolumeKg(rows: readonly SetRow[]): number {
   const sum = rows.reduce(
-    (acc, r) => acc + (r.weightKg != null && r.reps != null ? r.weightKg * r.reps : 0),
+    (acc, r) => acc + (r.weightKg != null && r.reps != null && countsInTotal(r) ? r.weightKg * r.reps : 0),
     0
   );
   return Math.round(sum * 10) / 10;
+}
+
+/**
+ * EX-LOAD01 R1 — 총 볼륨(kg)에 넣는 줄인가. 관문을 지난 줄(view 있음)이면 **잰 무게(자유 중량 · 더한 무게)만** — 기구 설정값(stackSetting)은
+ * 잰 힘이 아니라 기구마다 뜻이 달라, 같은 기구 열쇠가 있어도 kg 총량에 더하지 않는다(기구별 총량은 volumeOf 의 stacks 가 따로 낸다). 밴드 · 맨몸 ·
+ * 섞인 무게 · 도구 무게는 metricKg 가 없어 원래 안 들어온다. view 가 없는 줄은 예전 그대로.
+ */
+function countsInTotal(r: SetRow): boolean {
+  if (!r.view) return true;
+  return r.view.metricKg != null && !r.view.setup;
+}
+
+/** 기구 하나(사용자가 붙인 기구 열쇠)의 설정값 총량 — 기구끼리 합치지 않는다 */
+export type StackVolume = { setupKey: string; label: string; exerciseId: string; settingTotal: number; sets: number };
+
+/**
+ * EX-LOAD01 R1 — 총량을 나눠 본다(관문을 지난 줄 — forTonnage(gateRows(...)) 를 넘긴다).
+ *   - measuredKg: 잰 무게 × 횟수 합(totalVolumeKg 와 같은 값)
+ *   - stacks: 같은 운동 · 같은 기구 열쇠끼리만의 설정값 × 횟수 합(kg 로 말하지 않는다 — '기구 설정값 합')
+ *   - withheldSets: 무게가 보였지만 견줄 문맥이 없어 어느 총량에도 넣지 않은 세트 수(기구 모르는 설정값 · 섞인 무게 · 확인 전 무게)
+ * 밴드 · 맨몸은 kg 이 없어 어디에도 안 든다(withheld 로도 세지 않는다). 횟수 · 시간 · 세트 수는 이 함수와 상관없이 그대로다.
+ */
+export function volumeOf(rows: readonly SetRow[]): { measuredKg: number; stacks: StackVolume[]; withheldSets: number } {
+  const stacks = new Map<string, StackVolume>();
+  let withheldSets = 0;
+  for (const r of rows) {
+    const v = r.view;
+    if (!v) continue;
+    if (v.metricKg != null && v.setup) {
+      if (r.reps == null) continue;
+      const id = `${r.exerciseId}\u0000${v.setup.key}`;
+      const s = stacks.get(id) ?? { setupKey: v.setup.key, label: v.setup.label, exerciseId: r.exerciseId, settingTotal: 0, sets: 0 };
+      s.settingTotal = Math.round((s.settingTotal + v.metricKg * r.reps) * 10) / 10;
+      s.sets += 1;
+      stacks.set(id, s);
+      continue;
+    }
+    if (v.metricKg == null && v.displayKg != null) withheldSets += 1;
+  }
+  return { measuredKg: totalVolumeKg(rows), stacks: [...stacks.values()], withheldSets };
 }
 
 /**

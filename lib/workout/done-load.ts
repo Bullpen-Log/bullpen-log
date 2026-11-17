@@ -1,4 +1,7 @@
 import 'server-only';
+import { forSummary, forTonnage, gateRows, planContextOf } from '@/lib/workout/load/plan-gate';
+import { currentContracts, readSetLoads } from '@/lib/workout/load/server';
+import { contractOfFrozen } from '@/lib/workout/load/frozen';
 import { prisma } from '@/lib/prisma';
 import type { getCurrentUser } from '@/lib/dal';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
@@ -67,11 +70,12 @@ export async function loadWorkoutDone(user: SessionUser, id: unknown): Promise<{
   });
   if (!session) return { to: '/training' };
 
-  const [sets, note] = await Promise.all([
+  const [rawSets, note] = await Promise.all([
     prisma.userExerciseSet.findMany({
       where: { sessionId: session.id },
       orderBy: [{ exerciseId: 'asc' }, { setNo: 'asc' }],
       select: {
+        id: true,
         exerciseId: true,
         setNo: true,
         weightKg: true,
@@ -91,15 +95,26 @@ export async function loadWorkoutDone(user: SessionUser, id: unknown): Promise<{
       select: { intensity: true, memo: true },
     }),
   ]);
-  if (sets.length === 0) return { to: '/training' };
+  if (rawSets.length === 0) return { to: '/training' };
 
   const plan = readFrozenPlan(session.plan);
   const frozen = plan?.exercises ?? [];
+  /*
+   * EX-LOAD01 — 끝 화면의 kg 은 읽기 관문을 지난 값만: 줄에 보이는 무게는 보일 무게(displayKg), 총량은 견줄 수 있는 무게(metricKg),
+   * '새 최고'는 계약(load)대로. 맨몸 운동의 옛 kg 은 보이지 않고 총량 · 최고에도 안 들어간다. 세트 줄의 원래 값은 그대로다.
+   */
+  const [snapshots, current] = await Promise.all([
+    readSetLoads(rawSets.map((r) => r.id)),
+    currentContracts(rawSets.map((r) => r.exerciseId)),
+  ]);
+  const gated = gateRows(rawSets, planContextOf(frozen, current), snapshots);
+  const sets = forSummary(gated);
+  const tonnageRows = forTonnage(gated);
   const order = new Map(frozen.map((e, i) => [e.id, i]));
   const byId = new Map(frozen.map((e) => [e.id, e]));
   const doneIds = [...new Set(sets.map((s) => s.exerciseId))];
   const [bests, library] = await Promise.all([
-    priorBests(user.id, doneIds, session.date),
+    priorBests(user.id, doneIds, session.date, new Map(frozen.map((e) => [e.id, contractOfFrozen(e).key]))),
     /* 목록에서 뺀 운동(얼린 목록에 없음)의 이름 · 수행량 읽는 법 — 캐시라 DB 를 가지 않는다 */
     exercisesByIds(doneIds.filter((id) => !byId.has(id))),
   ]);
@@ -113,7 +128,7 @@ export async function loadWorkoutDone(user: SessionUser, id: unknown): Promise<{
       const prior = bests.get(summary.exerciseId) ?? null;
       const record = ex
         ? newRecord(
-            ex,
+            { ...ex, load: contractOfFrozen(ex) },
             sets.filter((s) => s.exerciseId === summary.exerciseId),
             prior
           )
@@ -165,7 +180,7 @@ export async function loadWorkoutDone(user: SessionUser, id: unknown): Promise<{
         const lifts = frozen
           .filter((e) => e.programSlot && e.suggestedKg != null)
           .map((e) => {
-            const mine = sets.filter((x) => x.exerciseId === e.id);
+            const mine = tonnageRows.filter((x) => x.exerciseId === e.id);
             const lastSet = mine[mine.length - 1];
             /* 추천은 본 세트(가장 무거운 세트) 무게 — 실제도 가장 무거운 세트로 견준다 */
             const heaviest = mine.reduce<number | null>(
@@ -225,7 +240,7 @@ export async function loadWorkoutDone(user: SessionUser, id: unknown): Promise<{
     }).format(session.date),
     minutes: Math.round(session.activeSeconds / 60),
     setCount: sets.length,
-    volumeKg: totalVolumeKg(sets),
+    volumeKg: totalVolumeKg(tonnageRows),
     rows,
     /* 강도를 이미 남긴 날(마치기 창 · 트레이닝 탭)은 안 묻는다 */
     askEffort: note ? null : { sessionId: session.id },

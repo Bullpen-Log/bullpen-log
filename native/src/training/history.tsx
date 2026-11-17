@@ -4,7 +4,9 @@ import { StyleSheet, Text, View } from 'react-native';
 import { formatAmount, formatSeconds } from '@/lib/exercise-meta';
 import { formatWeight, type WeightUnit } from '@/lib/units';
 import { volumeIn } from '@/lib/workout/summarize';
-import type { ExerciseHistory, HistoryDay, HistoryKind } from '@/lib/workout/history';
+import type { ExerciseHistory, HistoryDay, HistoryKind, HistorySet } from '@/lib/workout/history';
+import { BAND_ROLE_LABEL, MASS_MODES, type LoadMode } from '@/lib/workout/load/contract';
+import { bandText } from '@/lib/workout/load/band-catalog';
 import { act } from '~/mechanics/parts';
 import type { Palette } from '~/lib/ui';
 import { s } from '~/training/screen';
@@ -32,16 +34,59 @@ function volumeText(kind: HistoryKind, value: number, unit: WeightUnit) {
   if (kind === 'reps') return `${value.toLocaleString('ko-KR')}회`;
   return formatSeconds(value);
 }
-/** 하루를 한 줄로 — 세트별로 남긴 날은 '62.5kg×8 · 12회', 아니면 요약 */
-function dayText(day: HistoryDay, unit: WeightUnit) {
-  if (!day.sets) return formatAmount(day, unit) ?? '한 것으로 표시함';
+/**
+ * EX-LOAD01 — 이 운동의 기록 계약(서버가 지금 장비로 정한 loadMode). 칸이 없으면(옛 서버) 예전처럼 본다.
+ * massMode: kg 카드 · 추정 1RM 을 보여도 되는 운동(자유 중량 · 기구 설정값 · 도구 무게). setKg: 세트 줄에 kg 을 써도 되는 운동(섞임은 무게 성분이 있다).
+ */
+function loadView(mode: LoadMode | undefined) {
+  return {
+    massMode: mode == null || MASS_MODES.has(mode),
+    setKg: mode == null || MASS_MODES.has(mode) || mode === 'combined',
+  };
+}
+
+/** 하루를 한 줄로 — 세트별로 남긴 날은 '62.5kg×8 · 12회', 아니면 요약. kg 을 받지 않는 운동이면 kg 을 쓰지 않는다 */
+function dayText(day: HistoryDay, unit: WeightUnit, setKg: boolean) {
+  if (!day.sets) return (setKg ? formatAmount(day, unit) : formatAmount({ ...day, weightKg: null }, unit)) ?? '한 것으로 표시함';
   return day.sets
     .map((x) => {
-      const w = x.weightKg != null && x.weightKg > 0 ? formatWeight(x.weightKg, unit) : null;
+      const w = setKg && x.weightKg != null && x.weightKg > 0 ? formatWeight(x.weightKg, unit) : null;
       const amount = x.holdSeconds != null ? formatSeconds(x.holdSeconds) : x.reps != null ? `${x.reps}회` : '?';
-      return w ? `${w}×${amount.replace('회', '')}` : amount;
+      /* 서로 다른 무게 도구(왼 · 오른)는 한 숫자가 없어도 그대로, 기구 이름은 앞에(견줌은 같은 기구끼리만) */
+      const parts =
+        !w && setKg && x.parts?.length
+          ? x.parts.map((p) => `${p.side === 'left' ? '왼 ' : p.side === 'right' ? '오른 ' : ''}${formatWeight(p.kg, unit)}${p.count != null && p.count > 1 ? `×${p.count}` : ''}`).join(' · ')
+          : null;
+      const main = w ? `${w}×${amount.replace('회', '')}` : parts ? `${parts} · ${amount}` : amount;
+      return x.setupLabel ? `${x.setupLabel} · ${main}` : main;
     })
     .join(' · ');
+}
+
+/** 그날 쓴 밴드 — 역할 · 상표 · 계열 · 단계(같은 묶음은 한 번). kg 으로 바꾸지 않는다 */
+function bandLines(sets: readonly HistorySet[] | null): string[] {
+  if (!sets) return [];
+  const out = new Set<string>();
+  for (const x of sets) {
+    if (!x.band) continue;
+    const role = x.band.role === 'resistance' || x.band.role === 'assistance' ? BAND_ROLE_LABEL[x.band.role] : '역할 모름';
+    out.add(`${role} · ${x.band.bands.length ? x.band.bands.map((b) => bandText(b)).join(' + ') : '어느 밴드인지 모름'}`);
+  }
+  return [...out];
+}
+
+/**
+ * 계산에서 뺀 kg — 확인 전(unverified) · 맞지 않음(incompatible)인 세트의 원래 값. 지우지 않고 흐린 한 줄로만(같은 값 · 같은 까닭은 한 번).
+ */
+function excludedLines(sets: readonly HistorySet[] | null, unit: WeightUnit): string[] {
+  if (!sets) return [];
+  const out = new Set<string>();
+  for (const x of sets) {
+    if (x.rawKg == null) continue;
+    if (x.loadStatus === 'unverified') out.add(`기록된 무게 ${formatWeight(x.rawKg, unit)} · 확인 전이라 계산에서 뺐어요`);
+    else if (x.loadStatus === 'incompatible') out.add(`기록된 무게 ${formatWeight(x.rawKg, unit)} · 맞지 않는 무게라 계산에서 뺐어요`);
+  }
+  return [...out];
 }
 
 /** 최근 기록 몇 개 · 흐름 막대 몇 개(웹과 같다) */
@@ -101,7 +146,16 @@ export function HistoryPanel({
 
   const { history } = got.r;
   const note = hideNote ? null : got.r.note;
-  const { kind, days } = history;
+  /*
+   * EX-LOAD01 — kg 카드 · 추정 1RM 은 계약이 무게를 받는 운동에서만(밴드 · 맨몸 · 섞임이면 서버가 실수로 weight 를 줘도 안 보인다).
+   * 1RM 은 서버가 허락한 운동(e1rmEligible)만 — 칸이 없으면(옛 서버) 예전처럼.
+   */
+  const lv = loadView(history.loadMode);
+  const kind: HistoryKind = history.kind === 'weight' && !lv.massMode ? 'reps' : history.kind;
+  /* weight 를 reps 로 바꿔 보인 날의 양은 kg 합이라 횟수로 읽히면 틀린다 — 그때는 흐름 막대를 안 그린다 */
+  const volumeTrusted = !(history.kind === 'weight' && !lv.massMode);
+  const showE1rm = kind === 'weight' && history.e1rmEligible !== false;
+  const { days } = history;
   const noteBox = note ? (
     <View style={[s.box, { backgroundColor: c.card, boxShadow: c.float, gap: 4 }]}>
       <Text style={[s.smallBold, { color: c.muted }]}>내 메모</Text>
@@ -129,13 +183,13 @@ export function HistoryPanel({
           ? { label: '한 세트 최다', value: `${history.bestReps.reps}회`, sub: dayLabel(history.bestReps.date) }
           : { label: '마지막', value: dayLabel(days[0].date), sub: null };
   const second =
-    kind === 'weight' && history.bestSet
+    showE1rm && history.bestSet
       ? { label: '추정 1RM', value: w(history.bestSet.e1rm), sub: `${w(history.bestSet.weightKg)} × ${history.bestSet.reps}회` }
       : { label: '모두', value: `${history.total}번`, sub: `마지막 ${dayLabel(days[0].date)}` };
-  const third = { label: '최근 4주', value: `${history.last28}번`, sub: kind === 'weight' && history.bestSet ? `모두 ${history.total}번` : null };
+  const third = { label: '최근 4주', value: `${history.last28}번`, sub: showE1rm && history.bestSet ? `모두 ${history.total}번` : null };
 
   /* 흐름에 올리는 날 — 양을 셀 수 있는 최근 날들, 막대는 오래된 것부터 */
-  const trendDays = days.filter((x): x is HistoryDay & { volume: number } => x.volume != null).slice(0, TREND_POINTS);
+  const trendDays = volumeTrusted ? days.filter((x): x is HistoryDay & { volume: number } => x.volume != null).slice(0, TREND_POINTS) : [];
   const trend = [...trendDays].reverse();
   const max = Math.max(...trend.map((x) => x.volume), 1);
   const peak = trend.reduce((a, b) => (b.volume > a.volume ? b : a), trend[0]);
@@ -160,6 +214,13 @@ export function HistoryPanel({
           </View>
         ))}
       </View>
+
+      {kind === 'weight' && history.comparison && (history.comparison.setupLabel || history.comparison.otherSetupDays > 0) ? (
+        <Text style={[s.tiny, { color: c.muted }]}>
+          {history.comparison.setupLabel ? `최고 · 볼륨은 ${history.comparison.setupLabel} 기준이에요.` : '최고 · 볼륨은 가장 최근 기구 기준이에요.'}
+          {history.comparison.otherSetupDays > 0 ? ` 다른 기구로 한 ${history.comparison.otherSetupDays}일은 견주지 않았어요.` : ''}
+        </Text>
+      ) : null}
 
       {trend.length >= 2 ? (
         <View style={{ gap: 6 }}>
@@ -201,6 +262,10 @@ export function HistoryPanel({
           ) : null}
         </View>
       ) : null}
+      {/* EX-LOAD01 — 확인 전 · 맞지 않는 kg 이 있던 날 수(값은 지우지 않았다 — 최근 기록 줄에 흐리게) */}
+      {history.excludedKgDays ? (
+        <Text style={[s.tiny, { color: c.muted }]}>확인 전이거나 맞지 않는 무게가 있던 {history.excludedKgDays}일은 그 무게를 계산에서 뺐어요.</Text>
+      ) : null}
 
     </>
   );
@@ -212,14 +277,24 @@ export function HistoryPanel({
             <View key={x.date} style={[st.listRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }]}>
               <View style={s.between}>
                 <Text style={[s.smallBold, { color: c.ink }]}>{dayLabel(x.date)}</Text>
-                {x.volume != null ? (
+                {x.volume != null && volumeTrusted ? (
                   <Text style={[s.tiny, { color: c.muted }]}>
                     {x.approx ? '약 ' : ''}
                     {volumeText(kind, x.volume, unit)}
                   </Text>
                 ) : null}
               </View>
-              <Text style={[s.tiny, { color: c.muted }]}>{dayText(x, unit)}</Text>
+              <Text style={[s.tiny, { color: c.muted }]}>{dayText(x, unit, lv.setKg)}</Text>
+              {bandLines(x.sets).map((line) => (
+                <Text key={line} style={[s.tiny, { color: c.ink }]}>
+                  {line}
+                </Text>
+              ))}
+              {excludedLines(x.sets, unit).map((line) => (
+                <Text key={line} style={[s.tiny, { color: c.muted, fontStyle: 'italic' }]}>
+                  {line}
+                </Text>
+              ))}
             </View>
           ))}
         </View>

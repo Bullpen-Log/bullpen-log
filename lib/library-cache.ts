@@ -4,6 +4,7 @@ import type { ExerciseVideo, MechanicsGuide } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { clearPlaybackUrlCache } from '@/lib/storage';
 import { LATER_CATEGORY } from '@/lib/categories';
+import { readStoredSemanticsRows } from '@/lib/workout/load/semantics';
 
 /**
  * 운동·드릴 목록을 한 번만 읽어 두고 돌려쓴다.
@@ -39,6 +40,11 @@ export type CachedExercise = Omit<
   createdAt: string;
   hiddenAt: string | null;
   detailsFilledAt: string | null;
+  /**
+   * EX-LOAD01 R1-04 — 관리자 뜻 설정(ExerciseVideo.loadSemantics, 보류 마이그레이션의 칸). 스키마 스위치(WORKOUT_LOAD_SCHEMA)가 켜졌을 때만
+   * 실린다(없는 운동은 null). 꺼져 있으면 칸 자체가 없다(undefined) — 그때는 그 칸 이름이 든 SQL 을 보내지 않는다.
+   */
+  loadSemantics?: unknown;
 };
 
 /** 날짜를 문자열로 바꾼 드릴 한 줄 */
@@ -55,7 +61,7 @@ const iso = (d: Date | null) => (d ? d.toISOString() : null);
  * 순서를 여기서 못박아 두는 것은, 쓰는 쪽마다 orderBy 를 따로 적으면 언젠가
  * 어긋나기 때문이다. 운동을 고르는 규칙이 등록순을 기준으로 로테이션을 돌린다.
  */
-export const allExercises = unstable_cache(
+const exerciseRows = unstable_cache(
   async (): Promise<CachedExercise[]> => {
     const rows = await prisma.exerciseVideo.findMany({
       orderBy: { createdAt: 'asc' },
@@ -109,6 +115,54 @@ export const allExercises = unstable_cache(
   ['library:exercises:v53'],
   { tags: [LIBRARY_TAG] }
 );
+
+/*
+ * EX-LOAD01 R1-04 — 관리자 뜻 설정(loadSemantics)은 위 목록과 따로 읽어 둔다(같은 이름표라 운동을 고치면 함께 비워진다).
+ *
+ * 왜 따로인가: 캐시는 배포를 넘어 남는다. 목록 안에 스위치에 따라 칸을 넣고 빼면, 꺼진 때 채운 목록이 켠 뒤에도(또는 그 반대로) 남아
+ * 스위치와 다른 뜻으로 계약을 푼다. 그래서 스위치는 꺼낼 때마다(allExercises) 보고, 켜져 있을 때만 이 캐시를 부른다 — 꺼져 있으면
+ * 이 함수가 한 번도 돌지 않아 loadSemantics 이름이 든 SQL 이 나가지 않는다. 날것(JSON)을 그대로 담는다 — 판 · 모양 판단은 쓰는 쪽
+ * (lib/workout/load/semantics.ts readLoadSemantics)이 한다(모르는 판은 '미정').
+ */
+const storedSemanticsRows = unstable_cache(
+  async (): Promise<[string, unknown][]> => readStoredSemanticsRows(prisma),
+  ['library:load-semantics:v1'],
+  { tags: [LIBRARY_TAG] }
+);
+
+/** 스키마 스위치 — lib/workout/load/server.ts loadStructured 와 같은 값(그 파일이 이 파일을 불러 서로 부르지 않게 여기 적는다, v2/gate.ts 와 같은 방식) */
+function loadSchemaOn(): boolean {
+  return process.env.WORKOUT_LOAD_SCHEMA === '1';
+}
+
+/** 운동마다 저장된 뜻 설정(날것) — 스위치가 꺼져 있으면 DB 를 묻지 않고 빈 지도 */
+export async function storedLoadSemantics(): Promise<Map<string, unknown>> {
+  if (!loadSchemaOn()) return new Map();
+  return new Map(await storedSemanticsRows());
+}
+
+/**
+ * 운동 전체 (숨긴 것 포함). 등록순으로 온다.
+ *
+ * 순서를 여기서 못박아 두는 것은, 쓰는 쪽마다 orderBy 를 따로 적으면 언젠가
+ * 어긋나기 때문이다. 운동을 고르는 규칙이 등록순을 기준으로 로테이션을 돌린다.
+ *
+ * R1-04 — 스위치가 켜져 있으면 줄마다 loadSemantics(없으면 null)를 싣는다: 지금 장비 계약(lib/workout/load/server.ts currentContracts)과
+ * 앞으로 얼리는 판(session-plan.ts freezeExercise)이 같은 뜻 설정을 쓰게. 꺼져 있으면 그 칸을 싣지 않는다(스키마를 합쳐 생성 클라이언트가
+ * 칸을 고른 뒤에도 꺼진 동안은 쓰지 않게 뺀다).
+ */
+export async function allExercises(): Promise<CachedExercise[]> {
+  const rows = await exerciseRows();
+  if (!loadSchemaOn()) {
+    if (rows.length === 0 || !('loadSemantics' in rows[0])) return rows;
+    return rows.map(({ loadSemantics: _drop, ...rest }) => {
+      void _drop;
+      return rest;
+    });
+  }
+  const stored = await storedLoadSemantics();
+  return rows.map((r) => ({ ...r, loadSemantics: stored.get(r.id) ?? null }));
+}
 
 /** 드릴 전체. 화면에 나가는 순서 그대로 */
 export const allGuides = unstable_cache(

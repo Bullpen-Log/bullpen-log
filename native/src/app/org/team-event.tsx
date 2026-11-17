@@ -365,6 +365,8 @@ function Result({ d, org, send, busy, c }: Part) {
             </View>
             {m.reasons.length ? <Text style={[TYPE.sub, { color: c.muted }]}>{m.reasons.map((r) => WORK_REASON_LABEL[r] ?? r).join(' · ')}</Text> : null}
             {m.exception ? <Text style={[TYPE.sub, { color: c.muted }]}>예외: {exceptionLine(m, d)}</Text> : null}
+            {/* EX-LOAD01 R1-03 — 코치 기록이 무게 · 수량 검사에 걸리는 곳(그대로 확인하면 이 선수는 아무것도 안 써요) */}
+            {m.loadIssue ? <Text style={[TYPE.sub, { color: c.warn }]}>고칠 곳: {m.loadIssue.error}</Text> : null}
             {m.held.map((h) => (
               <SmallLink key={h.exerciseId} label={`확인 필요 — ${h.name} ›`} onPress={() => settle(m, h.exerciseId, h.name)} disabled={busy} c={c} />
             ))}
@@ -444,6 +446,8 @@ function LinesText({ lines, c }: { lines: PlanView['lines']; c: Palette }) {
           {l.name}
           {l.dose ? ` · ${l.dose}` : ''}
           {l.kind === 'drill' ? ' · 드릴' : ''}
+          {/* EX-LOAD01 R1-03 — 무게를 받지 않는 운동에 남은 kg 은 보통 무게처럼 보이지 않는다 */}
+          {l.rawKg ? ` · 기록하지 않는 무게 ${l.rawKg}kg` : ''}
         </Text>
       ))}
     </>

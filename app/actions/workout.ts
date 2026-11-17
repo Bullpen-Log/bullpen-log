@@ -18,13 +18,14 @@ import { slotForTheme } from '@/lib/report/theme';
 import { recentExerciseIds } from '@/lib/report/exercise-recent';
 import { favoriteExerciseIds } from '@/lib/favorites';
 import { toDateKey } from '@/lib/pitch-stats';
-import { AMOUNT_LIMITS, formatPrescription, storedKg } from '@/lib/exercise-meta';
+import { AMOUNT_LIMITS, formatPrescription } from '@/lib/exercise-meta';
 import {
   freezeExercise,
   freezePlan,
   programSwapEntry,
   programSwapRx,
   readFrozenPlan,
+  contractOfFrozen,
   sessionRxBasis,
   volumeToFreeze,
   type FrozenExercise,
@@ -52,6 +53,17 @@ import { warmupIdsOf } from '@/lib/workout/warmup-load';
 import { intensityOfEffort } from '@/lib/workout/effort';
 import { finishReceipt, recoverFollowUps, writeDailyNote, type FinishReceipt } from '@/lib/workout/finish';
 import { startProgramWorkout } from '@/app/actions/program';
+import { editSessionTarget, loadPainToday, type TargetEditDb } from '@/lib/workout/target-edit';
+import type { TargetInput } from '@/lib/workout/target-override';
+import { isV2Session, runOwn, V2_LEGACY_REFUSAL } from '@/lib/workout/v2/gate';
+import { entryIdOfExercise, readPlanV2, type RawPlan } from '@/lib/workout/v2/plan-v2';
+import { patchOfTargetInput } from '@/lib/workout/v2/revision';
+import { normalizeSetLoad, type LoadStatus, type RecordedLoad } from '@/lib/workout/load/recorded';
+import type { LoadAck, LoadErrorCode } from '@/lib/workout/load/protocol';
+import { loadAck, loadStructured, originalPayloadHash, readSetLoad, readSetLoads } from '@/lib/workout/load/server';
+import { LoadRejectedError, persistSet } from '@/lib/workout/load/store';
+import { legacyChange, legacyDeleteSet, legacyFinish, legacyLogSet, legacyReorder, legacyTarget } from '@/lib/workout/v2/legacy';
+import { snapshotOf } from '@/lib/workout/load/snapshot';
 
 /**
  * 실시간 운동 세션.
@@ -178,6 +190,14 @@ export async function finishWarmup(input: {
     ? [...new Set(input.doneIds.filter((v) => typeof v === 'string' && v && (known.size === 0 || known.has(v))))].slice(0, 50)
     : [];
 
+  /* v2 판 — 같은 조건부 한 번 쓰기를 v2 명령으로(울타리가 옛 통째 쓰기를 막는다). 꺼져 있으면 안 탄다 */
+  if (await isV2Session(session.id)) {
+    const out = await runOwn(user.id, 'session.warmup', session.id, { skipped: input.skipped, doneIds });
+    if (out.code === 'ENDED') return { error: '이미 마친 운동이에요. 트레이닝에서 다시 열어 주세요.' };
+    if (out.code !== 'APPLIED' && out.code !== 'NO_CHANGE') return { error: out.error ?? '잠시 뒤 다시 눌러 주세요.' };
+    redirect('/workout/run', RedirectType.replace);
+  }
+
   /*
    * 시작 시각이 아직 없을 때만 찍는다(조건부 한 번 쓰기) — 두 기기 · 끊긴 응답에 다시 누름이 거의 같이 오면 예전엔 둘 다 '아직 없음'을 읽고
    * 뒤에 온 쪽이 시각과 건너뜀 여부를 덮었다. 0 건이면 다른 쪽이 먼저 넘긴 것 — 그 시각 그대로 본운동으로.
@@ -224,6 +244,20 @@ export type SetInput = {
    * 안 보내면(undefined) 저장된 값을 그대로 둔다. null 이면 지운다.
    */
   rir?: number | null;
+  /**
+   * EX-LOAD01 — 새 웹 · 앱이 싣는 약속 번호(lib/workout/load/protocol.ts LOAD_PROTOCOL). 없으면 옛 앱 — 장비가 받지 않는 kg 도
+   * 거절하지 않고(옛 대기열이 지우지 않게) 횟수 · 시간만 정식으로 받는다.
+   */
+  loadProtocol?: number;
+  /**
+   * EX-LOAD01 — 구조화한 무게(밴드 · 섞인 무게). 칸이 없으면(absent) 이미 있는 값을 그대로 두고, null 이면 '무게 없음'으로 지운다.
+   * 서버가 저장할 수 있을 때만(loadCapability.structured) 보낸다.
+   */
+  load?: unknown;
+  /** EX-LOAD01 — 밴드/무게 중 하나를 고르는 운동(alternative)에서 이 세트에 쓴 것 */
+  variant?: 'band' | 'mass' | null;
+  /** EX-LOAD01 — 구조화 무게를 보낼 때 함께 싣는 해석기 판. 있으면 서버 판과 같아야 한다 */
+  loadResolver?: number;
 };
 
 export type SavedSet = {
@@ -235,27 +269,24 @@ export type SavedSet = {
   recordedAt: string;
   /** 프로그램의 '몇 개 더?'(0~4) — 안 답했으면 null */
   rir?: number | null;
+  /** EX-LOAD01 — 구조화한 무게(스키마 적용 뒤에만 있다) */
+  load?: RecordedLoad | null;
+  loadStatus?: LoadStatus | null;
 };
 
-type SetResult = { sets: SavedSet[] } | { error: string };
+/**
+ * 세트 쓰기의 답. 새 서버는 loadAck 를 붙인다(새 앱이 '구조화한 무게가 정말 저장됐는가'를 이것으로 안다).
+ * actionRequired 거절은 새 앱 대기열이 지우지 않고 붙들어 둔다(lib/workout/load/protocol.ts).
+ */
+type SetResult =
+  | { sets: SavedSet[]; loadAck?: LoadAck }
+  | { error: string; code?: LoadErrorCode | 'SESSION_UNAVAILABLE'; actionRequired?: boolean };
 
 /** 1 이상 limit 이하의 정수만. 아니면 null. */
 function whole(value: unknown, limit: number): number | null {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null;
   const n = Math.round(value);
   return n >= 1 && n <= limit ? n : null;
-}
-
-/**
- * 무게는 kg 소수 둘째 자리까지(storedKg). 0 이하면 '안 적음'으로 본다.
- *
- * 0.5kg 자리로 맞추던 때가 있었다. lb 로 적은 값이 그 반올림에 걸려
- * 되돌렸을 때 다른 숫자가 됐다(135lb → 134.5lb).
- */
-function weight(value: unknown): number | null {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
-  const n = storedKg(value);
-  return n > 0 && n <= AMOUNT_LIMITS.weightKg ? n : null;
 }
 
 async function activeSession(userId: string) {
@@ -300,6 +331,7 @@ async function setsOf(sessionId: string): Promise<SavedSet[]> {
     where: { sessionId },
     orderBy: [{ exerciseId: 'asc' }, { setNo: 'asc' }],
     select: {
+      id: true,
       setNo: true,
       exerciseId: true,
       weightKg: true,
@@ -309,7 +341,12 @@ async function setsOf(sessionId: string): Promise<SavedSet[]> {
       rir: true,
     },
   });
-  return rows.map((r) => ({ ...r, recordedAt: r.recordedAt.toISOString() }));
+  /* 구조화 무게는 스키마를 적용한 뒤에만 읽는다(꺼져 있으면 빈 지도 — 새 칸을 묻지 않는다) */
+  const loads = await readSetLoads(rows.map((r) => r.id));
+  return rows.map(({ id, ...r }) => {
+    const l = loads.get(id);
+    return { ...r, recordedAt: r.recordedAt.toISOString(), ...(l ? { load: l.value, loadStatus: l.status } : {}) };
+  });
 }
 
 /**
@@ -324,7 +361,11 @@ export async function logSet(input: SetInput): Promise<SetResult> {
   const session =
     (await sessionForSet(user.id, input.sessionId)) ??
     (await abandonedSessionForSet(user.id, input.sessionId));
-  if (!session) return { error: '이미 마친 운동이라 이 세트는 저장하지 못했어요.' };
+  /*
+   * EX-LOAD01 — 이 계정의 판이 아니거나 이미 마친 판. 옛 앱은 예전처럼 이 답을 받고 지운다(바꾸지 않음). 새 앱 대기열은 code 를 보고,
+   * 담은 사람이 지금 계정이 아니거나 모르는 줄(계정 바꾸기 · 옛 대기열)이면 지우지 않고 붙들어 둔다 — 다른 사람의 세트를 잃지 않게.
+   */
+  if (!session) return { error: '이미 마친 운동이라 이 세트는 저장하지 못했어요.', code: 'SESSION_UNAVAILABLE' };
   /* 저절로 닫힌 뒤에 늦게 온 세트(위 abandonedSessionForSet) */
   const late = session.status === 'ABANDONED';
 
@@ -332,7 +373,13 @@ export async function logSet(input: SetInput): Promise<SetResult> {
   const ex = plan?.exercises.find((e) => e.id === input.exerciseId);
   if (!ex) return { error: '오늘 목록에 없는 운동이에요.' };
 
-  const w = weight(input.weightKg);
+  /*
+   * EX-LOAD01 — 원래 보낸 요청 그대로(무게 · 번호를 다듬기 전) — 복구 기록의 지문 · 내용. 없는 칸은 빼고 null 은 남긴다(없음 ≠ 지움).
+   * 세트 번호를 안 보냈으면 그 사실도 남는다(아래에서 서버가 정한 번호는 resolvedSetNo 로 따로).
+   */
+  const original: Record<string, unknown> = { kind: 'workout.logSet', sessionId: session.id, exerciseId: ex.id };
+  for (const k of ['setNo', 'weightKg', 'reps', 'holdSeconds', 'rir', 'load', 'variant', 'loadProtocol', 'recordedAt'] as const)
+    if (k in input && input[k] !== undefined) original[k] = input[k];
   const reps = whole(input.reps, AMOUNT_LIMITS.reps);
   const hold = whole(input.holdSeconds, AMOUNT_LIMITS.holdSeconds);
   /* '몇 개 더?'는 프로그램 칸의 운동에만 받는다 — 0~4 밖은 버린다 */
@@ -348,11 +395,15 @@ export async function logSet(input: SetInput): Promise<SetResult> {
           ? input.rir
           : undefined;
 
-  /* 바벨·덤벨은 무게를 안 적으면 남길 수 없다 — 몇 kg 을 들었는지가 곧 그날의 운동이다 */
-  if (ex.needsWeight && w == null) return { error: '무게를 적어 주세요.' };
   if (reps == null && hold == null) {
     return { error: ex.isHold ? '버틴 시간을 적어 주세요.' : '횟수를 적어 주세요.' };
   }
+  /*
+   * 횟수 운동이면 횟수만, 버티기 운동이면 시간만(EX-RX01) — 예전에는 둘 다 받아 저장해 한 세트가 두 종류의 양을 가졌다.
+   * 웹 · 앱 화면은 늘 판의 isHold 로 한쪽만 보낸다(session-client save · native workout save) — 맞지 않는 것은 잘못 만든 요청이다.
+   */
+  if (ex.isHold && reps != null) return { error: '시간으로 버티는 운동이라 횟수 대신 버틴 시간을 적어 주세요.' };
+  if (!ex.isHold && hold != null) return { error: '횟수로 하는 운동이라 시간 대신 횟수를 적어 주세요.' };
 
   let setNo = whole(input.setNo, AMOUNT_LIMITS.sets);
   if (setNo == null) {
@@ -365,7 +416,80 @@ export async function logSet(input: SetInput): Promise<SetResult> {
     if (setNo > AMOUNT_LIMITS.sets) return { error: '세트가 너무 많아요.' };
   }
 
+  /*
+   * EX-LOAD01 — 무게는 하나뿐인 정규화가 정한다(lib/workout/load/recorded.ts). 이 판에 얼린 장비 계약이 받지 않는 kg 은
+   * 새 앱이면 고쳐 보내라고(대기열이 붙든다), 옛 앱이면 거절하지 않고 횟수 · 시간만 정식으로. 바벨 · 덤벨의 '무게를 적어 주세요'도 여기서.
+   */
+  original.resolvedSetNo = setNo;
+  const contract = contractOfFrozen(ex);
+  const structured = loadStructured();
+  const existingRow = structured
+    ? await prisma.userExerciseSet.findUnique({
+        where: { sessionId_exerciseId_setNo: { sessionId: session.id, exerciseId: ex.id, setNo } },
+        select: { id: true, weightKg: true },
+      })
+    : null;
+  const norm = normalizeSetLoad({
+    hasProtocol: 'loadProtocol' in input,
+    protocol: input.loadProtocol,
+    resolver: input.loadResolver,
+    contract,
+    variant: input.variant,
+    weightKg: input.weightKg,
+    hasLoad: 'load' in input,
+    load: input.load,
+    structured,
+    existing: existingRow ? { weightKg: existingRow.weightKg, load: await readSetLoad(prisma, existingRow.id) } : null,
+  });
+  if (!norm.ok) return norm.actionRequired ? { error: norm.error, code: norm.code, actionRequired: true } : { error: norm.error };
+  const w = norm.weightKg;
+  /*
+   * 새 정규화를 했을 때만 답에 loadAck 를 싣는다. 구조화 저장이 꺼진 채 옛 앱의 요청을 예전 쓰기 그대로 둔 경우(legacyUnchanged)는
+   * '새 규칙으로 저장했다'고 말하지 않는다(GPT 서브1 검토 5 — 출시 차단 항목으로 남긴다).
+   */
+  const ack = norm.legacyUnchanged ? {} : { loadAck: loadAck() };
+
   const at = clampRecordedAt(input.recordedAt, session.startedAt);
+  /*
+   * EX-RX01 R2A — v2 로 옮긴 판(WORKOUT_V2 를 켰을 때만 생긴다)은 v2 명령으로 남긴다. 마친 · 닫힌 판의 늦은 세트는
+   * 복구함으로(버리지 않음), 목표 연결은 '모름'. 꺼져 있으면 isV2Session 이 DB 를 묻지 않고 false — 아래 옛 길 그대로.
+   */
+  if (await isV2Session(session.id)) {
+    /*
+     * EX-LOAD01 — v2 판은 늘 복구함이 있다(v2 스키마). 맞지 않는 옛 kg 은 정식 세트에 싣지 않고 원래 요청을 복구로, 구조화 무게는 스냅샷으로 —
+     * 둘 다 v2 명령과 같은 거래(세트 · 복구 · 영수증 · 스냅샷이 함께). 확인(loadAck)은 그 거래가 끝난 뒤에만.
+     */
+    const keepRaw = norm.incompatibleKept || norm.recover;
+    /*
+     * 구조화 스키마 서버는 미리 본 결과(스냅샷 · 복구) 대신 요청을 싣는다 — 명령 거래 안에서 잠근 지금 줄로 다시 정규화해
+     * kg · 스냅샷 · 원래 요청 복구를 정한다(거래 밖 옛 값이 그사이 바뀐 밴드를 되돌리지 않게). 꺼진 서버는 예전 그대로.
+     */
+    const prep =
+      structured && norm.request
+        ? { request: norm.request, provenance: 'loadProtocol' in input ? 'modern' : 'legacy', original: { originalHash: originalPayloadHash(original), original } }
+        : null;
+    const r = await legacyLogSet(user.id, session.id, {
+      exerciseId: ex.id,
+      setNo,
+      weightKg: norm.incompatibleKept ? null : w,
+      reps,
+      holdSeconds: hold,
+      ...(rir !== undefined ? { rir } : {}),
+      recordedAt: at.toISOString(),
+      ...(prep
+        ? { loadPrep: prep }
+        : {
+            ...(keepRaw ? { legacyLoad: { originalHash: originalPayloadHash(original), original } } : {}),
+            ...(norm.load && structured
+              ? { loadSnapshot: snapshotOf({ load: norm.load, status: norm.status, contract: norm.contract, variant: norm.variant, provenance: input.loadProtocol ? 'modern' : 'legacy' }) }
+              : {}),
+          }),
+    });
+    if ('error' in r) return r;
+    /* 받은 결과가 '복구함에만 남김'(마친 판의 늦은 세트 등)이면 정식으로 저장된 것이 아니다 — 새 정규화의 확인을 붙이지 않는다 */
+    const durable = r.outcome.code === 'APPLIED' || r.outcome.code === 'NO_CHANGE';
+    return { sets: await setsOf(session.id), ...(durable && !norm.legacyUnchanged ? { loadAck: loadAck() } : {}) };
+  }
   /*
    * 늦게 온 세트는 그 판을 하던 때의 것만 — 닫힌 끝 시각(마지막으로 무언가 한 때)에서 3시간 안. 그보다 뒤라면 그 판을
    * 하던 중이 아니다(3시간 넘게 아무 일이 없으면 떠난 판으로 친다, lib/workout/stale.ts).
@@ -407,7 +531,7 @@ export async function logSet(input: SetInput): Promise<SetResult> {
     }
   }
 
-  await prisma.userExerciseSet.upsert({
+  const upsertArgs = {
     where: {
       sessionId_exerciseId_setNo: { sessionId: session.id, exerciseId: ex.id, setNo },
     },
@@ -431,7 +555,32 @@ export async function logSet(input: SetInput): Promise<SetResult> {
       recordedAt: at,
       ...(rir !== undefined ? { rir } : {}),
     },
-  });
+    select: { id: true },
+  } satisfies Prisma.UserExerciseSetUpsertArgs;
+  /*
+   * 스키마 미적용(지금 운영) — 예전과 같은 한 줄 upsert. 옛 앱의 맞지 않는 kg 은 예전처럼 옛 칸에 남고(norm.incompatibleKept) 읽기 관문이
+   * 계산에서 뺀다. 스키마 적용 뒤 — 정식 세트 · 스냅샷 · 원래 요청(복구)을 한 거래로, 하나라도 실패하면 모두 되돌리고 **던진다**
+   * (옛 대기열은 던진 오류면 남기고 {error} 답이면 지운다 — 가짜 성공도 조용한 유실도 없게). 핵심은 lib/workout/load/store.ts persistSet.
+   */
+  try {
+    /* 기존 값으로 미리 본 결과(norm)는 거래 안에서 지금 줄로 다시 정규화된다 — 그사이 바뀐 밴드 · 기구 이름 · kg 을 되돌리지 않게 */
+    await persistSet(prisma, {
+      structured,
+      upsert: upsertArgs,
+      norm,
+      owner: { ownerId: user.id, actorId: user.id },
+      ref: { sessionId: session.id, exerciseId: ex.id, setNo },
+      original,
+      protocol: typeof input.loadProtocol === 'number' ? input.loadProtocol : null,
+      provenance: 'loadProtocol' in input ? 'modern' : 'legacy',
+    });
+  } catch (e) {
+    if (e instanceof LoadRejectedError) {
+      const r = e.rejection;
+      return r.actionRequired ? { error: r.error, code: r.code, actionRequired: true } : { error: r.error };
+    }
+    throw e;
+  }
 
   /*
    * 닫힌 판에 늦게 온 세트 — 운동 기록(요약)을 세트에서 다시 접고, 이 세트가 닫힌 끝보다 뒤면 끝 시각 · 운동 시간을
@@ -456,7 +605,7 @@ export async function logSet(input: SetInput): Promise<SetResult> {
   }
 
   /* 일부러 revalidatePath 를 안 부른다 (맨 위 설명 참고) */
-  return { sets: await setsOf(session.id) };
+  return { sets: await setsOf(session.id), ...ack };
 }
 
 /** 잘못 적은 세트를 지운다. 번호는 다시 매기지 않는다 — 화면에서 순서대로 센다. */
@@ -469,6 +618,10 @@ export async function deleteSet(input: {
   const user = await requireUser();
   const session = await sessionForSet(user.id, input.sessionId);
   if (!session) return { error: '이미 마친 운동이라 지울 수 없어요.' };
+  if (await isV2Session(session.id)) {
+    const r = await legacyDeleteSet(user.id, session.id, input.exerciseId, input.setNo);
+    return 'error' in r ? r : { sets: await setsOf(session.id) };
+  }
 
   await prisma.userExerciseSet.deleteMany({
     where: {
@@ -517,6 +670,11 @@ async function closeSession(
   session: NonNullable<Awaited<ReturnType<typeof activeSession>>>,
   note: { intensity: number | null; memo: string | null }
 ): Promise<boolean> {
+  /* v2 판 — 닫기 · 시간 · 요약(그 거래가 읽은 세트로) · 프로그램 효과(원래 의무)를 한 거래로. 하루 메모는 아래 recoverFollowUps 그대로 */
+  if (await isV2Session(session.id)) {
+    const out = await legacyFinish(userId, session.id, note);
+    return out.code === 'APPLIED';
+  }
   /*
    * 본운동을 시작한 뒤로 흐른 시간. 워밍업은 안 들어간다.
    * 마지막 세트 뒤로 3시간 넘게 지나서 누른 종료면, 그 마지막 세트가 끝이다(lib/workout/stale.ts 의 sessionEnd).
@@ -749,6 +907,8 @@ export async function reorderSession(
   const user = await requireUser();
   const session = await sessionForSet(user.id, sessionId);
   if (!session) return { error: '열려 있는 운동이 없어요.' };
+  /* v2 판은 순서만 바꾼다(빠진 운동이 있는 목록은 빼기가 아니라 오래된 화면으로 본다 — R2A) */
+  if (await isV2Session(session.id)) return legacyReorder(user.id, session.id, exerciseIds.filter((id, i) => exerciseIds.indexOf(id) === i));
 
   const plan = readFrozenPlan(session.plan);
   if (!plan) return { error: '오늘 목록을 읽지 못했어요.' };
@@ -1035,6 +1195,18 @@ export async function changeSessionExercise(input: {
   const next = placeExercise(list, from.id, entry, mode);
   if (!next) return { error: '운동을 넣지 못했어요. 목록을 다시 열어 주세요.' };
 
+  /* v2 판은 v2 명령으로(새 자리 · 원래 자리와 이음 · 기준 목표 판). 원래 의무는 판의 장부가 지킨다 */
+  if (await isV2Session(session.id)) {
+    const out = await legacyChange(user.id, session.id, mode, from.id, entry);
+    if (out.code !== 'APPLIED') return { error: out.error ?? '운동을 넣지 못했어요. 목록을 다시 열어 주세요.' };
+    const [exercise] = await runExercises(user.id, [entry], session.date, {
+      goal: plan.goal,
+      volume: plan.volume,
+      painToday: loadPainToday(prisma as unknown as Pick<TargetEditDb, 'dailyCheckin'>, user.id, session.date),
+    });
+    return { exercise, mode };
+  }
+
   /* 무엇을 무엇으로 바꿨는지(또는 더했는지)를 세션 판 · 그날 일정에 남긴다(P2) — kind 는 실제로 한 mode */
   await writeSessionList(session, plan, next, [
     {
@@ -1048,8 +1220,82 @@ export async function changeSessionExercise(input: {
   ]);
 
   /* 화면이 바로 그릴 수 있게 — 설명·영상·지난번 기록·메모·별까지 붙여 준다 */
-  const [exercise] = await runExercises(user.id, [entry], session.date);
+  const [exercise] = await runExercises(user.id, [entry], session.date, {
+    goal: plan.goal,
+    volume: plan.volume,
+    painToday: loadPainToday(prisma as unknown as Pick<TargetEditDb, 'dailyCheckin'>, user.id, session.date),
+  });
   return { exercise, mode };
+}
+
+export type SessionTargetInput = {
+  sessionId: string;
+  exerciseId: string;
+  /** null 이면 '오늘 추천으로 되돌리기'. 칸이 null · 없음이면 그 칸은 오늘 추천을 따른다 */
+  target: TargetInput | null;
+};
+
+/**
+ * 운동 중 '내 목표' 바꾸기 · 되돌리기(EX-RX01) — 이 판 · 이 운동에서만. 라이브러리 · 그날 일정 · 남긴 세트는 그대로다.
+ * 검사 · 저장은 lib/workout/target-edit.ts(시험과 같은 코드), 돌려주는 것은 화면이 그 자리에 갈아 끼울 운동 하나(교체와 같은 모양).
+ */
+export async function setSessionTarget(
+  input: SessionTargetInput
+): Promise<{ exercise: RunExercise; painToday: boolean } | { error: string; field?: keyof TargetInput }> {
+  allowFeature('training');
+  const user = await requireUser();
+  /* v2 판 — r1 창(전체 칸)을 바뀐 칸만의 목표 판으로. 그 판의 호환 칸(userTarget)을 같은 거래에서 쓰므로 아래 읽기가 그대로 그린다 */
+  if (typeof input?.sessionId === 'string' && typeof input?.exerciseId === 'string' && (await isV2Session(input.sessionId))) {
+    const owned = await prisma.trainingSession.findFirst({ where: { id: input.sessionId, userId: user.id }, select: { id: true } });
+    if (!owned) return { error: '운동 판을 찾지 못했어요. 화면을 다시 열어 주세요.' };
+    /*
+     * EX-LOAD01-R1 — 장비 목표(load · loadV)를 실은 새 창은 같은 숫자 규칙 + 장비 목표로 직접 target.patch 를 만든다(legacyTarget 은
+     * 숫자 칸만 옮긴다). 칸이 없는 옛 창은 예전 길 그대로 — v2 의 되돌리기(reset)는 loadV:1 없이는 장비 목표를 지우지 않는다.
+     */
+    const t = input.target as (TargetInput & Record<string, unknown>) | null;
+    const out =
+      t && (t.load !== undefined || t.loadV !== undefined)
+        ? await targetPatchWithLoad(user.id, input.sessionId, input.exerciseId, t)
+        : await legacyTarget(user.id, input.sessionId, input.exerciseId, input.target as Record<string, number | null> | null);
+    if (out.code !== 'APPLIED' && out.code !== 'NO_CHANGE') return { error: out.error ?? V2_LEGACY_REFUSAL, ...(out.field ? { field: out.field as keyof TargetInput } : {}) };
+    const fresh = await prisma.trainingSession.findFirst({ where: { id: input.sessionId, userId: user.id }, select: { plan: true, date: true } });
+    const plan = readFrozenPlan(fresh?.plan);
+    const ex = plan?.exercises.find((e) => e.id === input.exerciseId);
+    if (!fresh || !plan || !ex) return { error: '오늘 목록에 없는 운동이에요.' };
+    const painToday = await loadPainToday(prisma as unknown as Pick<TargetEditDb, 'dailyCheckin'>, user.id, fresh.date);
+    const [exercise] = await runExercises(user.id, [ex], fresh.date, { goal: plan.goal, volume: plan.volume, painToday });
+    return { exercise, painToday };
+  }
+  const res = await editSessionTarget(prisma as unknown as TargetEditDb, user.id, input ?? ({} as SessionTargetInput), {
+    libraryRestOf: async (id) => (await exercisesByIds([id]))[0]?.restSeconds ?? null,
+  });
+  if (!res.ok) return res.field ? { error: res.error, field: res.field } : { error: res.error };
+  const [exercise] = await runExercises(user.id, [res.exercise], res.sessionDate, {
+    goal: res.plan.goal,
+    volume: res.plan.volume,
+    painToday: res.painToday,
+  });
+  return { exercise, painToday: res.painToday };
+}
+
+/**
+ * EX-LOAD01-R1 — v2 판에 장비 목표를 실은 목표 창 저장. legacy.ts legacyTarget 과 같은 길(지금 목표 판 위에 쓴다 — 옛 창은 판 번호를
+ * 모른다)에 장비 목표 칸만 더한 명령(lib/workout/v2/revision.ts patchOfTargetInput). 검사 · 통증 · 프로그램 칸 · 주인 확인은 명령이 한다.
+ */
+async function targetPatchWithLoad(userId: string, sessionId: string, exerciseId: string, target: TargetInput) {
+  const row = await prisma.trainingSession.findFirst({ where: { id: sessionId, userId }, select: { plan: true } });
+  const plan = row?.plan && typeof row.plan === 'object' ? (row.plan as RawPlan) : null;
+  const v2 = plan ? readPlanV2(plan) : null;
+  const entryId = plan ? entryIdOfExercise(plan, exerciseId) : null;
+  if (!plan || !v2 || !entryId) return { code: 'NOT_FOUND' as const, error: '오늘 목록에 없는 운동이에요.', field: undefined as string | undefined };
+  const lib = await exercisesByIds([exerciseId]);
+  const libraryRest = Object.fromEntries(lib.map((r) => [r.id, r.restSeconds ?? null]));
+  return runOwn(userId, 'target.patch', sessionId, {
+    entryId,
+    expectedRevisionId: v2.entries[entryId]?.currentRevisionId ?? null,
+    patch: patchOfTargetInput(target),
+    libraryRest,
+  });
 }
 
 /**

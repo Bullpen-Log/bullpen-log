@@ -13,6 +13,8 @@
  * DB 도 서버도 부르지 않는다 — 운동 화면(브라우저)과 끝 화면(서버)이 같이 쓴다.
  */
 
+import type { RecordingContract } from '@/lib/workout/load/contract';
+
 /** 오늘 앞의 모든 기록에서 가장 좋았던 값 — 세트와 하루 요약을 다 본다(lib/workout/prior-bests.ts) */
 export type PriorBest = {
   /** 가장 무거웠던 무게(kg) */
@@ -60,13 +62,30 @@ function beat(
 }
 
 export function newRecord(
-  exercise: { isHold: boolean; needsWeight: boolean },
+  /**
+   * load(EX-LOAD01 기록 계약)를 주면 그것이 정한다 — 자유 중량(같은 뜻)만 '더 무겁게'를 견주고, 맨몸 · 밴드 · 도구 · 기구 설정값 · 섞임은
+   * 무게 최고가 없다(옛 앱이 맨몸 운동에 보낸 kg 이 '새 최고'를 만들지 않게). 횟수 최고는 그런 운동이면 kg 이 적혀 있어도 센다.
+   * 안 주면(옛 화면) 예전 그대로.
+   */
+  exercise: { isHold: boolean; needsWeight: boolean; load?: RecordingContract | null },
   sets: readonly SetLike[],
   prior: PriorBest | null
 ): NewRecord | null {
   if (!prior || sets.length === 0) return null;
   if (exercise.isHold)
     return beat(sets, 'hold', (s) => s.holdSeconds, prior.holdSeconds);
+
+  const c = exercise.load ?? null;
+  if (c) {
+    if (c.mode === 'externalMass' && c.readiness === 'ready') {
+      const heavier = beat(sets, 'weight', (s) => (s.weightKg != null && s.weightKg > 0 ? s.weightKg : null), prior.weightKg);
+      if (heavier || c.massRequired) return heavier;
+      return beat(sets, 'reps', (s) => (s.weightKg == null || s.weightKg === 0 ? s.reps : null), prior.reps);
+    }
+    /* 맨몸만 횟수로 견준다. 기구 설정값 · 도구 무게 · 섞임 · 밴드(다른 밴드끼리 견주지 않는다) · 모름은 최고가 없다 */
+    if (c.mode === 'none') return beat(sets, 'reps', (s) => s.reps, prior.reps);
+    return null;
+  }
 
   const heavier = beat(
     sets,

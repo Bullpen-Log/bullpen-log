@@ -42,6 +42,14 @@ import {
   type WorkLine,
 } from '@/lib/org/team-session';
 import { EFFORT_CHIPS, effortScaleText } from '@/lib/pitch-effort';
+import { equipmentDisplayName } from '@/lib/exercise-meta';
+import { acceptsMass, massFieldLabel, resolveRecordingContract, type RecordingContract } from '@/lib/workout/load/contract';
+import { lineLoadHint, type LineLoadInfo } from '@/lib/org/team-session';
+import { overridesFor } from '@/lib/workout/load/overrides';
+import { LOAD_PROTOCOL } from '@/lib/workout/load/protocol';
+import type { RecordedLoad } from '@/lib/workout/load/recorded';
+import { EMPTY_LOAD_DRAFT, buildSetLoad, loadForm, type LoadDraft as SetLoadDraft } from '@/components/load/set-load';
+import { BandChip, BandSheet, RoleChips, SetupSheet } from '@/components/load/band-picker';
 
 /**
  * 웹 /manage 팀 훈련 하나(계약 11절) — 앱 native/src/app/org/team-event.tsx · plan.tsx · actual.tsx · exception.tsx 와 같은 동작(app/actions/app-team.ts).
@@ -410,27 +418,136 @@ function PlanForm({ d, orgId, lib, planId, onDone }: { d: EventDetail; orgId: st
 
 /* ── 처방 줄(조 실제 · 예외) ── */
 
-type LineDraft = { id: string; kind: 'exercise' | 'drill'; name: string; sets: string; reps: string; sec: string; kg: string };
+/** ld — EX-LOAD01 R1-03: 선수가 이 줄에서 실제로 쓴 장비(운동 화면과 같은 고름 모양, components/load/set-load.ts). 손대지 않았으면 없다(kg 숫자만) */
+type LineDraft = { id: string; kind: 'exercise' | 'drill'; name: string; sets: string; reps: string; sec: string; kg: string; ld?: SetLoadDraft };
+type Contracts = Readonly<Record<string, RecordingContract>> | undefined;
+
+/** 실어 둔 무게 기록 → 고름(되살리기) — 밴드 · 역할 · 고른 변형 · 기구 이름 · 양손 무게 */
+function draftOfLoad(load: RecordedLoad | null | undefined, variant: 'band' | 'mass' | null | undefined): SetLoadDraft {
+  const band = load?.kind === 'band' ? load : load?.kind === 'combined' ? load.band : null;
+  const mass = load?.kind === 'mass' ? load : load?.kind === 'combined' ? load.mass : null;
+  const left = mass?.parts?.find((p) => p.side === 'left');
+  const right = mass?.parts?.find((p) => p.side === 'right');
+  return {
+    ...EMPTY_LOAD_DRAFT,
+    variant: variant ?? null,
+    role: band ? band.role : null,
+    bands: band ? [...band.bands] : [],
+    setupLabel: mass?.setup?.label ?? '',
+    unequal: !!(left && right),
+    leftKg: left?.kg ?? null,
+    rightKg: right?.kg ?? null,
+  };
+}
+
+/**
+ * EX-LOAD01 — 운동의 장비로 기록 계약을 풀어 kg 칸을 낼지 · 칸 이름을 정한다(서버 · 운동 화면과 같은 해석기 · 같은 검토 예외).
+ * 맨몸 · 받침 · 밴드 · 장비 확인 중인 운동은 kg 칸이 없고 kg 을 보내지 않는다(서버도 정식 무게로 받지 않는다).
+ * 장비는 라이브러리 목록(loadHomeworkLibrary)이 실어 준 것 — 장비를 모르는 옛 목록이면 null(예전처럼 'kg' 칸).
+ */
+type LineLoad = { mass: boolean; label: string; hint: string | null } | null;
+/** EX-LOAD01 R1-03 — 서버가 푼 계약(훈련 답의 loads · 라이브러리 목록의 load)이 먼저. 둘 다 없을 때만 실린 장비로 같은 해석기를 돌린다 */
+type Loads = Readonly<Record<string, LineLoadInfo>> | undefined;
+function lineLoadOf(lib: Lib | null | undefined, id: string, loads?: Loads): LineLoad {
+  const it = lib?.exercises.find((x) => x.id === id) as (LibItem & { equipment?: unknown; load?: LineLoadInfo }) | undefined;
+  const info = loads?.[id] ?? it?.load;
+  if (info) return { mass: info.mass, label: info.label ?? '', hint: lineLoadHint(info) };
+  if (!it || !Array.isArray(it.equipment)) return null;
+  const equipment = it.equipment.filter((e): e is string => typeof e === 'string');
+  const c = resolveRecordingContract({ exerciseId: id, equipment, category: it.category, overrides: overridesFor(id) });
+  return { mass: acceptsMass(c), label: acceptsMass(c) ? massFieldLabel(c, equipmentDisplayName) : '', hint: null };
+}
 const s = (n: number | undefined) => (n == null ? '' : String(n));
 const n = (v: string) => (v.trim() ? Number(v) : undefined);
 const fromLines = (lines: readonly WorkLine[], names: Record<string, string>): LineDraft[] =>
   lines.flatMap((l) => {
     const id = l.exerciseId ?? l.guideId;
-    return id ? [{ id, kind: l.exerciseId ? ('exercise' as const) : ('drill' as const), name: names[id] ?? '지운 운동', sets: s(l.sets), reps: s(l.reps), sec: s(l.holdSec), kg: s(l.weightKg) }] : [];
+    const semantic = !!l.exerciseId && (l.load != null || l.variant != null);
+    return id
+      ? [
+          {
+            id,
+            kind: l.exerciseId ? ('exercise' as const) : ('drill' as const),
+            name: names[id] ?? '지운 운동',
+            sets: s(l.sets),
+            reps: s(l.reps),
+            sec: s(l.holdSec),
+            kg: s(l.weightKg),
+            ...(semantic ? { ld: draftOfLoad(l.load, l.variant) } : {}),
+          },
+        ]
+      : [];
   });
-const toLines = (ds: readonly LineDraft[], weight: boolean): WorkLine[] =>
-  ds.map((x) => ({ ...(x.kind === 'exercise' ? { exerciseId: x.id } : { guideId: x.id }), sets: n(x.sets), reps: n(x.reps), holdSec: n(x.sec), ...(weight ? { weightKg: n(x.kg) } : {}) }));
+
+/**
+ * EX-LOAD01 R1-03 — 장비를 고른 줄의 무게 칸: 운동 화면과 같은 세트 만들기(components/load/set-load.ts buildSetLoad)로 밴드 · 섞인 무게 ·
+ * 서로 다른 무게 · 기구 이름을 싣고(새 화면의 약속 loadProtocol), 고르지 않은 줄은 예전처럼 kg 숫자만.
+ */
+function lineLoadFields(x: LineDraft, contract: RecordingContract | undefined, structured: boolean): { ok: true; fields: Partial<WorkLine> } | { ok: false; error: string } {
+  const kg = n(x.kg) ?? null;
+  if (!contract || !x.ld) return { ok: true, fields: kg != null ? { weightKg: kg } : {} };
+  const form = loadForm(contract, x.ld.variant, structured);
+  const b = buildSetLoad({ contract, structured, weightKg: form.kg !== 'none' && !x.ld.unequal ? kg : null, draft: x.ld, editing: true });
+  if (!b.ok) return { ok: false, error: `${x.name}: ${b.error}` };
+  const modern = b.load !== undefined || b.variant !== undefined;
+  return {
+    ok: true,
+    fields: {
+      ...(b.weightKg != null ? { weightKg: b.weightKg } : {}),
+      ...(modern ? { loadProtocol: LOAD_PROTOCOL } : {}),
+      ...(b.load !== undefined ? { load: b.load, loadResolver: b.loadResolver } : {}),
+      ...(b.variant ? { variant: b.variant } : {}),
+    },
+  };
+}
+const linesLoadError = (ds: readonly LineDraft[], contracts: Contracts, structured: boolean): string | null => {
+  for (const x of ds) {
+    if (x.kind !== 'exercise') continue;
+    const r = lineLoadFields(x, contracts?.[x.id], structured);
+    if (!r.ok) return r.error;
+  }
+  return null;
+};
+const toLines = (ds: readonly LineDraft[], weight: boolean, lib?: Lib | null, loads?: Loads, contracts?: Contracts, structured = false): WorkLine[] =>
+  ds.map((x) => {
+    const base = { ...(x.kind === 'exercise' ? { exerciseId: x.id } : { guideId: x.id }), sets: n(x.sets), reps: n(x.reps), holdSec: n(x.sec) };
+    if (!weight || x.kind !== 'exercise') return base;
+    const r = x.ld ? lineLoadFields(x, contracts?.[x.id], structured) : null;
+    if (r?.ok) return { ...base, ...r.fields };
+    /* 장비가 kg 을 받지 않는 운동은 kg 을 보내지 않는다(EX-LOAD01) — 서버도 그런 kg 을 받지 않고 고칠 곳을 알린다 */
+    return { ...base, ...(lineLoadOf(lib, x.id, loads)?.mass !== false ? { weightKg: n(x.kg) } : {}) };
+  });
 const toggleLine = (ds: LineDraft[], it: LibItem, kind: 'exercise' | 'drill'): LineDraft[] =>
   ds.some((x) => x.id === it.id) ? ds.filter((x) => x.id !== it.id) : ds.length >= LINES_MAX ? ds : [...ds, { id: it.id, kind, name: it.name, sets: '', reps: '', sec: '', kg: '' }];
 
-function LineRows({ lines, onChange, weight }: { lines: LineDraft[]; onChange: (next: LineDraft[]) => void; weight: boolean }) {
+function LineRows({
+  lines,
+  onChange,
+  weight,
+  lib,
+  loads,
+  contracts,
+  structured = false,
+}: {
+  lines: LineDraft[];
+  onChange: (next: LineDraft[]) => void;
+  weight: boolean;
+  lib?: Lib | null;
+  loads?: Loads;
+  /** EX-LOAD01 R1-03 — 계약 전체(훈련 답의 contracts) · 구조화 저장 여부 — 있으면 운동 화면과 같은 장비 칸(밴드 · 고르기 · 기구 이름 · 양손 무게) */
+  contracts?: Contracts;
+  structured?: boolean;
+}) {
   const patch = (i: number, v: Partial<LineDraft>) => onChange(lines.map((x, k) => (k === i ? { ...x, ...v } : x)));
-  const box = (v: string, set: (x: string) => void, ph: string, decimal = false) => (
+  const patchLd = (i: number, v: Partial<SetLoadDraft>) => patch(i, { ld: { ...(lines[i].ld ?? EMPTY_LOAD_DRAFT), ...v } });
+  const [sheet, setSheet] = useState<{ i: number; kind: 'band' | 'setup' } | null>(null);
+  const box = (v: string, set: (x: string) => void, ph: string, decimal = false, label = ph) => (
     <Input
       className="w-16 px-2 py-1.5"
       inputMode={decimal ? 'decimal' : 'numeric'}
       placeholder={ph}
-      aria-label={ph}
+      aria-label={label}
+      title={label}
       value={v}
       onChange={(e) => set((decimal ? e.target.value.replace(/[^\d.]/g, '') : e.target.value.replace(/\D/g, '')).slice(0, 5))}
     />
@@ -449,14 +566,152 @@ function LineRows({ lines, onChange, weight }: { lines: LineDraft[]; onChange: (
               {box(x.sets, (sets) => patch(i, { sets }), '세트')}
               {box(x.reps, (reps) => patch(i, { reps }), '회')}
               {box(x.sec, (sec) => patch(i, { sec }), '초')}
-              {weight ? box(x.kg, (kg) => patch(i, { kg }), 'kg', true) : null}
+              {/* kg 칸은 장비가 무게를 받는 운동만 — 칸 이름(한 손 · 봉 포함 · 기구 설정값)은 읽어 주는 이름 · 말풍선으로. 양손 무게가 다르면 아래 왼손 · 오른손 */}
+              {weight && contracts?.[x.id]
+                ? (() => {
+                    const form = loadForm(contracts[x.id], x.ld?.variant ?? null, structured);
+                    return form.kg !== 'none' && !x.ld?.unequal ? box(x.kg, (kg) => patch(i, { kg }), 'kg', true, form.kgLabel ?? 'kg') : null;
+                  })()
+                : weight && lineLoadOf(lib, x.id, loads)?.mass !== false
+                  ? box(x.kg, (kg) => patch(i, { kg }), 'kg', true, lineLoadOf(lib, x.id, loads)?.label || 'kg')
+                  : null}
             </>
           ) : null}
           <button type="button" aria-label={`${x.name} 빼기`} className="text-danger" onClick={() => onChange(lines.filter((_, k) => k !== i))}>
             ×
           </button>
+          {x.kind === 'exercise' && weight && contracts?.[x.id] ? (
+            <LineLoadExtras x={x} contract={contracts[x.id]} structured={structured} onPatch={(v) => patchLd(i, v)} onSheet={(kind) => setSheet({ i, kind })} />
+          ) : null}
+          {/* EX-LOAD01 R1-03 — 무게를 받지 않는 운동: 무엇으로 적는지 한마디, 예전에 적힌 kg 은 말없이 버리지 않고 보이고 사람이 지운다 */}
+          {x.kind === 'exercise' && weight && (contracts?.[x.id] ? loadForm(contracts[x.id], x.ld?.variant ?? null, structured).kg === 'none' : lineLoadOf(lib, x.id, loads)?.mass === false) ? (
+            <p className="basis-full text-xs text-muted">
+              {lineLoadOf(lib, x.id, loads)?.hint ?? '무게 없이 횟수 · 시간'}
+              {x.kg.trim() ? (
+                <>
+                  {` · 기록된 무게 ${x.kg}kg은 저장하지 않아요 `}
+                  <button type="button" className="text-sky-strong" aria-label={`${x.name} 기록된 무게 지우기`} onClick={() => patch(i, { kg: '' })}>
+                    지우기
+                  </button>
+                </>
+              ) : null}
+            </p>
+          ) : null}
         </div>
       ))}
+      {sheet && lines[sheet.i] && contracts?.[lines[sheet.i].id] ? (
+        sheet.kind === 'band' ? (
+          <BandSheet
+            open
+            onClose={() => setSheet(null)}
+            exerciseId={lines[sheet.i].id}
+            ownerId={null}
+            title={`${lines[sheet.i].name} · 선수가 쓴 밴드`}
+            editing
+            fixedRole={loadForm(contracts[lines[sheet.i].id], lines[sheet.i].ld?.variant ?? null, structured).fixedRole}
+            role={lines[sheet.i].ld?.role ?? null}
+            bands={lines[sheet.i].ld?.bands ?? []}
+            onDone={(next) => {
+              patchLd(sheet.i, { role: next.role, bands: next.bands });
+              setSheet(null);
+            }}
+          />
+        ) : (
+          <SetupSheet
+            open
+            onClose={() => setSheet(null)}
+            label={lines[sheet.i].ld?.setupLabel ?? ''}
+            apparatus={equipmentDisplayName(contracts[lines[sheet.i].id].apparatusFamily ?? '기구')}
+            onDone={(label) => {
+              patchLd(sheet.i, { setupLabel: label });
+              setSheet(null);
+            }}
+          />
+        )
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * EX-LOAD01 R1-03 — 줄 하나의 장비 칸(운동 화면과 같은 규칙 · 같은 고르개): [밴드 | 무게] 고르기 · 밴드 역할 · 고른 밴드(창) · 기구 이름(창) ·
+ * 양손 무게가 다름. 구조화 저장이 꺼져 있으면 밴드 대신 '업데이트 뒤에' 한 줄. kg 칸은 위 줄(계약이 무게를 받을 때만).
+ */
+function LineLoadExtras({
+  x,
+  contract,
+  structured,
+  onPatch,
+  onSheet,
+}: {
+  x: LineDraft;
+  contract: RecordingContract;
+  structured: boolean;
+  onPatch: (v: Partial<SetLoadDraft>) => void;
+  onSheet: (kind: 'band' | 'setup') => void;
+}) {
+  const ld = x.ld ?? EMPTY_LOAD_DRAFT;
+  const form = loadForm(contract, ld.variant, structured);
+  if (!form.variants && form.band === 'none' && !form.setup && !form.split) return null;
+  const kgBox = (v: number | null, set: (kg: number | null) => void, label: string) => (
+    <Input
+      className="w-20 px-2 py-1.5"
+      inputMode="decimal"
+      placeholder={label}
+      aria-label={`${x.name} ${label}`}
+      value={v == null ? '' : String(v)}
+      onChange={(e) => {
+        const t = e.target.value.replace(/[^\d.]/g, '').slice(0, 5);
+        set(t ? Number(t) : null);
+      }}
+    />
+  );
+  return (
+    <div className="basis-full space-y-1.5 rounded-xl bg-ink/4 px-2 py-2 text-xs">
+      <p className="font-semibold text-muted">선수가 쓴 장비</p>
+      {form.variants ? (
+        <div role="group" aria-label={`${x.name} 밴드 또는 무게`} className="flex gap-1.5">
+          {(['band', 'mass'] as const).map((v) => (
+            <Pill key={v} on={ld.variant === v} onClick={() => onPatch({ variant: ld.variant === v ? null : v })}>
+              {v === 'band' ? '밴드' : '무게'}
+            </Pill>
+          ))}
+        </div>
+      ) : null}
+      {form.band === 'notice' ? <p className="text-muted">밴드 기록은 업데이트 뒤에 저장돼요. 지금은 무게 · 횟수 · 시간만 적어요.</p> : null}
+      {form.band === 'picker' ? (
+        <>
+          {form.fixedRole ? null : <RoleChips value={ld.role} onChange={(role) => onPatch({ role })} />}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {ld.bands.map((b, k) => (
+              <BandChip key={k} band={b} onRemove={() => onPatch({ bands: ld.bands.filter((_, j) => j !== k) })} />
+            ))}
+            <button type="button" className="min-h-9 rounded-full px-2 font-semibold text-sky-strong" onClick={() => onSheet('band')}>
+              {ld.bands.length ? '밴드 바꾸기' : '밴드 고르기'}
+            </button>
+          </div>
+          {ld.bands.length === 0 ? <p className="text-muted">밴드를 고르지 않으면 &lsquo;어느 밴드인지 모름&rsquo;으로 남아요.</p> : null}
+        </>
+      ) : null}
+      {form.setup ? (
+        <button type="button" className="min-h-9 rounded-full px-2 text-left font-semibold text-sky-strong" onClick={() => onSheet('setup')}>
+          {ld.setupLabel ? `기구 이름 · ${ld.setupLabel}` : '기구 이름 적기(선택)'}
+        </button>
+      ) : null}
+      {form.split ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="inline-flex min-h-9 items-center gap-1.5 text-ink">
+            <input type="checkbox" checked={ld.unequal} onChange={(e) => onPatch({ unequal: e.target.checked })} />
+            양손 무게가 달라요
+          </label>
+          {ld.unequal ? (
+            <>
+              {kgBox(ld.leftKg, (leftKg) => onPatch({ leftKg }), '왼손 kg')}
+              {kgBox(ld.rightKg, (rightKg) => onPatch({ rightKg }), '오른손 kg')}
+            </>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -658,20 +913,25 @@ function ExceptionForm({ d, orgId, m, lib, onDone }: { d: EventDetail; orgId: st
   const [error, setError] = useState<string | null>(null);
   const setPlan = (id: string, v: Partial<PlanDraft>) => setPlans((p) => ({ ...p, [id]: { ...p[id], ...v } }));
   const save = async (reset = false) => {
-    setBusy(true);
     setError(null);
+    /* EX-LOAD01 R1-03 — 장비를 고른 줄은 운동 화면 규칙으로 먼저 본다(양손 무게 · 밴드/무게 고르기 · 밴드 역할) */
+    if (!reset) {
+      const loadError = linesLoadError([...mine.filter((pl) => plans[pl.id].kind === 'reduced' || plans[pl.id].kind === 'substitute').flatMap((pl) => plans[pl.id].lines), ...extra], d.contracts, d.loadStructured === true);
+      if (loadError) return setError(loadError);
+    }
+    setBusy(true);
     const items = reset
       ? []
       : mine
           .filter((pl) => plans[pl.id].kind !== 'same')
-          .map((pl) => ({ planId: pl.id, kind: plans[pl.id].kind, ...(plans[pl.id].kind === 'absent' ? {} : { items: toLines(plans[pl.id].lines, true) }), note: plans[pl.id].note.trim() || undefined }));
+          .map((pl) => ({ planId: pl.id, kind: plans[pl.id].kind, ...(plans[pl.id].kind === 'absent' ? {} : { items: toLines(plans[pl.id].lines, true, lib, d.loads, d.contracts, d.loadStructured === true) }), note: plans[pl.id].note.trim() || undefined }));
     const values = reset
       ? []
       : mine
           .filter((pl) => pl.valueMode === 'individual' && pitch[pl.id]?.count)
           .map((pl) => ({ planId: pl.id, pitchCount: Number(pitch[pl.id].count), effortPct: pitch[pl.id].effort ? Number(pitch[pl.id].effort) : null, maxVelocity: pitch[pl.id].kmh || null }));
     const r = await saveMemberResult(orgId, d.event.id, m.memberId, {
-      exception: { items, extra: !reset && extra.length ? [{ items: toLines(extra, true) }] : [], separate: reset ? [] : (m.exception?.separate ?? []) },
+      exception: { items, extra: !reset && extra.length ? [{ items: toLines(extra, true, lib, d.loads, d.contracts, d.loadStructured === true) }] : [], separate: reset ? [] : (m.exception?.separate ?? []) },
       values,
     });
     setBusy(false);
@@ -705,7 +965,7 @@ function ExceptionForm({ d, orgId, m, lib, onDone }: { d: EventDetail; orgId: st
             {x.kind !== 'same' ? <Input value={x.note} maxLength={NOTE_MAX} placeholder="까닭(선택) — 어깨 피로" onChange={(e) => setPlan(pl.id, { note: e.target.value })} /> : null}
             {x.kind === 'reduced' || x.kind === 'substitute' ? (
               <>
-                <LineRows lines={x.lines} onChange={(lines) => setPlan(pl.id, { lines })} weight />
+                <LineRows lines={x.lines} onChange={(lines) => setPlan(pl.id, { lines })} weight lib={lib} loads={d.loads} contracts={d.contracts} structured={d.loadStructured === true} />
                 <button type="button" className="text-xs text-sky-strong" onClick={() => setBrowse(browse === pl.id ? null : pl.id)}>
                   {browse === pl.id ? '운동 고르기 닫기' : '+ 운동 고르기'}
                 </button>
@@ -742,7 +1002,7 @@ function ExceptionForm({ d, orgId, m, lib, onDone }: { d: EventDetail; orgId: st
       })}
       <div className="space-y-2 border-t border-line pt-2">
         <p className="text-xs font-semibold text-ink">더 한 운동</p>
-        <LineRows lines={extra} onChange={setExtra} weight />
+        <LineRows lines={extra} onChange={setExtra} weight lib={lib} loads={d.loads} contracts={d.contracts} structured={d.loadStructured === true} />
         <button type="button" className="text-xs text-sky-strong" onClick={() => setBrowse(browse === 'extra' ? null : 'extra')}>
           {browse === 'extra' ? '운동 고르기 닫기' : '+ 운동 고르기'}
         </button>
@@ -817,6 +1077,8 @@ function Result({ d, orgId, busy, send }: Part) {
                 정정 요청: {f.body}
               </p>
             ))}
+            {/* EX-LOAD01 R1-03 — 이 선수 코치 기록이 무게 · 수량 검사에 걸리는 곳(그대로 확인하면 이 선수는 아무것도 안 써요) */}
+            {m.loadIssue ? <p className="pl-30 text-xs text-warn">고칠 곳: {m.loadIssue.error}</p> : null}
           </li>
         ))}
       </ul>
@@ -898,6 +1160,8 @@ function LineList({ lines }: { lines: PlanView['lines'] }) {
             {l.kind === 'drill' ? ' · 드릴' : ''}
           </span>
           {l.dose}
+          {/* EX-LOAD01 R1-03 — 무게를 받지 않는 운동에 남아 있던 kg 은 보통 무게처럼 보이지 않는다 */}
+          {l.rawKg ? <span className="text-warn">기록하지 않는 무게 {l.rawKg}kg</span> : null}
         </p>
       ))}
     </>

@@ -1,3 +1,4 @@
+import { contractWeightKind } from '@/lib/workout/load/contract';
 import {
   PLUS_RESERVE,
   TM_RATIO,
@@ -38,10 +39,12 @@ export type WeightKind = 'barbell' | 'dumbbell' | 'machine' | 'none';
 
 /** 장비 → 무게 단위(U1.3). 맨몸 · 메디신볼 · 밴드는 무게 추천이 없다. */
 export function weightKindOf(equipment: readonly string[]): WeightKind {
-  if (equipment.includes('바벨') || equipment.includes('원판')) return 'barbell';
-  if (equipment.includes('덤벨') || equipment.includes('케틀벨')) return 'dumbbell';
-  if (equipment.includes('케이블')) return 'machine';
-  return 'none';
+  /*
+   * EX-LOAD01 — 장비 기록 계약의 투영(lib/workout/load/contract.ts contractWeightKind). 바벨 · 원판 → barbell, 덤벨 · 케틀벨 → dumbbell,
+   * 케이블 → machine. 머신은 예전처럼 none(프로그램은 머신을 안 쓴다). 밴드가 섞였거나 장비만으로 뜻을 정하지 못한 운동은 none —
+   * 밴드 힘을 kg 진행에 섞지 않는다(검토한 '같이 씀' 예외가 있어도 무게 진행은 계약이 정리될 때까지 열지 않는다).
+   */
+  return contractWeightKind(equipment);
 }
 
 /** 한 단위(kg). 덤벨 · 케틀벨은 한 손 무게. */

@@ -10,7 +10,19 @@
  */
 import type { HomeworkItem } from '@/lib/org/homework';
 import { readEffortInput } from '@/lib/pitch-effort';
-import type { OrgSet, OrgWorkItem } from '@/lib/org/team-work';
+import { hasOrgLoadFields, orgLoadFieldsError, readOrgLoadFields, type OrgLoadFields, type OrgSet, type OrgWorkItem } from '@/lib/org/team-work';
+import { normalizeSetLoad } from '@/lib/workout/load/recorded';
+import { describeLoad } from '@/lib/workout/load/describe';
+import {
+  BAND_ROLE_LABEL,
+  acceptsBand,
+  acceptsMass,
+  massFieldLabel,
+  type BandRole,
+  type LoadMode,
+  type MassBasis,
+  type RecordingContract,
+} from '@/lib/workout/load/contract';
 
 export const PLAN_SCOPES = ['all', 'group', 'member'] as const;
 export type PlanScope = (typeof PLAN_SCOPES)[number];
@@ -42,14 +54,114 @@ export const WORK_REASON_LABEL: Record<string, string> = {
   left: '팀을 떠남',
   write_failed: '저장 실패 — 다시 보내 주세요',
   no_pitch: '투구 수 안 적음',
+  /* EX-LOAD01 R1-03 — 무게 · 수량 검사에 걸려 아무것도 안 썼다(어느 운동 · 세트인지는 loadIssue 한 줄) */
+  load_rejected: '무게 · 수량을 고쳐 주세요',
+  /* v2 판이라 코치 세트를 쓰지 않고 복구함에 남겼다(선수 기록과 맞추기 전) */
+  v2_deferred: '선수 기록과 맞추기 전',
 };
 
 export const NOTE_MAX = 80;
 export const LINES_MAX = 10;
 export const MAX_PITCH_COUNT = 500;
 
-/** 처방 한 줄 — 숙제 · 메뉴와 같은 모양 + 예외 줄에서만 무게 */
-export type WorkLine = HomeworkItem & { weightKg?: number };
+/**
+ * 처방 한 줄 — 숙제 · 메뉴와 같은 모양 + 예외 줄에서만 무게. EX-LOAD01 R1-03 — 예외 줄(선수가 실제로 한 값)은 무게 기록 칸(OrgLoadFields — 밴드 ·
+ * 섞인 무게 · 서로 다른 무게 · 기구 이름)도 운동 화면의 세트와 같은 약속으로 실을 수 있다. 없으면 kg 숫자만(옛 길).
+ */
+export type WorkLine = HomeworkItem & { weightKg?: number } & OrgLoadFields;
+
+/* ── EX-LOAD01 R1-03 — 처방 줄 운동의 기록 계약(권위: 서버가 라이브러리로 푼 것) ── */
+
+/**
+ * 처방 줄 운동의 기록 계약 요약 — 서버가 지금 라이브러리 장비 · 검토 예외로 푼 계약(lib/workout/load/contract.ts)을 화면에 싣는다.
+ * 웹 · 앱 코치 화면은 kg 칸 · kg 표시를 이것으로만 정한다(화면이 가진 장비로 짐작하지 않는다). 처방은 계획 · 목표이고, 실제 세트는 코치 기록으로
+ * 쓸 때 그 선수 판의 얼린 계약으로 다시 검사한다(lib/org/team-work-core.ts).
+ */
+export type LineLoadInfo = {
+  mode: LoadMode;
+  /** kg 숫자를 받는가(섞인 무게는 무게 성분) */
+  mass: boolean;
+  /** 무게 칸 이름 — '무게(한 손 · 한 개)' · '케이블 설정값'. mass 일 때만 */
+  label: string | null;
+  basis: MassBasis | null;
+  /** 밴드를 받는가(밴드 · 섞인 무게) — 코치 칸은 밴드를 적지 않는다(선수가 운동 화면에서 고른다) */
+  band: boolean;
+  bandRole: BandRole | null;
+  /** 둘 중 하나를 고르는 운동의 변형 */
+  variants: ('band' | 'mass')[] | null;
+  /** 판단에 쓴 장비 */
+  equipment: string[];
+};
+
+export function lineLoadOf(c: RecordingContract, displayApparatus?: (name: string) => string): LineLoadInfo {
+  const mass = acceptsMass(c);
+  return {
+    mode: c.mode,
+    mass,
+    label: mass ? massFieldLabel(c, displayApparatus) : null,
+    basis: c.massBasis,
+    band: acceptsBand(c),
+    bandRole: c.bandRole,
+    variants: c.variants ? c.variants.map((v) => v.key) : null,
+    equipment: [...c.sourceEquipment],
+  };
+}
+
+/** kg 뒤에 붙일 짧은 뜻 — 한 손인지 봉 포함인지 기구 설정값인지 */
+const BASIS_SHORT: Record<MassBasis, string> = {
+  barbellTotal: '봉 포함',
+  perImplement: '한 손',
+  platesHeld: '원판 합',
+  implement: '도구',
+  stackSetting: '기구 설정값',
+  added: '더한 무게',
+};
+
+/** 무게 칸이 없을 때 그 운동을 무엇으로 적는지 한마디(화면 보조 글) */
+export function lineLoadHint(info: LineLoadInfo | null | undefined): string | null {
+  if (!info) return null;
+  switch (info.mode) {
+    case 'none':
+      return '무게 없이 횟수 · 시간';
+    case 'band':
+      return info.bandRole ? `${BAND_ROLE_LABEL[info.bandRole]} · 선수가 고름` : '밴드 · 선수가 고름';
+    case 'combined':
+      return `${info.label ?? '무게'} + 밴드`;
+    case 'alternative':
+      return '밴드 또는 무게';
+    case 'unresolved':
+      return '장비 확인 중 · 무게 없이';
+    default:
+      return info.label;
+  }
+}
+
+/**
+ * 처방 줄의 무게 글 — 계약이 kg 을 받을 때만 'Xkg(한 손)'. 받지 않거나(맨몸 · 밴드 · 확인 중) 계약을 모르면(지운 운동) 보통 무게로 보이지 않는다
+ * (rawKg 로 따로 — '기록하지 않는 무게'). 기록하지 않는 kg 은 지우지 않고 그대로 들고 있는다(코치가 고칠 때 보인다).
+ */
+export function lineWeightText(
+  l: Pick<WorkLine, 'weightKg' | 'load' | 'variant'>,
+  info: LineLoadInfo | null | undefined,
+  /** 서버처럼 계약 전체를 들고 있으면 공용 말하기(lib/workout/load/describe.ts describeLoad — 복구 화면 · 마치기 창과 같은 글) */
+  contract?: RecordingContract | null
+): { text: string | null; rawKg: number | null } {
+  /* EX-LOAD01 R1-03 — 무게 기록 칸(밴드 · 섞인 무게 · 서로 다른 무게 · 기구 이름)을 실은 줄은 그 기록 그대로 말한다(kg 하나로 줄이지 않는다) */
+  if (l.load !== undefined && l.load !== null) {
+    const d = describeLoad({ weightKg: l.weightKg ?? null, load: l.load, variant: l.variant ?? null }, { contract: contract ?? null });
+    return { text: d.text, rawKg: d.excludedKg };
+  }
+  if (!l.weightKg) return { text: null, rawKg: null };
+  if (!info || !info.mass) return { text: null, rawKg: l.weightKg };
+  if (contract) {
+    const d = describeLoad({ weightKg: l.weightKg }, { contract });
+    return d.text ? { text: d.text, rawKg: null } : { text: null, rawKg: d.excludedKg ?? l.weightKg };
+  }
+  return { text: `${l.weightKg}kg${info.basis ? `(${BASIS_SHORT[info.basis]})` : ''}`, rawKg: null };
+}
+
+/** 코치 기록 실패 한 줄(쓰기 전 검사 · 지난 확인의 실패) — 화면이 그대로 보인다 */
+export type LoadIssue = { code: string; error: string; exerciseId: string | null; setIndex: number | null };
 
 export type SessionPlan = {
   id: string;
@@ -108,7 +220,9 @@ export function linesToWork(lines: readonly WorkLine[], defaults: Defaults): Org
   const out = new Map<string, OrgSet[]>();
   for (const l of resolveLines(lines, defaults)) {
     if (!l.exerciseId || !defaults.has(l.exerciseId)) continue;
-    const set: OrgSet = { weightKg: l.weightKg ?? null, reps: l.reps ?? null, holdSeconds: l.holdSec ?? null };
+    /* 무게 기록 칸은 있으면 그대로 세트로(없으면 옛 길 — 칸을 만들지 않는다) */
+    const lf = readOrgLoadFields(l as Record<string, unknown>);
+    const set: OrgSet = { weightKg: l.weightKg ?? null, reps: l.reps ?? null, holdSeconds: l.holdSec ?? null, ...('error' in lf ? {} : lf) };
     const list = [...(out.get(l.exerciseId) ?? []), ...Array.from({ length: l.sets ?? 1 }, () => ({ ...set }))];
     out.set(l.exerciseId, list.slice(0, 20));
   }
@@ -271,8 +385,24 @@ const num = (v: unknown, min: number, max: number, int: boolean): number | undef
 
 export type Known = { exercises: ReadonlySet<string>; guides: ReadonlySet<string> };
 
+/**
+ * EX-LOAD01 R1-03 — 무게를 받는가(권위 있는 계약에서). false 면 그 운동 줄의 kg 을 받지 않고 고칠 곳을 알린다(맨몸 · 밴드 · 확인 중인 운동에 kg 을
+ * 적지 않게). null(모름)이면 거르지 않는다 — 코치 기록이 쓸 때 그 선수 판의 계약으로 다시 검사한다.
+ */
+export type LineLoadCheck = {
+  massOf?: (exerciseId: string) => boolean | null;
+  nameOf?: (exerciseId: string) => string | null;
+  /**
+   * 권위 있는 계약(서버가 라이브러리로 푼 것) — 주면 무게 기록 칸(밴드 · 섞인 무게 · 서로 다른 무게 · 기구 이름)을 받을 때 운동 화면과 같은 정규화로
+   * 먼저 본다(받지 않을 값을 적어 두지 않게). 실제로 쓸 때 그 선수 판의 계약으로 다시 본다.
+   */
+  contractOf?: (exerciseId: string) => RecordingContract | null;
+  /** 구조화 저장이 켜져 있나 — 꺼져 있으면 밴드 · 섞인 무게 같은 새 기록은 받지 않고 까닭을 알린다 */
+  structured?: boolean;
+};
+
 /** 처방 줄 거르기 — 아는 운동 · 드릴만, 세트 1~10 · 횟수 1~200 · 초 1~600 · 무게(allowWeight 일 때만) 0.5~500 */
-export function cleanLines(raw: unknown, known: Known, allowWeight: boolean): WorkLine[] | { error: string } {
+export function cleanLines(raw: unknown, known: Known, allowWeight: boolean, check?: LineLoadCheck): WorkLine[] | { error: string } {
   if (!Array.isArray(raw)) return { error: '운동을 다시 골라 주세요.' };
   if (raw.length > LINES_MAX) return { error: `운동은 ${LINES_MAX}개까지예요.` };
   const out: WorkLine[] = [];
@@ -286,12 +416,38 @@ export function cleanLines(raw: unknown, known: Known, allowWeight: boolean): Wo
     const reps = num(o.reps, 1, 200, true);
     const holdSec = num(o.holdSec, 1, 600, true);
     const weightKg = allowWeight ? num(o.weightKg, 0.5, 500, false) : undefined;
+    const name = exerciseId ? check?.nameOf?.(exerciseId) : null;
+    /* EX-LOAD01 R1-03 — 무게 기록 칸(새 화면)은 무게를 받는 줄(예외)에서만, 모양을 보고 그대로 싣는다. 조 공통 줄에는 무게가 없다 */
+    const lf = allowWeight && exerciseId ? readOrgLoadFields(o) : {};
+    if ('error' in lf) return { error: `${name ? `${name}: ` : ''}${lf.error}` };
+    const shape = orgLoadFieldsError(lf);
+    if (shape) return { error: `${name ? `${name}: ` : ''}${shape}` };
+    if (hasOrgLoadFields(lf) && exerciseId && check?.contractOf) {
+      const c = check.contractOf(exerciseId);
+      if (c) {
+        const r = normalizeSetLoad({
+          hasProtocol: lf.loadProtocol !== undefined,
+          protocol: lf.loadProtocol,
+          resolver: lf.loadResolver,
+          contract: c,
+          variant: lf.variant,
+          weightKg: weightKg ?? null,
+          hasLoad: lf.load !== undefined,
+          load: lf.load,
+          structured: check.structured === true,
+        });
+        if (!r.ok) return { error: `${name ? `${name}: ` : ''}${r.error}` };
+      }
+    } else if (weightKg && exerciseId && check?.massOf?.(exerciseId) === false) {
+      return { error: `${name ? `${name}: ` : ''}이 운동은 무게 없이 횟수 · 시간으로 기록해요. 적힌 무게를 지워 주세요.` };
+    }
     out.push({
       ...(exerciseId ? { exerciseId } : { guideId }),
       ...(sets ? { sets } : {}),
       ...(reps ? { reps } : {}),
       ...(holdSec ? { holdSec } : {}),
       ...(weightKg ? { weightKg } : {}),
+      ...lf,
       ...(note ? { note } : {}),
     });
   }
@@ -299,7 +455,7 @@ export function cleanLines(raw: unknown, known: Known, allowWeight: boolean): Wo
 }
 
 /** 선수 예외 거르기 — 이 훈련 활동만, 활동마다 하나, '줄임' · '다른 운동'은 줄이 있어야 */
-export function cleanException(raw: unknown, planIds: readonly string[], known: Known): MemberException | null | { error: string } {
+export function cleanException(raw: unknown, planIds: readonly string[], known: Known, check?: LineLoadCheck): MemberException | null | { error: string } {
   if (raw == null) return null;
   const o = (typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const items: ExceptionItem[] = [];
@@ -314,7 +470,7 @@ export function cleanException(raw: unknown, planIds: readonly string[], known: 
       items.push({ planId: x.planId, kind, ...(note ? { note } : {}) });
       continue;
     }
-    const lines = cleanLines(x.items, known, true);
+    const lines = cleanLines(x.items, known, true, check);
     if ('error' in lines) return lines;
     if (!lines.length) return { error: '실제로 한 운동을 적어 주세요.' };
     items.push({ planId: x.planId, kind, items: lines, ...(note ? { note } : {}) });
@@ -322,7 +478,7 @@ export function cleanException(raw: unknown, planIds: readonly string[], known: 
   const extra: MemberException['extra'] = [];
   for (const r of Array.isArray(o.extra) ? o.extra.slice(0, 3) : []) {
     const x = (r && typeof r === 'object' ? r : {}) as Record<string, unknown>;
-    const lines = cleanLines(x.items, known, true);
+    const lines = cleanLines(x.items, known, true, check);
     if ('error' in lines) return lines;
     if (!lines.length) continue;
     const note = typeof x.note === 'string' ? x.note.trim().slice(0, NOTE_MAX) : '';

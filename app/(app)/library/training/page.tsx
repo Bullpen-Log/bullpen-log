@@ -9,6 +9,8 @@ import { TrainingClient, type ExerciseItem } from './training-client';
 import { BodyPartsProvider } from '@/components/body-parts';
 import { throwingSide } from '@/lib/armcare/muscle-map';
 import { ArmcareInfoProvider } from '@/app/(app)/training/armcare-info';
+import { storedLoadSemantics } from '@/lib/library-cache';
+import { loadStructured } from '@/lib/workout/load/server';
 
 export default async function TrainingPage({ searchParams }: { searchParams: Promise<{ web?: string; review?: string | string[] }> }) {
   const user = await requireUser();
@@ -37,6 +39,13 @@ export default async function TrainingPage({ searchParams }: { searchParams: Pro
   const usedCounts = new Map(counted.map((row) => [row.exerciseId, row._count._all]));
   const items: ExerciseItem[] = exercises.map((ex) => ({ ...ex, usedCount: usedCounts.get(ex.id) ?? 0 }));
   const reviewSelection = query.review === undefined ? undefined : await freshExerciseReview(items, query.review, isAdmin);
+  /*
+   * EX-LOAD01 R1-04 — 관리자 뜻 설정. 관리자에게만, 저장값은 스키마 스위치가 켜졌을 때만 읽는다(꺼져 있으면 loadSemantics 를 묻지 않고
+   * 폼이 '스키마 적용 뒤에' 보기만으로 그린다). 캐시에서 꺼내므로 DB 왕복이 늘지 않는다(lib/library-cache.ts storedLoadSemantics).
+   */
+  const loadSemantics = isAdmin
+    ? { editable: loadStructured(), stored: Object.fromEntries(await storedLoadSemantics()) }
+    : undefined;
 
   // 제목과 탭은 라이브러리 레이아웃이 그린다.
   /*
@@ -46,7 +55,7 @@ export default async function TrainingPage({ searchParams }: { searchParams: Pro
   return (
     <BodyPartsProvider>
       <ArmcareInfoProvider side={throwingSide(user.throwingHand)}>
-        <TrainingClient key={typeof query.review === "string" ? query.review : "library"} reviewSelection={reviewSelection} exercises={items} isAdmin={isAdmin} warmupFolders={warmupFolders} />
+        <TrainingClient key={typeof query.review === "string" ? query.review : "library"} reviewSelection={reviewSelection} exercises={items} isAdmin={isAdmin} warmupFolders={warmupFolders} loadSemantics={loadSemantics} />
       </ArmcareInfoProvider>
     </BodyPartsProvider>
   );

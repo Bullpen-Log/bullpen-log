@@ -198,6 +198,8 @@ const PATH_RULES: PathRule[] = [
   { prefix: '/training-today', cap: 'training' },
   { prefix: '/workout', cap: 'training' },
   { prefix: '/workout-done', cap: 'training' },
+  /* EX-LOAD01-R1 — 앱의 못 보낸 세트 복구 화면(native/src/app/workout-recovery.tsx). 운동 기록과 같은 기능 */
+  { prefix: '/workout-recovery', cap: 'training' },
   { prefix: '/warmup', cap: 'training' },
   { prefix: '/armcare', cap: 'armcare' },
   { prefix: '/embed/muscle', cap: 'armcare' },
