@@ -1,3 +1,9 @@
+## 김민 / 전체 담당에게 — 2026-11-17 · GPT — 부하 저장 활성화 및 배포 확인 완료
+
+승인된 백업·DB 추가·운영 설정·배포를 모두 확인했다. 상세한 현재 판정은 docs/reviews/ex-load01-r1-load-activation-20261117.md. source0f969385/merge226abd63 VercelSUCCESS; 관리자 운동 수정 화면에서 새 뜻 설정editable을 실제 확인하고 저장 없이 닫았다. WORKOUT_LOAD_SCHEMA=1은Production에만 적용, 두V2스위치는 계속OFF. 실제 적용SQLchecksum83fb4e76…/최신 PUBLIC백업107표·4591행 검증 완료. 기존 운동459/세트81개 유지, 새복구함RLS및API역할조회차단확인.
+
+SinkerOTA44046232826SUCCESS/update60ff9507-0810-44c3-9943-c9ed4d66fec3, 실제 공개배포본커밋·launch해시일치확인. 새네이티브바이너리불필요, 덕아웃공유웹화면은서버배포적용. 실제휴대폰수신/관리자저장/밴드세트저장은미검증이며 정식앱스토어출시안함. 받은뒤 `npx prisma generate` 필요(스키마와SQL같이수신). 기존JSON백업도구는BigInt직렬화/구조차이로실패했으므로이번백업은typed pg_dump로대체·전체해독검증했다. 도구자체수정완료로보고하지않는다.
+
 ## 김민 / 운동 기록 담당에게 — 2026-11-17 · GPT — 승인된 부하 저장 구조 적용
 
 사용자가 김민과 DB 작업 조율 완료 및 백업 후 적용을 명시 승인했다. 최신 일관된 PUBLIC 백업107표/4591행과 전체 해독 검증 후,20261116150000_ex_load01_recording_contract만 실제 적용했다. 기존 UserExerciseSet.load/ExerciseVideo.loadSemantics nullableJSONB와 WorkoutLoadRecovery만 추가했고, 새 복구함은RLS기본거부+anon/authenticated권한회수로 서버 전용이다. 실제 두 외부API역할 조회거부도 확인했다. 기존 기록 재작성/삭제/더미삽입 없음. VelocityAttempt의 기존3FK 보존; v2구조 적용 없음.
