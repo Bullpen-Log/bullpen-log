@@ -9,3 +9,13 @@ Independent actual preparation50/0 and actual-component SSR15/0 on this clean so
 Actual camera-original provenance before browser selection remains user's Filesguide responsibility; file bytes/hash equality does not prove original capture provenance. SafariPhotos conversion not promised away, no60fps relabeling/120policyweakening. No new production accounts/records/uploads/testconsent, device/Safari picker/upload not physically tested. Existing distributed nativebinaries/dormantmodule left unchanged; no new nativebuild/OTA required.
 
 Final technical verdict ACCEPT for authorized WEB-ONLY deployment. Actual operational cutover and served-client source proof PENDING. Full logs/original exits/exactmanifest private ~/bullpen-intake-r16-evidence/overall-release.
+
+## Observed operational web publication
+
+Release source4095ee65 merged onlylatesthuman exercise/mechanics review records as96765b8a6157693d2b8fdd4cfa10449ea2b06c7f. VercelSUCCESS deployment4kk18U4dYE9BmVoeWKSMPeh5Dmxq. GitHub ios-native runs for exactcommit returnempty[]; no appbuild/OTA dispatched. Public-only preparation correction reuses existing deployed invitation/backend, no tokenrotation/consentreset/uploadschema or user data writes. Actual served-client proof follows; ordinary mobileFiles picker/upload still physically unverified. EarlierR15nativebinary delivery is NOT an app requirement for publicrecipients.
+
+## Final served-code confirmation — complete app-free web correction
+
+At10:02:18Z actual /submit with ordinary and synthetic iPhoneSafari UA both200, stayed on samepath/icn1. Department read all JS actually referenced by both pages: public app-gallery labels/app requirement and sinker://intake/dugout://intake handoffs absent. Actual served39zbdq534u8bz.js contains original-file-v5 guide and Filesselection control; saved chunk SHA256f017a7cc847cbd8352b03c669221172defca5e248fb0f957671f589436c535da independently rehashed by overall. Private production-proof.json and original JS retained.
+
+Final verdict: intended PUBLIC LINK -> invitation name/PIN -> originalFilesguide -> browserFilepick -> existingtransfer, WEB-ONLY delivery COMPLETE. Recipients need no Sinker/Dugout installation. Built-in Photos/Files preparation may still be needed, no webPhotos-original guarantee added; 120fps/unchangedbyte checks retained. No realinvitation/session/consent/data/upload created by smoke, syntheticUA is not a physicaldevice. EarlierR15private appbinary delivery remains historical and dormant on this public route, not a sender requirement.

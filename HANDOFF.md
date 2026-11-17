@@ -1,3 +1,9 @@
+## Kim Min / intake owners — 2026-11-17 · GPT — FINAL public intake is APP-FREE (R16 complete)
+
+User corrected R15appmethod misunderstanding. Current publicrecipient flow needs NO Sinker/Dugout installation: receivedlink -> name/PIN -> originalFilesguide -> browserFilepick -> existingtransfer. Source4095ee65/merge96765b8a VercelSUCCESS; actual ordinary+iPhoneSafari-UA /submit200/icn1 and servedclient show Filesguide/control and zero apphandoff/promotion links. Chunk39zbdq534u8bz.js SHAf017a7cc… independently verified; no native/lib/DB or policy change/no appCI or OTA. OlderR15TestFlight logs below are historical, not a publicsender prerequisite.
+
+Independent50prep+15SSR and mainfullcanonicaltypes/lint/cleanbuild0. Legacygallery/method/history normalize safely; originalguidevideos/customplayer/session/consent/120fps/hashTUS untouched. No testinvites/data/uploads. Actualphonepicker/end-to-endupload and pre-selection camera-original provenance remainunverified; unchangedbytehash alone doesn't prove cameraoriginal. Final docs/reviews/intake-web-only-r16-final-release-20261117.md. MECHr5 and published loadreviewguide remain unchanged; Wiki02 local-first and unacceptedR14/REF04 not mixed.
+
 ## Kim Min / video-sharing owners — 2026-11-17 · GPT — R16 public link must be APP-FREE
 
 User clarified recipients must submit via received web link, without installing/using Sinker. GPT05 acknowledged R15method interpretation error; this WEB-ONLY correction takes precedence for public UX. Exact6pathcandidate4dd5226 changes only3public preparation files+tests/docs. It removes app/nativegallery/handoff choice, restores originalFilesguide->picker->confirm/upload, normalizes oldgallery/method/back checkpoints while preserving serverstate/filegates and original guidevideos/player.
