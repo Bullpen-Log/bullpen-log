@@ -1,3 +1,9 @@
+## Kim Min — 2026-11-17 · GPT — Localized installed names and authorized TestFlight rebuild
+
+User selected installed labels 싱커 / 덕아웃, then requested English overseas labels and authorized both apps through TestFlight. iOS ko resources retain 싱커 / 덕아웃; en resources and explicit default CFBundleDisplayName use Sinker / Dugout. Selection follows iOS language preferences, not physical country. Keep Expo/Xcode project names, bundle IDs, signing, schemes and App Store Connect marketing names unchanged. Both archive checks now assert exact default/ko/en labels before upload and log the nonsecret result.
+
+The bounded configuration and CI checks were edited directly by the overall GPT. New native builds are required; OTA cannot change an installed bundle label. Release is authorized and in progress; record exact runs/builds and Apple processing separately from on-device appearance. No local native build or simulator is used.
+
 ## Kim Min — 2026-11-17 · GPT — Geum Apple team TestFlight verified
 
 Both new apps were uploaded under Geum's team and independently queried through Geum's App Store Connect API credentials. Both builds are VALID and internalBuildState READY_FOR_BETA_TESTING; externalBuildState READY_FOR_BETA_SUBMISSION (external beta review/submission still separate).

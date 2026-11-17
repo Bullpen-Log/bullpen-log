@@ -12,7 +12,7 @@ module.exports = ({ config }) => {
   if (process.env.APP_VARIANT !== 'dugout') return config;
   return {
     ...config,
-    /* Xcode 프로젝트 이름(ios/Dugout.xcworkspace) — 홈 화면 이름은 locales 의 CFBundleDisplayName('덕아웃') */
+    /* Keep the Xcode project path stable; installed display names are set separately. */
     name: 'Dugout',
     slug: 'dugout',
     scheme: ['dugout'],
@@ -22,6 +22,7 @@ module.exports = ({ config }) => {
       bundleIdentifier: 'com.mhk.dugout',
       infoPlist: {
         ...config.ios.infoPlist,
+        CFBundleDisplayName: 'Dugout',
         NSCameraUsageDescription: '장터에 올릴 물건 사진을 찍는 데 카메라를 씁니다.',
         NSMicrophoneUsageDescription: '영상을 찍을 때 소리를 함께 담는 데 마이크를 씁니다.',
         NSPhotoLibraryUsageDescription: '장터 · 커뮤니티에 올릴 사진을 앨범에서 고르는 데 씁니다.',

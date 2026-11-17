@@ -231,6 +231,10 @@ jobs:
           test -f "$APP/Assets.car"                          # 아이콘 · 시작 화면
           test -f "$APP/main.jsbundle"                       # Release 는 화면 코드(JS)를 앱 안에 넣는다 — 없으면 켜자마자 빈 화면
           plist NSCameraUsageDescription > /dev/null
+          test "$(plist CFBundleDisplayName)" = "Sinker"
+          test "$(plutil -extract CFBundleDisplayName raw -o - "$APP/ko.lproj/InfoPlist.strings")" = "싱커"
+          test "$(plutil -extract CFBundleDisplayName raw -o - "$APP/en.lproj/InfoPlist.strings")" = "Sinker"
+          echo "::notice title=Installed app names verified::ko=싱커 · en/default=Sinker"
           test "$(plist CFBundleIdentifier)" = "com.sinker.app"
           test "$(plist CFBundleVersion)" = "$BUILD"
           MSG="앱이 만들어졌다 — $(plist CFBundleDisplayName) $(plist CFBundleShortVersionString) ($BUILD) · $(plist CFBundleIdentifier) · 최소 iOS $(plist MinimumOSVersion) · $(lipo -archs "$APP/Sinker") · $(du -sh "$APP" | cut -f1)"
@@ -547,7 +551,10 @@ jobs:
           strings -a "$APP/main.jsbundle" | grep -qF 'DugoutApp/1'
           if strings -a "$APP/main.jsbundle" | grep -qF './velocity.tsx'; then echo "::error title=싱커 화면이 묶였다::덕아웃 앱에 싱커 화면(src/app)이 들어갔다"; exit 1; fi
           # .strings 는 Xcode 가 이진 plist 로 바꿔 담을 수 있어 plutil 로 읽는다
-          plutil -p "$APP/ko.lproj/InfoPlist.strings" | grep -q '덕아웃'
+          test "$(plist CFBundleDisplayName)" = "Dugout"
+          test "$(plutil -extract CFBundleDisplayName raw -o - "$APP/ko.lproj/InfoPlist.strings")" = "덕아웃"
+          test "$(plutil -extract CFBundleDisplayName raw -o - "$APP/en.lproj/InfoPlist.strings")" = "Dugout"
+          echo "::notice title=Installed app names verified::ko=덕아웃 · en/default=Dugout"
           test "$(plist CFBundleIdentifier)" = "com.mhk.dugout"
           test "$(plist CFBundleVersion)" = "$BUILD"
           MSG="덕아웃 앱이 만들어졌다 — $(plist CFBundleShortVersionString) ($BUILD) · $(plist CFBundleIdentifier) · 최소 iOS $(plist MinimumOSVersion) · $(du -sh "$APP" | cut -f1)"
