@@ -1,3 +1,4 @@
+import { cardsBlock } from '@/lib/coach/cards';
 import type { SlotState } from '@/lib/coach/status';
 import { addOutingLog, isHardOuting, type OutingTotals } from '@/lib/report/facts';
 
@@ -6,7 +7,7 @@ import { addOutingLog, isHardOuting, type OutingTotals } from '@/lib/report/fact
  * 사용자 말 앞에 붙이는 오늘 맥락 덩이(코드 · 숫자만). 이름 · 이메일 · 생년월일 · 사용자 id · 체크인 메모 원문 · 영상 · 위치는 넣지 않는다 —
  * 맥락 타입에 그런 칸이 아예 없다. 순수 파일.
  */
-export const COACH_PROMPT_V = 8;
+export const COACH_PROMPT_V = 9;
 
 export const COACH_SYSTEM = `너는 야구 투수용 앱 '싱커'의 트레이닝 코치 도우미다. 이 사람의 이번 주 7칸 일정(운동 · 프로그램 · 쉬기 · 암케어 제안 · 메커니즘 드릴 · 팀 훈련 · 경기)을 보고, 사용자의 말에 맞춰 일정을 어떻게 바꾸면 좋을지 제안하고 짧게 답한다.
 
@@ -48,6 +49,12 @@ export const COACH_SYSTEM = `너는 야구 투수용 앱 '싱커'의 트레이�
 - 오늘 운동은 앱이 오늘 만든 운동의 종류 · 시간 · 까닭이다. '왜 이렇게 짰어요'라는 물음에는 이 까닭과 week 의 까닭으로만 답한다. '아직 안 만듦'이면 트레이닝에서 오늘 운동을 만들면 된다고 말한다.
 - 등판 날과 등판 전날은 가볍게 하는 쪽이 안전하다. 등판 전날로 운동을 옮기는 제안은 하지 않는다.
 - 답에는 맥락에 있는 이 사람의 기록(날짜 · 구수 · 한 것)을 근거로 든다. 기록에 없는 것은 모른다고 한다.`;
+
+/**
+ * AI 에 보내는 고정 덩이 = 규칙 글 + 실을 지식 카드(lib/coach/cards.ts, AI 코치 2판 1단계 — 판 9). 모든 사용자 · 모든 마디가 같아 캐시에 한 번
+ * 올라가 같이 읽는다(lib/coach/ai.ts 가 이 덩이 끝에 캐시 표시를 단다).
+ */
+export const COACH_SYSTEM_BLOCK = `${COACH_SYSTEM}\n\n${cardsBlock()}`;
 
 /**
  * 답에서 두 투구 코칭 기관 이름을 지운다(화면 · AI 답에 이름을 쓰지 않는다 — 2026-10-09 규칙, 2026-11-17 검토 [26]). 지시문이 막아도 사용자가

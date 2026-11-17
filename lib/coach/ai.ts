@@ -2,7 +2,7 @@ import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { z } from 'zod';
-import { COACH_SYSTEM } from '@/lib/coach/ai-prompt';
+import { COACH_SYSTEM_BLOCK } from '@/lib/coach/ai-prompt';
 import type { AiUsage } from '@/lib/coach/ai-price';
 
 /**
@@ -67,10 +67,11 @@ export async function chatTurn(history: readonly ChatLine[], context: string, te
     const r = await clientOf().beta.messages.parse({
       model,
       max_tokens: 2000,
-      system: COACH_SYSTEM,
+      /* 규칙 글 + 지식 카드 — 모든 사용자가 같아 여기 캐시 표시(사람마다 다른 맥락은 마지막 사용자 칸에만) */
+      system: [{ type: 'text', text: COACH_SYSTEM_BLOCK, cache_control: { type: 'ephemeral' } }],
       messages: [...turnsOf(history), { role: 'user', content: `${context}\n\n[사용자 말]\n${text}` }],
       output_config: { effort: 'low', format: betaZodOutputFormat(ChatOut) },
-      /* 캐시 표시는 지난 마디 끝에(turnsOf) — usage.cache_read_input_tokens 로 확인 */
+      /* 캐시 표시는 고정 덩이 끝(system) · 지난 마디 끝(turnsOf) 둘 — usage.cache_read_input_tokens 로 확인 */
       ...(model.includes('haiku') ? {} : { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const }),
     });
     const usage = r.usage as AiUsage;

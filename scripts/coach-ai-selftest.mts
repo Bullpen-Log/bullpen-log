@@ -5,7 +5,8 @@
  */
 import { aiGate, capUsdOf, AI_DAILY_CHATS, AI_BLOCK_TEXT, type AiGateInput } from '@/lib/coach/ai-gate';
 import { costMicroOf } from '@/lib/coach/ai-price';
-import { COACH_SYSTEM, contextBlock, ageBandOf, scrubNames, throwsOf, type CoachAiContext } from '@/lib/coach/ai-prompt';
+import { COACH_SYSTEM, COACH_SYSTEM_BLOCK, contextBlock, ageBandOf, scrubNames, throwsOf, type CoachAiContext } from '@/lib/coach/ai-prompt';
+import { CARD_SOURCES, COACH_CARDS, cardsBlock, shippedCards } from '@/lib/coach/cards';
 import { slotProgressOf } from '@/lib/coach/status';
 import { sanitizeAdjusts } from '@/lib/coach/adjust';
 import type { DaySlot } from '@/lib/coach/week';
@@ -156,6 +157,32 @@ check(
   scrubNames('Driveline 방식, 트레드 애슬레틱스 방식, Tread Athletics')
 );
 check('⑤ 시스템 글은 이름을 안 쓰고 말하지 말라고 한다', scrubNames(COACH_SYSTEM) === COACH_SYSTEM && COACH_SYSTEM.includes('다른 회사 · 기관 · 프로그램 이름'));
+
+/* ⑥ 지식 카드(lib/coach/cards.ts — AI 코치 2판 1단계, docs/designs/ai-coach-knowledge-memory.md 3절) */
+{
+  const text = (c: (typeof COACH_CARDS)[number]) => `${c.when} ${c.do} ${c.dont}`;
+  const safety = COACH_CARDS.filter((c) => c.kind === 'safety');
+  const coaching = COACH_CARDS.filter((c) => c.kind === 'coaching');
+  check('⑥ 카드 25장(안전 19 · 코칭 6) · 번호가 겹치지 않는다', COACH_CARDS.length === 25 && safety.length === 19 && coaching.length === 6 && new Set(COACH_CARDS.map((c) => c.id)).size === 25);
+  check('⑥ 숫자 처방 없음 — 카드 글에 숫자가 없다(투구 수 · 휴식일 · 세트 · 무게 · 시간은 앱 엔진만, D1)', COACH_CARDS.every((c) => !/\d/.test(text(c))), COACH_CARDS.filter((c) => /\d/.test(text(c))).map((c) => c.id).join());
+  check('⑥ 출처 번호가 출처 표에 있다', COACH_CARDS.every((c) => c.sources.every((id) => id in CARD_SOURCES)));
+  check('⑥ 카드 글에 기관 이름이 없다', COACH_CARDS.every((c) => scrubNames(text(c)) === text(c)));
+  check(
+    '⑥ 실리는 카드 — 안전 카드는 늘, 코칭 카드는 검토자가 적힌 것만(D3)',
+    shippedCards().length === 19 &&
+      shippedCards().every((c) => c.kind === 'safety') &&
+      shippedCards([...COACH_CARDS.slice(0, 1), { ...coaching[0], review: { by: '시험', at: '2026-11-17' } }]).length === 2
+  );
+  check('⑥ 카드 25장을 다 실어도 4,000자 안(D2 — 글자 수로 어림)', cardsBlock(COACH_CARDS).length <= 4000, String(cardsBlock(COACH_CARDS).length));
+  check(
+    '⑥ AI 고정 덩이 = 규칙 글 + 실린 카드(검토 전 코칭 카드는 없다) · 날짜 없음(캐시)',
+    COACH_SYSTEM_BLOCK.startsWith(COACH_SYSTEM) &&
+      safety.every((c) => COACH_SYSTEM_BLOCK.includes(c.when)) &&
+      coaching.every((c) => !COACH_SYSTEM_BLOCK.includes(c.when)) &&
+      !/\d{4}-\d{2}-\d{2}/.test(COACH_SYSTEM_BLOCK) &&
+      !COACH_CARDS.some((c) => COACH_SYSTEM_BLOCK.includes(c.id))
+  );
+}
 
 console.log(`coach-ai: ${pass}개 통과${fails.length ? `, ${fails.length}개 실패` : ''}`);
 for (const f of fails) console.log(`  - ${f}`);
