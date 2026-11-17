@@ -474,9 +474,29 @@
       "status": "applied_and_readback_verified",
       "change": "현재 영상의 긴 3번을 동작과 동작 중 주의 사항으로 나누고 이후 번호 조정",
       "advance_authorized": false
+    },
+    {
+      "at": "2026-11-17T15:44:55.599061+09:00",
+      "user_request": "이전 검수 영상의 설명을 재확인하고 필요할 때 번호 분리. 운동영상 담당에도 공통 조건과 이전 검수분 점검 요청",
+      "status": "mechanics_applied_and_readback_verified",
+      "reviewed_numbers": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "modified_numbers": [
+        2,
+        3,
+        5
+      ],
+      "exercise_request": "03 · 운동영상 담당 채팅에 전달함; 결과 대기",
+      "advance_authorized": false
     }
   ],
-  "user_change_request_count": 22,
+  "user_change_request_count": 23,
   "last_user_video_decision": {
     "at": "2026-11-17T05:48:06.176Z",
     "original": "다음",
@@ -772,7 +792,7 @@
     "personal_health_information_copied": false,
     "signed_urls_copied": false
   },
-  "updated_at": "2026-11-17T15:42:11.432541+09:00",
+  "updated_at": "2026-11-17T15:44:55.599061+09:00",
   "current_workflow_document": "docs/shoot/video-review-current-workflow.md",
   "setup_event": {
     "at": "2026-11-13T15:54:58+09:00",

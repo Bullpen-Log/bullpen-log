@@ -237,6 +237,27 @@
             "https://drivelinebaseball.com/blogs/blog/making-movement-changes-weight-room"
           ],
           "advance_authorized": false
+        },
+        {
+          "at": "2026-11-17T15:44:55.599061+09:00",
+          "user_request": "이전 검수 영상의 설명을 재확인하고 필요할 때 번호 분리. 운동영상 담당에도 공통 조건과 이전 검수분 점검 요청",
+          "status": "mechanics_applied_and_readback_verified",
+          "reviewed_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "modified_numbers": [
+            2,
+            3,
+            5
+          ],
+          "exercise_request": "03 · 운동영상 담당 채팅에 전달함; 결과 대기",
+          "advance_authorized": false,
+          "review_id": "mv-8eba0f8a515a6896"
         }
       ],
       "assistant_findings": [],
@@ -372,6 +393,27 @@
             "https://drivelinebaseball.com/blogs/blog/making-movement-changes-weight-room"
           ],
           "advance_authorized": false
+        },
+        {
+          "at": "2026-11-17T15:44:55.599061+09:00",
+          "user_request": "이전 검수 영상의 설명을 재확인하고 필요할 때 번호 분리. 운동영상 담당에도 공통 조건과 이전 검수분 점검 요청",
+          "status": "mechanics_applied_and_readback_verified",
+          "reviewed_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "modified_numbers": [
+            2,
+            3,
+            5
+          ],
+          "exercise_request": "03 · 운동영상 담당 채팅에 전달함; 결과 대기",
+          "advance_authorized": false,
+          "review_id": "mv-2eddd3dec8d7418e"
         }
       ],
       "assistant_findings": [],
@@ -615,6 +657,27 @@
             "https://drivelinebaseball.com/blogs/blog/making-movement-changes-weight-room"
           ],
           "advance_authorized": false
+        },
+        {
+          "at": "2026-11-17T15:44:55.599061+09:00",
+          "user_request": "이전 검수 영상의 설명을 재확인하고 필요할 때 번호 분리. 운동영상 담당에도 공통 조건과 이전 검수분 점검 요청",
+          "status": "mechanics_applied_and_readback_verified",
+          "reviewed_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "modified_numbers": [
+            2,
+            3,
+            5
+          ],
+          "exercise_request": "03 · 운동영상 담당 채팅에 전달함; 결과 대기",
+          "advance_authorized": false,
+          "review_id": "mv-a10c408f44c9b8a9"
         }
       ],
       "assistant_findings": [],
