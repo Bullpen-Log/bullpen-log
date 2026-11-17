@@ -1173,6 +1173,15 @@
           "source": "https://www.drivelinebaseball.com/wp-content/uploads/2024/03/Free_16-Week_In-Season_And_Off-Season_Throwing_Program_2024-03-05.pdf",
           "limitation": "첫발의 정확한 이동 방향 및 영상 동작의 세부 대조 추가 확인 필요",
           "advance_authorized": false
+        },
+        {
+          "at": "2026-11-17T06:58:57.769Z",
+          "review_id": "mv-8134aada711c9d8b",
+          "user_request": "운동 개요를 명확히 하고 앞발 착지와 회전의 타이밍 수정. 모든 문장 마침표 다음 줄바꿈을 기존 및 향후 영상에 적용, 운동영상 담당에 전달.",
+          "status": "mechanics_8_applied_and_readback_verified",
+          "source": "https://www.drivelinebaseball.com/wp-content/uploads/2022/09/PITCHING-PDF-FINAL.pdf",
+          "exercise_status": "담당 채팅에 직접 요청; 확인 및 처리 진행",
+          "advance_authorized": false
         }
       ],
       "assistant_findings": [
