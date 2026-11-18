@@ -3,14 +3,15 @@ import { revalidateTag, unstable_cache } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { loadLatestReport } from '@/lib/pitch-lab';
-import { focusView, readProgramState } from '@/lib/mechanics/program';
+import { mechFocusFrom, readProgramState } from '@/lib/mechanics/program';
 import { loadVelocityHistory } from '@/lib/velocity-load';
 import { loadArmcareHistory } from '@/lib/armcare/history';
 import { loadAdvice } from '@/lib/nutrition/advice-load';
 import { serviceHour } from '@/lib/nutrition/advice-input';
 import { countryOf, hasNutrition } from '@/lib/country';
 import type { DayDetailUser } from '@/lib/day-detail';
-import type { CoachAiRecords } from '@/lib/coach/ai-prompt';
+import { veloRowsOf, type CoachAiRecords } from '@/lib/coach/ai-prompt';
+import { dbDate } from '@/lib/nutrition/days';
 
 /**
  * 코치가 '다 안다'(자비스 1단계, 2026-11-19 김민: "모든 걸 다 떠먹여 줄 수 있는 자비스") — 일정 밖 기록을 AI 맥락용으로 모은다.
@@ -27,7 +28,6 @@ const LAB_WAIT_MS = 3000;
 const LAB_KEEP_S = 600;
 const labTag = (userId: string) => `coach-lab:${userId}`;
 const VELO_DAYS = 60;
-const VELO_SHOWN = 3;
 
 /* ponytail: 실패 · 늦음을 모두 null 로 — 3D 요약을 대화마다 저장소에서 읽는다. 늦은 사람이 늘면 요약을 DB 칸이나 짧은 기억에 두기 */
 async function soft<T>(p: Promise<T>, ms?: number): Promise<T | null> {
@@ -68,31 +68,12 @@ async function labOf(userId: string): Promise<CoachAiRecords['lab']> {
 async function mechFocusOf(userId: string): Promise<CoachAiRecords['mechFocus']> {
   const row = await prisma.mechanicsProgram.findUnique({ where: { userId }, select: { progress: true } });
   const focus = row ? readProgramState(row.progress).focus : null;
-  if (!focus || !focus.rx[0]) return 'none';
-  const v = focusView(focus);
-  return { element: focus.rx[0].element, done: v.done, total: v.total, stage: v.stage ?? null, finished: v.finished };
+  return focus?.rx[0] ? mechFocusFrom(focus) : 'none';
 }
 
-/**
- * 최근 측정한 날 셋 — 같은 날 세션은 한 줄로 합친다(구수 더함 · 최고는 큰 값 · 평균은 구수로 무게). 실제 계정에 1구짜리 시험 측정이 같은 날 여럿
- * 따로 잡혀 '최고 89.9'가 그날 값처럼 읽혔다(2026-11-19).
- */
+/** 최근 60일 구속 측정 — 날짜 · 종류별 한 줄(같은 종류 여러 세션은 구수로 무게, lib/coach/ai-prompt.ts veloRowsOf) */
 async function veloOf(userId: string, today: string): Promise<CoachAiRecords['velo']> {
-  const since = shiftDateKey(today, -VELO_DAYS);
-  const days = new Map<string, { types: Set<string>; n: number; max: number; sum: number }>();
-  for (const s of await loadVelocityHistory(userId)) {
-    if (s.date < since || s.n <= 0) continue;
-    const d = days.get(s.date) ?? { types: new Set<string>(), n: 0, max: 0, sum: 0 };
-    if (s.sessionType) d.types.add(s.sessionType);
-    d.n += s.n;
-    d.max = Math.max(d.max, s.maxKmh);
-    d.sum += s.avgKmh * s.n;
-    days.set(s.date, d);
-  }
-  return [...days.entries()]
-    .sort((a, b) => (a[0] < b[0] ? 1 : -1))
-    .slice(0, VELO_SHOWN)
-    .map(([date, d]) => ({ date, type: [...d.types].join(', ') || null, n: d.n, max: d.max, avg: d.sum / d.n }));
+  return veloRowsOf(await loadVelocityHistory(userId, dbDate(shiftDateKey(today, -VELO_DAYS))));
 }
 
 /** 최근 14일(loadArmcareHistory 의 창) 암케어를 한 날 수 · 마지막 날 */

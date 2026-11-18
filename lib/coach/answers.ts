@@ -140,6 +140,14 @@ export const REASON_TEXT: Record<ReasonCode, string> = {
   limit: '피할 동작',
 };
 
+/** 건강정보인 까닭(팔 통증 · 피할 동작) — 건강 동의가 없으면 AI 에 안 보낸다. 지난 날 칸은 동의가 있던 때 짠 까닭을 그대로 들고 있다(2026-11-19 검토) */
+export const HEALTH_REASONS: ReadonlySet<ReasonCode> = new Set<ReasonCode>(['pain', 'limit']);
+
+/** 칸의 까닭 글 — 건강 동의가 없으면 건강정보 까닭은 뺀다 */
+export function reasonTextsFor(reasons: readonly ReasonCode[], healthOk: boolean): string[] {
+  return reasons.filter((r) => healthOk || !HEALTH_REASONS.has(r)).map((r) => REASON_TEXT[r]);
+}
+
 function itemText(x: SlotItem, cut = false): string {
   switch (x.kind) {
     case 'train': {

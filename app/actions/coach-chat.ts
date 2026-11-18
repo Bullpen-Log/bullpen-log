@@ -8,14 +8,15 @@ import { appNow } from '@/lib/clock';
 import { shiftDateKey } from '@/lib/pitch-stats';
 import { coachPaid } from '@/lib/coach-access';
 import { ageOn } from '@/lib/analysis-consent';
-import { coachAiConsentFor, healthConsentFor } from '@/lib/analysis-consent-store';
+import { coachAiConsentFor, consentRecordsOf, healthConsentFor } from '@/lib/analysis-consent-store';
+import { HEALTH_PURPOSE, healthCutoffOf, historyFloorOf } from '@/lib/health-consent';
 import { COACH_AI_CONSENT, COACH_AI_PURPOSE } from '@/lib/coach/ai-consent';
 import { AI_BLOCK_TEXT, AI_MIN_AGE, aiGate, capUsdOf, type AiGate } from '@/lib/coach/ai-gate';
 import { costMicroOf } from '@/lib/coach/ai-price';
 import { ageBandOf, contextBlock, scrubNames, throwsOf, type CoachAiContext } from '@/lib/coach/ai-prompt';
 import { COACH_MODEL_CHAT, aiKeyReady, chatTurn, type ChatLine } from '@/lib/coach/ai';
 import { sanitizeAdjusts, type CoachAdjust } from '@/lib/coach/adjust';
-import { COACH_LIMITS, REASON_TEXT, WEEKDAY_LABELS, savedOf, slotLine } from '@/lib/coach/answers';
+import { COACH_LIMITS, WEEKDAY_LABELS, reasonTextsFor, savedOf, slotLine } from '@/lib/coach/answers';
 import { slotProgressOf, slotStateOf } from '@/lib/coach/status';
 import { followupReasonText } from '@/lib/coach/followup';
 import { coachWeekBase } from '@/lib/coach/today';
@@ -200,7 +201,7 @@ async function contextOf(user: User, base: Awaited<ReturnType<typeof coachWeekBa
       date: s.date,
       day: WEEKDAY_LABELS[i],
       plan: slotLine(s),
-      reasons: s.reasons.map((r) => REASON_TEXT[r]),
+      reasons: reasonTextsFor(s.reasons, health.valid),
       state: slotStateOf(s, done[s.date], today),
       ...slotProgressOf(s, done[s.date]),
       /* 어제 이어보기의 답 — 아팠어요는 지금도 건강 동의가 있을 때만 */
@@ -248,12 +249,16 @@ export async function sendCoachMessage(
   );
   if (seat.blocked) return { ok: true, blocked: AI_BLOCK_TEXT[seat.blocked] };
 
-  const history = await prisma.coachMessage.findMany({
-    where: { userId: user.id, createdAt: { gte: new Date(Date.now() - KEEP_DAYS * 86_400_000) } },
-    orderBy: { createdAt: 'desc' },
-    take: HISTORY_TURNS,
-    select: { role: true, text: true },
-  });
+  /* 건강 동의가 없어졌으면 그 앞의 대화는 안 보낸다(앱이 건넨 건강정보가 섞여 있다 — lib/health-consent.ts healthCutoffOf) */
+  const floor = historyFloorOf(new Date(Date.now() - KEEP_DAYS * 86_400_000), healthCutoffOf(await consentRecordsOf(user.id, HEALTH_PURPOSE)));
+  const history = floor
+    ? await prisma.coachMessage.findMany({
+        where: { userId: user.id, createdAt: { gte: floor } },
+        orderBy: { createdAt: 'desc' },
+        take: HISTORY_TURNS,
+        select: { role: true, text: true },
+      })
+    : [];
   const lines: ChatLine[] = history.reverse().map((m) => ({ role: m.role === 'user' ? 'user' : 'coach', text: m.text }));
   const turn = await chatTurn(lines, context, said);
   await prisma.coachLog.update({

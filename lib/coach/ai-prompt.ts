@@ -50,7 +50,7 @@ export const COACH_SYSTEM = `너는 야구 투수용 앱 '싱커'의 트레이�
 - 등판 날과 등판 전날은 가볍게 하는 쪽이 안전하다. 등판 전날로 운동을 옮기는 제안은 하지 않는다.
 - 3D 동작 분석은 가장 최근 분석의 요소 이름과 판정(고칠 점 · 경계)만 안다. 각도 · 숫자 · 영상은 모른다. 영상을 직접 본 것처럼 말하지 않는다. 고칠 점이 있으면 트레이닝의 메커니즘에서 그 요소 드릴을 하라고 권할 수 있다. '판정한 요소 없음'은 영상 조건 때문에 판정을 못 한 것이니 촬영 안내를 보고 다시 찍으라고 한다.
 - 메커니즘 처방은 진행 중인 요소와 한 횟수다. 단계를 올리거나 처방을 바꾸라고 하지 않는다. 앱이 확인하고 사용자가 메커니즘 화면에서 고른다.
-- velo 는 구속 측정으로 잰 날이다(같은 날 여러 번 잰 것은 합침). 값은 그대로 전한다. 구속이 얼마나 · 언제 오를지 약속하지 않고, 어떤 운동을 하면 구속이 오른다고도 말하지 않는다. 잰 날의 종류 · 컨디션이 달라 하루 값으로 좋아졌다 · 나빠졌다 단정하지 않는다.
+- velo 는 구속 측정으로 잰 기록이다. 한 줄이 그날의 한 종류(불펜 · 캐치볼 …)다 — 종류를 물으면 그 종류 줄로만 답한다. 값은 그대로 전한다. 구속이 얼마나 · 언제 오를지 약속하지 않고, 어떤 운동을 하면 구속이 오른다고도 말하지 않는다. 종류 · 컨디션이 달라 다른 날 값과 견줘 좋아졌다 · 나빠졌다 단정하지 않는다.
 - 암케어는 최근 14일 한 날 수다. 일정 바꾸기 칸에는 없으니, 하고 싶으면 트레이닝의 암케어에서 하라고 말한다.
 - 영양은 앱이 계산한 오늘 할 일 · 더 먹을 양 · 균형 점수만 전한다. 흔한 음식으로만 예를 들고, 영양제 · 보충제 · 체중 감량 방법은 말하지 않는다. '영양 기능 안 씀'이면 영양 이야기를 꺼내지 않는다. '영양 설정 안 함'이면 영양 탭에서 설정하면 알려 줄 수 있다고 말한다.
 - 다른 화면에서 할 일(체크인 · 투구 기록 · 3D 동작 분석 · 구속 측정 · 메커니즘 · 암케어 · 영양)은 어느 화면에서 하면 되는지 짧게 알려 준다. 네가 대신 기록하거나 시작할 수는 없다.
@@ -111,9 +111,9 @@ export type CoachAiContext = {
 export type CoachAiRecords = {
   /** 가장 최근 3D 동작 분석 — 'none' 분석한 적 없음. level 'improve' 고칠 점 · 'edge' 경계 */
   lab: { date: string; judged: boolean; issues: { element: string; level: 'improve' | 'edge' }[] } | 'none' | null;
-  /** 메커니즘 처방 — 'none' 없음 */
-  mechFocus: { element: string; done: number; total: number; stage: string | null; finished: boolean } | 'none' | null;
-  /** 최근 60일 구속 측정한 날(가까운 날부터 셋, 같은 날 세션은 합침) */
+  /** 메커니즘 처방 — 지금 연습하는 요소와 그 단계(lib/mechanics/program.ts activeRx). total null = 단계별 진행(횟수 상한 없음). 'none' 없음 */
+  mechFocus: { element: string; done: number; total: number | null; stage: string | null; finished: boolean } | 'none' | null;
+  /** 최근 60일 구속 측정 — 가까운 측정일 셋까지, 날짜 · 종류별 한 줄(veloRowsOf) */
   velo: { date: string; type: string | null; n: number; max: number; avg: number }[] | null;
   /** 최근 14일 암케어를 한 날 수 · 마지막 날 */
   armcare: { days: number; last: string | null } | null;
@@ -142,7 +142,12 @@ function recordLines(r: CoachAiRecords | undefined): string[] {
           ? `${lab.date} | 판정한 요소 없음(영상 조건)`
           : `${lab.date} | ${lab.issues.length ? lab.issues.map((i) => `${i.element}(${LEVEL_TEXT[i.level]})`).join(', ') : '고칠 점 · 경계 없음'}`;
   const m = r?.mechFocus;
-  const mechLine = m == null ? '모름' : m === 'none' ? '없음' : `${m.element} | ${m.done}/${m.total}회${m.stage ? ` | 단계 ${m.stage}` : ''}${m.finished ? ' | 마침' : ''}`;
+  const mechLine =
+    m == null
+      ? '모름'
+      : m === 'none'
+        ? '없음'
+        : `${m.element} | ${m.total == null ? `${m.done}회 함` : `${m.done}/${m.total}회`}${m.stage ? ` | 단계 ${m.stage}` : ''}${m.finished ? ' | 마침' : ''}`;
   const velo = r?.velo;
   const a = r?.armcare;
   const f = r?.food;
@@ -163,7 +168,7 @@ function recordLines(r: CoachAiRecords | undefined): string[] {
   return [
     `3D 동작 분석(가장 최근): ${labLine}`,
     `메커니즘 처방: ${mechLine}`,
-    'velo(구속 측정한 날, 최근 60일 · 가까운 날부터, km/h):',
+    'velo(구속 측정, 최근 60일 · 가까운 날부터 · 날짜 · 종류별, km/h):',
     ...(velo == null ? ['- 모름'] : velo.length ? velo.map((v) => `- ${v.date} | ${v.type ?? '종류 모름'} | ${v.n}구 | 최고 ${kmh(v.max)} | 평균 ${kmh(v.avg)}`) : ['- 측정 없음']),
     `암케어(최근 14일): ${a == null ? '모름' : a.days ? `${a.days}일 · 마지막 ${a.last}` : '안 함'}`,
     `영양(오늘): ${foodLine}`,
@@ -225,6 +230,33 @@ export function contextBlock(c: CoachAiContext): string {
     ...c.week.map(weekLine),
   ];
   return lines.join('\n');
+}
+
+/** 코치에 싣는 구속 측정일 수 */
+export const VELO_DAYS_SHOWN = 3;
+
+/**
+ * 구속 측정 세션 → 날짜 · 종류별 한 줄(가까운 측정일 셋까지). 같은 날 같은 종류 세션은 구수를 더하고, 최고는 큰 값, 평균은 구수로 무게.
+ * 종류는 섞지 않는다 — 같은 날 캐치볼과 불펜을 한 평균으로 묶어 '오늘 불펜 평균'에 답하지 못했다(2026-11-19 검토).
+ */
+export function veloRowsOf(
+  sessions: readonly { date: string; sessionType: string | null; n: number; maxKmh: number; avgKmh: number }[]
+): NonNullable<CoachAiRecords['velo']> {
+  const rows = new Map<string, { date: string; type: string | null; n: number; max: number; sum: number }>();
+  for (const s of sessions) {
+    if (s.n <= 0) continue;
+    const key = `${s.date}|${s.sessionType ?? ''}`;
+    const r = rows.get(key) ?? { date: s.date, type: s.sessionType, n: 0, max: 0, sum: 0 };
+    r.n += s.n;
+    r.max = Math.max(r.max, s.maxKmh);
+    r.sum += s.avgKmh * s.n;
+    rows.set(key, r);
+  }
+  const days = new Set([...new Set([...rows.values()].map((r) => r.date))].sort().reverse().slice(0, VELO_DAYS_SHOWN));
+  return [...rows.values()]
+    .filter((r) => days.has(r.date))
+    .sort((a, b) => (a.date === b.date ? (a.type ?? '').localeCompare(b.type ?? '') : a.date < b.date ? 1 : -1))
+    .map((r) => ({ date: r.date, type: r.type, n: r.n, max: r.max, avg: r.sum / r.n }));
 }
 
 /** 투구 기록 줄 → 던진 날 한 줄씩(가까운 날부터). 쉰 날 줄(0구)은 던진 날이 아니다. 세게 던진 날 판정은 엔진과 같은 함수(isHardOuting) */

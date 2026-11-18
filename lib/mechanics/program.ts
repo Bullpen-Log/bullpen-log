@@ -1053,11 +1053,18 @@ export type FocusView = {
   target: ElementRx['target'];
 };
 
+/**
+ * 지금 연습하는 처방 요소 — 단계별 진행(progression)이면 아직 안 끝난 첫 요소, 아니면 첫 요소. 훈련 화면(focusView)과 코치(lib/coach/records.ts)가
+ * 같이 쓴다 — 코치가 첫 요소 이름에 둘째 요소의 단계를 붙여 말하던 것(2026-11-19 검토).
+ */
+export function activeRx(focus: ProgramFocus): ElementRx {
+  const main = focus.rx[0];
+  return focus.progression ? (focus.rx.find((r) => !focus.progression!.elements.find((e) => e.fault === r.fault)?.finished) ?? main) : main;
+}
+
 export function focusView(focus: ProgramFocus, today?: string): FocusView {
   const main = focus.rx[0];
-  const active = focus.progression
-    ? (focus.rx.find((r) => !focus.progression!.elements.find((e) => e.fault === r.fault)?.finished) ?? main)
-    : main;
+  const active = activeRx(focus);
   const week = focus.progression ? SKILL_STAGES.indexOf(skillStage(focus.progression, active.fault)) + 1 : focusWeek(focus.done);
   return {
     reportId: focus.reportId,
@@ -1078,6 +1085,12 @@ export function focusView(focus: ProgramFocus, today?: string): FocusView {
     cue: main.cue,
     target: main.target,
   };
+}
+
+/** 코치 맥락에 싣는 처방 한 줄(lib/coach/records.ts) — 지금 요소와 그 단계. 단계별 진행이면 9회 상한이 없어 total 은 null(한 횟수만) */
+export function mechFocusFrom(focus: ProgramFocus): { element: string; done: number; total: number | null; stage: string | null; finished: boolean } {
+  const v = focusView(focus);
+  return { element: activeRx(focus).element, done: v.done, total: focus.progression ? null : v.total, stage: v.stage ?? null, finished: v.finished };
 }
 
 /**

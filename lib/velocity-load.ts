@@ -160,9 +160,10 @@ function zoneRectOf(analysis: unknown) {
  * 측정 화면에서 잰 세션만 — 관리자가 엔진 보정용으로 올린 영상(영상 올리기 · 파일로 재기: 'file' + 보정용)은 뺀다. 공 하나짜리
  * 보정 영상 수십 개가 '최근 세션'을 채웠다(사용자 2026-10-07: "구속 측정 기능을 사용한 기록만").
  */
-export async function loadVelocityHistory(userId: string): Promise<VelocityHistoryItem[]> {
+export async function loadVelocityHistory(userId: string, since?: Date): Promise<VelocityHistoryItem[]> {
   const rows = await prisma.velocitySession.findMany({
-    where: { userId, NOT: { source: 'file', forCalibration: true } },
+    /* since — 코치처럼 최근만 보는 곳은 그날부터만 읽는다(구속 화면 · 그래프는 안 넘겨 전부) */
+    where: { userId, NOT: { source: 'file', forCalibration: true }, ...(since ? { date: { gte: since } } : {}) },
     orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
     select: {
       id: true,

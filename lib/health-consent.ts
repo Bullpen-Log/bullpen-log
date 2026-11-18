@@ -25,3 +25,22 @@ export type HealthConsentSource = 'signup' | 'first_use' | 'settings' | 'guardia
 export function healthConsentOf(records: readonly ConsentRecord[]): ConsentState {
   return consentStateOf(records, true, HEALTH_CONSENT.version);
 }
+
+/**
+ * 건강 동의가 지금 없을 때 그 앞 코치 대화를 AI 에 다시 보내지 않을 경계(2026-11-19 검토) — 동의가 있던 동안의 대화에는 앱이 건넨 건강정보
+ * (통증 · 팔 상태 · 피할 동작)와 그에 대한 답이 섞여 있다. 사용자가 쓴 말과 앱이 건넨 것을 글에서 가를 수 없어 시각으로 자른다.
+ * - null: 거를 것 없음(동의가 유효하거나, 한 번도 동의한 적 없어 앱이 건강정보를 건넨 적이 없음)
+ * - Date: 거둔 때 — 그 뒤의 대화는 동의 없이(건강정보 없이) 오갔다
+ * - 'all': 동의 판이 바뀌어 무효가 됨 — 언제부터 무효였는지(배포 시각) 기록이 없어 지난 대화를 모두 뺀다(다시 동의하면 돌아온다)
+ */
+export function healthCutoffOf(records: readonly ConsentRecord[]): Date | 'all' | null {
+  if (records.length === 0 || healthConsentOf(records).valid) return null;
+  if (records.some((r) => r.revokedAt == null)) return 'all';
+  return new Date(Math.max(...records.map((r) => r.revokedAt!.getTime())));
+}
+
+/** 대화 기록을 AI 에 보낼 시작 시각 — 보관 창(keepFrom)과 건강 경계 중 늦은 쪽. null 이면 지난 대화를 보내지 않는다 */
+export function historyFloorOf(keepFrom: Date, cutoff: Date | 'all' | null): Date | null {
+  if (cutoff === 'all') return null;
+  return cutoff && cutoff > keepFrom ? cutoff : keepFrom;
+}

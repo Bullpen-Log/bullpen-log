@@ -5,8 +5,14 @@
  */
 import { aiGate, capUsdOf, AI_DAILY_CHATS, AI_BLOCK_TEXT, type AiGateInput } from '@/lib/coach/ai-gate';
 import { costMicroOf } from '@/lib/coach/ai-price';
-import { COACH_SYSTEM, COACH_SYSTEM_BLOCK, contextBlock, ageBandOf, scrubNames, throwsOf, type CoachAiContext, type CoachAiRecords } from '@/lib/coach/ai-prompt';
+import { COACH_SYSTEM, COACH_SYSTEM_BLOCK, contextBlock, ageBandOf, scrubNames, throwsOf, type CoachAiContext, type CoachAiRecords, veloRowsOf } from '@/lib/coach/ai-prompt';
 import { COACH_AI_CONSENT } from '@/lib/coach/ai-consent';
+import { HEALTH_CONSENT, healthCutoffOf, historyFloorOf } from '@/lib/health-consent';
+import { reasonTextsFor } from '@/lib/coach/answers';
+import { activeRx, focusView, mechFocusFrom } from '@/lib/mechanics/program';
+import { newProgression } from '@/lib/mechanics/progression';
+import { REPORT_CRITERIA } from '@/lib/pitch-3d/v2/report-policy';
+import type { ElementRx } from '@/lib/pitch-3d/v2/report';
 import { CARD_SOURCES, COACH_CARDS, cardsBlock, shippedCards } from '@/lib/coach/cards';
 import { slotProgressOf } from '@/lib/coach/status';
 import { sanitizeAdjusts } from '@/lib/coach/adjust';
@@ -214,6 +220,55 @@ check('⑤ 시스템 글은 이름을 안 쓰고 말하지 말라고 한다', sc
     ['구속이 얼마나 · 언제 오를지 약속하지 않고', '영상을 직접 본 것처럼 말하지 않는다', '단계를 올리거나 처방을 바꾸라고 하지 않는다', "'모름'인 칸을 짐작으로 채우지 않는다", '네가 먼저 꺼내 말한다'].every((w) => COACH_SYSTEM.includes(w))
   );
   check('⑦ 동의 글에 새로 보내는 것이 적혀 있다', ['3D 동작 분석의 판정', '구속 측정값', '암케어', '더 먹을 양', '투구 기록'].every((w) => COACH_AI_CONSENT.items.includes(w)) && COACH_AI_CONSENT.version === '2026-11-19');
+}
+
+/* ⑧ 검토 반영(2026-11-19) — 건강 동의가 없어진 뒤 보내는 것 · 지금 연습하는 요소 · 구속 종류별. 실제 AI 호출 없이 */
+{
+  const at = (d: string) => new Date(`${d}T12:00:00+09:00`);
+  const rec = (version: string, agreed: string, revoked: string | null) => ({ id: version + agreed, version, source: 'first_use', agreedAt: at(agreed), revokedAt: revoked ? at(revoked) : null });
+  check('⑧ 동의한 적 없음 · 지금 유효 → 거를 것 없음', healthCutoffOf([]) === null && healthCutoffOf([rec(HEALTH_CONSENT.version, '2026-11-02', null)]) === null);
+  const revoked = healthCutoffOf([rec(HEALTH_CONSENT.version, '2026-11-02', '2026-11-10'), rec(HEALTH_CONSENT.version, '2026-11-01', '2026-11-05')]);
+  check('⑧ 거뒀으면 가장 늦게 거둔 때부터만', revoked instanceof Date && revoked.getTime() === at('2026-11-10').getTime());
+  check('⑧ 판이 바뀌어 무효면 지난 대화를 모두 뺀다', healthCutoffOf([rec('2020-01-01', '2026-11-02', null)]) === 'all');
+  check('⑧ 거둔 뒤 다시 동의하면 다시 보낸다', healthCutoffOf([rec(HEALTH_CONSENT.version, '2026-11-02', '2026-11-05'), rec(HEALTH_CONSENT.version, '2026-11-08', null)]) === null);
+  const keep = at('2026-10-20');
+  check('⑧ 보낼 대화의 시작 = 보관 창 · 경계 중 늦은 쪽', historyFloorOf(keep, null) === keep && historyFloorOf(keep, at('2026-11-10'))?.getTime() === at('2026-11-10').getTime() && historyFloorOf(keep, at('2026-10-01')) === keep && historyFloorOf(keep, 'all') === null);
+  /* 어제 팔꿈치 통증으로 쉬기로 짠 칸 · 피할 동작 — 오늘 건강 동의가 없으면 까닭에서 빠진다(일정 까닭은 그대로) */
+  check('⑧ 건강 동의 없으면 칸 까닭에서 팔 통증 · 피할 동작을 뺀다', JSON.stringify(reasonTextsFor(['pain', 'limit', 'outing-near'], false)) === JSON.stringify(['등판 3일 안']) && reasonTextsFor(['pain', 'limit'], true).length === 2);
+  const sent = contextBlock({ ...ctx, week: [{ date: '2026-11-03', day: '화', plan: '쉬기', reasons: reasonTextsFor(['pain', 'skipped'], false), state: 'done', did: [], left: [], extra: [], locked: true }] });
+  const dayLines = sent.split('\n').filter((l) => l.startsWith('- 2026'));
+  check('⑧ 동의 없는 날 보내는 일정 줄에 건강 까닭이 없다', dayLines.length === 1 && !dayLines.some((l) => /통증|피할 동작/.test(l)), dayLines.join(' / '));
+
+  /* 첫 요소(상하체 분리)를 마치고 둘째(드롭) '연결' 단계로 넘어간 선수 — 이름과 단계가 같은 요소여야 */
+  const rxOf = (element: '상하체 분리' | '드롭', fault: string): ElementRx => ({ element, key: fault, fault: fault as ElementRx['fault'], level: 'improve', slots: 1, cue: 'fixture', target: null, weeks: [] });
+  const rx = [rxOf('상하체 분리', 'sep.openAtPlant'), rxOf('드롭', 'drop.knee')];
+  const progression = newProgression('fixture', rx);
+  progression.elements = [
+    { fault: 'sep.openAtPlant', stage: '통합', finished: true },
+    { fault: 'drop.knee', stage: '연결', finished: false },
+  ];
+  const focus = { jobId: null, startedOn: '2026-11-01', reportId: 'r', done: 5, rx, criteria: REPORT_CRITERIA, progression };
+  const m = mechFocusFrom(focus);
+  check('⑧ 지금 요소 = 안 끝난 둘째 · 단계도 그 요소의 것', activeRx(focus).element === '드롭' && m.element === '드롭' && m.stage === '연결' && m.stage === focusView(focus).stage, JSON.stringify(m));
+  check('⑧ 단계별 진행은 9회 상한이 없어 한 횟수만', m.total === null && contextBlock({ ...ctx, records: { lab: 'none', mechFocus: m, velo: [], armcare: null, food: null } }).includes('메커니즘 처방: 드롭 | 5회 함 | 단계 연결'));
+  const old = mechFocusFrom({ ...focus, progression: undefined });
+  check('⑧ 옛 처방은 첫 요소 · n/9회', old.element === '상하체 분리' && old.total === 9);
+
+  /* 같은 날 캐치볼 · 불펜 — 종류를 섞지 않고, 같은 종류 여러 세션은 구수로 무게 */
+  const v = veloRowsOf([
+    { date: '2026-11-15', sessionType: '불펜', n: 10, maxKmh: 128, avgKmh: 120 },
+    { date: '2026-11-15', sessionType: '불펜', n: 30, maxKmh: 126, avgKmh: 124 },
+    { date: '2026-11-15', sessionType: '캐치볼', n: 6, maxKmh: 95, avgKmh: 90 },
+    { date: '2026-11-12', sessionType: '불펜', n: 0, maxKmh: 0, avgKmh: 0 },
+    { date: '2026-11-10', sessionType: null, n: 4, maxKmh: 110, avgKmh: 105 },
+    { date: '2026-11-08', sessionType: '불펜', n: 5, maxKmh: 120, avgKmh: 115 },
+    { date: '2026-11-01', sessionType: '불펜', n: 5, maxKmh: 119, avgKmh: 114 },
+  ]);
+  const pen = v.find((r) => r.date === '2026-11-15' && r.type === '불펜');
+  check('⑧ 같은 날 불펜 · 캐치볼은 따로', v.filter((r) => r.date === '2026-11-15').length === 2 && v.some((r) => r.type === '캐치볼' && r.avg === 90));
+  check('⑧ 같은 종류 여러 세션은 구수 더하고 평균은 구수로 무게', pen?.n === 40 && pen.max === 128 && pen.avg === 123);
+  check('⑧ 가까운 측정일 셋까지(0구는 측정일 아님)', JSON.stringify([...new Set(v.map((r) => r.date))]) === JSON.stringify(['2026-11-15', '2026-11-10', '2026-11-08']));
+  check('⑧ 종류 모름은 그렇게 적는다', contextBlock({ ...ctx, records: { lab: 'none', mechFocus: 'none', velo: v, armcare: null, food: null } }).includes('- 2026-11-10 | 종류 모름 | 4구'));
 }
 
 console.log(`coach-ai: ${pass}개 통과${fails.length ? `, ${fails.length}개 실패` : ''}`);
