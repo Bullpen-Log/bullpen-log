@@ -13,8 +13,8 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import { prefsReady } from '~/lib/prefs';
-import { usePalette } from '~/lib/ui';
-import { MARK_ASPECT, MARK_DROP, MARK_EM, SinkerMark } from '~/shell/wordmark';
+import { usePalette, useTheme } from '~/lib/ui';
+import { MARK_ASPECT, SINKER_LETTERS, SinkerLetter, SinkerMark, sinkerMarkSlot } from '~/shell/wordmark';
 import { INTRO_TIMING as timing, createIntroController, leaveEase, letterEase, markDone, markEase } from './intro-timeline';
 
 /*
@@ -22,7 +22,7 @@ import { INTRO_TIMING as timing, createIntroController, leaveEase, letterEase, m
  * 2026-10-27 김민이 고른 2.20초(INTRO_TIMING) — 싱커 · 덕아웃 앱 같게. 사이트를 기다리지 않고, 아직이면 밑 화면의 첫 불러오기 판이 이어 받는다.
  * 2026-10-22 금윤호: 불펜로그 B → BULLPEN LOG 이던 것을 싱커 로고 → SINKER 로(아래 'B' 는 이제 로고, 글자는 I · N · K · E · R).
  * 움직임 줄이기면 완성된 이름 1.1초 → 걷힘(움직임 없이). 웹 PC 시작 연출(components/app-splash.tsx)은 예전 시간 그대로라 이제 싱커 앱과 다르다.
- * 큰 로고는 시작 화면(app.json splash · 바탕 = 앱 바탕)과 같은 크기 · 자리 · 색이라 시작 화면을 걷는 순간이 이어진다.
+ * 싱커 입체 로고는 시작 화면(app.json splash)과 같은 중앙 위치에서 이어진다.
  * 가림막이 떠 있는 동안은 밑 화면을 누를 수 없다(예전엔 pointerEvents none 이라 보이지 않는 단추가 눌렸다) · VoiceOver 도 가림막 안에만.
  */
 /* 칸을 못 재거나 테마를 못 읽어도 이만큼 뒤엔 시작한다(시작 화면이 영영 안 걷히지 않게) */
@@ -37,7 +37,8 @@ export const SPLASH_W = 300;
 /** 앱마다 다른 것 — 로고 그림 · 이름 글자 · 시작 화면의 큰 로고 · 이름 줄의 로고 칸(덕아웃 앱은 src/dugout/mark.tsx DUGOUT_INTRO) */
 export type IntroLook = {
   label: string;
-  letters: string[];
+  letters: readonly string[];
+  renderLetter?: (index: number, size: number, onDark: boolean) => ReactNode;
   /** 로고 너비 ÷ 높이 */
   aspect: number;
   /** 시작 화면 그림 속 로고 높이(pt) — 같은 크기 · 자리여야 시작 화면을 걷는 순간이 이어진다 */
@@ -51,10 +52,11 @@ export type IntroLook = {
 
 const SINKER_LOOK: IntroLook = {
   label: '싱커',
-  letters: ['I', 'N', 'K', 'E', 'R'],
+  letters: SINKER_LETTERS,
+  renderLetter: (index, size, onDark) => <SinkerLetter index={index} size={size} onDark={onDark} />,
   aspect: MARK_ASPECT,
   bigH: (SPLASH_W * 256) / 512,
-  slot: (size) => ({ h: size * MARK_EM, right: size * 0.05, bottom: size * (0.3 - MARK_DROP) }),
+  slot: sinkerMarkSlot,
   mark: (h) => <SinkerMark height={h} />,
 };
 
@@ -87,12 +89,15 @@ export function hideSplashUnlessIntro(): Promise<void> {
   return SplashScreen.hideAsync().catch(() => undefined);
 }
 
-function Letter({ ch, i, t, size, color }: { ch: string; i: number; t: SharedValue<number>; size: number; color: string }) {
+function Letter({ ch, i, t, size, color, children }: {
+  ch: string; i: number; t: SharedValue<number>; size: number; color: string; children?: ReactNode;
+}) {
   const style = useAnimatedStyle(() => {
     const e = letterEase(t.get(), i, timing);
     return { opacity: e, transform: [{ translateX: (1 - e) * -0.245 * size }] };
   });
   if (ch === ' ') return <View style={{ width: size * 0.3 }} />;
+  if (children) return <Animated.View style={[styles.hidden, style]}>{children}</Animated.View>;
   return (
     /* 정지 모양은 안 보임(opacity 0) — 움직임 스타일이 늦게 붙어도 첫 장면에 이름이 비치지 않게 */
     <Animated.Text style={[{ fontFamily: 'DINCondensed-Bold', fontSize: size, lineHeight: size, letterSpacing: size * 0.02, color, opacity: 0 }, style]}>{ch}</Animated.Text>
@@ -101,6 +106,7 @@ function Letter({ ch, i, t, size, color }: { ch: string; i: number; t: SharedVal
 
 export function Intro({ look = SINKER_LOOK }: { look?: IntroLook }) {
   const c = usePalette();
+  const onDark = useTheme() !== 'light';
   const reduced = useReducedMotion();
   const { width, height } = useWindowDimensions();
   const [gone, setGone] = useState(false);
@@ -211,7 +217,9 @@ export function Intro({ look = SINKER_LOOK }: { look?: IntroLook }) {
             style={{ width: slotH * look.aspect, height: slotH, marginRight: slotBox.right, marginBottom: slotBox.bottom }}
           />
           {look.letters.map((ch, i) => (
-            <Letter key={i} ch={ch} i={i} t={t} size={size} color={c.ink} />
+            <Letter key={i} ch={ch} i={i} t={t} size={size} color={c.ink}>
+              {look.renderLetter?.(i, size, onDark)}
+            </Letter>
           ))}
         </View>
       </View>
@@ -231,4 +239,5 @@ export function Intro({ look = SINKER_LOOK }: { look?: IntroLook }) {
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: 'row', alignItems: 'flex-end' },
+  hidden: { opacity: 0 },
 });

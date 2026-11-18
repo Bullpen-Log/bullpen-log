@@ -316,7 +316,7 @@ export function HomeTab({
               <SpacePickButton label="내 싱커" compact c={c} />
             </View>
           ) : null}
-          <Wordmark color={c.ink} />
+          <Wordmark />
           {/* 오른쪽은 알림 종 · 전체 메뉴(☰ — 하단 탭의 더보기를 옮겼다, 2026-10-29). 내 영상은 기록 탭 아래 칸으로 갔다 */}
           <Pressable
             accessibilityRole="button"

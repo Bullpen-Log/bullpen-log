@@ -38,7 +38,7 @@ export function OrgSpaceView({ bottom }: { bottom: number }) {
       <View style={{ paddingTop: inset.top, backgroundColor: c.page }}>
         <View style={st.bar}>
           <View style={st.left} pointerEvents="none">
-            <Wordmark size={17} color={c.ink} />
+            <Wordmark size={17} />
           </View>
           {space ? (
             <SpacePickButton label={space.name} sub={`${KIND_WORD[space.kind]} · ${spaceRoleWord(space)}`} c={c} />

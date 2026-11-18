@@ -21,7 +21,7 @@ export function LoginHero({ compact }: { compact: boolean }) {
         </Svg>
       </View>
       <View style={styles.brand}>
-        <Wordmark size={compact ? 29 : 34} color="#ffffff" allowFontScaling={false} />
+        <Wordmark size={compact ? 29 : 34} onDark allowFontScaling={false} />
         <Text style={styles.caption}>야구 훈련과 기록</Text>
       </View>
       <View pointerEvents="none" importantForAccessibility="no-hide-descendants" style={[styles.art, fontScale > 1.4 && { width: '42%' }]}>
