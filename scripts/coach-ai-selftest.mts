@@ -5,7 +5,7 @@
  */
 import { aiGate, capUsdOf, AI_DAILY_CHATS, AI_BLOCK_TEXT, type AiGateInput } from '@/lib/coach/ai-gate';
 import { costMicroOf } from '@/lib/coach/ai-price';
-import { COACH_SYSTEM, COACH_SYSTEM_BLOCK, contextBlock, ageBandOf, scrubNames, throwsOf, type CoachAiContext, type CoachAiRecords, veloRowsOf } from '@/lib/coach/ai-prompt';
+import { COACH_SYSTEM, COACH_SYSTEM_BLOCK, contextBlock, ageBandOf, scrubNames, throwsOf, type CoachAiContext, type CoachAiRecords, veloRowsOf, dateTable, scrubCodes } from '@/lib/coach/ai-prompt';
 import { COACH_AI_CONSENT } from '@/lib/coach/ai-consent';
 import { HEALTH_CONSENT, healthCutoffOf, historyFloorOf } from '@/lib/health-consent';
 import { reasonTextsFor } from '@/lib/coach/answers';
@@ -312,6 +312,16 @@ check('⑤ 시스템 글은 이름을 안 쓰고 말하지 말라고 한다', sc
     ['선수가 [정하기]를 눌러야 정해진다', '목표가 잘 됐다 · 안 됐다 판정하지 않는다', '아픈 곳 · 통증은 목표로 정하지 않는다'].every((w) => COACH_SYSTEM.includes(w))
   );
 }
+
+/* ⑩ 실제 호출(11-19)에서 나온 것 — 요일을 날짜로 틀림 · 목표 말이 김 · 전반 질문에 기록을 안 짚음 */
+{
+  const t = dateTable('2026-11-04');
+  check('⑩ 날짜표: 오늘 · 내일 · 15날', t.startsWith('2026-11-04 수(오늘), 2026-11-05 목(내일), 2026-11-06 금') && t.split(', ').length === 15 && t.endsWith('2026-11-18 수'));
+  check('⑩ 맥락에 날짜표가 실린다', contextBlock(ctx).includes('날짜(오늘부터 14일): 2026-11-04 수(오늘)'));
+  check('⑩ 규칙 글: 확인 날은 날짜표에서 베낌 · 목표 말은 짧게 · 전반 질문엔 기록을 짚음 · 답 글에 칸 이름 · 날짜 모양 안 씀', ["'날짜' 줄에서 그 요일의 날짜를 그대로 베낀다", "날짜 · 훈련 이름 · '신경 쓰기' 같은 말은 넣지 않는다", '두세 가지', "'토요일(11월 7일)'처럼 쓴다"].every((w) => COACH_SYSTEM.includes(w)));
+}
+
+check('⑩ 답 글에 샌 칸 이름은 우리말로(조사도)', scrubCodes('오늘은 skip으로 바꿀 수 있어요. move을 누르면 돼요. busy 도 있어요.') === '오늘은 쉬기로 바꿀 수 있어요. 옮기기를 누르면 돼요. 바쁜 주 줄이기 도 있어요.', scrubCodes('오늘은 skip으로 바꿀 수 있어요. move을 누르면 돼요. busy 도 있어요.'));
 
 console.log(`coach-ai: ${pass}개 통과${fails.length ? `, ${fails.length}개 실패` : ''}`);
 for (const f of fails) console.log(`  - ${f}`);

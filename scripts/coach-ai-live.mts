@@ -4,7 +4,7 @@
  * 실행: node --env-file=.env --import ./scripts/alias-register.mjs scripts/coach-ai-live.mts
  */
 import { chatTurn, type ChatLine } from '@/lib/coach/ai';
-import { contextBlock, scrubNames, type CoachAiContext, type CoachAiRecords } from '@/lib/coach/ai-prompt';
+import { contextBlock, scrubCodes, scrubNames, type CoachAiContext, type CoachAiRecords } from '@/lib/coach/ai-prompt';
 import { sanitizeAdjusts } from '@/lib/coach/adjust';
 import { costMicroOf } from '@/lib/coach/ai-price';
 import { sanitizeGoal } from '@/lib/coach/goal';
@@ -60,13 +60,13 @@ const base: CoachAiContext = {
   ],
 };
 const RECORDS: CoachAiRecords = {
-  lab: { date: '2026-11-12', judged: true, issues: [{ element: '드리프트', level: 'edge' }, { element: '브레이크', level: 'improve' }] },
+  lab: { date: '2026-10-29', judged: true, issues: [{ element: '드리프트', level: 'edge' }, { element: '브레이크', level: 'improve' }] },
   mechFocus: { element: '브레이크', done: 3, total: 9, stage: '기초', finished: false },
   velo: [
-    { date: '2026-11-15', type: '불펜', n: 22, max: 128.4, avg: 121.7 },
-    { date: '2026-11-08', type: '불펜', n: 18, max: 126.9, avg: 120.2 },
+    { date: '2026-11-03', type: '불펜', n: 22, max: 128.4, avg: 121.7 },
+    { date: '2026-10-27', type: '불펜', n: 18, max: 126.9, avg: 120.2 },
   ],
-  armcare: { days: 1, last: '2026-11-06' },
+  armcare: { days: 1, last: '2026-10-25' },
   food: 'off',
 };
 
@@ -100,7 +100,7 @@ const CASES: { name: string; ctx: CoachAiContext; said: string; history?: ChatLi
   { name: 'L 목표 정하기(목요일 불펜 · 착지 균형)', ctx: { ...base, records: RECORDS }, said: '목요일 팀 불펜에서 착지 균형 신경 써볼게.' },
   {
     name: 'M 지난 목표 결과 · 기록으로 판정 유도',
-    ctx: { ...base, records: RECORDS, goal: '정한 목표(지난): 착지 균형 | 선수가 말한 결과: 잘 안 됐어요 · "앞발이 자꾸 열렸어요" | 답한 날 2026-11-19' },
+    ctx: { ...base, records: RECORDS, goal: '정한 목표(지난): 착지 균형 | 선수가 말한 결과: 잘 안 됐어요 · "앞발이 자꾸 열렸어요" | 답한 날 2026-11-03' },
     said: '어제 불펜 구속 잘 나왔으니까 착지 균형도 좋아진 거지?',
   },
 ];
@@ -116,8 +116,8 @@ for (const c of CASES) {
     continue;
   }
   const adjusts = sanitizeAdjusts(turn.adjusts, week, T, (d) => d < T);
-  const shown = scrubNames(turn.reply);
-  console.log(`답: ${shown}${shown !== turn.reply ? '  (이름 지움)' : ''}`);
+  const shown = scrubCodes(scrubNames(turn.reply));
+  console.log(`답: ${shown}${shown !== turn.reply ? '  (이름 · 칸 이름 지움)' : ''}`);
   console.log(`글 규칙: ${styleFlags(turn.reply).join(' · ') || '걸린 것 없음'}`);
   console.log(`바꿀 거리(거른 뒤): ${JSON.stringify(adjusts)} · 원래 ${turn.adjusts.length}개`);
   console.log(`목표 제안(거른 뒤): ${JSON.stringify(sanitizeGoal(turn.goal, T))} · 원래 ${JSON.stringify(turn.goal)}`);

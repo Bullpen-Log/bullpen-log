@@ -1,4 +1,6 @@
 import { cardsBlock } from '@/lib/coach/cards';
+import { WEEKDAY_LABELS } from '@/lib/coach/answers';
+import { weekdayOf } from '@/lib/coach/week';
 import type { SlotState } from '@/lib/coach/status';
 import { addOutingLog, isHardOuting, type OutingTotals } from '@/lib/report/facts';
 
@@ -7,12 +9,12 @@ import { addOutingLog, isHardOuting, type OutingTotals } from '@/lib/report/fact
  * 사용자 말 앞에 붙이는 오늘 맥락 덩이(코드 · 숫자만). 이름 · 이메일 · 생년월일 · 사용자 id · 체크인 메모 원문 · 영상 · 위치는 넣지 않는다 —
  * 맥락 타입에 그런 칸이 아예 없다. 순수 파일.
  */
-export const COACH_PROMPT_V = 11;
+export const COACH_PROMPT_V = 12;
 
 export const COACH_SYSTEM = `너는 야구 투수용 앱 '싱커'의 트레이닝 코치 도우미다. 이 사람의 이번 주 7칸 일정(운동 · 프로그램 · 쉬기 · 암케어 제안 · 메커니즘 드릴 · 팀 훈련 · 경기)과 앱에 쌓인 기록(투구 · 체크인 · 3D 동작 분석 · 메커니즘 처방 · 구속 측정 · 암케어 · 영양)을 다 보고 있다. 사용자의 말에 맞춰 지금 무엇을 하면 좋을지, 일정을 어떻게 바꾸면 좋을지 기록을 근거로 짧게 짚어 준다. 사용자가 따로 찾아보지 않아도 되게, 맥락에 있는 관련 기록은 네가 먼저 꺼내 말한다.
 
 답은 세 칸뿐이다.
-- reply: 사용자에게 보일 글. 한국어 해요체, 2~4문장. 줄표(—)와 이모지는 쓰지 않는다. 사람 이름을 묻거나 부르지 않는다.
+- reply: 사용자에게 보일 글. 한국어 해요체, 2~4문장. 줄표(—)와 이모지는 쓰지 않는다. 사람 이름을 묻거나 부르지 않는다. 바꿀 거리 이름(minutes · skip · move · busy)이나 YYYY-MM-DD 모양 날짜는 쓰지 않고 '토요일(11월 7일)'처럼 쓴다.
 - adjusts: 바꿀 거리 0~3개. 사용자가 [적용]을 눌러야 바뀐다. 네가 직접 바꾸지 않는다. 바꿀 것이 없으면 빈 목록.
 - goal: 정한 목표 제안 하나 또는 null. 아래 '정한 목표'를 따른다.
 
@@ -25,7 +27,7 @@ export const COACH_SYSTEM = `너는 야구 투수용 앱 '싱커'의 트레이�
 사용자가 팀 훈련 · 레슨 · 경기가 새로 생겼다고 하면, 그날 운동을 쉬기(skip)나 다른 날로 옮기기(move)를 제안하고, 달력에도 적어 두라고 말한다.
 
 정한 목표(목표는 하나만 둔다):
-- 사용자가 어떤 날 · 어떤 훈련에서 무엇을 신경 써 보겠다고 하면(예: 목요일 불펜에서 착지 균형) goal 에 kind 'set' 으로 낸다. what 은 동작 · 훈련을 짧게(20자 안팎), trigger 는 그 훈련이 불펜 · 라이브 · 경기면 그 낱말 그대로 아니면 null, checkOn 은 확인할 날(YYYY-MM-DD, 오늘부터 14일 안). 이미 정한 목표가 있으면 바꾸는 것이다.
+- 사용자가 어떤 날 · 어떤 훈련에서 무엇을 신경 써 보겠다고 하면(예: 목요일 불펜에서 착지 균형) goal 에 kind 'set' 으로 낸다. what 에는 무엇을 신경 쓸지만 짧게 쓴다(예: '착지 균형') — 날짜 · 훈련 이름 · '신경 쓰기' 같은 말은 넣지 않는다. trigger 는 그 훈련이 불펜 · 라이브 · 경기면 그 낱말 그대로 아니면 null. checkOn 은 확인할 날로, 맥락의 '날짜' 줄에서 그 요일의 날짜를 그대로 베낀다(오늘부터 14일 안). 이미 정한 목표가 있으면 바꾸는 것이다.
 - 선수가 [정하기]를 눌러야 정해진다고 짧게 말한다. 네가 정하지 않는다.
 - 사용자가 목표를 그만두거나 지우자고 하면 goal 에 kind 'drop'(나머지 칸 null).
 - 아픈 곳 · 통증은 목표로 정하지 않는다. 체크인과 전문가 상담을 권한다.
@@ -62,6 +64,7 @@ export const COACH_SYSTEM = `너는 야구 투수용 앱 '싱커'의 트레이�
 - velo 는 구속 측정으로 잰 기록이다. 한 줄이 그날의 한 종류(불펜 · 캐치볼 …)다 — 종류를 물으면 그 종류 줄로만 답한다. 값은 그대로 전한다. 구속이 얼마나 · 언제 오를지 약속하지 않고, 어떤 운동을 하면 구속이 오른다고도 말하지 않는다. 종류 · 컨디션이 달라 다른 날 값과 견줘 좋아졌다 · 나빠졌다 단정하지 않는다.
 - 암케어는 최근 14일 한 날 수다. 일정 바꾸기 칸에는 없으니, 하고 싶으면 트레이닝의 암케어에서 하라고 말한다.
 - 영양은 앱이 계산한 오늘 할 일 · 더 먹을 양 · 균형 점수만 전한다. 흔한 음식으로만 예를 들고, 영양제 · 보충제 · 체중 감량 방법은 말하지 않는다. '영양 기능 안 씀'이면 영양 이야기를 꺼내지 않는다. '영양 설정 안 함'이면 영양 탭에서 설정하면 알려 줄 수 있다고 말한다.
+- '요즘 어때', '뭐부터 할까'처럼 전반을 물으면 오늘 일정만 말하지 말고, 맥락에서 눈여겨볼 것 두세 가지(팔 상태 · 최근 투구 · 3D 고칠 점과 메커니즘 처방 · 구속 · 암케어 · 정한 목표 중)를 날짜와 함께 짚은 뒤 지금 할 일 하나로 맺는다.
 - 다른 화면에서 할 일(체크인 · 투구 기록 · 3D 동작 분석 · 구속 측정 · 메커니즘 · 암케어 · 영양)은 어느 화면에서 하면 되는지 짧게 알려 준다. 네가 대신 기록하거나 시작할 수는 없다.
 - 답에는 맥락에 있는 이 사람의 기록(날짜 · 구수 · 한 것 · 판정 · 구속)을 근거로 든다. 기록에 없는 것은 모른다고 한다. '모름'인 칸을 짐작으로 채우지 않는다.`;
 
@@ -78,6 +81,17 @@ export const COACH_SYSTEM_BLOCK = `${COACH_SYSTEM}\n\n${cardsBlock()}`;
 const NAME_RE = /(?:드라이브\s?라인|\bdriveline\b|트레드(?:\s?애슬레틱스)?(?!밀)|\btread(?:\s?athletics)?\b)(?:\s?이?라는\s?곳)?/gi;
 export function scrubNames(text: string): string {
   return text.replace(NAME_RE, '다른 곳');
+}
+
+/**
+ * 바꿀 거리 칸 이름이 답 글에 새면 우리말로(실제 호출 11-19: '오늘 운동을 쉬는 것은 skip으로 바로 바꿀 수 있어요'). 지시문이 막아도 가끔 샌다.
+ * 우리말이 모두 '기'로 끝나 받침 없는 조사로 바꾼다(으로 → 로 · 을 → 를 · 이 → 가 · 은 → 는).
+ */
+const CODE_RE = /\b(skip|move|minutes|busy)\b(으로|을|이|은)?/gi;
+const CODE_TEXT: Record<string, string> = { skip: '쉬기', move: '옮기기', minutes: '시간 바꾸기', busy: '바쁜 주 줄이기' };
+const JOSA_AFTER_VOWEL: Record<string, string> = { 으로: '로', 을: '를', 이: '가', 은: '는' };
+export function scrubCodes(text: string): string {
+  return text.replace(CODE_RE, (_, w: string, josa?: string) => `${CODE_TEXT[w.toLowerCase()]}${josa ? JOSA_AFTER_VOWEL[josa] : ''}`);
 }
 
 /** 최근 던진 날 한 줄 — 투구 기록에 적힌 것만(메모 글은 안 넣는다) */
@@ -216,11 +230,23 @@ function weekLine(d: CoachAiContext['week'][number]): string {
   return parts.join(' | ');
 }
 
+/**
+ * 오늘부터 14일의 날짜 · 요일 — AI 가 '목요일'을 날짜로 바꿀 때 틀렸다(실제 호출 11-19: 수요일 11-04 기준 목요일을 11-06 으로).
+ * 목표의 확인 날은 이 줄에서 베끼게 한다.
+ */
+export function dateTable(today: string): string {
+  return Array.from({ length: 15 }, (_, i) => {
+    const d = new Date(Date.parse(`${today}T00:00:00Z`) + i * 86_400_000).toISOString().slice(0, 10);
+    return `${d} ${WEEKDAY_LABELS[weekdayOf(d)]}${i === 0 ? '(오늘)' : i === 1 ? '(내일)' : ''}`;
+  }).join(', ');
+}
+
 /** 사용자 말 앞에 붙이는 덩이 — 글 한 덩이(코드 · 숫자 · 앱이 정한 문장만) */
 export function contextBlock(c: CoachAiContext): string {
   const lines = [
     `[맥락 v${COACH_PROMPT_V}]`,
     `오늘: ${c.today}`,
+    `날짜(오늘부터 14일): ${dateTable(c.today)}`,
     `나이대: ${c.ageBand}`,
     `역할: ${c.role ?? '모름'}`,
     `우선순위: ${c.priority ?? '모름'}`,

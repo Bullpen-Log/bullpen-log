@@ -13,7 +13,7 @@ import { HEALTH_PURPOSE, healthCutoffOf, historyFloorOf } from '@/lib/health-con
 import { COACH_AI_CONSENT, COACH_AI_PURPOSE } from '@/lib/coach/ai-consent';
 import { AI_BLOCK_TEXT, AI_MIN_AGE, aiGate, capUsdOf, type AiGate } from '@/lib/coach/ai-gate';
 import { costMicroOf } from '@/lib/coach/ai-price';
-import { ageBandOf, contextBlock, scrubNames, throwsOf, type CoachAiContext } from '@/lib/coach/ai-prompt';
+import { ageBandOf, contextBlock, scrubCodes, scrubNames, throwsOf, type CoachAiContext } from '@/lib/coach/ai-prompt';
 import { COACH_MODEL_CHAT, aiKeyReady, chatTurn, type ChatLine } from '@/lib/coach/ai';
 import { sanitizeAdjusts, type CoachAdjust } from '@/lib/coach/adjust';
 import { COACH_LIMITS, WEEKDAY_LABELS, reasonTextsFor, savedOf, slotLine } from '@/lib/coach/answers';
@@ -291,7 +291,7 @@ export async function sendCoachMessage(
       costMicro: costMicroOf(turn.model, turn.usage),
     },
   });
-  const reply = turn.ok ? scrubNames(turn.reply) : turn.why === 'refusal' ? FALLBACK.refusal : FALLBACK.other;
+  const reply = turn.ok ? scrubCodes(scrubNames(turn.reply)) : turn.why === 'refusal' ? FALLBACK.refusal : FALLBACK.other;
   const adjusts = turn.ok ? sanitizeAdjusts(turn.adjusts, base.slots, base.today, base.locked) : [];
   /* 지우기 제안은 지울 목표가 있을 때만 */
   const proposed = turn.ok ? sanitizeGoal(turn.goal, base.today) : null;
