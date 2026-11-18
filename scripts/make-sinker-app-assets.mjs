@@ -4,14 +4,14 @@
  *   node scripts/make-sinker-app-assets.mjs
  *
  *   native/assets/icon.png    1024 · 흰 바탕 꽉 채움(아이폰은 투명 모서리를 검게 칠한다) · 로고 높이 한 변의 50%
- *   native/assets/splash.png  1024 · 투명 바탕(바탕색은 app.json splash.backgroundColor) · 로고 높이 한 변의 50%
+ *   native/assets/splash.png  1024 · 투명 바탕(바탕색은 app.json splash.backgroundColor) · 앱 인트로와 같은 입체 S
  *
- * 로고 높이 50% 는 예전 B 그림과 같다 — app.json splash imageWidth 300 이면 로고 150pt 로, 앱 시작 연출(native/src/shell/intro.tsx)의
- * 큰 로고와 같은 크기 · 자리라 시작 화면이 걷히는 순간이 이어진다. 바꾸면 바닥 판 지문이 바뀌어 다음 푸시에서 앱을 새로 굽는다.
- * 모양 · 색은 components/logo.tsx 의 MARK_PATH · --color-brand 와 같다(2026-10-22 금윤호가 준 초안 · 임시 로고).
+ * app.json의 300pt 시작 이미지 안에 인트로의 150pt 로고 칸을 맞춰 그린다.
+ * 시작 이미지를 바꾸면 바닥 판 지문이 바뀌어 앱을 새로 굽는다.
  */
 import { writeFileSync } from 'node:fs';
 import sharp from 'sharp';
+import { MARK_FRAME, MARK_RENDER } from '../native/src/shell/mark-path.ts';
 
 const BRAND = '#0297e4';
 const MARK_W = 1006;
@@ -34,5 +34,19 @@ writeFileSync(
   'native/assets/icon.png',
   await sharp(Buffer.from(svg(1024, 0.5, '#ffffff'))).flatten({ background: '#ffffff' }).png().toBuffer()
 );
-writeFileSync('native/assets/splash.png', await sharp(Buffer.from(svg(1024, 0.5))).png().toBuffer());
+const splashSize = 1024;
+const scale = (splashSize / 2) / MARK_FRAME.height;
+const mark = await sharp('native/assets/sinker-mark-soft-bevel.png')
+  .resize(Math.round(MARK_RENDER.width * scale), Math.round(MARK_RENDER.height * scale), { fit: 'fill' })
+  .png()
+  .toBuffer();
+const splash = await sharp({ create: { width: splashSize, height: splashSize, channels: 4, background: '#00000000' } })
+  .composite([{
+    input: mark,
+    left: Math.round(splashSize / 2 + (MARK_RENDER.x - MARK_FRAME.width / 2) * scale),
+    top: Math.round(splashSize / 2 + (MARK_RENDER.y - MARK_FRAME.height / 2) * scale),
+  }])
+  .png()
+  .toBuffer();
+writeFileSync('native/assets/splash.png', splash);
 console.log('앱 아이콘 · 시작 화면 그림을 만들었습니다.');

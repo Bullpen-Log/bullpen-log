@@ -28,8 +28,8 @@ import { INTRO_TIMING as timing, createIntroController, leaveEase, letterEase, m
 /* 칸을 못 재거나 테마를 못 읽어도 이만큼 뒤엔 시작한다(시작 화면이 영영 안 걷히지 않게) */
 const START_FALLBACK_MS = 2500;
 /*
- * 큰 B = 150pt(웹 app-splash 의 '긴 변 16%'와 거의 같다 — 852 화면 136 · 932 화면 149, 2026-10-19 김민: "너무 큰 상태에서 작아진다").
- * 시작 화면은 app.json splash imageWidth 300 — 그림(assets/splash.png)의 로고가 한 변의 절반 높이라 300 × 256/512 = 150pt, 같은 가운데.
+ * 큰 로고 칸 = 150pt(웹 app-splash 의 '긴 변 16%'와 거의 같다 — 852 화면 136 · 932 화면 149, 2026-10-19 김민: "너무 큰 상태에서 작아진다").
+ * app.json의 300pt 시작 이미지 안에서 중앙 150pt 칸을 앱 연출과 같은 좌표로 그린다(scripts/make-sinker-app-assets.mjs).
  * native/ios 는 prebuild 가 만들어(git 밖) storyboard 를 손으로 고쳐도 GitHub 굽기에선 사라진다 — 그래서 고정 크기로 맞춘다.
  */
 export const SPLASH_W = 300;
@@ -47,7 +47,7 @@ export type IntroLook = {
   bigOffset?: [number, number];
   /** 글자 크기 size 일 때 이름 줄의 로고 칸 높이 · 오른쪽 틈 · 밑 띄움 */
   slot: (size: number) => { h: number; right: number; bottom: number };
-  mark: (h: number) => ReactNode;
+  mark: (h: number, onLoad?: () => void) => ReactNode;
 };
 
 const SINKER_LOOK: IntroLook = {
@@ -57,7 +57,7 @@ const SINKER_LOOK: IntroLook = {
   aspect: MARK_ASPECT,
   bigH: (SPLASH_W * 256) / 512,
   slot: sinkerMarkSlot,
-  mark: (h) => <SinkerMark height={h} />,
+  mark: (h, onLoad) => <SinkerMark height={h} onLoad={onLoad} />,
 };
 
 /*
@@ -165,6 +165,7 @@ export function Intro({ look = SINKER_LOOK }: { look?: IntroLook }) {
 
   /* 테마를 읽기 전엔 기본값이라 — 읽은 뒤에 시작 화면을 걷는다(다크 · 네이비에서 다른 바탕이 번쩍이던 것) */
   const [themed, setThemed] = useState(false);
+  const [markReady, setMarkReady] = useState(look !== SINKER_LOOK);
   useEffect(() => {
     void prefsReady.then(() => setThemed(true));
   }, []);
@@ -174,8 +175,8 @@ export function Intro({ look = SINKER_LOOK }: { look?: IntroLook }) {
    */
   const begin = useEffectEvent(() => intro.current?.begin());
   useEffect(() => {
-    if (slot && themed) begin();
-  }, [slot, themed]);
+    if (slot && themed && markReady) begin();
+  }, [slot, themed, markReady]);
   useEffect(() => {
     const id = setTimeout(() => begin(), START_FALLBACK_MS);
     return () => clearTimeout(id);
@@ -224,7 +225,7 @@ export function Intro({ look = SINKER_LOOK }: { look?: IntroLook }) {
         </View>
       </View>
       <Animated.View style={[{ position: 'absolute', left: width / 2 - bigW / 2 + ox, top: height / 2 - bigH / 2 + oy }, mark]}>
-        {look.mark(bigH)}
+        {look.mark(bigH, () => setMarkReady(true))}
       </Animated.View>
       {/* 칸 자리의 제 크기 B — 옮기기가 끝난 뒤(정지 모양은 안 보임) */}
       {slot ? (

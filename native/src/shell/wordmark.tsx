@@ -1,9 +1,10 @@
-import { useId } from 'react';
+import { useId, useState } from 'react';
 import { View, useWindowDimensions } from 'react-native';
-import Svg, { Defs, G, LinearGradient, Path, Stop } from 'react-native-svg';
+import Svg, { Defs, G, Image as SvgImage, LinearGradient, Path, Stop } from 'react-native-svg';
 import { useTheme } from '~/lib/ui';
-import { MARK_PATH } from './mark-path';
+import { BRAND, MARK_FRAME, MARK_PATH, MARK_RENDER } from './mark-path';
 
+const SINKER_MARK = require('../../assets/sinker-mark-soft-bevel.png');
 const CAP_HEIGHT = 882;
 const MARK_WIDTH = 1006;
 const MARK_HEIGHT = 1001;
@@ -26,12 +27,12 @@ const LETTERS = {
 };
 
 export const SINKER_LETTERS = ['I', 'N', 'K', 'E', 'R'] as const;
-export const MARK_ASPECT = (MARK_WIDTH + DEPTH_X) / (MARK_HEIGHT + DEPTH_Y);
+export const MARK_ASPECT = MARK_FRAME.width / MARK_FRAME.height;
 const unitAt = (size: number) => size * CAP_EM / CAP_HEIGHT;
 
 export function sinkerMarkSlot(size: number) {
   const unit = unitAt(size);
-  return { h: (MARK_HEIGHT + DEPTH_Y) * unit, right: (MARK_GAP - DEPTH_X) * unit, bottom: 0 };
+  return { h: MARK_FRAME.height * unit, right: (MARK_WIDTH + MARK_GAP - MARK_FRAME.width) * unit, bottom: 0 };
 }
 
 // Join each edge of the face to its projected back edge. The quads share a
@@ -69,7 +70,6 @@ function sidePath(path: string) {
   return sides;
 }
 
-const MARK_SIDES = sidePath(MARK_PATH);
 let nextLetterX = MARK_WIDTH + MARK_GAP;
 const GLYPHS = SINKER_LETTERS.map((name) => {
   const { path, width } = LETTERS[name];
@@ -78,11 +78,10 @@ const GLYPHS = SINKER_LETTERS.map((name) => {
   return { name, path, width, x, sides: sidePath(path) };
 });
 const WORDMARK_WIDTH = nextLetterX - LETTER_GAP + DEPTH_X;
-const MARK_FINISH = { faceTop: '#47b4f4', faceBottom: '#0788d6', side: '#0871af' };
 const ICE_FINISH = { faceTop: '#edf7ff', faceBottom: '#bcd7ef', side: '#7a9ebd' };
 const NAVY_FINISH = { faceTop: '#365579', faceBottom: '#1a3659', side: '#132943' };
 
-function Relief({ path, sides, finish }: { path: string; sides: string; finish: typeof MARK_FINISH }) {
+function Relief({ path, sides, finish }: { path: string; sides: string; finish: typeof ICE_FINISH }) {
   const gradient = `wordmark${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   return (
     <>
@@ -98,10 +97,27 @@ function Relief({ path, sides, finish }: { path: string; sides: string; finish: 
   );
 }
 
-export function SinkerMark({ height }: { height: number }) {
+function SinkerMarkArt({ onLoad }: { onLoad?: () => void }) {
+  const [loaded, setLoaded] = useState(false);
   return (
-    <Svg width={height * MARK_ASPECT} height={height} viewBox={`0 0 ${MARK_WIDTH + DEPTH_X} ${MARK_HEIGHT + DEPTH_Y}`} accessible={false}>
-      <Relief path={MARK_PATH} sides={MARK_SIDES} finish={MARK_FINISH} />
+    <>
+      {!loaded ? <Path d={MARK_PATH} fill={BRAND} /> : null}
+      <SvgImage
+        {...MARK_RENDER}
+        href={SINKER_MARK}
+        onLoad={() => {
+          setLoaded(true);
+          onLoad?.();
+        }}
+      />
+    </>
+  );
+}
+
+export function SinkerMark({ height, onLoad }: { height: number; onLoad?: () => void }) {
+  return (
+    <Svg width={height * MARK_ASPECT} height={height} viewBox={`0 0 ${MARK_FRAME.width} ${MARK_FRAME.height}`} accessible={false}>
+      <SinkerMarkArt onLoad={onLoad} />
     </Svg>
   );
 }
@@ -125,13 +141,13 @@ export function Wordmark({ size = 24, onDark, allowFontScaling = true }: { size?
   const { fontScale } = useWindowDimensions();
   const finish = (onDark ?? theme !== 'light') ? ICE_FINISH : NAVY_FINISH;
   const unit = unitAt(allowFontScaling ? size * fontScale : size);
-  const height = MARK_HEIGHT + DEPTH_Y;
+  const height = MARK_FRAME.height;
 
   return (
     <View accessible accessibilityRole="header" accessibilityLabel="싱커">
       {/* A single viewport keeps the letters on the same cap line and baseline at header sizes. */}
       <Svg width={WORDMARK_WIDTH * unit} height={height * unit} viewBox={`0 0 ${WORDMARK_WIDTH} ${height}`} accessible={false}>
-        <Relief path={MARK_PATH} sides={MARK_SIDES} finish={MARK_FINISH} />
+        <SinkerMarkArt />
         {GLYPHS.map((glyph) => (
           <G key={glyph.name} x={glyph.x}>
             <Relief path={glyph.path} sides={glyph.sides} finish={finish} />
