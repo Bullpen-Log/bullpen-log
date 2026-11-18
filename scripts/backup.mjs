@@ -52,7 +52,8 @@ mkdirSync(dir, { recursive: true });
 // 2026-08-07T00-32 처럼 — 파일 이름에 콜론을 쓸 수 없다
 const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
 const out = join(dir, `db-${stamp}.json`);
-writeFileSync(out, JSON.stringify(dump, null, 2));
+// BigInt 칸(파일 크기 등, 11-16 접수 표부터)은 JSON 이 못 담아 글자로 — 되돌릴 때 restore.mjs 가 BigInt 로 되살린다
+writeFileSync(out, JSON.stringify(dump, (_, v) => (typeof v === 'bigint' ? v.toString() : v), 2));
 
 let total = 0;
 for (const key of modelKeys) {

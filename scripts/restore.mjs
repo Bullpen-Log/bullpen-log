@@ -82,12 +82,17 @@ const models = Prisma.dmmf.datamodel.models.map((m) => ({
   key: m.name[0].toLowerCase() + m.name.slice(1),
   dateFields: m.fields.filter((f) => f.type === 'DateTime').map((f) => f.name),
   jsonFields: m.fields.filter((f) => f.type === 'Json').map((f) => f.name),
+  bigFields: m.fields.filter((f) => f.type === 'BigInt').map((f) => f.name),
 }));
 
-function revive(row, { dateFields, jsonFields }) {
+function revive(row, { dateFields, jsonFields, bigFields }) {
   const out = { ...row };
   for (const f of dateFields) {
     if (out[f] != null) out[f] = new Date(out[f]);
+  }
+  // BigInt 칸은 백업이 글자로 적었다(backup.mjs)
+  for (const f of bigFields) {
+    if (out[f] != null) out[f] = BigInt(out[f]);
   }
   // 비어 있는 JSON 열은 null 이 아니라 DbNull 로 넣어야 한다.
   for (const f of jsonFields) {
