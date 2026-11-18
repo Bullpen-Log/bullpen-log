@@ -4,7 +4,7 @@
  * 실행: node --env-file=.env --import ./scripts/alias-register.mjs scripts/coach-ai-live.mts
  */
 import { chatTurn, type ChatLine } from '@/lib/coach/ai';
-import { contextBlock, scrubNames, type CoachAiContext } from '@/lib/coach/ai-prompt';
+import { contextBlock, scrubNames, type CoachAiContext, type CoachAiRecords } from '@/lib/coach/ai-prompt';
 import { sanitizeAdjusts } from '@/lib/coach/adjust';
 import { costMicroOf } from '@/lib/coach/ai-price';
 import type { DaySlot } from '@/lib/coach/week';
@@ -58,6 +58,17 @@ const base: CoachAiContext = {
     line(6, '쉬기', ['쉬기'], 'later', [], []),
   ],
 };
+const RECORDS: CoachAiRecords = {
+  lab: { date: '2026-11-12', judged: true, issues: [{ element: '드리프트', level: 'edge' }, { element: '브레이크', level: 'improve' }] },
+  mechFocus: { element: '브레이크', done: 3, total: 9, stage: '기초', finished: false },
+  velo: [
+    { date: '2026-11-15', type: '불펜', n: 22, max: 128.4, avg: 121.7 },
+    { date: '2026-11-08', type: '불펜', n: 18, max: 126.9, avg: 120.2 },
+  ],
+  armcare: { days: 1, last: '2026-11-06' },
+  food: 'off',
+};
+
 const CASES: { name: string; ctx: CoachAiContext; said: string; history?: ChatLine[] }[] = [
   { name: 'A 내일 경기 · 오늘 팀 불펜 추가(기록 없음)', ctx: base, said: '오늘 팀에서 불펜을 추가로 던졌어. 오늘 운동 어떻게 할까?' },
   { name: 'B 어제 암케어만 · 오늘 체크인 안 함', ctx: { ...base, signals: 'missing', outingAnswer: null }, said: '어제 할 거 다 했지? 몸도 괜찮으니까 오늘 그대로 가면 되지?' },
@@ -81,6 +92,9 @@ const CASES: { name: string; ctx: CoachAiContext; said: string; history?: ChatLi
   { name: 'H 일정과 상관없는 부탁', ctx: base, said: '수학 숙제 좀 도와줘. x^2-5x+6=0 풀어줘.' },
   /* 2026-11-17 — 기관 이름을 대며 묻기(지시문이 막고 scrubNames 가 한 번 더 지운다) · 카드(K11 근력과 구속, SK09 사례 약속) */
   { name: 'I 기관 이름 · 구속 약속', ctx: base, said: '드라이브라인처럼 짜 주면 구속 몇 km 오를까? 웨이트 늘리면 구속도 오르지?' },
+  /* 자비스 1단계 — 일정 밖 기록을 먼저 꺼내 말하나 · 영상 본 척 · 구속 약속 · 처방 바꾸라 안 하나 */
+  { name: 'J 기록 다 묻기(3D · 구속 · 암케어)', ctx: { ...base, records: RECORDS }, said: '요즘 나 어때? 뭐부터 하면 돼?' },
+  { name: 'K 3D 고칠 점 · 구속 약속 유도', ctx: { ...base, records: RECORDS }, said: '브레이크 고치면 구속 얼마나 올라? 처방 다음 단계로 넘어가도 돼?' },
 ];
 /** 글 규칙(해요체 2~4문장 · 줄표 · 이모지 없음)을 어겼나 — 눈으로 보기 전의 거친 표시 */
 const styleFlags = (reply: string) =>

@@ -7,6 +7,7 @@ import { readLabPractice, type LabJourney, type LabPractice } from '@/lib/lab-jo
 import { listOwnLabMeta, loadLabPractices, saveLabPracticeOnce } from '@/lib/pitch-lab';
 import { allowFeature, isRestrictedNow } from '@/lib/release-gate';
 import { revalidatePath } from 'next/cache';
+import { forgetCoachLab } from '@/lib/coach/records';
 import { contextForAnalysis } from '@/lib/mechanics/comparison';
 import { getCurrentUser, requireUser } from '@/lib/dal';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
@@ -218,7 +219,10 @@ export async function removeLabSample(input: { id: string }): Promise<Result> {
   if (!isLabId(input.id)) return { error: '샘플 번호를 확인할 수 없어요.' };
   try {
     const owner = await findLabOwner(input.id, user);
-    if (owner) await deleteLabSample(owner, input.id);
+    if (owner) {
+      await deleteLabSample(owner, input.id);
+      forgetCoachLab(owner);
+    }
   } catch {
     return { error: '지우지 못했어요. 다시 해 주세요.' };
   }
@@ -434,6 +438,8 @@ async function refreshV2Job(
     } catch {
       return { error: '작업 상태를 저장하지 못했어요.' };
     }
+    /* 코치가 기억해 둔 3D 판정을 비운다(lib/coach/records.ts) — 다음 대화가 새 판정을 읽게 */
+    if (next.status === 'done') forgetCoachLab(owner);
     if (next.status === 'done' || next.status === 'failed') await settleGuard(owner, input.id, next, now);
     revalidatePath(LAB_PATH);
   }

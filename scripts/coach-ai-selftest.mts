@@ -5,7 +5,8 @@
  */
 import { aiGate, capUsdOf, AI_DAILY_CHATS, AI_BLOCK_TEXT, type AiGateInput } from '@/lib/coach/ai-gate';
 import { costMicroOf } from '@/lib/coach/ai-price';
-import { COACH_SYSTEM, COACH_SYSTEM_BLOCK, contextBlock, ageBandOf, scrubNames, throwsOf, type CoachAiContext } from '@/lib/coach/ai-prompt';
+import { COACH_SYSTEM, COACH_SYSTEM_BLOCK, contextBlock, ageBandOf, scrubNames, throwsOf, type CoachAiContext, type CoachAiRecords } from '@/lib/coach/ai-prompt';
+import { COACH_AI_CONSENT } from '@/lib/coach/ai-consent';
 import { CARD_SOURCES, COACH_CARDS, cardsBlock, shippedCards } from '@/lib/coach/cards';
 import { slotProgressOf } from '@/lib/coach/status';
 import { sanitizeAdjusts } from '@/lib/coach/adjust';
@@ -183,6 +184,36 @@ check('⑤ 시스템 글은 이름을 안 쓰고 말하지 말라고 한다', sc
       !/\d{4}-\d{2}-\d{2}/.test(COACH_SYSTEM_BLOCK) &&
       !COACH_CARDS.some((c) => COACH_SYSTEM_BLOCK.includes(c.id))
   );
+}
+
+/* ⑦ 일정 밖 기록(자비스 1단계) — 줄 모양 · 모름 · 영양 끄기 · 규칙 글 */
+{
+  const recs: CoachAiRecords = {
+    lab: { date: '2026-11-12', judged: true, issues: [{ element: '드롭', level: 'improve' }, { element: '브레이크', level: 'edge' }] },
+    mechFocus: { element: '드롭', done: 3, total: 9, stage: '기초', finished: false },
+    velo: [{ date: '2026-11-15', type: '불펜', n: 14, max: 128.34, avg: 122.06 }],
+    armcare: { days: 6, last: '2026-11-17' },
+    food: { headline: '저녁에 밥을 넉넉히 드세요', more: { carbs: 40, protein: 30, fat: -10, basis: 'logged' }, score: 72 },
+  };
+  const b = contextBlock({ ...ctx, records: recs });
+  check('⑦ 3D 판정 줄(요소 · 고칠 점 · 경계)', b.includes('3D 동작 분석(가장 최근): 2026-11-12 | 드롭(고칠 점), 브레이크(경계)'));
+  check('⑦ 메커니즘 처방 줄', b.includes('메커니즘 처방: 드롭 | 3/9회 | 단계 기초'));
+  check('⑦ 구속 줄(소수 한 자리)', b.includes('- 2026-11-15 | 불펜 | 14구 | 최고 128.3 | 평균 122.1'));
+  check('⑦ 암케어 줄', b.includes('암케어(최근 14일): 6일 · 마지막 2026-11-17'));
+  check('⑦ 영양 줄 — 넘긴 양은 음수 대신 넘음', b.includes('할 일: 저녁에 밥을 넉넉히 드세요') && b.includes('지방 목표보다 10g 넘음') && b.includes('균형 점수: 72'));
+  check('⑦ 기록 칸이 week 앞에', b.indexOf('3D 동작 분석') < b.indexOf('week:'));
+  const none = contextBlock(ctx);
+  check("⑦ records 가 없으면 모두 '모름'(짐작 안 함)", ['3D 동작 분석(가장 최근): 모름', '메커니즘 처방: 모름', '- 모름', '암케어(최근 14일): 모름', '영양(오늘): 모름'].every((w) => none.includes(w)));
+  const empty = contextBlock({ ...ctx, records: { lab: 'none', mechFocus: 'none', velo: [], armcare: { days: 0, last: null }, food: 'unset' } });
+  check('⑦ 없음 · 안 함 · 설정 안 함은 모름과 다르게', ['분석한 적 없음', '메커니즘 처방: 없음', '- 측정 없음', '암케어(최근 14일): 안 함', '영양 설정 안 함'].every((w) => empty.includes(w)));
+  check('⑦ 판정 못 한 3D 는 영상 조건이라고', contextBlock({ ...ctx, records: { ...recs, lab: { date: '2026-11-12', judged: false, issues: [] } } }).includes('판정한 요소 없음(영상 조건)'));
+  const off = contextBlock({ ...ctx, records: { ...recs, food: 'off' } });
+  check('⑦ 영양 기능을 안 쓰면 영양 값이 안 실린다', off.includes('영양 기능 안 씀') && !off.includes('균형 점수'));
+  check(
+    '⑦ 규칙 글: 구속 약속 금지 · 영상 본 척 금지 · 처방 바꾸라 안 함 · 모름 짐작 금지 · 먼저 꺼내 말함',
+    ['구속이 얼마나 · 언제 오를지 약속하지 않고', '영상을 직접 본 것처럼 말하지 않는다', '단계를 올리거나 처방을 바꾸라고 하지 않는다', "'모름'인 칸을 짐작으로 채우지 않는다", '네가 먼저 꺼내 말한다'].every((w) => COACH_SYSTEM.includes(w))
+  );
+  check('⑦ 동의 글에 새로 보내는 것이 적혀 있다', ['3D 동작 분석의 판정', '구속 측정값', '암케어', '더 먹을 양', '투구 기록'].every((w) => COACH_AI_CONSENT.items.includes(w)) && COACH_AI_CONSENT.version === '2026-11-19');
 }
 
 console.log(`coach-ai: ${pass}개 통과${fails.length ? `, ${fails.length}개 실패` : ''}`);

@@ -20,6 +20,7 @@ import { slotProgressOf, slotStateOf } from '@/lib/coach/status';
 import { followupReasonText } from '@/lib/coach/followup';
 import { coachWeekBase } from '@/lib/coach/today';
 import { withTodayCut } from '@/lib/coach/refresh';
+import { coachRecordsOf } from '@/lib/coach/records';
 import { loadTrainingDone } from '@/lib/training-week';
 import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { gatherFactsAndPlan } from '@/lib/report/gather';
@@ -139,12 +140,13 @@ const THROW_DAYS = 7;
  * 오늘 맥락 덩이 — 코드 · 숫자 · 앱이 정한 문장만(lib/coach/ai-prompt.ts). 이름 · 메모 글 · 영상은 안 넣는다.
  * 2026-11-16 넓힘: AI 가 일정 한 줄과 컨디션만 봐서 '오늘 불펜 했는데?'에 답할 재료가 없었다. 엔진이 이미 읽는 것(최근 투구 기록 · 팔 상태 ·
  * 운동 힘듦 · 오늘 운동의 까닭)과 과제별 완료를 같이 보낸다. 건강정보(체크인 신호 · 팔 상태 · 피할 동작 · 오늘 운동의 까닭)는 건강 동의가 있을 때만.
+ * 2026-11-19 넓힘(자비스 1단계): 일정 밖 기록(3D 판정 · 메커니즘 처방 · 구속 · 암케어 · 영양, lib/coach/records.ts)도 — 동의 글 판 2026-11-19.
  */
 async function contextOf(user: User, base: Awaited<ReturnType<typeof coachWeekBase>>, age: number): Promise<string | null> {
   const { today, slots, locked } = base;
   if (!slots) return null;
   const weekStart = slots[0].date;
-  const [done, profile, health, checkin, { facts }, logs, setup] = await Promise.all([
+  const [done, profile, health, checkin, { facts }, logs, setup, records] = await Promise.all([
     loadTrainingDone(user.id, weekStart, shiftDateKey(weekStart, 6)),
     prisma.coachProfile.findUnique({ where: { userId: user.id }, select: { answers: true } }),
     healthConsentFor(user.id),
@@ -158,6 +160,8 @@ async function contextOf(user: User, base: Awaited<ReturnType<typeof coachWeekBa
       select: { date: true, sessionType: true, pitchCount: true, intensity: true, effortPct: true },
     }),
     prisma.dailyTrainingSetup.findUnique({ where: { userId_date: { userId: user.id, date: dbDate(today) } }, select: { plan: true } }),
+    /* 일정 밖 기록(자비스 1단계) — 건강 동의와 같이 읽으려고 늘 읽고, 영양 할 일 한 줄만 아래에서 동의로 거른다 */
+    coachRecordsOf(user, today, appNow()),
   ]);
   const saved = savedOf(profile?.answers);
   const outing = slots.find((s) => s.date >= today && (s.items.some((x) => x.kind === 'fixed' && x.what === 'game') || s.reasons.some((r) => r === 'outing' || r === 'outing-soft')));
@@ -203,12 +207,13 @@ async function contextOf(user: User, base: Awaited<ReturnType<typeof coachWeekBa
       why: s.followup?.why === 'pain' && !health.valid ? null : followupReasonText(s.followup?.why),
       locked: locked(s.date),
     })),
+    records: health.valid || typeof records.food !== 'object' || records.food == null ? records : { ...records, food: { ...records.food, headline: null } },
   };
   return contextBlock(ctx);
 }
 
 const FALLBACK = {
-  refusal: '그 이야기는 도와드리기 어려워요. 이번 주 일정 이야기를 해 주세요.',
+  refusal: '그 이야기는 도와드리기 어려워요. 훈련이나 기록 이야기를 해 주세요.',
   other: '지금은 답하기 어려워요. 단추로는 계속 바꿀 수 있어요.',
 };
 
