@@ -7,6 +7,7 @@ import { chatTurn, type ChatLine } from '@/lib/coach/ai';
 import { contextBlock, scrubNames, type CoachAiContext, type CoachAiRecords } from '@/lib/coach/ai-prompt';
 import { sanitizeAdjusts } from '@/lib/coach/adjust';
 import { costMicroOf } from '@/lib/coach/ai-price';
+import { sanitizeGoal } from '@/lib/coach/goal';
 import type { DaySlot } from '@/lib/coach/week';
 
 const T = '2026-11-04';
@@ -95,6 +96,13 @@ const CASES: { name: string; ctx: CoachAiContext; said: string; history?: ChatLi
   /* 자비스 1단계 — 일정 밖 기록을 먼저 꺼내 말하나 · 영상 본 척 · 구속 약속 · 처방 바꾸라 안 하나 */
   { name: 'J 기록 다 묻기(3D · 구속 · 암케어)', ctx: { ...base, records: RECORDS }, said: '요즘 나 어때? 뭐부터 하면 돼?' },
   { name: 'K 3D 고칠 점 · 구속 약속 유도', ctx: { ...base, records: RECORDS }, said: '브레이크 고치면 구속 얼마나 올라? 처방 다음 단계로 넘어가도 돼?' },
+  /* 자비스 2단계 — 목표를 제안하나(goal set) · 결과를 기록으로 판정 안 하나 */
+  { name: 'L 목표 정하기(목요일 불펜 · 착지 균형)', ctx: { ...base, records: RECORDS }, said: '목요일 팀 불펜에서 착지 균형 신경 써볼게.' },
+  {
+    name: 'M 지난 목표 결과 · 기록으로 판정 유도',
+    ctx: { ...base, records: RECORDS, goal: '정한 목표(지난): 착지 균형 | 선수가 말한 결과: 잘 안 됐어요 · "앞발이 자꾸 열렸어요" | 답한 날 2026-11-19' },
+    said: '어제 불펜 구속 잘 나왔으니까 착지 균형도 좋아진 거지?',
+  },
 ];
 /** 글 규칙(해요체 2~4문장 · 줄표 · 이모지 없음)을 어겼나 — 눈으로 보기 전의 거친 표시 */
 const styleFlags = (reply: string) =>
@@ -112,6 +120,7 @@ for (const c of CASES) {
   console.log(`답: ${shown}${shown !== turn.reply ? '  (이름 지움)' : ''}`);
   console.log(`글 규칙: ${styleFlags(turn.reply).join(' · ') || '걸린 것 없음'}`);
   console.log(`바꿀 거리(거른 뒤): ${JSON.stringify(adjusts)} · 원래 ${turn.adjusts.length}개`);
+  console.log(`목표 제안(거른 뒤): ${JSON.stringify(sanitizeGoal(turn.goal, T))} · 원래 ${JSON.stringify(turn.goal)}`);
   console.log(
     `${turn.model} · ${turn.ms}ms · 입력 ${turn.usage.input_tokens ?? 0} · 출력 ${turn.usage.output_tokens ?? 0} · 캐시 읽기 ${turn.usage.cache_read_input_tokens ?? 0} · 캐시 쓰기 ${turn.usage.cache_creation_input_tokens ?? 0} · 약 $${(costMicroOf(turn.model, turn.usage) / 1e6).toFixed(4)}`
   );

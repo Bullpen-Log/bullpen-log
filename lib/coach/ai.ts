@@ -7,7 +7,7 @@ import type { AiUsage } from '@/lib/coach/ai-price';
 
 /**
  * 코치 AI 부르기(docs/designs/ai-coach.md 10-6 U39 · U40) — 서버에서만(앱 → rpc → 서버 → Anthropic). 열쇠는 Vercel 환경변수 ANTHROPIC_API_KEY.
- * 대화: 답 글 + 바꿀 거리(0~3) 를 구조화 출력(zod)으로 받는다 — 모양이 늘 맞다. 도구 · 반복 고리 없음. 저장 · 적용은 하지 않는다(거르기 → 사용자 [적용]).
+ * 대화: 답 글 + 바꿀 거리(0~3) + 목표 제안(하나 · null)을 구조화 출력(zod)으로 받는다 — 모양이 늘 맞다. 도구 · 반복 고리 없음. 저장 · 적용은 하지 않는다(거르기 → 사용자 [적용]).
  * 거절(stop_reason 'refusal')을 먼저 본다. 기본 모델은 Haiku 5.5(2026-11-16 김민: 값 — Opus 5.5 의 1/40). Haiku 는 서버 쪽 이어받기(fallbacks)가 없어
  * 붙이지 않고, 거절이면 정해진 문장으로 간다. 환경변수로 Opus · Sonnet 을 고르면 fallbacks 'default'(베타 server-side-fallback-2026-07-01)를 붙인다.
  * 생각(thinking)은 켜 둔 채 effort 'low' 로 줄이고, 생각 글은 보이지도 저장하지도 않는다. 대화 기록은 글만 다시 보낸다.
@@ -31,12 +31,21 @@ const ChatOut = z.object({
       to: z.string().nullable(),
     })
   ),
+  /* 정한 목표 제안(자비스 2단계) — 서버가 거른다(lib/coach/goal.ts sanitizeGoal) */
+  goal: z
+    .object({
+      kind: z.enum(['set', 'drop']),
+      what: z.string().nullable(),
+      trigger: z.string().nullable(),
+      checkOn: z.string().nullable(),
+    })
+    .nullable(),
 });
 
 export type ChatLine = { role: 'user' | 'coach'; text: string };
 
 export type ChatTurn =
-  | { ok: true; reply: string; adjusts: unknown[]; model: string; usage: AiUsage; ms: number }
+  | { ok: true; reply: string; adjusts: unknown[]; goal: unknown; model: string; usage: AiUsage; ms: number }
   | { ok: false; why: 'refusal' | 'parse' | 'error'; model: string; usage: AiUsage; ms: number };
 
 /**
@@ -79,7 +88,7 @@ export async function chatTurn(history: readonly ChatLine[], context: string, te
     if (r.stop_reason === 'refusal') return { ok: false, why: 'refusal', model: r.model, usage, ms };
     const out = r.parsed_output;
     if (!out || !out.reply.trim()) return { ok: false, why: 'parse', model: r.model, usage, ms };
-    return { ok: true, reply: out.reply.trim().slice(0, 600), adjusts: out.adjusts, model: r.model, usage, ms };
+    return { ok: true, reply: out.reply.trim().slice(0, 600), adjusts: out.adjusts, goal: out.goal, model: r.model, usage, ms };
   } catch (e) {
     /* 왜 실패했는지 서버 로그에 남긴다(열쇠 · 사용자 글은 안 찍힌다 — SDK 오류 글만) */
     console.error('[coach-ai] chat failed:', e instanceof Error ? `${e.name}: ${e.message}` : String(e));

@@ -9,6 +9,7 @@ import { COACH_SYSTEM, COACH_SYSTEM_BLOCK, contextBlock, ageBandOf, scrubNames, 
 import { COACH_AI_CONSENT } from '@/lib/coach/ai-consent';
 import { HEALTH_CONSENT, healthCutoffOf, historyFloorOf } from '@/lib/health-consent';
 import { reasonTextsFor } from '@/lib/coach/answers';
+import { applyGoalAnswer, dayWord, goalCardOf, goalFromProposal, goalLine, readGoalAnswer, sanitizeGoal } from '@/lib/coach/goal';
 import { activeRx, focusView, mechFocusFrom } from '@/lib/mechanics/program';
 import { newProgression } from '@/lib/mechanics/progression';
 import { REPORT_CRITERIA } from '@/lib/pitch-3d/v2/report-policy';
@@ -219,7 +220,7 @@ check('⑤ 시스템 글은 이름을 안 쓰고 말하지 말라고 한다', sc
     '⑦ 규칙 글: 구속 약속 금지 · 영상 본 척 금지 · 처방 바꾸라 안 함 · 모름 짐작 금지 · 먼저 꺼내 말함',
     ['구속이 얼마나 · 언제 오를지 약속하지 않고', '영상을 직접 본 것처럼 말하지 않는다', '단계를 올리거나 처방을 바꾸라고 하지 않는다', "'모름'인 칸을 짐작으로 채우지 않는다", '네가 먼저 꺼내 말한다'].every((w) => COACH_SYSTEM.includes(w))
   );
-  check('⑦ 동의 글에 새로 보내는 것이 적혀 있다', ['3D 동작 분석의 판정', '구속 측정값', '암케어', '더 먹을 양', '투구 기록'].every((w) => COACH_AI_CONSENT.items.includes(w)) && COACH_AI_CONSENT.version === '2026-11-19');
+  check('⑦ 동의 글에 새로 보내는 것이 적혀 있다', ['3D 동작 분석의 판정', '구속 측정값', '암케어', '더 먹을 양', '투구 기록', '정한 목표'].every((w) => COACH_AI_CONSENT.items.includes(w)) && COACH_AI_CONSENT.version === '2026-11-19');
 }
 
 /* ⑧ 검토 반영(2026-11-19) — 건강 동의가 없어진 뒤 보내는 것 · 지금 연습하는 요소 · 구속 종류별. 실제 AI 호출 없이 */
@@ -269,6 +270,47 @@ check('⑤ 시스템 글은 이름을 안 쓰고 말하지 말라고 한다', sc
   check('⑧ 같은 종류 여러 세션은 구수 더하고 평균은 구수로 무게', pen?.n === 40 && pen.max === 128 && pen.avg === 123);
   check('⑧ 가까운 측정일 셋까지(0구는 측정일 아님)', JSON.stringify([...new Set(v.map((r) => r.date))]) === JSON.stringify(['2026-11-15', '2026-11-10', '2026-11-08']));
   check('⑧ 종류 모름은 그렇게 적는다', contextBlock({ ...ctx, records: { lab: 'none', mechFocus: 'none', velo: v, armcare: null, food: null } }).includes('- 2026-11-10 | 종류 모름 | 4구'));
+}
+
+/* ⑨ 정한 목표 이어 묻기(자비스 2단계) — 코덱스 본보기: 월요일 "목요일 팀 불펜에서 착지 균형" */
+{
+  const MON = '2026-11-16'; const THU = '2026-11-19'; const FRI = '2026-11-20';
+  check('⑨ 제안 거르기: 정하기 · 지우기', JSON.stringify(sanitizeGoal({ kind: 'set', what: ' 착지  균형 ', trigger: '불펜', checkOn: THU }, MON)) === JSON.stringify({ kind: 'set', what: '착지 균형', trigger: '불펜', checkOn: THU }) && sanitizeGoal({ kind: 'drop' }, MON)?.kind === 'drop');
+  check('⑨ 지난 날 · 2주 넘는 날 · 이상한 날짜는 버린다', sanitizeGoal({ kind: 'set', what: 'a', trigger: null, checkOn: '2026-11-15' }, MON) === null && sanitizeGoal({ kind: 'set', what: 'a', trigger: null, checkOn: '2026-12-01' }, MON) === null && sanitizeGoal({ kind: 'set', what: 'a', trigger: null, checkOn: '2026-02-30' }, MON) === null);
+  check('⑨ 건강 낱말 목표 · 너무 긴 목표는 안 받는다', sanitizeGoal({ kind: 'set', what: '팔꿈치 안 아프게 던지기', trigger: null, checkOn: THU }, MON) === null && sanitizeGoal({ kind: 'set', what: 'x'.repeat(61), trigger: null, checkOn: THU }, MON) === null);
+  check('⑨ 모르는 훈련 종류는 날짜만', (sanitizeGoal({ kind: 'set', what: '착지 균형', trigger: '캐치볼', checkOn: THU }, MON) as { trigger: unknown }).trigger === null);
+
+  const g = goalFromProposal({ kind: 'set', what: '착지 균형', trigger: '불펜', checkOn: THU }, MON);
+  const pen = (date: string, sessionType = '불펜', pitchCount = 30) => ({ date, sessionType, pitchCount });
+  check('⑨ 확인 전엔 정한 목표 한 줄만', goalCardOf(g, [], '2026-11-17')?.kind === 'waiting' && goalCardOf(g, [], '2026-11-17')!.text === '정한 목표: 착지 균형 · 목요일 불펜에서 확인해요.');
+  const how = goalCardOf(g, [pen(THU)], THU);
+  check('⑨ 목요일 불펜 기록이 올라오면 어땠는지 묻는다(기록으로 결론 안 냄)', how?.kind === 'how' && how.text === '월요일에 착지 균형을 확인해 보기로 했어요. 오늘 던져 보니 어땠어요?', how?.text);
+  check('⑨ 정하기 전 · 다른 종류 · 0구 기록은 안 센다', goalCardOf(g, [pen('2026-11-15'), pen(THU, '캐치볼'), pen(THU, '불펜', 0)], THU)?.kind === 'waiting');
+  const did = goalCardOf(g, [], FRI);
+  check('⑨ 목요일이 지났는데 기록이 없으면 했는지 먼저 묻는다', did?.kind === 'did' && did.text === '어제 불펜에서 착지 균형을 해 보기로 했는데, 했어요?', did?.text);
+  check('⑨ 확인하는 날 당일엔 아직 안 묻는다(기록을 늦게 올릴 수 있다)', goalCardOf(g, [], THU)?.kind === 'waiting');
+  check('⑨ [나중에] 누른 날은 한 줄만', goalCardOf({ ...g, laterOn: FRI }, [], FRI)?.kind === 'waiting' && goalCardOf({ ...g, laterOn: FRI }, [], '2026-11-21')?.kind === 'did');
+  const dateOnly = goalFromProposal({ kind: 'set', what: '밴드 드릴', trigger: null, checkOn: THU }, MON);
+  check('⑨ 날짜만 정한 목표는 그날부터 했는지 묻는다', goalCardOf(dateOnly, [pen(THU)], '2026-11-18')?.kind === 'waiting' && goalCardOf(dateOnly, [], THU)?.text === '오늘까지 밴드 드릴을 해 보기로 했는데, 했어요?');
+
+  const done = applyGoalAnswer(g, { kind: 'how', feel: 'bad', text: '앞발이 자꾸 열렸어요' }, THU);
+  check('⑨ 답하면 끝 · 선수 말 그대로 결과', 'next' in done && done.next.status === 'done' && done.next.feel === 'bad' && done.next.result === '앞발이 자꾸 열렸어요' && goalCardOf(done.next, [pen(THU)], THU) === null);
+  check('⑨ 결과 글에 아픈 얘기는 체크인으로', 'error' in applyGoalAnswer(g, { kind: 'did-yes', feel: 'meh', text: '어깨가 좀 아팠어요' }, FRI));
+  const retry = applyGoalAnswer(g, { kind: 'not-done', next: 'retry' }, FRI);
+  check('⑨ 못 했어요 → 다음 기회(내일부터 일주일 그 종류 기록)', 'next' in retry && retry.next.status === 'open' && retry.next.watchFrom === '2026-11-21' && retry.next.checkOn === '2026-11-27' && goalCardOf(retry.next, [pen(FRI)], FRI)?.kind === 'waiting' && goalCardOf(retry.next, [pen('2026-11-24')], '2026-11-24')?.kind === 'how');
+  const drop = applyGoalAnswer(g, { kind: 'not-done', next: 'drop' }, FRI);
+  check('⑨ 그만두기 → 카드 없음 · 맥락 없음', 'next' in drop && goalCardOf(drop.next, [], FRI) === null && goalLine(drop.next, FRI) === '정한 목표: 없음');
+  check('⑨ 끝난 목표엔 다시 답할 수 없다', 'error' in applyGoalAnswer({ ...g, status: 'done' }, { kind: 'later' }, FRI));
+  check('⑨ 답 읽기: 모르는 모양은 버린다', readGoalAnswer({ kind: 'how', feel: 'great' }) === null && readGoalAnswer({ kind: 'not-done', next: 'later' }) === null && readGoalAnswer({ kind: 'later' })?.kind === 'later');
+
+  check('⑨ 맥락 줄: 진행 중', goalLine(g, '2026-11-17') === '정한 목표: 착지 균형 | 확인: 2026-11-19 불펜 | 정한 날 2026-11-16 | 아직 결과 없음');
+  check('⑨ 맥락 줄: 끝난 목표는 선수 말만 · 2주 뒤엔 없음', 'next' in done && goalLine(done.next, FRI) === '정한 목표(지난): 착지 균형 | 선수가 말한 결과: 잘 안 됐어요 · "앞발이 자꾸 열렸어요" | 답한 날 2026-11-19' && goalLine(done.next, '2026-12-05') === '정한 목표: 없음');
+  check('⑨ 날 말', dayWord('2026-11-19', '2026-11-19') === '오늘' && dayWord('2026-11-20', '2026-11-19') === '내일' && dayWord('2026-11-16', '2026-11-19') === '월요일' && dayWord('2026-11-01', '2026-11-19') === '11월 1일');
+  check('⑨ 맥락 덩이에 목표 줄이 실린다', contextBlock({ ...ctx, goal: goalLine(g, '2026-11-17') }).includes('정한 목표: 착지 균형') && contextBlock(ctx).includes('정한 목표: 없음'));
+  check(
+    '⑨ 규칙 글: 정하기는 [정하기] · 결과는 선수 말만 · 아픈 곳은 목표 아님',
+    ['선수가 [정하기]를 눌러야 정해진다', '목표가 잘 됐다 · 안 됐다 판정하지 않는다', '아픈 곳 · 통증은 목표로 정하지 않는다'].every((w) => COACH_SYSTEM.includes(w))
+  );
 }
 
 console.log(`coach-ai: ${pass}개 통과${fails.length ? `, ${fails.length}개 실패` : ''}`);

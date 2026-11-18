@@ -22,6 +22,7 @@ import { toast } from '~/shell/toast';
 import { openCheckin } from '~/shell/web-nav';
 import { AdjustBar } from './adjust';
 import { FollowupCard, type FollowupData } from './followup';
+import { GoalFollowCard } from './goal-card';
 import { WeekAskCard, type WeekAskData } from './week-ask';
 
 /**
@@ -165,12 +166,13 @@ export function CoachMainTab({ bottom }: { bottom: number }) {
             </View>
             {data.followup ? <FollowupCard key={data.followup.date} ask={data.followup} onAdjust={() => openWeek()} onDone={loadWeek} /> : null}
             {data.weekAsk && !data.weekAsk.answered ? <WeekAskCard key={data.weekAsk.weekStart} ask={data.weekAsk} onDone={loadWeek} /> : null}
+            <GoalFollowCard refresh={data} />
             {todayAt >= 0 ? <TodayCard slot={week[todayAt]} state={data.states?.[todayAt] ?? 'today'} checkedIn={data.checkedIn} onDone={loadWeek} onAdjust={() => openWeek()} /> : <ErrorState title="오늘 계획을 확인할 수 없어요" detail="이번 주 계획을 다시 불러와 주세요." onRetry={retryWeek} c={c} />}
             <SectionHead title="이번 주 한눈에" action="전체 일정" onAction={() => openWeek()} />
             <WeekRail week={week} states={data.states} todayAt={todayAt} selectedDay={todayAt} onSelect={openWeek} c={c} />
             <View style={st.legend}><Legend color={c.ok} text="완료" c={c} /><Legend color={c.link} text="오늘" c={c} /><Legend color={c.warn} text="못 한 운동" c={c} /></View>
             {data.review ? <NavRow label="지난주 돌아보기" icon="chart-no-axes-column" onPress={() => openWeek()} c={c} /> : null}
-            <NavRow label="코치에게 일정 말하기" icon="chat" onPress={() => router.push('/coach-chat' as Href)} c={c} />
+            <NavRow label="코치에게 말하기" icon="chat" onPress={() => router.push('/coach-chat' as Href)} c={c} />
           </>
         ) : (
           <>

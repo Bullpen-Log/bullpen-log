@@ -212,6 +212,7 @@ model User {
   coachWeeks        CoachWeek[]
   coachLogs         CoachLog[]
   coachMessages     CoachMessage[]
+  coachGoal         CoachGoal?
   guardianConsent   GuardianConsent?
 }
 
@@ -335,10 +336,40 @@ model CoachMessage {
   text      String
   /// 그 마디의 바꿀 거리 · 적용 여부(미리보기 카드 다시 그리기)
   adjusts   Json?
+  /// 그 마디의 목표 제안(정하기 · 지우기) · 적용 여부(lib/coach/goal.ts) — 자비스 2단계
+  goal      Json?
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
   @@index([createdAt])
+}
+
+/// 코치와 정한 목표 하나(docs/designs/ai-coach-knowledge-memory.md 9절, 자비스 2단계) — 사람마다 진행 중 하나, 새로 정하면 덮는다.
+/// 결과는 선수가 말한 것만 담는다(앱이 기록으로 판정하지 않는다). 규칙 · 상태 바꾸기는 lib/coach/goal.ts.
+model CoachGoal {
+  id         String    @id @default(uuid())
+  userId     String    @unique
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 무엇을(60자 안 — 동작 · 훈련)
+  what       String
+  /// 확인할 때 — 그 종류 투구 기록('불펜' · '라이브' · '경기')이 올라오면. null 이면 날짜만
+  trigger    String?
+  /// 확인할 날(이날이 지났는데 기록이 없으면 '했어요?')
+  checkOn    DateTime  @db.Date
+  /// 이날부터의 투구 기록을 본다(정한 날 · 다음 기회로 미룬 날)
+  watchFrom  DateTime  @db.Date
+  /// 'open' · 'done' · 'dropped'
+  status     String    @default("open")
+  /// 선수가 고른 느낌 'good' · 'meh' · 'bad'
+  feel       String?
+  /// 선수가 말한 결과(200자 안)
+  result     String?
+  /// 정한 때(카드 글 '월요일에 …')
+  setAt      DateTime  @default(now())
+  /// [나중에] 누른 날 — 그날은 카드를 다시 안 보인다
+  laterOn    DateTime? @db.Date
+  answeredAt DateTime?
+  updatedAt  DateTime  @updatedAt
 }
 
 /// 하루 한 번 남기는 몸상태 체크인. 운동 처방과 리포트의 입력이 된다.

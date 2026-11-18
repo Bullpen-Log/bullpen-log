@@ -3,8 +3,9 @@ import { router, useFocusEffect } from 'expo-router';
 import { ActivityIndicator, KeyboardAvoidingView, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { applyCoachAdjust, previewCoachAdjust } from '@/app/actions/coach';
-import type { loadCoachChat, sendCoachMessage } from '@/app/actions/coach-chat';
+import type { applyCoachGoal, loadCoachChat, sendCoachMessage } from '@/app/actions/coach-chat';
 import type { CoachAdjust } from '@/lib/coach/adjust';
+import type { GoalOffer } from '@/lib/coach/goal';
 import { rpc } from '~/lib/rpc';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { SheetHead } from '~/home/sheet-head';
@@ -17,7 +18,7 @@ type Chat = Extract<Awaited<ReturnType<typeof loadCoachChat>>, { ok: true }>;
 type Msg = Chat['messages'][number];
 type Preview = Extract<Awaited<ReturnType<typeof previewCoachAdjust>>, { ok: true }>;
 
-const EXAMPLES = ['금요일에 팀 훈련 생겼어', '이번 주는 좀 바빠', '오늘은 30분만 할래'];
+const EXAMPLES = ['요즘 나 어때?', '목요일 불펜에서 착지 균형 신경 써 볼게', '금요일에 팀 훈련 생겼어', '오늘은 30분만 할래'];
 
 const DAY = ['월', '화', '수', '목', '금', '토', '일'];
 const dayOf = (d: string) => DAY[(new Date(`${d}T00:00:00Z`).getUTCDay() + 6) % 7];
@@ -79,7 +80,7 @@ export default function CoachChatScreen() {
     if (!t || sending || !chat) return;
     setSending(true);
     setNotice(null);
-    const mine: Msg = { id: `me-${++seq.current}`, role: 'user', text: t, adjusts: [] };
+    const mine: Msg = { id: `me-${++seq.current}`, role: 'user', text: t, adjusts: [], goal: null };
     setChat({ ...chat, messages: [...chat.messages, mine] });
     setText('');
     try {
@@ -93,7 +94,7 @@ export default function CoachChatScreen() {
         setChat((cur) => (cur ? { ...cur, messages: cur.messages.filter((m) => m.id !== mine.id) } : cur));
         setText(t);
       } else {
-        setChat((cur) => (cur ? { ...cur, left: r.left, messages: [...cur.messages, { id: `coach-${++seq.current}`, role: 'coach', text: r.reply, adjusts: r.adjusts }] } : cur));
+        setChat((cur) => (cur ? { ...cur, left: r.left, messages: [...cur.messages, { id: r.messageId, role: 'coach', text: r.reply, adjusts: r.adjusts, goal: r.goal }] } : cur));
       }
     } catch {
       setNotice('신호가 약해요. 다시 보내 주세요.');
@@ -121,7 +122,7 @@ export default function CoachChatScreen() {
           <ScrollView ref={scroll} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 12 }} onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: false })}>
             {chat.messages.length === 0 ? (
               <View style={{ gap: 8 }}>
-                <Text style={[TYPE.body, { color: c.muted }]}>이번 주 일정에 대해 말해 주세요. 바꿀 것이 있으면 미리 보여 드리고, 적용은 직접 눌러요.</Text>
+                <Text style={[TYPE.body, { color: c.muted }]}>기록 · 이번 주 일정 · 해 보고 싶은 것을 말해 주세요. 바꿀 것이나 정할 목표는 미리 보여 드리고, 적용은 직접 눌러요.</Text>
                 <View style={st.chips}>
                   {EXAMPLES.map((e) => (
                     <Press key={e} accessibilityRole="button" onPress={() => void send(e)} style={[st.chip, { backgroundColor: c.card, borderColor: c.line }]}>
@@ -194,6 +195,41 @@ function Bubble({ m, c }: { m: Msg; c: Palette }) {
       {m.adjusts.map((a, i) => (
         <AdjustCard key={`${m.id}-${i}`} a={a} c={c} />
       ))}
+      {m.goal ? <GoalOfferCard messageId={m.id} offer={m.goal} c={c} /> : null}
+    </View>
+  );
+}
+
+/** 목표 제안 카드(자비스 2단계) — [정하기] · [지우기]를 눌러야 정해진다. 제안은 서버가 그 마디에서 다시 읽는다 */
+function GoalOfferCard({ messageId, offer, c }: { messageId: string; offer: GoalOffer; c: Palette }) {
+  const [state, setState] = useState<'idle' | 'busy' | 'applied'>(offer.applied ? 'applied' : 'idle');
+  const [err, setErr] = useState<string | null>(null);
+  const set = offer.kind === 'set';
+  const label = set
+    ? `목표: ${offer.what} · ${Number(offer.checkOn.slice(5, 7))}월 ${Number(offer.checkOn.slice(8))}일(${dayOf(offer.checkOn)}) ${offer.trigger ? `${offer.trigger}에서 확인` : '까지'}`
+    : '정한 목표 지우기';
+  const apply = async () => {
+    setState('busy');
+    setErr(null);
+    const r = await rpc<Awaited<ReturnType<typeof applyCoachGoal>>>('coach-chat.applyCoachGoal', messageId).catch(() => null);
+    if (!r || 'error' in r) {
+      setState('idle');
+      return setErr(r && 'error' in r ? (r.error ?? '다시 눌러 주세요.') : '신호가 약해요. 다시 눌러 주세요.');
+    }
+    setState('applied');
+    toast(set ? '목표를 정했어요' : '목표를 지웠어요');
+  };
+  return (
+    <View style={[st.card, { backgroundColor: c.card, borderColor: c.line }]}>
+      <Text style={[TYPE.sub, { color: c.link, fontWeight: '700' }]}>{set ? '목표 제안 · 눌러야 정해져요' : '제안 · 눌러야 지워져요'}</Text>
+      <Text style={[TYPE.body, { color: c.ink, fontWeight: '600' }]}>{label}</Text>
+      {set ? <Text style={[TYPE.sub, { color: c.muted }]}>그날이 지나면 코치 탭에서 어땠는지 물어볼게요.</Text> : null}
+      {err ? <Text style={[TYPE.sub, { color: c.danger }]}>{err}</Text> : null}
+      {state === 'applied' ? (
+        <Text style={[TYPE.sub, { color: c.link }]}>{set ? '정했어요' : '지웠어요'}</Text>
+      ) : (
+        <ActionButton label={set ? '정하기' : '지우기'} compact busy={state === 'busy'} onPress={() => void apply()} />
+      )}
     </View>
   );
 }
