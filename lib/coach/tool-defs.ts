@@ -115,7 +115,10 @@ function proposeWeek(ctx: ProposeCtx, input: Record<string, unknown>): Proposed 
   const r = applyAdjust(ctx.week, a, ctx.locked);
   if ('error' in r) return { refuse: r.error };
   const line = (d: string) => `${dayText(d)}: ${slotLine(ctx.week.find((s) => s.date === d)!)} → ${slotLine(r.week.find((s) => s.date === d)!)}`;
-  return { card: { tool: 'change_week', title: weekTitle(a), lines: r.changed.map(line), cta: '적용', args: { adjust: a } } };
+  /* 오늘이 바뀌면 이미 만든 오늘 운동도 같이 바뀐다(app/actions/coach.ts syncTodayPlan) — 카드에서 미리 말한다 */
+  const todayWorks = r.week.find((s) => s.date === ctx.today)?.items.some((x) => x.kind === 'train' || x.kind === 'program');
+  const todayLine = r.changed.includes(ctx.today) ? [todayWorks ? '오늘 운동을 이대로 다시 짜요(만든 목록이 있으면 바뀌어요)' : '오늘 만든 운동 목록은 걷어요'] : [];
+  return { card: { tool: 'change_week', title: weekTitle(a), lines: [...r.changed.map(line), ...todayLine], cta: '적용', args: { adjust: a } } };
 }
 
 function weekTitle(a: CoachAdjust): string {

@@ -3,7 +3,12 @@
 import { slotsKey } from '@/lib/coach/tools';
 import { revalidatePath } from 'next/cache';
 import { requireUser } from '@/lib/dal';
+import { Prisma } from '@prisma/client';
+import { isRedirectError } from 'next/dist/client/components/redirect-error';
 import { prisma } from '@/lib/prisma';
+import { readDailyPlan } from '@/lib/report/daily-plan';
+import { remakeFieldsOf } from '@/lib/report/state-notice';
+import { generateAppTodayPlan } from '@/app/actions/training-setup';
 import { appNow } from '@/lib/clock';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { coachPaid } from '@/lib/coach-access';
@@ -334,15 +339,41 @@ export async function applyCoachAdjust(raw: unknown, token: unknown): Promise<{ 
   if (!(await coachPaid(user))) return { error: '코치를 쓸 수 없어요.' };
   const adj = readAdjust(raw);
   if (!adj) return { error: '다시 골라 주세요.' };
-  const { weekStart, slots, locked } = await coachWeekBase(user.id);
+  const { today, weekStart, slots, locked } = await coachWeekBase(user.id);
   if (!slots) return { error: '이번 주 일정이 없어요.' };
   if (token !== slotsKey(slots)) return { error: '그새 일정이 바뀌었어요. 다시 골라 주세요.' };
   const r = applyAdjust(slots, adj, locked);
   if ('error' in r) return { error: r.error };
   /* ponytail: 토큰 확인과 저장 사이가 아주 짧아 한 사람의 겹친 요청만 걱정 — 잠금 없이 둔다, 여럿이 같은 틀을 고치게 되면 조건부 갱신으로 */
   await prisma.coachWeek.update({ where: { userId_weekStart: { userId: user.id, weekStart } }, data: { slots: r.week as unknown as object, generatedAt: new Date() } });
+  await syncTodayPlan(user.id, r.week, today, r.changed);
   revalidatePath('/coach');
   return { ok: true };
+}
+
+/**
+ * 하루의 주인 하나(개인 비서 2단계, 2026-11-20 김민: "코치와 오늘의 운동이 따로 놀면 안 된다") — 코치 일정이 오늘을 바꾸면 이미 만든 오늘 운동도
+ * 같이 바꾼다. 운동을 시작한 날은 오늘이 잠겨 바뀌지 않으므로 여기 오지 않는다. 오늘이 운동 없는 칸이 되면(쉬기 · 옮겨 감) 만든 판을 걷고,
+ * 운동 칸이면 지금 상태로 다시 짠다(자동 맞춤 — 코치 시간을 그대로 읽는다, training-setup generateTodayPlan). 아직 안 만든 날은 그대로.
+ */
+async function syncTodayPlan(userId: string, week: readonly DaySlot[], today: string, changed: readonly string[]) {
+  if (!changed.includes(today)) return;
+  const where = { userId_date: { userId, date: dbDate(today) } };
+  const row = await prisma.dailyTrainingSetup.findUnique({ where, select: { plan: true, availableEquipment: true } });
+  const saved = readDailyPlan(row?.plan);
+  if (!row || !saved) return;
+  const works = week.find((s) => s.date === today)?.items.some((x) => x.kind === 'train' || x.kind === 'program');
+  if (!works) {
+    await prisma.dailyTrainingSetup.update({ where, data: { plan: Prisma.DbNull, generatedAt: null } });
+  } else {
+    try {
+      await generateAppTodayPlan(remakeFieldsOf(saved, { returnTo: '/training', availableToday: row.availableEquipment }));
+    } catch (e) {
+      /* 만들기는 끝에 화면으로 돌려보낸다(redirect) — 그것이 '다 만들었다'는 뜻이다 */
+      if (!isRedirectError(e)) throw e;
+    }
+  }
+  revalidatePath('/training');
 }
 
 /** 트레이닝 운동 화면의 코치 한 줄(하루의 주인 U38) — 코치 진행 중일 때만. 사용자가 그날을 가져갔으면 owner 'user' */
