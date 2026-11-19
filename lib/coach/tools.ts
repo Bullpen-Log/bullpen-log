@@ -6,7 +6,8 @@ import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { decideAccess, type Capability } from '@/lib/release-access';
 import { releaseStage } from '@/lib/release-gate';
 import { CARDS_MAX, type CoachCard } from '@/lib/coach/card';
-import { READ_NAMES, WRITE_NAMES, addCard, parseToolInput, propose, type ProposeCtx } from '@/lib/coach/tool-defs';
+import { READ_NAMES, WRITE_NAMES, addCard, norm, parseToolInput, propose, proposeToday, type ProposeCtx, type TodayWork } from '@/lib/coach/tool-defs';
+export type { TodayWork } from '@/lib/coach/tool-defs';
 import type { Toolbox } from '@/lib/coach/ai';
 import type { DaySlot } from '@/lib/coach/week';
 
@@ -26,7 +27,11 @@ export type ToolSession = {
   goalOpen: boolean;
   /** 이번 답에 모인 카드 */
   cards: CoachCard[];
+  /** 오늘 운동 바꾸기(change_today)의 확인 재료 — 없으면(옛 호출) 그 도구는 못 쓴다 */
+  todayWork?: TodayWork;
 };
+
+
 
 /** 이번 주 틀의 지문 — 카드를 만든 그 틀일 때만 일정 바꾸기를 실행한다(그새 바뀌었으면 다시 말해 달라고) */
 export const slotsKey = (slots: unknown) => createHash('sha1').update(JSON.stringify(slots)).digest('hex').slice(0, 16);
@@ -50,6 +55,19 @@ function rangeOf(input: Record<string, unknown>, today: string, maxDays: number)
 type Reader = (s: ToolSession, input: Record<string, unknown>) => Promise<{ text: string; error?: boolean }>;
 
 const READERS: Record<string, Reader> = {
+  async find_exercises(s, input) {
+    if (!s.todayWork) return { text: '지금은 운동을 찾을 수 없어요.', error: true };
+    const q = norm(String(input.query ?? ''));
+    if (!q) return { text: '찾을 말을 주세요.', error: true };
+    const hits = (await s.todayWork.picker()).filter((p) => !p.inPlan && !p.unsafe && (norm(p.title).includes(q) || p.bodyParts.some((b) => norm(b).includes(q)) || norm(p.category).includes(q)));
+    if (!hits.length) return { text: `'${input.query}'로 오늘 더할 수 있는 운동이 없어요.` };
+    return {
+      text: [
+        `오늘 더할 수 있는 운동(이름 | 분류 | 부위 | 처방) ${Math.min(hits.length, 12)}개:`,
+        ...hits.slice(0, 12).map((p) => `- ${p.title} | ${p.category} | ${p.bodyParts.join(' · ')} | ${p.prescription ?? '처방 없음'}`),
+      ].join('\n'),
+    };
+  },
   async read_pitch_logs(s, input) {
     if (!canUse(s, 'records')) return { text: '이 사람은 지금 투구 기록을 쓸 수 없어요.', error: true };
     const r = rangeOf(input, s.today, 60);
@@ -88,6 +106,11 @@ const READERS: Record<string, Reader> = {
   },
 };
 
+async function proposeTodayRaw(w: TodayWork | undefined, raw: unknown) {
+  const input = parseToolInput('change_today', raw);
+  return input ? proposeToday(w, input) : { refuse: '입력 모양이 틀렸어요.' };
+}
+
 /** 한 답의 도구 실행기 — 읽기는 바로 읽어 돌려주고, 바꾸기는 확인을 통과한 것만 카드로 모은다(실행은 선수가 누를 때) */
 export function toolboxOf(s: ToolSession): Toolbox {
   const ctx: ProposeCtx = { today: s.today, said: s.said, week: s.week, locked: s.locked, goalOpen: s.goalOpen };
@@ -99,7 +122,7 @@ export function toolboxOf(s: ToolSession): Toolbox {
         return READERS[name](s, input);
       }
       if (!WRITE_NAMES.has(name)) return { text: '모르는 도구예요.', error: true };
-      const p = propose(name, ctx, raw);
+      const p = name === 'change_today' ? await proposeTodayRaw(s.todayWork, raw) : propose(name, ctx, raw);
       if ('refuse' in p) return { text: `카드를 못 만들었어요: ${p.refuse}`, error: true };
       const card = name === 'change_week' ? { ...p.card, args: { ...(p.card.args as object), token: slotsKey(s.week) } } : p.card;
       const added = addCard(s.cards, card, CARDS_MAX);

@@ -9,10 +9,12 @@ import {
 import { selectCandidates, type ExerciseLike } from '@/lib/report/prescription';
 import {
   applyVolume,
+  coachVolumeDecision,
   decideVolume,
   planPrescription,
   readPlanVolume,
   volumeForDay,
+  type CoachVolume,
   type PlanVolume,
   type VolumeStateInput,
 } from '@/lib/report/volume';
@@ -111,6 +113,8 @@ export type DailyPlan = {
    * 무거운 운동이 나온 것이 앱의 잘못처럼 보인다.
    */
   overrode?: boolean;
+  /** 코치와 정한 오늘 운동량(개인 비서 2단계, lib/report/volume.ts coachVolumeDecision) — 다시 만들 때도 이어 간다(remakeFieldsOf). 옛 줄에는 없다 */
+  coachVolume?: CoachVolume;
   /** 선수가 고른 운동 시간(분) */
   requestedMinutes: number;
   /** 테마까지 반영해 실제로 쓴 시간(분) — 회복 데이는 줄어든다 */
@@ -414,6 +418,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
   override = false,
   reduceForEffort = false,
   overrideEffort = false,
+  coachVolume = null,
   caution = [],
   state,
   score,
@@ -464,6 +469,8 @@ export function buildDailyPlan<T extends ExerciseLike>({
    * 날은 참이어도 아무 일이 없다(급증은 여기서 오늘 상태로 다시 읽는다 — 폼이 보낸 값을 믿지 않는다).
    */
   reduceForEffort?: boolean;
+  /** 코치와 정한 오늘 운동량 — 몸 신호가 먼저다(coachVolumeDecision). 안 주면 예전과 같다 */
+  coachVolume?: CoachVolume | null;
   /**
    * 힘듦 급증 경고를 보고 '그래도 고른 대로'를 골랐는가(일정 만들기 폼의 overrideEffort). 급증 몫의 세트 −1 만 되돌린다 — 다른 신호
    * (평소보다 낮은 컨디션 · 짧은 밤 · 근육통)의 세트 −1 · 안전 거르기 · 테마는 그대로. reduceForEffort 가 거짓이면 뜻이 없다.
@@ -785,7 +792,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
    */
   const volumeOf = (withEffort: boolean) =>
     volumeForDay({
-      decision: decideVolume(dayState, { reduceForEffort: withEffort }),
+      decision: coachVolumeDecision(decideVolume(dayState, { reduceForEffort: withEffort }), coachVolume),
       themeKey: shownTheme.key,
       conditioning,
       exercises: themed.picks.map((p) => p.exercise),
@@ -833,6 +840,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
     goal: goal.name,
     focus,
     preferredWorkout,
+    ...(coachVolume ? { coachVolume } : {}),
     /** 몸 상태 경고를 넘기고 만든 날인가. 화면이 그 사실을 그대로 말한다. */
     overrode: override && workoutConflict({ facts, preferredWorkout }) != null,
     requestedMinutes,

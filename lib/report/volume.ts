@@ -24,14 +24,16 @@ import { goalPrescription } from '@/lib/report/goal-prescription';
 
 /** 세트를 줄여도 이만큼은 남긴다 — 3세트 이상인 운동만 한 세트 줄인다(두 세트 운동을 한 세트로 만들면 운동 자체가 흐려진다) */
 export const VOLUME_MIN_SETS = 2;
+/** 코치와 정해 늘려도 이만큼까지(개인 비서 2단계) — 본운동 다섯 세트를 넘기지 않는다 */
+export const VOLUME_MAX_SETS = 5;
 
 /**
  * 그날 일정의 양 조절. 일정(DailyPlan.volume)과 그 일정으로 연 세션 판(FrozenPlan.volume)에 같은 모양으로 실린다.
  * 줄인 것이 없는 날은 칸 자체가 없다(옛 줄과 같은 모양 — 그래서 DailyPlan.version 은 그대로).
  */
 export type PlanVolume = {
-  /** 본운동(무게 드는 카테고리) 세트를 몇 개 줄였나 — 지금은 한 세트(−1)만 있다 */
-  setDelta: -1 | 0;
+  /** 본운동(무게 드는 카테고리) 세트를 몇 개 바꿨나 — 줄일 때 −1, 코치와 정해 늘린 날만 +1(개인 비서 2단계, coachVolumeDecision) */
+  setDelta: -1 | 0 | 1;
   /**
    * 그날 강도 상한이 한 칸 내려간 날인가(−1 — 가장 센 운동('매우 높음')을 빼는 신호가 걸린 날). 처방 숫자로는 못 내린다 —
    * 라이브러리 강도가 운동마다 하나라, 빼는 일은 안전 거르기(lib/report/prescription.ts 의 강도 상한)가 하고 실제로 뺀 수는
@@ -62,10 +64,12 @@ export function readPlanVolume(value: unknown): PlanVolume | null {
   const v = value as Record<string, unknown>;
   const setDelta = v.setDelta;
   const intensityStep = v.intensityStep === undefined ? 0 : v.intensityStep;
-  if (setDelta !== -1 && setDelta !== 0) return null;
+  if (setDelta !== -1 && setDelta !== 0 && setDelta !== 1) return null;
   if (intensityStep !== -1 && intensityStep !== 0) return null;
   if (typeof v.why !== 'string' || v.why.trim() === '') return null;
   if (setDelta === 0 && intensityStep === 0) return null;
+  /* 늘린 날(+1)은 코치와 정한 세게뿐이라 강도는 그대로(coachVolumeDecision) — 늘리며 강도를 내린 모양은 만드는 쪽이 없다 */
+  if (setDelta === 1 && intensityStep !== 0) return null;
   return { setDelta, intensityStep, why: v.why };
 }
 
@@ -86,7 +90,7 @@ export function applyVolume<T extends Prescribed>(
   if (!HEAVY_CATEGORIES.includes(ex.category)) return ex;
   if (ex.sets == null) return ex;
   const sets = ex.sets + volume.setDelta;
-  if (sets < VOLUME_MIN_SETS) return ex;
+  if (sets < VOLUME_MIN_SETS || sets > VOLUME_MAX_SETS) return ex;
   return { ...ex, sets };
 }
 
@@ -160,7 +164,7 @@ export type VolumeStateInput = {
 
 /** 오늘 상태로 정한 양 조절 — 아직 일정에 대기 전(그날 운동 · 테마를 모른다). 일정에 실을지는 volumeForDay 가 정한다 */
 export type VolumeDecision = {
-  setDelta: -1 | 0;
+  setDelta: -1 | 0 | 1;
   intensityStep: -1 | 0;
   /** 걸린 신호(VOLUME_SIGNALS 차례) */
   signals: VolumeSignal[];
@@ -312,5 +316,31 @@ export function volumeForDay<
  * 조인 뜻과 반대로 간다. 저장된 값이라 다시 읽는다.
  */
 export function holdsWeight(plan: { volume?: unknown } | null | undefined): boolean {
-  return readPlanVolume(plan?.volume) != null;
+  const v = readPlanVolume(plan?.volume);
+  /* 코치와 정해 세트만 늘린 날(+1)은 줄인 날이 아니라 무게 올림을 멈추지 않는다 */
+  return v != null && (v.setDelta < 0 || v.intensityStep < 0);
+}
+
+/** 코치와 정한 오늘 운동량(개인 비서 2단계) — 일정 만들기 폼 · 저장된 일정의 coachVolume 칸 */
+export type CoachVolume = 'lighter' | 'harder';
+export const readCoachVolume = (v: unknown): CoachVolume | null => (v === 'lighter' || v === 'harder' ? v : null);
+
+/**
+ * 코치와 정한 운동량을 몸 신호 판정(decideVolume) 위에 얹는다 — 몸 신호가 먼저다.
+ *   가볍게  몸 신호로 이미 줄인 날은 그대로, 아니면 본운동 한 세트 줄이고 무게를 올리지 않는다.
+ *   세게    몸 신호가 하나라도 걸린 날은 늘리지 않는다(몸 신호의 줄임 그대로). 없으면 본운동 한 세트 늘린다(다섯 세트까지, 무게 올림은 그대로).
+ * 강도 상한 · 안전 거르기(lib/report/prescription.ts)는 건드리지 않는다 — 세게여도 오늘 빠진 운동은 돌아오지 않는다.
+ */
+export function coachVolumeDecision(base: VolumeDecision | null, want: CoachVolume | null): VolumeDecision | null {
+  if (!want || base) return base;
+  return want === 'lighter'
+    ? {
+        setDelta: -1,
+        intensityStep: -1,
+        signals: [],
+        why: ['코치와 정해 오늘은 가볍게 해요.'],
+        line: '코치와 정해 본운동을 한 세트씩 줄였어요.',
+        holdLine: '코치와 정해 오늘은 무게를 올리지 않아요.',
+      }
+    : { setDelta: 1, intensityStep: 0, signals: [], why: ['코치와 정해 오늘은 양을 늘려요.'], line: '코치와 정해 본운동을 한 세트씩 늘렸어요.', holdLine: null };
 }

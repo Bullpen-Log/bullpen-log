@@ -19,7 +19,14 @@ import { dailyPitchCap } from '@/lib/report/plan';
 import { COACH_MODEL_CHAT, aiKeyReady, chatTurn, type ChatLine } from '@/lib/coach/ai';
 import type { CoachAdjust } from '@/lib/coach/adjust';
 import { readCards, shownCard, type CoachCard } from '@/lib/coach/card';
-import { toolboxOf } from '@/lib/coach/tools';
+import { toolboxOf, type TodayWork } from '@/lib/coach/tools';
+import { remakeToday } from '@/lib/coach/today-sync';
+import { decideVolume } from '@/lib/report/volume';
+import { loadTodayPicker } from '@/lib/report/training-today-data';
+import { findFocus } from '@/lib/report/personalize';
+import { pickWorkoutKind } from '@/lib/checkin';
+import { saveTrainingPrefs } from '@/app/actions/day-cards';
+import { addToTodayPlan, removeFromTodayPlan } from '@/app/actions/plan-edit';
 import { applyCoachAdjust } from '@/app/actions/coach';
 import { COACH_LIMITS, WEEKDAY_LABELS, reasonTextsFor, savedOf, slotLine } from '@/lib/coach/answers';
 import { slotProgressOf, slotStateOf } from '@/lib/coach/status';
@@ -201,11 +208,11 @@ async function contextOf(
   user: User,
   base: Awaited<ReturnType<typeof coachWeekBase>>,
   age: number
-): Promise<{ text: string; health: boolean; goalOpen: boolean; pitch: CoachAiContext['pitchPlan'] } | null> {
+): Promise<{ text: string; health: boolean; goalOpen: boolean; pitch: CoachAiContext['pitchPlan']; work: Omit<TodayWork, 'picker' | 'started'> } | null> {
   const { today, slots, locked } = base;
   if (!slots) return null;
   const weekStart = slots[0].date;
-  const [done, profile, health, checkin, { facts, plan: pitch }, logs, setup, records, goalRow, todayScreen] = await Promise.all([
+  const [done, profile, health, checkin, { facts, plan: pitch, state }, logs, setup, records, goalRow, todayScreen] = await Promise.all([
     loadTrainingDone(user.id, weekStart, shiftDateKey(weekStart, 6)),
     prisma.coachProfile.findUnique({ where: { userId: user.id }, select: { answers: true } }),
     healthConsentFor(user.id),
@@ -275,7 +282,15 @@ async function contextOf(
     /* 투구 계획은 통증 · 재활 신호로 정해져 건강정보다 — 동의가 없으면 공 수를 말하지 않게 '모름' */
     pitchPlan: health.valid ? pitchPlanOf(pitch, age) : 'no-consent',
   };
-  return { text: contextBlock(ctx), health: health.valid, goalOpen: goalRow?.status === 'open', pitch: ctx.pitchPlan };
+  /* 오늘 운동 바꾸기의 확인 재료 — 맥락과 같은 값(양 늘리기는 몸 신호 · 통증 확인 전 · 멈춘 계획이면 막는다, 몸 신호가 먼저) */
+  const body = decideVolume(state);
+  const work = {
+    checkedIn: facts.condition.today != null,
+    rows: todayScreen?.body.kind === 'plan' ? todayScreen.body.plan.groups.flatMap((g) => g.items.map((i) => ({ id: i.id, title: i.title }))) : [],
+    harderBlock: pitch.halted ? '통증 · 재활로 멈춘 계획이에요.' : pitch.needsPainCheck ? '오늘 통증 확인이 먼저예요.' : body ? body.why.join(' ') : null,
+    young: age < 16,
+  };
+  return { text: contextBlock(ctx), health: health.valid, goalOpen: goalRow?.status === 'open', pitch: ctx.pitchPlan, work };
 }
 
 /** 앱 투구 계획 → 코치 맥락. 오늘 칸이 없거나(멈춘 계획) 통증 확인 전이면 공 수를 말하지 않는 날 */
@@ -368,7 +383,9 @@ export async function sendCoachMessage(
   const lines: ChatLine[] = history.reverse().map((m) => ({ role: m.role === 'user' ? 'user' : 'coach', text: m.text }));
   /* 도구 — 읽기는 바로, 바꾸기는 카드만 모은다(lib/coach/tools.ts). 실행은 선수가 카드를 누를 때(applyCoachCard) */
   const cards: CoachCard[] = [];
-  const box = toolboxOf({ user, today: base.today, said, health: context.health, week: base.slots, locked: base.locked, goalOpen: context.goalOpen, cards });
+  let picked: Promise<Awaited<ReturnType<typeof loadTodayPicker>>> | null = null;
+  const todayWork: TodayWork = { ...context.work, started: base.locked(base.today), picker: () => (picked ??= loadTodayPicker(user, appNow())) };
+  const box = toolboxOf({ user, today: base.today, said, health: context.health, week: base.slots, locked: base.locked, goalOpen: context.goalOpen, cards, todayWork });
   const turn = await chatTurn(lines, context.text, said, box);
   await prisma.coachLog.update({
     where: { id: seat.logId },
@@ -459,6 +476,40 @@ export async function applyCoachGoal(messageId: unknown): Promise<{ ok: true } |
 }
 
 /**
+ * 오늘 운동 바꾸기 카드 실행(개인 비서 2단계) — 운동을 시작한 뒤에는 안 된다(카드를 만든 뒤 시작했어도). 운동량 · 부위 · 종류는 오늘 운동을
+ * 같은 만들기 길로 다시 짜고(lib/coach/today-sync.ts remakeToday — 몸 신호 · 안전 규칙이 먼저다), 빼기 · 더하기 · 바꾸기는 운동 화면의 고치기와
+ * 같은 동작(plan-edit)이다. 성장기 양 늘리기는 여기서도 다시 막는다.
+ */
+async function applyTodayChange(user: User, args: Record<string, unknown>): Promise<{ ok: true } | { error: string }> {
+  const { today, locked } = await coachWeekBase(user.id);
+  if (locked(today)) return { error: '오늘 운동을 이미 시작해서 여기서는 못 바꿔요.' };
+  const k = args.kind;
+  if (k === 'lighter' || k === 'harder') {
+    if (k === 'harder' && (ageOn(user.birthDate, appNow()) ?? 0) < 16) return { error: '성장기는 운동량을 늘리지 않아요.' };
+    await remakeToday(user.id, today, { coachVolume: k });
+    return { ok: true };
+  }
+  if (k === 'focus' || k === 'workout') {
+    const row = await prisma.dailyTrainingSetup.findUnique({ where: { userId_date: { userId: user.id, date: dbDate(today) } }, select: { preferredWorkout: true, preferredParts: true } });
+    const parts = (row?.preferredParts ?? []).filter((p) => !findFocus(p));
+    const focus = k === 'focus' ? String(args.focus) : ((row?.preferredParts ?? []).find((p) => findFocus(p)) ?? null);
+    const workout = k === 'workout' ? String(args.workout) : pickWorkoutKind(row?.preferredWorkout);
+    const saved = await saveTrainingPrefs({ date: today, workout, parts, focus });
+    if (!saved.ok) return { error: saved.error };
+    await remakeToday(user.id, today, { auto: true });
+    return { ok: true };
+  }
+  const id = (v: unknown) => (typeof v === 'string' ? v : '');
+  if (k === 'remove') return removeFromTodayPlan(id(args.id));
+  if (k === 'add') return addToTodayPlan(id(args.id));
+  if (k === 'swap') {
+    const out = await removeFromTodayPlan(id(args.out));
+    return 'error' in out ? out : addToTodayPlan(id(args.in));
+  }
+  return { error: '이 카드는 실행할 수 없어요.' };
+}
+
+/**
  * 코치 카드 실행(개인 비서 1단계) — 카드는 서버에 둔 마디에서 읽고(앱이 보낸 값을 믿지 않는다) 그 도구의 확인을 다시 탄 뒤 실행한다.
  * 화면을 여는 카드(open)는 앱이 연다 — 여기 오지 않는다. 실행하면 카드를 '함'으로.
  */
@@ -478,7 +529,9 @@ export async function applyCoachCard(messageId: unknown, cardId: unknown): Promi
       ? await applyCoachAdjust(args.adjust, args.token)
       : card.tool === 'goal' && args.offer && typeof args.offer === 'object'
         ? await applyGoalOffer(user.id, args.offer as GoalOffer, m.createdAt)
-        : { error: '이 카드는 실행할 수 없어요.' };
+        : card.tool === 'change_today'
+          ? await applyTodayChange(user, args)
+          : { error: '이 카드는 실행할 수 없어요.' };
   if ('error' in r) return r;
   await prisma.coachMessage.update({ where: { id: messageId }, data: { act: cardsJson(cards.map((c) => (c.id === cardId ? { ...c, done: true } : c))) } });
   revalidatePath('/coach');

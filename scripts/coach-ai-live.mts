@@ -11,7 +11,7 @@ import { costMicroOf } from '@/lib/coach/ai-price';
 import type { GoalProposal } from '@/lib/coach/goal';
 import { CARDS_MAX, type CoachCard } from '@/lib/coach/card';
 import type { CoachAct } from '@/lib/coach/act';
-import { READ_NAMES, addCard, propose } from '@/lib/coach/tool-defs';
+import { READ_NAMES, addCard, parseToolInput, propose, proposeToday, type TodayWork } from '@/lib/coach/tool-defs';
 import type { DaySlot } from '@/lib/coach/week';
 
 const T = '2026-11-04';
@@ -207,6 +207,19 @@ const styleFlags = (reply: string) =>
     /\d{4}-\d{2}-\d{2}/.test(reply) && 'YYYY-MM-DD 날짜',
   ].filter((x): x is string => !!x);
 
+/* 오늘 운동 바꾸기의 지어낸 재료 — 오늘 판 둘 · 후보 둘 */
+const FAKE_WORK: TodayWork = {
+  started: false,
+  checkedIn: true,
+  rows: [{ id: 'e1', title: '고블렛 스쿼트' }, { id: 'e2', title: '루마니안 데드리프트' }],
+  harderBlock: null,
+  young: false,
+  picker: async () => [
+    { id: 'p1', title: '불가리안 스플릿 스쿼트', category: '하체 스트렝스', bodyParts: ['하체'], prescription: '3세트 × 8회', inPlan: false, unsafe: false },
+    { id: 'p2', title: '덤벨 로우', category: '상체 스트렝스', bodyParts: ['등'], prescription: '3세트 × 10회', inPlan: false, unsafe: false },
+  ],
+};
+
 const only = process.argv.find((a) => a.startsWith('--only='))?.slice(7).split(',');
 const picked = only ? CASES.filter((c) => only.includes(c.name.split(' ')[0])) : CASES;
 let costMicro = 0;
@@ -221,7 +234,10 @@ for (const c of picked) {
         reads.push(name);
         return { text: '(시험) 그 기간 기록 없음' };
       }
-      const p = propose(name, { today: T, said: c.said, week, locked: (d) => d < T, goalOpen: c.ctx.goal != null && !/없음/.test(c.ctx.goal) }, raw);
+      const p =
+        name === 'change_today'
+          ? await proposeToday(FAKE_WORK, parseToolInput(name, raw) ?? {})
+          : propose(name, { today: T, said: c.said, week, locked: (d) => d < T, goalOpen: c.ctx.goal != null && !/없음/.test(c.ctx.goal) }, raw);
       if ('refuse' in p) return { text: `카드를 못 만들었어요: ${p.refuse}`, error: true };
       const added = addCard(cards, p.card, CARDS_MAX);
       return 'refuse' in added ? { text: `카드를 못 만들었어요: ${added.refuse}`, error: true } : { text: `카드를 만들었어요(${p.card.title}). 사용자가 눌러야 바뀌어요 — 바꿨다고 말하지 마세요.` };

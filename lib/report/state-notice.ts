@@ -188,7 +188,7 @@ export function stateNoticeOf(
 export function remakeFieldsOf(
   savedPlan: Pick<
     DailyPlan,
-    'auto' | 'program' | 'requestedMinutes' | 'goal' | 'focus' | 'equipment'
+    'auto' | 'program' | 'requestedMinutes' | 'goal' | 'focus' | 'equipment' | 'coachVolume'
   >,
   {
     returnTo,
@@ -209,5 +209,7 @@ export function remakeFieldsOf(
     ...[...new Set(equipment)].map(
       (name) => ['availableEquipment', name] as [string, string]
     ),
+    /* 코치와 정한 오늘 운동량은 다시 만들어도 이어 간다(개인 비서 2단계) */
+    ...(savedPlan.coachVolume ? [['coachVolume', savedPlan.coachVolume] as [string, string]] : []),
   ];
 }

@@ -8,7 +8,8 @@ import { costMicroOf } from '@/lib/coach/ai-price';
 import { COACH_SYSTEM, COACH_SYSTEM_BLOCK, contextBlock, guardPitchReply, type CoachAiPitchPlan, ageBandOf, scrubNames, throwsOf, type CoachAiContext, type CoachAiRecords, veloRowsOf, dateTable, pastDateTable, scrubCodes } from '@/lib/coach/ai-prompt';
 import { NUDGE_DAILY_CAP, goalDayNudge, goalLogNudge, nudgeAllowed, painNudge } from '@/lib/coach/nudge';
 import { COACH_VELOCITY, readAct, sanitizeAct, saidNumber } from '@/lib/coach/act';
-import { TOOL_DEFS, addCard, propose, parseToolInput, dayText } from '@/lib/coach/tool-defs';
+import { applyVolume, coachVolumeDecision, holdsWeight, readPlanVolume, VOLUME_MAX_SETS } from '@/lib/report/volume';
+import { TOOL_DEFS, addCard, propose, parseToolInput, dayText, proposeToday, type TodayWork } from '@/lib/coach/tool-defs';
 import { CARDS_MAX, readCards, shownCard, type CoachCard } from '@/lib/coach/card';
 import { COACH_AI_CONSENT } from '@/lib/coach/ai-consent';
 import { HEALTH_CONSENT, healthCutoffOf, historyFloorOf } from '@/lib/health-consent';
@@ -401,7 +402,7 @@ check('⑩ 답 글에 샌 칸 이름은 우리말로(조사도)', scrubCodes('�
   const T = '2026-11-04';
   const pc = { today: T, said: '오늘 팀 불펜 40개 던졌어', week, locked: (d: string) => d < T, goalOpen: false };
   const names = TOOL_DEFS.map((d) => d.name);
-  check('⑬ 도구 목록: 차례 고정 · 모르는 칸 없음 · 이름 겹침 없음', JSON.stringify(names) === JSON.stringify(['read_pitch_logs', 'read_checkins', 'change_week', 'goal', 'draft_pitch_log', 'open_screen']) && TOOL_DEFS.every((d) => d.input_schema.type === 'object' && (d.input_schema as { additionalProperties?: unknown }).additionalProperties === false));
+  check('⑬ 도구 목록: 차례 고정 · 모르는 칸 없음 · 이름 겹침 없음', JSON.stringify(names) === JSON.stringify(['read_pitch_logs', 'find_exercises', 'read_checkins', 'change_week', 'change_today', 'goal', 'draft_pitch_log', 'open_screen']) && TOOL_DEFS.every((d) => d.input_schema.type === 'object' && (d.input_schema as { additionalProperties?: unknown }).additionalProperties === false));
   check('⑬ 도구 목록은 부를 때마다 같은 글자(캐시)', JSON.stringify(TOOL_DEFS) === JSON.stringify(TOOL_DEFS.map((d) => ({ ...d }))) && !JSON.stringify(TOOL_DEFS).includes('$schema'));
   const skip = propose('change_week', pc, { kind: 'skip', date: '2026-11-06', minutes: null, from: null, to: null });
   check('⑬ 일정 쉬기 → 카드(미리보기 줄 · 적용)', 'card' in skip && skip.card.cta === '적용' && skip.card.title === `${dayText('2026-11-06')} 운동 쉬기` && skip.card.lines.length >= 1 && !skip.card.open, JSON.stringify(skip));
@@ -449,6 +450,48 @@ check('⑩ 답 글에 샌 칸 이름은 우리말로(조사도)', scrubCodes('�
   check('⑭ 안전장치: 던지지 않는 날 · 통증 확인 전 · 동의 없음에 공 수를 권하면 까닭 문장', (guardPitchReply('가볍게 20구만 던져요.', { ...plan, throwing: false, reason: '등판 다음 날이에요.' }) ?? '').includes('등판 다음 날') && (guardPitchReply('30구 정도로 던져요.', { ...plan, stop: '통증 확인 전(오늘 체크인 먼저)' }) ?? '').includes('통증 확인 전') && guardPitchReply('30구 정도로 던져요.', 'no-consent') === '건강정보 동의가 없어서 오늘 던질 공 수는 말씀드리기 어려워요.' && guardPitchReply('오늘은 쉬어요.', 'no-consent') === null);
   check('⑭ 안전장치: 등판 날(위 끝 없음)은 경기가 정함 · 한도', guardPitchReply('오늘은 120구까지 던져요.', { ...plan, max: null, min: null, outing: 'game', cap: 95 }) === '오늘은 경기가 공 수를 정해요. 하루 한도 95구는 넘기지 말아 주세요.' && guardPitchReply('오늘은 80구까지 던져요.', { ...plan, max: null, min: null, outing: 'game', cap: 95 }) === null);
   check('⑭ 규칙 글: 공 수는 투구 계획 범위로 · 숫자 지어내지 않음', ["'오늘 투구 계획'으로 답한다", '범위의 위 끝 · 나이별 하루 한도를 넘는 공 수는 말하지 않는다', '숫자는 맥락의'].every((w) => COACH_SYSTEM.includes(w)));
+}
+
+/* ⑮ 오늘 운동 바꾸기(개인 비서 2단계) — 시작 전 · 체크인 · 몸 신호 · 성장기 · 목록 · 후보만. 실제 AI 호출 없이 */
+{
+  const pick = (title: string, o: Partial<{ inPlan: boolean; unsafe: boolean }> = {}) => ({ id: `p-${title}`, title, category: '하체 스트렝스', bodyParts: ['하체'], prescription: '3세트 × 8회', inPlan: false, unsafe: false, ...o });
+  const w: TodayWork = {
+    started: false,
+    checkedIn: true,
+    rows: [{ id: 'e1', title: '고블렛 스쿼트' }, { id: 'e2', title: '루마니안 데드리프트' }],
+    harderBlock: null,
+    young: false,
+    picker: async () => [pick('불가리안 스플릿 스쿼트'), pick('박스 점프', { unsafe: true }), pick('고블렛 스쿼트', { inPlan: true })],
+  };
+  const P = (input: Record<string, unknown>, ww: TodayWork = w) => proposeToday(ww, { focus: null, workout: null, exercise: null, with: null, ...input });
+  const card = async (input: Record<string, unknown>, ww?: TodayWork) => {
+    const r = await P(input, ww);
+    return 'card' in r ? r.card : null;
+  };
+  const why = async (input: Record<string, unknown>, ww?: TodayWork) => {
+    const r = await P(input, ww);
+    return 'refuse' in r ? r.refuse : '';
+  };
+  check('⑮ 가볍게 · 양 늘리기 카드', (await card({ kind: 'lighter' }))?.title === '오늘 운동 가볍게' && JSON.stringify((await card({ kind: 'harder' }))?.args) === JSON.stringify({ kind: 'harder' }));
+  check('⑮ 양 늘리기: 몸 신호 · 성장기면 까닭', (await why({ kind: 'harder' }, { ...w, harderBlock: '잠이 부족했다고 적었어요.' })).includes('잠이 부족') && (await why({ kind: 'harder' }, { ...w, young: true })).includes('성장기') && !!(await card({ kind: 'lighter' }, { ...w, young: true })));
+  check('⑮ 시작한 날 · 체크인 전은 까닭', (await why({ kind: 'lighter' }, { ...w, started: true })).includes('시작') && (await why({ kind: 'lighter' }, { ...w, checkedIn: false })).includes('체크인'));
+  check('⑮ 부위 · 종류: 정한 것만', JSON.stringify((await card({ kind: 'focus', focus: '상체 당기기' }))?.args) === JSON.stringify({ kind: 'focus', focus: 'upperPull' }) && (await why({ kind: 'focus', focus: '팔' })).includes('하체') && JSON.stringify((await card({ kind: 'workout', workout: '회복' }))?.args) === JSON.stringify({ kind: 'workout', workout: '회복' }) && !!(await why({ kind: 'workout', workout: '요가' })));
+  check('⑮ 빼기: 오늘 목록의 이름만(띄어쓰기 무시)', JSON.stringify((await card({ kind: 'remove', exercise: '고블렛스쿼트' }))?.args) === JSON.stringify({ kind: 'remove', id: 'e1' }) && (await why({ kind: 'remove', exercise: '벤치프레스' })).includes('못 찾았어요'));
+  check('⑮ 더하기 · 바꾸기: 후보에 있고 안전한 것만', JSON.stringify((await card({ kind: 'add', exercise: '불가리안 스플릿 스쿼트' }))?.args) === JSON.stringify({ kind: 'add', id: 'p-불가리안 스플릿 스쿼트' }) && (await why({ kind: 'add', exercise: '박스 점프' })).includes('권하지 않아요') && (await why({ kind: 'add', exercise: '고블렛 스쿼트' })).includes('못 찾았어요') && JSON.stringify((await card({ kind: 'swap', exercise: '루마니안 데드리프트', with: '불가리안 스플릿 스쿼트' }))?.args) === JSON.stringify({ kind: 'swap', out: 'e2', in: 'p-불가리안 스플릿 스쿼트' }));
+  check('⑮ 오늘 판이 없으면 더하기는 까닭', (await why({ kind: 'add', exercise: '불가리안 스플릿 스쿼트' }, { ...w, rows: [] })).includes('먼저 만들어야'));
+}
+
+/* ⑯ 엔진: 코치와 정한 운동량(개인 비서 2단계) — 몸 신호가 먼저 · 늘려도 다섯 세트까지 · 늘린 날은 무게 올림을 안 멈춘다 */
+{
+  const body = { setDelta: -1 as const, intensityStep: -1 as const, signals: ['sleepShort' as const], why: ['잠이 부족했다고 적었어요.'], line: '잠이 부족해 본운동을 한 세트씩 줄였어요.', holdLine: '잠이 부족해 오늘은 무게를 올리지 않아요.' };
+  check('⑯ 몸 신호가 있으면 코치 운동량은 안 얹는다', coachVolumeDecision(body, 'harder') === body && coachVolumeDecision(body, 'lighter') === body && coachVolumeDecision(null, null) === null);
+  const lighter = coachVolumeDecision(null, 'lighter');
+  const harder = coachVolumeDecision(null, 'harder');
+  check('⑯ 가볍게 = 세트 −1 · 무게 그대로, 세게 = 세트 +1', lighter?.setDelta === -1 && lighter.intensityStep === -1 && harder?.setDelta === 1 && harder.intensityStep === 0);
+  const ex = (sets: number) => ({ category: '하체 스트렝스', intensity: '높음', sets, reps: 8 });
+  const up = { setDelta: 1 as const, intensityStep: 0 as const, why: '코치와 정해 본운동을 한 세트씩 늘렸어요.' };
+  check('⑯ 세트 +1 은 다섯 세트까지 · 무게 드는 운동만', applyVolume(ex(3), up).sets === 4 && applyVolume(ex(VOLUME_MAX_SETS), up).sets === VOLUME_MAX_SETS && applyVolume({ ...ex(3), category: '모빌리티' }, up).sets === 3);
+  check('⑯ 저장된 +1 을 읽고, 늘린 날은 무게 올림을 안 멈춘다', readPlanVolume(up)?.setDelta === 1 && !holdsWeight({ volume: up }) && holdsWeight({ volume: { setDelta: -1, intensityStep: 0, why: 'x' } }) && readPlanVolume({ setDelta: 2, why: 'x' }) === null);
 }
 
 console.log(`coach-ai: ${pass}개 통과${fails.length ? `, ${fails.length}개 실패` : ''}`);

@@ -1,5 +1,6 @@
 'use server';
 
+import { readCoachVolume } from '@/lib/report/volume';
 import { allowFeature } from '@/lib/release-gate';
 import { appNow } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
@@ -480,6 +481,8 @@ export async function generateTodayPlan(formData: FormData) {
      */
     reduceForEffort: !auto,
     overrideEffort: !auto && formData.get('overrideEffort') === 'on',
+    /* 코치와 정한 오늘 운동량(개인 비서 2단계) — 코치 카드 · 다시 만들기가 보낸다. 몸 신호가 먼저다(coachVolumeDecision) */
+    coachVolume: readCoachVolume(formData.get('coachVolume')),
     /*
      * "몸 상태 경고를 봤고 그래도 하겠다."
      *
