@@ -164,7 +164,8 @@ export function measuredFrom(prefill: LogPrefill, sessions: readonly VelocitySes
 }
 
 export type EntrySource =
-  | { kind: 'new' }
+  /* type · count: 코치 대화의 투구 기록 초안(lib/coach/act.ts — 공 수는 선수가 말한 숫자만) · 정한 목표 카드(종류만) */
+  | { kind: 'new'; type?: string; count?: number }
   | { kind: 'edit'; log: PitchLog }
   | { kind: 'measured'; m: MeasuredSource }
   | { kind: 'drill'; throws: number; effortPct: number | null }
@@ -232,6 +233,12 @@ export function initialForm(source: EntrySource, unit: SpeedUnit): EntryForm {
         effortPct: snapEffortPct(validEffortPct(source.effortPct) ? source.effortPct : 60),
         memo: `메카닉 드릴 ${source.throws}회`,
       };
+    case 'new':
+      return {
+        ...blank,
+        type: source.type && THROW_TYPES.includes(source.type) ? source.type : '',
+        count: source.count != null && countError(String(source.count)) == null ? String(source.count) : '',
+      };
     default:
       return blank;
   }
@@ -240,7 +247,7 @@ export function initialForm(source: EntrySource, unit: SpeedUnit): EntryForm {
 /** 처음 보일 단계 — 고치기는 마지막(한눈에 보고 고친다), 측정에서 종류가 왔으면 투구 수 확인부터 */
 export function firstStep(source: EntrySource, form: EntryForm): Step {
   if (source.kind === 'edit') return 2;
-  if ((source.kind === 'measured' || source.kind === 'drill') && form.type) return 1;
+  if ((source.kind === 'measured' || source.kind === 'drill' || source.kind === 'new') && form.type) return 1;
   return 0;
 }
 

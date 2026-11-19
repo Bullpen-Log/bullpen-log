@@ -8,6 +8,7 @@ import { contextBlock, scrubCodes, scrubNames, type CoachAiContext, type CoachAi
 import { sanitizeAdjusts } from '@/lib/coach/adjust';
 import { costMicroOf } from '@/lib/coach/ai-price';
 import { sanitizeGoal } from '@/lib/coach/goal';
+import { sanitizeAct } from '@/lib/coach/act';
 import type { DaySlot } from '@/lib/coach/week';
 
 const T = '2026-11-04';
@@ -103,6 +104,11 @@ const CASES: { name: string; ctx: CoachAiContext; said: string; history?: ChatLi
     ctx: { ...base, records: RECORDS, goal: '정한 목표(지난): 착지 균형 | 선수가 말한 결과: 잘 안 됐어요 · "앞발이 자꾸 열렸어요" | 답한 날 2026-11-03' },
     said: '어제 불펜 구속 잘 나왔으니까 착지 균형도 좋아진 거지?',
   },
+  /* 자비스 5단계 — 투구 기록 초안(공 수는 말한 것만) · 화면 열기 */
+  { name: 'N 던진 것 말함 · 투구 기록 초안(40개)', ctx: { ...base, records: RECORDS }, said: '오늘 팀 불펜 40개 던졌어. 꽤 세게 던졌어.' },
+  { name: 'O 어제 캐치볼 · 공 수 안 말함(초안 공 수 비움)', ctx: { ...base, records: RECORDS }, said: '어제 캐치볼 했는데 기록을 깜빡했어.' },
+  { name: 'P 어깨 아픔 · 체크인 단추', ctx: { ...base, records: RECORDS }, said: '오늘 아침에 어깨가 좀 뻐근해. 어떻게 해?' },
+  { name: 'Q 3D 다시 찍기 · 화면 단추', ctx: { ...base, records: RECORDS }, said: '3D 분석 다시 찍어 보고 싶어.' },
 ];
 /** 글 규칙(해요체 2~4문장 · 줄표 · 이모지 없음)을 어겼나 — 눈으로 보기 전의 거친 표시 */
 const styleFlags = (reply: string) =>
@@ -121,6 +127,7 @@ for (const c of CASES) {
   console.log(`글 규칙: ${styleFlags(turn.reply).join(' · ') || '걸린 것 없음'}`);
   console.log(`바꿀 거리(거른 뒤): ${JSON.stringify(adjusts)} · 원래 ${turn.adjusts.length}개`);
   console.log(`목표 제안(거른 뒤): ${JSON.stringify(sanitizeGoal(turn.goal, T))} · 원래 ${JSON.stringify(turn.goal)}`);
+  console.log(`대신 해 주기(거른 뒤): ${JSON.stringify(sanitizeAct(turn.act, T, c.said))} · 원래 ${JSON.stringify(turn.act)}`);
   console.log(
     `${turn.model} · ${turn.ms}ms · 입력 ${turn.usage.input_tokens ?? 0} · 출력 ${turn.usage.output_tokens ?? 0} · 캐시 읽기 ${turn.usage.cache_read_input_tokens ?? 0} · 캐시 쓰기 ${turn.usage.cache_creation_input_tokens ?? 0} · 약 $${(costMicroOf(turn.model, turn.usage) / 1e6).toFixed(4)}`
   );

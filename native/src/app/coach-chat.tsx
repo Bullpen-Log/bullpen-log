@@ -1,11 +1,12 @@
 import { useCallback, useRef, useState } from 'react';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, type Href } from 'expo-router';
 import { ActivityIndicator, KeyboardAvoidingView, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { applyCoachAdjust, previewCoachAdjust } from '@/app/actions/coach';
 import type { applyCoachGoal, loadCoachChat, sendCoachMessage } from '@/app/actions/coach-chat';
 import type { CoachAdjust } from '@/lib/coach/adjust';
 import type { GoalOffer } from '@/lib/coach/goal';
+import { OPEN_LABEL, type CoachAct, type OpenScreen } from '@/lib/coach/act';
 import { rpc } from '~/lib/rpc';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { SheetHead } from '~/home/sheet-head';
@@ -13,12 +14,14 @@ import { ActionButton } from '~/shell/action-button';
 import { Press } from '~/shell/press';
 import { toast } from '~/shell/toast';
 import { Icon } from '~/shell/icon';
+import { pushOpen } from '~/shell/release';
+import { openCheckin } from '~/shell/web-nav';
 
 type Chat = Extract<Awaited<ReturnType<typeof loadCoachChat>>, { ok: true }>;
 type Msg = Chat['messages'][number];
 type Preview = Extract<Awaited<ReturnType<typeof previewCoachAdjust>>, { ok: true }>;
 
-const EXAMPLES = ['요즘 나 어때?', '목요일 불펜에서 착지 균형 신경 써 볼게', '금요일에 팀 훈련 생겼어', '오늘은 30분만 할래'];
+const EXAMPLES = ['요즘 나 어때?', '오늘 팀 불펜 40개 던졌어', '목요일 불펜에서 착지 균형 신경 써 볼게', '오늘은 30분만 할래'];
 
 const DAY = ['월', '화', '수', '목', '금', '토', '일'];
 const dayOf = (d: string) => DAY[(new Date(`${d}T00:00:00Z`).getUTCDay() + 6) % 7];
@@ -80,7 +83,7 @@ export default function CoachChatScreen() {
     if (!t || sending || !chat) return;
     setSending(true);
     setNotice(null);
-    const mine: Msg = { id: `me-${++seq.current}`, role: 'user', text: t, adjusts: [], goal: null };
+    const mine: Msg = { id: `me-${++seq.current}`, role: 'user', text: t, adjusts: [], goal: null, act: null };
     setChat({ ...chat, messages: [...chat.messages, mine] });
     setText('');
     try {
@@ -94,7 +97,7 @@ export default function CoachChatScreen() {
         setChat((cur) => (cur ? { ...cur, messages: cur.messages.filter((m) => m.id !== mine.id) } : cur));
         setText(t);
       } else {
-        setChat((cur) => (cur ? { ...cur, left: r.left, messages: [...cur.messages, { id: r.messageId, role: 'coach', text: r.reply, adjusts: r.adjusts, goal: r.goal }] } : cur));
+        setChat((cur) => (cur ? { ...cur, left: r.left, messages: [...cur.messages, { id: r.messageId, role: 'coach', text: r.reply, adjusts: r.adjusts, goal: r.goal, act: r.act }] } : cur));
       }
     } catch {
       setNotice('신호가 약해요. 다시 보내 주세요.');
@@ -122,7 +125,7 @@ export default function CoachChatScreen() {
           <ScrollView ref={scroll} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 12 }} onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: false })}>
             {chat.messages.length === 0 ? (
               <View style={{ gap: 8 }}>
-                <Text style={[TYPE.body, { color: c.muted }]}>기록 · 이번 주 일정 · 해 보고 싶은 것을 말해 주세요. 바꿀 것이나 정할 목표는 미리 보여 드리고, 적용은 직접 눌러요.</Text>
+                <Text style={[TYPE.body, { color: c.muted }]}>던진 것 · 이번 주 일정 · 해 보고 싶은 것을 말해 주세요. 바꿀 것 · 정할 목표 · 투구 기록 초안은 미리 보여 드리고, 저장은 직접 눌러요.</Text>
                 <View style={st.chips}>
                   {EXAMPLES.map((e) => (
                     <Press key={e} accessibilityRole="button" onPress={() => void send(e)} style={[st.chip, { backgroundColor: c.card, borderColor: c.line }]}>
@@ -196,6 +199,49 @@ function Bubble({ m, c }: { m: Msg; c: Palette }) {
         <AdjustCard key={`${m.id}-${i}`} a={a} c={c} />
       ))}
       {m.goal ? <GoalOfferCard messageId={m.id} offer={m.goal} c={c} /> : null}
+      {m.act ? <ActCard act={m.act} c={c} /> : null}
+    </View>
+  );
+}
+
+/** 화면 열기 — 대화 창을 닫고 연다(체크인은 웹 흐름) */
+const SCREEN_HREF: Record<Exclude<OpenScreen, 'checkin'>, string> = {
+  training: '/training-today',
+  armcare: '/training-armcare',
+  mechanics: '/training-mechanics',
+  lab: '/lab',
+  velocity: '/velocity',
+};
+function openScreen(screen: OpenScreen) {
+  if (screen === 'checkin') return openCheckin();
+  router.back();
+  pushOpen(SCREEN_HREF[screen] as Href);
+}
+
+/**
+ * 대신 해 주기(자비스 5단계, lib/coach/act.ts) — 투구 기록 초안은 기록 창을 채워 열 뿐, 저장은 그 창에서 선수가 한다(강도는 거기서 고른다).
+ * 남기고 돌아오면 대화를 다시 읽어 '기록했어요'(서버가 그날 그 종류 기록을 보고 정한다).
+ */
+function ActCard({ act, c }: { act: CoachAct; c: Palette }) {
+  if (act.kind === 'open')
+    return <ActionButton label={`${OPEN_LABEL[act.screen]} 열기`} compact tone="secondary" onPress={() => openScreen(act.screen)} style={{ width: '86%' }} />;
+  const when = `${Number(act.date.slice(5, 7))}월 ${Number(act.date.slice(8))}일(${dayOf(act.date)})`;
+  return (
+    <View style={[st.card, { backgroundColor: c.card, borderColor: c.line }]}>
+      <Text style={[TYPE.sub, { color: c.link, fontWeight: '700' }]}>투구 기록 초안 · 저장은 직접</Text>
+      <Text style={[TYPE.body, { color: c.ink, fontWeight: '600' }]}>{`${when} ${act.type}${act.count ? ` · ${act.count}구` : ''}`}</Text>
+      {act.done ? (
+        <Text style={[TYPE.sub, { color: c.link }]}>그날 {act.type} 기록이 있어요</Text>
+      ) : (
+        <>
+          <Text style={[TYPE.sub, { color: c.muted }]}>{act.count ? '팔의 피로를 고르고 저장해 주세요.' : '공 수 · 팔의 피로를 적고 저장해 주세요.'}</Text>
+          <ActionButton
+            label="기록 창에서 확인"
+            compact
+            onPress={() => pushOpen({ pathname: '/pitch/edit' as Href as never, params: { date: act.date, type: act.type, ...(act.count ? { count: String(act.count) } : {}) } })}
+          />
+        </>
+      )}
     </View>
   );
 }

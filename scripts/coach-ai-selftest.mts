@@ -5,7 +5,8 @@
  */
 import { aiGate, capUsdOf, AI_DAILY_CHATS, AI_BLOCK_TEXT, type AiGateInput } from '@/lib/coach/ai-gate';
 import { costMicroOf } from '@/lib/coach/ai-price';
-import { COACH_SYSTEM, COACH_SYSTEM_BLOCK, contextBlock, ageBandOf, scrubNames, throwsOf, type CoachAiContext, type CoachAiRecords, veloRowsOf, dateTable, scrubCodes } from '@/lib/coach/ai-prompt';
+import { COACH_SYSTEM, COACH_SYSTEM_BLOCK, contextBlock, ageBandOf, scrubNames, throwsOf, type CoachAiContext, type CoachAiRecords, veloRowsOf, dateTable, pastDateTable, scrubCodes } from '@/lib/coach/ai-prompt';
+import { readAct, sanitizeAct, saidNumber } from '@/lib/coach/act';
 import { COACH_AI_CONSENT } from '@/lib/coach/ai-consent';
 import { HEALTH_CONSENT, healthCutoffOf, historyFloorOf } from '@/lib/health-consent';
 import { reasonTextsFor } from '@/lib/coach/answers';
@@ -94,7 +95,7 @@ check('③ 투구 기록 없음은 기록 없음으로', block.includes('오늘 
   check("③ 덩이: 오늘은 '남은 것'", line(half, 'today').includes('| 오늘 · 일부만 함 | 한 것: 운동 | 남은 것: 메커니즘 드릴'), line(half, 'today'));
 }
 check('③ 맥락 타입에 이름 · 이메일 · 생일 · 메모 칸이 없다', !/name|email|birth|memo|note|userId/i.test(Object.keys(ctx).join(',')));
-check('③ 시스템 글이 새 칸 읽는 법을 말한다', ['괜찮다는 뜻이 아니다', '투구 기록에 남겨', '암케어만 한 날', '팔 상태(앱 계산)'].every((w) => COACH_SYSTEM.includes(w)));
+check('③ 시스템 글이 새 칸 읽는 법을 말한다', ['괜찮다는 뜻이 아니다', '저장하면 앱이 오늘 운동과 팔 상태를 다시 맞춘다', '암케어만 한 날', '팔 상태(앱 계산)'].every((w) => COACH_SYSTEM.includes(w)));
 check('③ 시스템 글은 날짜 · 사람마다 다른 것이 없다(캐시)', !/\d{4}-\d{2}-\d{2}/.test(COACH_SYSTEM) && COACH_SYSTEM.length > 1200);
 
 /* ④ 바꿀 거리 거르기 */
@@ -322,6 +323,32 @@ check('⑤ 시스템 글은 이름을 안 쓰고 말하지 말라고 한다', sc
 }
 
 check('⑩ 답 글에 샌 칸 이름은 우리말로(조사도)', scrubCodes('오늘은 skip으로 바꿀 수 있어요. move을 누르면 돼요. busy 도 있어요.') === '오늘은 쉬기로 바꿀 수 있어요. 옮기기를 누르면 돼요. 바쁜 주 줄이기 도 있어요.', scrubCodes('오늘은 skip으로 바꿀 수 있어요. move을 누르면 돼요. busy 도 있어요.'));
+
+/* ⑪ 대신 해 주기(자비스 5단계) — 투구 기록 초안 · 화면 열기. 공 수는 선수가 말한 숫자만, 앞날 · 일주일 넘은 날 · 휴식은 초안 없음 */
+{
+  const T = '2026-11-19';
+  const said = '오늘 팀 불펜 40개 던졌어';
+  const log = (o: Record<string, unknown>) => {
+    const a = sanitizeAct({ kind: 'log', screen: null, date: T, type: '불펜', count: 40, ...o }, T, said);
+    return a?.kind === 'log' ? a : null;
+  };
+  const countOf = (a: ReturnType<typeof sanitizeAct>) => (a?.kind === 'log' ? a.count : undefined);
+  check('⑪ 초안: 선수가 말한 공 수는 남는다', JSON.stringify(log({})) === JSON.stringify({ kind: 'log', date: T, type: '불펜', count: 40 }));
+  check('⑪ 초안: 말에 없는 공 수는 비운다(지어낸 숫자)', log({ count: 45 })?.count === null && countOf(sanitizeAct({ kind: 'log', date: T, type: '불펜', count: 40 }, T, '오늘 불펜 던졌어')) === null);
+  check('⑪ 숫자 맞추기: 140 안의 40 은 아니다 · 40개 · 공 40 은 맞다', !saidNumber('140구', 40) && !saidNumber('구속 140', 40) && saidNumber('40개', 40) && saidNumber('공 40', 40) && !saidNumber('400', 40));
+  check('⑪ 초안: 날짜가 없으면 오늘 · 지난 6일까지 · 앞날 · 7일 전은 없음', log({ date: null })?.kind === 'log' && log({ date: '2026-11-13' })?.kind === 'log' && log({ date: '2026-11-12' }) === null && log({ date: '2026-11-20' }) === null && log({ date: '2026-11-31' }) === null);
+  check('⑪ 초안: 휴식 · 모르는 종류 · 0 · 소수는 안 된다', log({ type: '휴식' }) === null && log({ type: '롱토스' }) === null && log({ count: 0 })?.count === null && log({ count: 40.5 })?.count === null);
+  check('⑪ 화면 열기: 정한 화면만', sanitizeAct({ kind: 'open', screen: 'checkin' }, T, said)?.kind === 'open' && sanitizeAct({ kind: 'open', screen: 'settings' }, T, said) === null && sanitizeAct({ kind: 'pay' }, T, said) === null && sanitizeAct(null, T, said) === null);
+  check('⑪ 저장된 칸 읽기: 기록함 표시는 서버가 다시 정한다', readAct({ kind: 'log', date: T, type: '불펜', count: 40, done: true })?.kind === 'log' && !('done' in (readAct({ kind: 'log', date: T, type: '불펜', count: 40, done: true }) ?? {})) && readAct({ kind: 'log', date: 'x', type: '불펜' }) === null);
+  check('⑪ 지난 6일 줄: 어제까지 · 오늘 없음', pastDateTable('2026-11-04') === '2026-10-29 목, 2026-10-30 금, 2026-10-31 토, 2026-11-01 일, 2026-11-02 월, 2026-11-03 화(어제)' && contextBlock(ctx).includes('지난 6일: '));
+  check(
+    '⑪ 규칙 글: 초안은 저장 안 함 · 공 수는 말한 것만 · 강도 · 구속 안 넣음 · 아프면 체크인',
+    ['답은 네 칸뿐이다', '기록했다 · 저장했다고 쓰지 않는다', 'count 는 사용자가 이번 말에 숫자로 말한 공 수만', '강도 · 구속은 넣지 않는다', '아프다는 말에는 open checkin'].every((w) => COACH_SYSTEM.includes(w))
+  );
+  check('⑪ 답 글에 샌 화면 이름은 우리말로 · 받침에 맞춘 조사', scrubCodes('checkin을 열어 보세요. lab으로 가요. training이 있어요. armcare를 해요.') === '체크인을 열어 보세요. 3D 동작 분석으로 가요. 오늘 운동이 있어요. 암케어를 해요.', scrubCodes('checkin을 열어 보세요. lab으로 가요. training이 있어요. armcare를 해요.'));
+  const did = goalCardOf({ what: '착지 균형', trigger: '불펜', checkOn: '2026-11-19', watchFrom: '2026-11-16', status: 'open', feel: null, result: null, setOn: '2026-11-16', laterOn: null, answeredOn: null }, [], '2026-11-20');
+  check('⑪ 목표 카드: 했어요? 카드에 그날 그 종류 기록 단추', did?.kind === 'did' && JSON.stringify(did.log) === JSON.stringify({ date: '2026-11-19', type: '불펜' }));
+}
 
 console.log(`coach-ai: ${pass}개 통과${fails.length ? `, ${fails.length}개 실패` : ''}`);
 for (const f of fails) console.log(`  - ${f}`);

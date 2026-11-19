@@ -1,17 +1,19 @@
 import { useEffect, useState } from 'react';
+import type { Href } from 'expo-router';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import type { answerCoachGoal, loadCoachGoal } from '@/app/actions/coach-chat';
 import { FEEL_TEXT, GOAL_RESULT_MAX, type GoalAnswer, type GoalCard, type GoalFeel } from '@/lib/coach/goal';
 import { rpc } from '~/lib/rpc';
 import { SURFACE, TYPE, usePalette } from '~/lib/ui';
 import { Press } from '~/shell/press';
+import { pushOpen } from '~/shell/release';
 import { toast } from '~/shell/toast';
 
 const FEELS: GoalFeel[] = ['good', 'meh', 'bad'];
 
 /**
  * 정한 목표 이어 묻기(lib/coach/goal.ts · 설계 9절, 자비스 2단계) — 코치 탭 오늘 보기, 어제 이어보기 밑. 카드 글은 서버가 정해진 문장으로(AI 없음).
- * how(기록이 올라옴) → 느낌 + 한 줄 · '못 해 봤어요'. did(기록 없이 날이 지남) → 했어요 / 못 했어요. 못 했으면 다음 기회 · 그만두기. waiting 은 한 줄 + 지우기.
+ * how(기록이 올라옴) → 느낌 + 한 줄 · '못 해 봤어요'. did(기록 없이 날이 지남) → 했어요 / 못 했어요 · 그날 기록 남기기. 못 했으면 다음 기회 · 그만두기. waiting 은 한 줄 + 지우기.
  * refresh 가 바뀌면(탭이 이번 주를 다시 읽으면) 다시 읽는다.
  */
 export function GoalFollowCard({ refresh }: { refresh: unknown }) {
@@ -77,6 +79,15 @@ export function GoalFollowCard({ refresh }: { refresh: unknown }) {
         <View style={st.chips}>
           {chip('했어요', () => setStep('feel'), true)}
           {chip('못 했어요', () => setStep('missed'))}
+        </View>
+      ) : null}
+      {/* 했는데 기록이 없으면 그날 · 그 종류로 채운 기록 창 — 남기면 다음에 '어땠어요?'로 바뀐다 */}
+      {card.kind === 'did' && card.log && step !== 'missed' ? (
+        <View style={st.chips}>
+          {chip(`그날 ${card.log.type} 기록 남기기`, () => {
+            const log = card.log;
+            if (log) pushOpen({ pathname: '/pitch/edit' as Href as never, params: { date: log.date, type: log.type } });
+          })}
         </View>
       ) : null}
       {step === 'feel' ? (

@@ -33,6 +33,7 @@ import {
   type GoalCard,
   type GoalOffer,
 } from '@/lib/coach/goal';
+import { readAct, sanitizeAct, type CoachAct } from '@/lib/coach/act';
 import { loadTrainingDone } from '@/lib/training-week';
 import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { gatherFactsAndPlan } from '@/lib/report/gather';
@@ -85,7 +86,16 @@ async function activeCoach(user: User): Promise<boolean> {
   return p?.status === 'active';
 }
 
-type ShownMessage = { id: string; role: 'user' | 'coach'; text: string; adjusts: CoachAdjust[]; goal: GoalOffer | null };
+type ShownMessage = { id: string; role: 'user' | 'coach'; text: string; adjusts: CoachAdjust[]; goal: GoalOffer | null; act: CoachAct | null };
+
+/** 투구 기록 초안은 그날 그 종류 기록이 이미 있으면 '기록함'으로(남긴 뒤 · 다른 데서 먼저 남긴 것 모두) — 조회 한 번 */
+async function markLogged<T extends { act: CoachAct | null }>(userId: string, items: T[]): Promise<T[]> {
+  const dates = [...new Set(items.flatMap((m) => (m.act?.kind === 'log' ? [m.act.date] : [])))];
+  if (!dates.length) return items;
+  const logs = await prisma.pitchLog.findMany({ where: { userId, date: { in: dates.map(dbDate) } }, select: { date: true, sessionType: true } });
+  const have = new Set(logs.map((l) => `${keyOfDbDate(l.date)}|${l.sessionType}`));
+  return items.map((m) => (m.act?.kind === 'log' && have.has(`${m.act.date}|${m.act.type}`) ? { ...m, act: { ...m.act, done: true } } : m));
+}
 
 /** 대화 시트 — 동의했나 · 막힘 글 · 남은 마디 · 최근 대화(30일, 40마디) */
 export async function loadCoachChat() {
@@ -97,16 +107,18 @@ export async function loadCoachChat() {
       where: { userId: user.id, createdAt: { gte: new Date(Date.now() - KEEP_DAYS * 86_400_000) } },
       orderBy: { createdAt: 'desc' },
       take: 40,
-      select: { id: true, role: true, text: true, adjusts: true, goal: true },
+      select: { id: true, role: true, text: true, adjusts: true, goal: true, act: true },
     }),
   ]);
-  const messages: ShownMessage[] = rows.reverse().map((m) => ({
+  const shown: ShownMessage[] = rows.reverse().map((m) => ({
     id: m.id,
     role: m.role === 'user' ? 'user' : 'coach',
     text: m.text,
     adjusts: Array.isArray(m.adjusts) ? (m.adjusts as CoachAdjust[]) : [],
     goal: m.goal && typeof m.goal === 'object' ? (m.goal as GoalOffer) : null,
+    act: readAct(m.act),
   }));
+  const messages = await markLogged(user.id, shown);
   return {
     ok: true as const,
     consented,
@@ -238,7 +250,9 @@ const FALLBACK = {
 export async function sendCoachMessage(
   text: unknown
 ): Promise<
-  { ok: true; blocked: string } | { ok: true; reply: string; adjusts: CoachAdjust[]; goal: GoalOffer | null; messageId: string; left: number } | { error: string }
+  | { ok: true; blocked: string }
+  | { ok: true; reply: string; adjusts: CoachAdjust[]; goal: GoalOffer | null; act: CoachAct | null; messageId: string; left: number }
+  | { error: string }
 > {
   const user = await requireUser();
   if (!(await activeCoach(user))) return { error: '코치를 시작한 뒤에 쓸 수 있어요.' };
@@ -297,13 +311,15 @@ export async function sendCoachMessage(
   const proposed = turn.ok ? sanitizeGoal(turn.goal, base.today) : null;
   const goal: GoalOffer | null =
     proposed?.kind === 'drop' && !(await prisma.coachGoal.findFirst({ where: { userId: user.id, status: 'open' }, select: { id: true } })) ? null : proposed;
-  await prisma.coachMessage.create({ data: { userId: user.id, role: 'user', text: said } });
+  /* 대신 해 주기 — 공 수는 이번 말에 숫자로 있을 때만. 그날 그 종류 기록이 이미 있으면 초안은 '기록함'으로 */
+  const [act] = await markLogged(user.id, [{ act: turn.ok ? sanitizeAct(turn.act, base.today, said) : null }]);
+  await prisma.coachMessage.create({ data: { userId: user.id, role: 'user', text: said }, select: { id: true } });
   const saved = await prisma.coachMessage.create({
-    data: { userId: user.id, role: 'coach', text: reply, adjusts: adjusts.length ? adjusts : undefined, goal: goal ?? undefined },
+    data: { userId: user.id, role: 'coach', text: reply, adjusts: adjusts.length ? adjusts : undefined, goal: goal ?? undefined, act: act.act ?? undefined },
     select: { id: true },
   });
   revalidatePath('/coach');
-  return { ok: true, reply, adjusts, goal, messageId: saved.id, left: Math.max(0, seat.left - 1) };
+  return { ok: true, reply, adjusts, goal, act: act.act, messageId: saved.id, left: Math.max(0, seat.left - 1) };
 }
 
 /* ─────────────── 정한 목표 이어 묻기(자비스 2단계, lib/coach/goal.ts · 설계 9절) ─────────────── */

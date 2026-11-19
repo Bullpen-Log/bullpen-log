@@ -14,6 +14,7 @@ import { monthOf, useMonth } from '~/pitch/store';
 
 /**
  * 투구 기록 남기기 · 고치기 창(앱) — 그날 화면 밖에서 여는 입구: 트레이닝의 '드릴로 던진 공'(drill · pct), 지난 영상 가져오기(videos · importKey),
+ * 코치 대화의 투구 기록 초안 · 정한 목표 카드(type · count),
  * 기록 고치기(id), 옛 판의 구속 측정 링크(vsids). 입력은 그날 화면과 같은 퀵스텝(pitch/quick-step.tsx).
  * 저장하면 연 곳으로 돌아간다 — 가져오기는 그 목록으로 돌아가 다음 묶음을 이어 간다.
  */
@@ -30,7 +31,7 @@ function parseList(raw?: string): string[] {
   }
 }
 
-type Params = { date: string; id?: string; videos?: string; importKey?: string; drill?: string; pct?: string; vsids?: string };
+type Params = { date: string; id?: string; videos?: string; importKey?: string; drill?: string; pct?: string; vsids?: string; type?: string; count?: string };
 
 export default function PitchEditScreen() {
   const p = useLocalSearchParams<Params>();
@@ -38,7 +39,7 @@ export default function PitchEditScreen() {
   return <Entry {...p} />;
 }
 
-function Entry({ date, id, videos, importKey, drill, pct, vsids }: Params) {
+function Entry({ date, id, videos, importKey, drill, pct, vsids, type, count }: Params) {
   const { logs, error, loading, reload } = useMonth(monthOf(date));
   /* 이 화면에서 그 달을 한 번 다 받았는가 — 받아 둔 옛 달만 보고 '못 찾음'을 내지 않게 */
   const [fetched, setFetched] = useState(false);
@@ -89,7 +90,8 @@ function Entry({ date, id, videos, importKey, drill, pct, vsids }: Params) {
   } else if (videos) {
     source = { kind: 'import', paths: parseList(videos), importKey };
   } else {
-    source = { kind: 'new' };
+    /* 코치 초안 · 목표 카드가 채워 연다 — 종류 · 공 수는 initialForm 이 다시 거른다 */
+    source = { kind: 'new', type, count: count && /^\d+$/.test(count) ? Number(count) : undefined };
   }
 
   return (

@@ -338,6 +338,8 @@ model CoachMessage {
   adjusts   Json?
   /// 그 마디의 목표 제안(정하기 · 지우기) · 적용 여부(lib/coach/goal.ts) — 자비스 2단계
   goal      Json?
+  /// 그 마디의 대신 해 주기 단추(투구 기록 초안 · 화면 열기, lib/coach/act.ts) — 자비스 5단계
+  act       Json?
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])

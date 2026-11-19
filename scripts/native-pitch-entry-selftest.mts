@@ -250,4 +250,14 @@ ok(countError('505') != null, '…오류로 알린다');
   ok(draftKey('U1', '2026-10-29', null).startsWith('pitch-draft:v2:U1:'), '열쇠에 계정');
 }
 
+/* 코치 초안 · 목표 카드(자비스 5단계) — 종류 · 공 수만 채우고, 휴식 · 모르는 종류 · 범위 밖 공 수는 비운다 */
+{
+  const f = initialForm({ kind: 'new', type: '불펜', count: 40 }, 'kmh');
+  eq([f.type, f.count, f.effortPct], ['불펜', '40', null], '코치 초안: 종류 · 공 수 · 피로는 비움');
+  eq(firstStep({ kind: 'new', type: '불펜', count: 40 }, f), 1, '코치 초안: 공 수 확인부터');
+  const bad = initialForm({ kind: 'new', type: '휴식', count: 600 }, 'kmh');
+  eq([bad.type, bad.count], ['', ''], '코치 초안: 휴식 · 500구 넘음은 비움');
+  eq(firstStep(NEW, initialForm(NEW, 'kmh')), 0, '그냥 새 기록은 종류부터');
+}
+
 console.log(`투구 기록 퀵스텝 규칙 ${n}개 통과`);

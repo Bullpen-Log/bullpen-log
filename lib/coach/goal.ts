@@ -92,10 +92,14 @@ export type GoalLog = { date: string; sessionType: string; pitchCount: number };
 /**
  * 앱을 열 때 보일 카드 — null 이면 정한 목표 없음(또는 끝남 · 지움).
  * - how: 정한 뒤 그 종류 투구 기록이 올라왔다 → '어땠어요?'(기록만 보고 결론 내리지 않는다)
- * - did: 확인할 날이 지났는데 그 종류 기록이 없다(날짜만 정한 목표는 그날부터) → '했어요?'
+ * - did: 확인할 날이 지났는데 그 종류 기록이 없다(날짜만 정한 목표는 그날부터) → '했어요?'(종류가 있으면 그날 기록 남기기 단추)
  * - waiting: 아직 확인할 때가 아니다 · 오늘 [나중에]를 눌렀다 → 정한 목표 한 줄만
  */
-export type GoalCard = { kind: 'how'; text: string; logDate: string } | { kind: 'did'; text: string } | { kind: 'waiting'; text: string };
+export type GoalCard =
+  | { kind: 'how'; text: string; logDate: string }
+  /* log: 그 종류 기록이 없다 — 했으면 기록 화면을 그 날 · 종류로 채워 연다(자비스 5단계 첫 조각). 남기면 다음에 how 로 바뀐다 */
+  | { kind: 'did'; text: string; log?: { date: string; type: GoalTrigger } }
+  | { kind: 'waiting'; text: string };
 
 export function goalCardOf(g: CoachGoalState | null, logs: readonly GoalLog[], today: string): GoalCard | null {
   if (!g || g.status !== 'open') return null;
@@ -113,7 +117,7 @@ export function goalCardOf(g: CoachGoalState | null, logs: readonly GoalLog[], t
       const threw = hit === today ? '오늘' : dayWord(hit, today);
       return { kind: 'how', text: `${setWhen} ${what} 확인해 보기로 했어요. ${threw} 던져 보니 어땠어요?`, logDate: hit };
     }
-    if (today > g.checkOn) return { kind: 'did', text: `${dayWord(g.checkOn, today)} ${g.trigger}에서 ${what} 해 보기로 했는데, 했어요?` };
+    if (today > g.checkOn) return { kind: 'did', text: `${dayWord(g.checkOn, today)} ${g.trigger}에서 ${what} 해 보기로 했는데, 했어요?`, log: { date: g.checkOn, type: g.trigger } };
     return waiting;
   }
   if (today >= g.checkOn) return { kind: 'did', text: `${dayWord(g.checkOn, today)}까지 ${what} 해 보기로 했는데, 했어요?` };
