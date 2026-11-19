@@ -16,7 +16,6 @@ import { toast } from '~/shell/toast';
 import { Icon } from '~/shell/icon';
 import { pushOpen } from '~/shell/release';
 import { openCheckin } from '~/shell/web-nav';
-import { useCoachVoice } from '~/coach/voice';
 
 type Chat = Extract<Awaited<ReturnType<typeof loadCoachChat>>, { ok: true }>;
 type Msg = Chat['messages'][number];
@@ -56,9 +55,6 @@ export default function CoachChatScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const scroll = useRef<ScrollViewInstance>(null);
   const input = useRef<TextInputInstance>(null);
-  const voice = useCoachVoice();
-  /* 입력 칸 글이 받아쓰기로 왔나 — 그 말을 보내면 코치 답을 소리로 읽는다 */
-  const spoken = useRef(false);
   /* 화면에만 있는 마디의 열쇠 — 서버가 준 id 와 안 겹치게 */
   const seq = useRef(0);
 
@@ -86,48 +82,32 @@ export default function CoachChatScreen() {
   const send = async (said: string) => {
     const t = said.trim();
     if (!t || sending || !chat) return;
-    if (voice.listening) voice.cancel();
     setSending(true);
     setNotice(null);
     const mine: Msg = { id: `me-${++seq.current}`, role: 'user', text: t, adjusts: [], goal: null, act: null };
     setChat({ ...chat, messages: [...chat.messages, mine] });
     setText('');
-    const aloud = spoken.current;
-    spoken.current = false;
     try {
       const r = await rpc<Awaited<ReturnType<typeof sendCoachMessage>>>('coach-chat.sendCoachMessage', t);
       if ('error' in r) {
         setNotice(r.error ?? '다시 보내 주세요.');
         setChat((cur) => (cur ? { ...cur, messages: cur.messages.filter((m) => m.id !== mine.id) } : cur));
         setText(t);
-        spoken.current = aloud;
       } else if ('blocked' in r) {
         setNotice(r.blocked);
         setChat((cur) => (cur ? { ...cur, messages: cur.messages.filter((m) => m.id !== mine.id) } : cur));
         setText(t);
-        spoken.current = aloud;
       } else {
         setChat((cur) => (cur ? { ...cur, left: r.left, messages: [...cur.messages, { id: r.messageId, role: 'coach', text: r.reply, adjusts: r.adjusts, goal: r.goal, act: r.act }] } : cur));
-        if (aloud) voice.speak(r.messageId, r.reply, true);
       }
     } catch {
       setNotice('신호가 약해요. 다시 보내 주세요.');
       setChat((cur) => (cur ? { ...cur, messages: cur.messages.filter((m) => m.id !== mine.id) } : cur));
       setText(t);
-      spoken.current = aloud;
     } finally {
       setSending(false);
       setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 50);
     }
-  };
-
-  /** 마이크 — 누를 때 칸에 있던 글 뒤에 받아쓴 말을 잇는다 */
-  const dictate = () => {
-    const base = voice.listening ? '' : text.trim();
-    void voice.listen((heard) => {
-      spoken.current = true;
-      setText(base ? `${base} ${heard}` : heard);
-    });
   };
 
   return (
@@ -155,8 +135,6 @@ export default function CoachChatScreen() {
                       accessibilityHint="입력 칸에 넣어요. 고친 뒤 보내요."
                       onPress={() => {
                         /* 보기 글은 바로 보내지 않는다 — '40개 던졌어'가 하지 않은 일로 남고 기록 초안까지 뜬다(전체 검토 11-19) */
-                        if (voice.listening) voice.cancel();
-                        spoken.current = false;
                         setText(e);
                         input.current?.focus();
                       }}
@@ -168,33 +146,19 @@ export default function CoachChatScreen() {
               </View>
             ) : null}
             {chat.messages.map((m) => (
-              <Bubble key={m.id} m={m} c={c} speaking={voice.speaking === m.id} onSpeak={voice.available && m.role === 'coach' ? () => voice.speak(m.id, m.text) : undefined} />
+              <Bubble key={m.id} m={m} c={c} />
             ))}
             {sending ? <Text style={[TYPE.sub, { color: c.muted }]}>코치가 쓰는 중…</Text> : null}
           </ScrollView>
           <View style={[st.bar, { borderTopColor: c.line, paddingBottom: Math.max(12, inset.bottom) }]}>
             {notice ? <Text style={[TYPE.sub, { color: c.danger }]}>{notice}</Text> : null}
-            {voice.note ? <Text style={[TYPE.sub, { color: c.danger }]}>{voice.note}</Text> : null}
             {chat.left <= 5 && !notice ? <Text style={[TYPE.sub, { color: c.muted }]}>오늘 {chat.left}번 더 말할 수 있어요.</Text> : null}
             <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
-              {voice.available ? (
-                <Press
-                  accessibilityRole="button"
-                  accessibilityLabel={voice.listening ? '말하기 끝' : '말로 하기'}
-                  onPress={dictate}
-                  style={[st.mic, { backgroundColor: voice.listening ? c.action : c.card, borderColor: c.line }]}
-                >
-                  <Icon name={voice.listening ? 'square' : 'mic'} size={19} color={voice.listening ? c.onAction : c.ink} />
-                </Press>
-              ) : null}
               <TextInput
                 ref={input}
                 value={text}
-                onChangeText={(t) => {
-                  if (!t.trim()) spoken.current = false;
-                  setText(t);
-                }}
-                placeholder={voice.listening ? '듣고 있어요…' : '코치에게 말하기'}
+                onChangeText={setText}
+                placeholder="코치에게 말하기"
                 placeholderTextColor={c.muted}
                 multiline
                 maxLength={500}
@@ -235,19 +199,12 @@ function ConsentView({ chat, onAgree, c }: { chat: Chat; onAgree: () => void; c:
   );
 }
 
-function Bubble({ m, c, speaking, onSpeak }: { m: Msg; c: Palette; speaking: boolean; onSpeak?: () => void }) {
+function Bubble({ m, c }: { m: Msg; c: Palette }) {
   const mine = m.role === 'user';
   return (
     <View style={{ alignItems: mine ? 'flex-end' : 'flex-start', gap: 6 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 4, maxWidth: '86%' }}>
-        <View style={[st.bubble, { maxWidth: '100%', flexShrink: 1, backgroundColor: mine ? c.action : c.card }]}>
-          <Text style={[TYPE.body, { color: mine ? c.onAction : c.ink }]}>{m.text}</Text>
-        </View>
-        {onSpeak ? (
-          <Press accessibilityRole="button" accessibilityLabel={speaking ? '읽기 멈춤' : '소리로 듣기'} onPress={onSpeak} style={st.speak}>
-            <Icon name={speaking ? 'volume-x' : 'volume-2'} size={17} color={speaking ? c.action : c.muted} />
-          </Press>
-        ) : null}
+      <View style={[st.bubble, { backgroundColor: mine ? c.action : c.card }]}>
+        <Text style={[TYPE.body, { color: mine ? c.onAction : c.ink }]}>{m.text}</Text>
       </View>
       {m.adjusts.map((a, i) => (
         <AdjustCard key={`${m.id}-${i}`} a={a} c={c} />
@@ -399,7 +356,5 @@ const st = StyleSheet.create({
   bubble: { maxWidth: '86%', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
   card: { width: '86%', borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, padding: 12, gap: 8 },
   bar: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 16, paddingTop: 10, gap: 6 },
-  mic: { width: 44, height: 44, borderRadius: 22, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
-  speak: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   input: { flex: 1, minHeight: 44, maxHeight: 120, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
 });

@@ -5,8 +5,7 @@
   "apple": {
     "modules": [
       "BullpenNativeModule",
-      "IntakeOriginalModule",
-      "CoachVoiceModule"
+      "IntakeOriginalModule"
     ],
     "appDelegateSubscribers": [
       "LaunchStyleSubscriber"
