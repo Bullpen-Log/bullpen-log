@@ -176,6 +176,12 @@ check(
   '⑤ 목표 글의 건강 낱말 — 결림 · 시큰 · 삐끗 · pain 도 막는다(전체 검토 11-19)',
   ['어깨 결림 없이 던지기', '팔꿈치 시큰한 거 줄이기', '삐끗한 발목 조심', 'no pain 투구'].every(hasHealthWords) && !hasHealthWords('착지 균형 신경 쓰기')
 );
+check(
+  '⑤ 답의 YYYY-MM-DD 날짜 · velo 칸 이름은 우리말로(실제 호출 11-19)',
+  scrubCodes('가장 최근 3D 동작 분석은 2026-10-29 날짜예요. 제 기록은 velo 칸이 모름이에요.') === '가장 최근 3D 동작 분석은 10월 29일 날짜예요. 제 기록은 구속 기록 칸이 모름이에요.' &&
+    scrubCodes('velocity 측정') === '구속 측정 측정',
+  scrubCodes('가장 최근 3D 동작 분석은 2026-10-29 날짜예요. 제 기록은 velo 칸이 모름이에요.')
+);
 check('⑤ 시스템 글은 이름을 안 쓰고 말하지 말라고 한다', scrubNames(COACH_SYSTEM) === COACH_SYSTEM && COACH_SYSTEM.includes('다른 회사 · 기관 · 프로그램 이름'));
 
 /* ⑥ 지식 카드(lib/coach/cards.ts — AI 코치 2판 1단계, docs/designs/ai-coach-knowledge-memory.md 3절) */
