@@ -48,7 +48,7 @@ export const COACH_SYSTEM = `너는 야구 투수용 앱 '싱커'의 트레이�
 - 할 것이 없으면 카드를 내지 않는다. 둘 다 할 만하면 draft_pitch_log 가 먼저다.
 
 하지 않는 것:
-- 운동 종목 고르기, 무게 · 세트 · 횟수 · 투구 수 정하기. 그날 운동은 앱이 몸 상태를 보고 만든다고 말한다.
+- 앱이 짠 숫자 밖의 무게 · 세트 · 횟수 · 투구 수 지어내기. 숫자는 맥락의 '오늘 운동' 처방과 '오늘 투구 계획' 범위에서만 가져온다.
 - 진단, 통증 · 부상 해석, 약 · 영양제 권하기. 아프다는 말이 나오면 "오늘 체크인에 적어 주세요. 계속 아프면 의사나 트레이너 같은 전문가와 상의해 주세요."라고 하고, 필요하면 그날 쉬기(skip)를 제안한다.
 - 맥락에 없는 사실을 지어내기. 모르면 모른다고 한다.
 - 이 사람의 훈련 · 기록과 상관없는 부탁(숙제 · 코드 · 다른 앱 이야기 등). 이 코치는 훈련과 기록만 돕는다고 짧게 말한다.
@@ -67,7 +67,9 @@ export const COACH_SYSTEM = `너는 야구 투수용 앱 '싱커'의 트레이�
 - signals 는 오늘 체크인 신호다. '모름(오늘 체크인 안 함)'이면 몸 상태를 모르는 것이지 괜찮다는 뜻이 아니다. 괜찮다고 말하지 말고 체크인을 권한다. '모름(건강정보 동의 없음)'이면 몸 상태를 묻지도 짐작하지도 않는다. pain:none 은 오늘 체크인에서 어깨 · 팔꿈치 통증이 없다고 한 것이다.
 - throws 는 최근 7일 투구 기록에 적힌 날이다(종류 · 구수 · 체감 강도 · 세게 던진 날 표시). '기록 없음'은 안 던졌다는 뜻이 아니라 기록이 없다는 뜻이다.
 - 사용자가 맥락에 없는 투구(예: 오늘 팀 불펜)를 말하면 draft_pitch_log 초안 카드를 내고, 저장하면 앱이 오늘 운동과 팔 상태를 다시 맞춘다고 말한다. 그날 운동이 부담되면 쉬기(skip)나 시간 줄이기(minutes)를 제안할 수 있다.
-- 팔 상태(앱 계산)는 앱이 기록으로 계산한 값이다. 그대로 전하고, 더 안전하다거나 더 위험하다고 바꿔 말하지 않는다. 경기나 불펜에서 던져도 되는지, 몇 구를 던질지는 답하지 않는다.
+- 팔 상태(앱 계산)는 앱이 기록으로 계산한 값이다. 그대로 전하고, 더 안전하다거나 더 위험하다고 바꿔 말하지 않는다. 던져도 되는지 · 몇 구를 던질지는 아래 '오늘 투구 계획'으로 답한다.
+- 오늘 운동은 앱이 짠 목록 그대로다(구간 · 운동 이름 · 세트 × 횟수 · 무게). 사용자 화면과 같다. 오늘 무엇을 · 얼마나 하는지 물으면 이 목록으로 답하고, 이 목록과 다른 운동 · 무게를 새로 지어 권하지 않는다. '아직 안 만듦'이면 트레이닝에서 만들 수 있다고(체크인이 먼저면 체크인부터) 말한다.
+- 오늘 투구 계획은 앱이 팔 상태 · 최근 투구 · 나이로 계산한 안전 범위다. '던져도 되는 날'이면 그 범위 안에서 공 수와 강도를 추천한다(예: '오늘은 30~45구, 강도 6~7 정도로 던져요'). 범위의 위 끝 · 나이별 하루 한도를 넘는 공 수는 말하지 않는다. 등판 날은 공 수를 경기가 정한다고 말하고 하루 한도만 짚는다. '던지지 않는 날' · '공 수를 말하지 않는 날' · '모름'이면 공 수를 말하지 않고 그 까닭(모름이면 동의 없음)을 짧게 전한다.
 - 운동 힘듦은 운동 끝에 사용자가 고른 값(1 가벼움 ~ 10 아주 힘듦)이다. '최근 급증'이면 이번 주를 가볍게 가는 쪽을 권할 수 있다.
 - 피할 동작은 사용자가 전문가에게 들은 제한이다. 앱이 그날 운동에서 이미 뺀다. 그 동작을 하자고 하지 않는다.
 - 오늘 운동은 앱이 오늘 만든 운동의 종류 · 시간 · 까닭이다. '왜 이렇게 짰어요'라는 물음에는 이 까닭과 week 의 까닭으로만 답한다. '아직 안 만듦'이면 트레이닝에서 오늘 운동을 만들면 된다고 말한다.
@@ -133,6 +135,80 @@ export function scrubCodes(text: string): string {
     .replace(/\b\d{4}-(\d{2})-(\d{2})\b/g, (_, m: string, d: string) => `${Number(m)}월 ${Number(d)}일`);
 }
 
+/**
+ * 오늘 운동(개인 비서 2단계) — 앱 오늘 운동 화면이 그리는 것 그대로: 짠 판(구간 · 운동 이름 · 처방), 아직 안 만든 날, 프로그램 날, 멈춘 날(까닭은 건강 동의가 있을 때만).
+ */
+export type CoachAiWorkout =
+  | { kind: 'plan'; title: string; minutes: number; groups: { label: string; items: { name: string; rx: string | null; done: boolean }[] }[] }
+  | { kind: 'make'; checkedIn: boolean }
+  | { kind: 'program'; text: string }
+  | { kind: 'halted'; reason: string | null }
+  | { kind: 'none' };
+
+/** 오늘 투구 계획(앱 계산) — 범위 · 강도(1~10) · 나이별 하루 한도(성인 null). 던지면 안 되는 날은 throwing false 와 까닭 */
+export type CoachAiPitchPlan = {
+  throwing: boolean;
+  min: number | null;
+  max: number | null;
+  minIntensity: number | null;
+  maxIntensity: number | null;
+  reason: string;
+  outing: 'game' | 'bullpen' | null;
+  cap: number | null;
+  /** 통증 확인 전 · 멈춘 계획 — 공 수를 말하지 않는 날 */
+  stop: string | null;
+};
+
+/** 오늘 운동 줄들 */
+function workoutLines(w: CoachAiWorkout | undefined): string[] {
+  if (!w) return [];
+  if (w.kind === 'make') return [`오늘 운동: 아직 안 만듦${w.checkedIn ? '' : '(오늘 체크인을 해야 만들 수 있음)'}`];
+  if (w.kind === 'program') return [`오늘 운동: 근력 프로그램 날 | ${w.text}`];
+  if (w.kind === 'halted') return [`오늘 운동: 멈춤${w.reason ? ` | ${w.reason}` : ''}`];
+  if (w.kind === 'none') return ['오늘 운동: 없음'];
+  return [
+    `오늘 운동(앱이 짠 목록 · 사용자 화면과 같음): ${w.title} · ${w.minutes}분`,
+    ...w.groups.map((g) => `- ${g.label}: ${g.items.map((i) => `${i.name}${i.rx ? `(${i.rx})` : ''}${i.done ? '[함]' : ''}`).join(' · ')}`),
+  ];
+}
+
+/** 오늘 투구 계획 줄 */
+function pitchPlanLine(p: CoachAiPitchPlan | 'no-consent' | undefined): string[] {
+  if (!p) return [];
+  if (p === 'no-consent') return ['오늘 투구 계획: 모름(건강정보 동의 없음 — 공 수를 말하지 않는다)'];
+  const cap = p.cap != null ? ` | 나이별 하루 한도 ${p.cap}구` : '';
+  if (p.stop) return [`오늘 투구 계획: 공 수를 말하지 않는 날 | ${p.stop}${cap}`];
+  if (!p.throwing) return [`오늘 투구 계획: 던지지 않는 날 | 까닭: ${p.reason}${cap}`];
+  const range = p.max == null ? '공 수는 경기가 정함' : `공 ${p.min ?? Math.round(p.max * 0.7)}~${p.max}구`;
+  const int = p.maxIntensity != null ? ` | 강도 ${p.minIntensity ?? p.maxIntensity}~${p.maxIntensity}/10` : '';
+  return [`오늘 투구 계획(앱 계산): 던져도 되는 날${p.outing === 'game' ? '(등판)' : p.outing === 'bullpen' ? '(불펜)' : ''} | ${range}${int} | 까닭: ${p.reason}${cap}`];
+}
+
+/** 권하는 문장(앞으로 던질 것) — 지난 기록을 말하는 문장(던졌 · 했어요)은 아니다 */
+const RECOMMEND_RE = /던져(요|도| 보|\s*주)|던지세요|던지면|던지는 게|던질 수|던지기|추천|정도로|까지만/;
+const PAST_RE = /던졌|했어요|였어요|였고|했고|남겼/;
+const PITCH_NUM_RE = /(\d{1,3})\s*(?:구|개)/g;
+
+/**
+ * 공 수 안전장치(개인 비서 2단계) — 답이 권하는 공 수가 앱이 계산한 오늘 범위 · 나이별 하루 한도를 넘거나, 공 수를 말하면 안 되는 날(던지지 않는 날 ·
+ * 통증 확인 전 · 동의 없음)에 공 수를 권하면 답을 정해진 문장으로 바꾼다. 지시문이 막아도 모델이 넘길 수 있어 저장 · 보이기 전에 한 번 더 본다.
+ * 지난 기록을 말하는 문장('지난 경기 95구 던졌죠')은 건드리지 않는다. 바꿀 것이 없으면 null.
+ */
+export function guardPitchReply(reply: string, p: CoachAiPitchPlan | 'no-consent' | undefined): string | null {
+  if (!p) return null;
+  const allowed = p !== 'no-consent' && p.throwing && !p.stop;
+  const max = allowed ? Math.min(p.max ?? Infinity, p.cap ?? Infinity) : 0;
+  const bad = reply
+    .split(/(?<=[.?!])\s+/)
+    .filter((s) => RECOMMEND_RE.test(s) && !PAST_RE.test(s))
+    .some((s) => [...s.matchAll(PITCH_NUM_RE)].some((m) => Number(m[1]) > max));
+  if (!bad) return null;
+  if (p === 'no-consent') return '건강정보 동의가 없어서 오늘 던질 공 수는 말씀드리기 어려워요.';
+  if (!allowed) return `오늘은 공 수를 정해 드리지 않는 날이에요. ${p.stop ?? p.reason}`.trim();
+  if (p.max == null) return `오늘은 경기가 공 수를 정해요.${p.cap != null ? ` 하루 한도 ${p.cap}구는 넘기지 말아 주세요.` : ''}`;
+  return `오늘 앱이 계산한 투구는 ${p.min ?? Math.round(p.max * 0.7)}~${Math.min(p.max, p.cap ?? Infinity)}구예요. 그 안에서 던져 주세요.`;
+}
+
 /** 최근 던진 날 한 줄 — 투구 기록에 적힌 것만(메모 글은 안 넣는다) */
 export type CoachAiThrow = { date: string; types: string[]; pitches: number; effortPct: number | null; hard: boolean };
 
@@ -165,6 +241,10 @@ export type CoachAiContext = {
   todayPlan: { theme: string; minutes: number; why: string[] } | null;
   /** 일정 밖 기록(자비스 1단계, lib/coach/records.ts) — 없으면 줄마다 '모름' */
   records?: CoachAiRecords;
+  /** 오늘 운동 화면과 같은 목록(개인 비서 2단계, lib/report/training-today-data.ts) — 없으면(옛 호출) 줄 없음 */
+  workout?: CoachAiWorkout;
+  /** 앱이 계산한 오늘 투구 계획(lib/report/plan.ts) — 건강 동의가 없으면 'no-consent'. 없으면(옛 호출) 줄 없음 */
+  pitchPlan?: CoachAiPitchPlan | 'no-consent';
   /** 정한 목표 한 줄(lib/coach/goal.ts goalLine) — 없으면 '정한 목표: 없음' */
   goal?: string;
 };
@@ -314,6 +394,8 @@ export function contextBlock(c: CoachAiContext): string {
       : ['- 기록 없음']),
     `운동 힘듦(최근 7일, 1~10): ${c.efforts.length ? c.efforts.join(', ') : '기록 없음'}${c.effortSpike ? ' | 최근 급증' : ''}`,
     `오늘 운동: ${c.todayPlan ? `${c.todayPlan.theme} · ${c.todayPlan.minutes}분${c.todayPlan.why.length ? ` | 까닭: ${c.todayPlan.why.join(' / ')}` : ''}` : '아직 안 만듦'}`,
+    ...workoutLines(c.workout),
+    ...pitchPlanLine(c.pitchPlan),
     ...recordLines(c.records),
     c.goal ?? '정한 목표: 없음',
     'week:',

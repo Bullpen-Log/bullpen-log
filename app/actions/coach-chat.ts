@@ -13,7 +13,9 @@ import { HEALTH_PURPOSE, healthCutoffOf, historyFloorOf } from '@/lib/health-con
 import { COACH_AI_CONSENT, COACH_AI_PURPOSE } from '@/lib/coach/ai-consent';
 import { AI_BLOCK_TEXT, AI_MIN_AGE, aiGate, capUsdOf, type AiGate } from '@/lib/coach/ai-gate';
 import { costMicroOf } from '@/lib/coach/ai-price';
-import { ageBandOf, contextBlock, scrubCodes, scrubNames, throwsOf, type CoachAiContext } from '@/lib/coach/ai-prompt';
+import { ageBandOf, contextBlock, guardPitchReply, scrubCodes, scrubNames, throwsOf, type CoachAiContext, type CoachAiPitchPlan, type CoachAiWorkout } from '@/lib/coach/ai-prompt';
+import { loadTrainingToday, type TrainingToday } from '@/lib/report/training-today-data';
+import { dailyPitchCap } from '@/lib/report/plan';
 import { COACH_MODEL_CHAT, aiKeyReady, chatTurn, type ChatLine } from '@/lib/coach/ai';
 import type { CoachAdjust } from '@/lib/coach/adjust';
 import { readCards, shownCard, type CoachCard } from '@/lib/coach/card';
@@ -199,11 +201,11 @@ async function contextOf(
   user: User,
   base: Awaited<ReturnType<typeof coachWeekBase>>,
   age: number
-): Promise<{ text: string; health: boolean; goalOpen: boolean } | null> {
+): Promise<{ text: string; health: boolean; goalOpen: boolean; pitch: CoachAiContext['pitchPlan'] } | null> {
   const { today, slots, locked } = base;
   if (!slots) return null;
   const weekStart = slots[0].date;
-  const [done, profile, health, checkin, { facts }, logs, setup, records, goalRow] = await Promise.all([
+  const [done, profile, health, checkin, { facts, plan: pitch }, logs, setup, records, goalRow, todayScreen] = await Promise.all([
     loadTrainingDone(user.id, weekStart, shiftDateKey(weekStart, 6)),
     prisma.coachProfile.findUnique({ where: { userId: user.id }, select: { answers: true } }),
     healthConsentFor(user.id),
@@ -220,6 +222,8 @@ async function contextOf(
     /* 일정 밖 기록(자비스 1단계) — 건강 동의와 같이 읽으려고 늘 읽고, 영양 할 일 한 줄만 아래에서 동의로 거른다 */
     coachRecordsOf(user, today, appNow()),
     prisma.coachGoal.findUnique({ where: { userId: user.id } }),
+    /* 오늘 운동 화면과 같은 목록(개인 비서 2단계) — 못 읽으면 그 줄만 빠진다 */
+    loadTrainingToday(user, appNow()).catch(() => null),
   ]);
   const saved = savedOf(profile?.answers);
   const outing = slots.find((s) => s.date >= today && (s.items.some((x) => x.kind === 'fixed' && x.what === 'game') || s.reasons.some((r) => r === 'outing' || r === 'outing-soft')));
@@ -267,8 +271,45 @@ async function contextOf(
     })),
     records: health.valid || typeof records.food !== 'object' || records.food == null ? records : { ...records, food: { ...records.food, headline: null } },
     goal: goalLine(goalStateOf(goalRow), today),
+    workout: workoutOf(todayScreen, health.valid),
+    /* 투구 계획은 통증 · 재활 신호로 정해져 건강정보다 — 동의가 없으면 공 수를 말하지 않게 '모름' */
+    pitchPlan: health.valid ? pitchPlanOf(pitch, age) : 'no-consent',
   };
-  return { text: contextBlock(ctx), health: health.valid, goalOpen: goalRow?.status === 'open' };
+  return { text: contextBlock(ctx), health: health.valid, goalOpen: goalRow?.status === 'open', pitch: ctx.pitchPlan };
+}
+
+/** 앱 투구 계획 → 코치 맥락. 오늘 칸이 없거나(멈춘 계획) 통증 확인 전이면 공 수를 말하지 않는 날 */
+function pitchPlanOf(pitch: Awaited<ReturnType<typeof gatherFactsAndPlan>>['plan'], age: number): CoachAiPitchPlan {
+  const t = pitch.today;
+  const stop = pitch.halted ? (pitch.haltReason ?? '통증 · 재활로 멈춘 계획') : pitch.needsPainCheck ? '통증 확인 전(오늘 체크인 먼저)' : !t ? '오늘 계획 없음' : null;
+  return {
+    throwing: t?.throwing ?? false,
+    min: t?.minPitches ?? null,
+    max: t?.maxPitches ?? null,
+    minIntensity: t?.minIntensity ?? null,
+    maxIntensity: t?.maxIntensity ?? null,
+    reason: t?.reason ?? '',
+    outing: t?.outing ?? null,
+    cap: dailyPitchCap(age),
+    stop,
+  };
+}
+
+/** 오늘 운동 화면 → 코치 맥락(구간 · 운동 이름 · 처방). 멈춘 까닭은 통증이 섞여 건강 동의가 있을 때만 */
+function workoutOf(t: TrainingToday | null, health: boolean): CoachAiWorkout | undefined {
+  if (!t) return undefined;
+  const b = t.body;
+  if (b.kind === 'plan')
+    return {
+      kind: 'plan',
+      title: b.plan.title,
+      minutes: b.plan.minutes,
+      groups: b.plan.groups.map((g) => ({ label: g.label, items: g.items.map((i) => ({ name: i.title, rx: i.prescription, done: i.done })) })),
+    };
+  if (b.kind === 'make' || b.kind === 'empty') return { kind: 'make', checkedIn: b.make.checkedIn };
+  if (b.kind === 'program') return { kind: 'program', text: b.text };
+  if (b.kind === 'halted') return { kind: 'halted', reason: health ? b.reason : null };
+  return { kind: 'none' };
 }
 
 const FALLBACK = {
@@ -341,7 +382,9 @@ export async function sendCoachMessage(
       costMicro: costMicroOf(turn.model, turn.usage),
     },
   });
-  const reply = turn.ok ? scrubCodes(scrubNames(turn.reply)) : turn.why === 'refusal' ? FALLBACK.refusal : FALLBACK.other;
+  const said0 = turn.ok ? scrubCodes(scrubNames(turn.reply)) : turn.why === 'refusal' ? FALLBACK.refusal : FALLBACK.other;
+  /* 공 수 안전장치 — 앱 범위 · 하루 한도를 넘게 권하거나 말하면 안 되는 날 권하면 정해진 문장으로 */
+  const reply = (turn.ok && guardPitchReply(said0, context.pitch)) || said0;
   /* 실패한 답에는 카드를 붙이지 않는다(되돌기 중간에 모인 것 — 글 없이 단추만 남지 않게) */
   const kept = turn.ok ? cards : [];
   const [, saved] = await prisma.$transaction([

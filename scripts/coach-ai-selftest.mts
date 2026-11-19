@@ -5,7 +5,7 @@
  */
 import { aiGate, capUsdOf, AI_DAILY_CHATS, AI_BLOCK_TEXT, type AiGateInput } from '@/lib/coach/ai-gate';
 import { costMicroOf } from '@/lib/coach/ai-price';
-import { COACH_SYSTEM, COACH_SYSTEM_BLOCK, contextBlock, ageBandOf, scrubNames, throwsOf, type CoachAiContext, type CoachAiRecords, veloRowsOf, dateTable, pastDateTable, scrubCodes } from '@/lib/coach/ai-prompt';
+import { COACH_SYSTEM, COACH_SYSTEM_BLOCK, contextBlock, guardPitchReply, type CoachAiPitchPlan, ageBandOf, scrubNames, throwsOf, type CoachAiContext, type CoachAiRecords, veloRowsOf, dateTable, pastDateTable, scrubCodes } from '@/lib/coach/ai-prompt';
 import { NUDGE_DAILY_CAP, goalDayNudge, goalLogNudge, nudgeAllowed, painNudge } from '@/lib/coach/nudge';
 import { COACH_VELOCITY, readAct, sanitizeAct, saidNumber } from '@/lib/coach/act';
 import { TOOL_DEFS, addCard, propose, parseToolInput, dayText } from '@/lib/coach/tool-defs';
@@ -419,6 +419,33 @@ check('⑩ 답 글에 샌 칸 이름은 우리말로(조사도)', scrubCodes('�
   check('⑬ 카드 모음: 같은 카드 한 번 · 4개까지 · id 차례', 'id' in c1 && c1.id === 'c0' && 'refuse' in dup && cards.length === CARDS_MAX && cards.map((c) => c.id).join() === 'c0,c1,c2,c3');
   const back = readCards(JSON.parse(JSON.stringify({ cards })));
   check('⑬ 저장 · 읽기: 같은 카드 · 옛 대신 해 주기는 카드 아님 · 앱에는 실행 입력 안 보냄', JSON.stringify(back) === JSON.stringify(cards) && readCards({ kind: 'open', screen: 'checkin' }) === null && !('args' in shownCard(cards[0])) && readAct({ cards }) === null);
+}
+
+/* ⑭ 오늘 운동 · 투구 계획(개인 비서 2단계) — 화면과 같은 목록, 공 수는 앱 범위 안에서만. 실제 AI 호출 없이 */
+{
+  const plan: CoachAiPitchPlan = { throwing: true, min: 30, max: 45, minIntensity: 6, maxIntensity: 7, reason: '평소 투구량', outing: null, cap: 85, stop: null };
+  const b = contextBlock({
+    ...ctx,
+    workout: { kind: 'plan', title: '하체 근력', minutes: 60, groups: [{ label: '본운동', items: [{ name: '고블렛 스쿼트', rx: '3세트 × 8회', done: false }, { name: '루마니안 데드리프트', rx: null, done: true }] }] },
+    pitchPlan: plan,
+  });
+  check('⑭ 맥락: 오늘 운동 목록(처방 · 함)', b.includes('오늘 운동(앱이 짠 목록 · 사용자 화면과 같음): 하체 근력 · 60분') && b.includes('- 본운동: 고블렛 스쿼트(3세트 × 8회) · 루마니안 데드리프트[함]'));
+  check('⑭ 맥락: 투구 계획 범위 · 강도 · 하루 한도', b.includes('오늘 투구 계획(앱 계산): 던져도 되는 날 | 공 30~45구 | 강도 6~7/10 | 까닭: 평소 투구량 | 나이별 하루 한도 85구'));
+  check(
+    '⑭ 맥락: 동의 없음 · 던지지 않는 날 · 통증 확인 전 · 아직 안 만듦',
+    contextBlock({ ...ctx, pitchPlan: 'no-consent' }).includes('오늘 투구 계획: 모름(건강정보 동의 없음') &&
+      contextBlock({ ...ctx, pitchPlan: { ...plan, throwing: false, reason: '등판 다음 날' } }).includes('오늘 투구 계획: 던지지 않는 날 | 까닭: 등판 다음 날') &&
+      contextBlock({ ...ctx, pitchPlan: { ...plan, stop: '통증 확인 전(오늘 체크인 먼저)' } }).includes('공 수를 말하지 않는 날 | 통증 확인 전') &&
+      contextBlock({ ...ctx, workout: { kind: 'make', checkedIn: false } }).includes('오늘 운동: 아직 안 만듦(오늘 체크인을 해야 만들 수 있음)')
+  );
+  check('⑭ 맥락: 옛 호출(칸 없음)은 줄 없음', !contextBlock(ctx).includes('오늘 투구 계획') && !contextBlock(ctx).includes('앱이 짠 목록'));
+  const ok = '오늘은 30~45구, 강도 6~7 정도로 던져요.';
+  check('⑭ 안전장치: 범위 안 추천 · 지난 기록 말은 그대로', guardPitchReply(ok, plan) === null && guardPitchReply('지난 경기에서 95구 던졌죠. 오늘은 40구 정도로 던져요.', plan) === null);
+  check('⑭ 안전장치: 범위 위 추천은 앱 범위 문장으로', guardPitchReply('오늘은 60구까지 던져도 돼요.', plan) === '오늘 앱이 계산한 투구는 30~45구예요. 그 안에서 던져 주세요.');
+  check('⑭ 안전장치: 하루 한도가 더 낮으면 한도로', guardPitchReply('50구 정도로 던져요.', { ...plan, max: 60, cap: 45 }) === '오늘 앱이 계산한 투구는 30~45구예요. 그 안에서 던져 주세요.');
+  check('⑭ 안전장치: 던지지 않는 날 · 통증 확인 전 · 동의 없음에 공 수를 권하면 까닭 문장', (guardPitchReply('가볍게 20구만 던져요.', { ...plan, throwing: false, reason: '등판 다음 날이에요.' }) ?? '').includes('등판 다음 날') && (guardPitchReply('30구 정도로 던져요.', { ...plan, stop: '통증 확인 전(오늘 체크인 먼저)' }) ?? '').includes('통증 확인 전') && guardPitchReply('30구 정도로 던져요.', 'no-consent') === '건강정보 동의가 없어서 오늘 던질 공 수는 말씀드리기 어려워요.' && guardPitchReply('오늘은 쉬어요.', 'no-consent') === null);
+  check('⑭ 안전장치: 등판 날(위 끝 없음)은 경기가 정함 · 한도', guardPitchReply('오늘은 120구까지 던져요.', { ...plan, max: null, min: null, outing: 'game', cap: 95 }) === '오늘은 경기가 공 수를 정해요. 하루 한도 95구는 넘기지 말아 주세요.' && guardPitchReply('오늘은 80구까지 던져요.', { ...plan, max: null, min: null, outing: 'game', cap: 95 }) === null);
+  check('⑭ 규칙 글: 공 수는 투구 계획 범위로 · 숫자 지어내지 않음', ["'오늘 투구 계획'으로 답한다", '범위의 위 끝 · 나이별 하루 한도를 넘는 공 수는 말하지 않는다', '숫자는 맥락의'].every((w) => COACH_SYSTEM.includes(w)));
 }
 
 console.log(`coach-ai: ${pass}개 통과${fails.length ? `, ${fails.length}개 실패` : ''}`);
