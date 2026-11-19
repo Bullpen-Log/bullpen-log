@@ -9,7 +9,7 @@ import { COACH_SYSTEM, COACH_SYSTEM_BLOCK, contextBlock, guardPitchReply, type C
 import { NUDGE_DAILY_CAP, goalDayNudge, goalLogNudge, nudgeAllowed, painNudge } from '@/lib/coach/nudge';
 import { COACH_VELOCITY, readAct, sanitizeAct, saidNumber } from '@/lib/coach/act';
 import { applyVolume, coachVolumeDecision, holdsWeight, readPlanVolume, VOLUME_MAX_SETS } from '@/lib/report/volume';
-import { TOOL_DEFS, addCard, propose, parseToolInput, dayText, proposeToday, type TodayWork } from '@/lib/coach/tool-defs';
+import { TOOL_DEFS, addCard, propose, parseToolInput, dayText, proposeToday, calendarCard, throwPlanCard, favoriteCard, settingsCard, nextEquipment, armcareCard, programCard, postCard, type TodayWork } from '@/lib/coach/tool-defs';
 import { CARDS_MAX, readCards, shownCard, type CoachCard } from '@/lib/coach/card';
 import { COACH_AI_CONSENT } from '@/lib/coach/ai-consent';
 import { HEALTH_CONSENT, healthCutoffOf, historyFloorOf } from '@/lib/health-consent';
@@ -362,7 +362,7 @@ check('⑩ 답 글에 샌 칸 이름은 우리말로(조사도)', scrubCodes('�
   check('⑪ 숫자 맞추기: 140 안의 40 은 아니다 · 40개 · 공 40 은 맞다', !saidNumber('140구', 40) && !saidNumber('구속 140', 40) && saidNumber('40개', 40) && saidNumber('공 40', 40) && !saidNumber('400', 40));
   check('⑪ 초안: 날짜가 없으면 오늘 · 지난 6일까지 · 앞날 · 7일 전은 없음', log({ date: null })?.kind === 'log' && log({ date: '2026-11-13' })?.kind === 'log' && log({ date: '2026-11-12' }) === null && log({ date: '2026-11-20' }) === null && log({ date: '2026-11-31' }) === null);
   check('⑪ 초안: 휴식 · 모르는 종류 · 0 · 소수는 안 된다', log({ type: '휴식' }) === null && log({ type: '롱토스' }) === null && log({ count: 0 })?.count === null && log({ count: 40.5 })?.count === null);
-  check('⑪ 화면 열기: 정한 화면만', sanitizeAct({ kind: 'open', screen: 'checkin' }, T, said)?.kind === 'open' && sanitizeAct({ kind: 'open', screen: 'settings' }, T, said) === null && sanitizeAct({ kind: 'pay' }, T, said) === null && sanitizeAct(null, T, said) === null);
+  check('⑪ 화면 열기: 정한 화면만', sanitizeAct({ kind: 'open', screen: 'checkin' }, T, said)?.kind === 'open' && sanitizeAct({ kind: 'open', screen: 'payment' }, T, said) === null && sanitizeAct({ kind: 'pay' }, T, said) === null && sanitizeAct(null, T, said) === null);
   check('⑪ 저장된 칸 읽기: 기록함 표시는 서버가 다시 정한다', readAct({ kind: 'log', date: T, type: '불펜', count: 40, done: true })?.kind === 'log' && !('done' in (readAct({ kind: 'log', date: T, type: '불펜', count: 40, done: true }) ?? {})) && readAct({ kind: 'log', date: 'x', type: '불펜' }) === null);
   check('⑪ 지난 6일 줄: 어제까지 · 오늘 없음', pastDateTable('2026-11-04') === '2026-10-29 목, 2026-10-30 금, 2026-10-31 토, 2026-11-01 일, 2026-11-02 월, 2026-11-03 화(어제)' && contextBlock(ctx).includes('지난 6일: '));
   check(
@@ -402,7 +402,7 @@ check('⑩ 답 글에 샌 칸 이름은 우리말로(조사도)', scrubCodes('�
   const T = '2026-11-04';
   const pc = { today: T, said: '오늘 팀 불펜 40개 던졌어', week, locked: (d: string) => d < T, goalOpen: false };
   const names = TOOL_DEFS.map((d) => d.name);
-  check('⑬ 도구 목록: 차례 고정 · 모르는 칸 없음 · 이름 겹침 없음', JSON.stringify(names) === JSON.stringify(['read_pitch_logs', 'find_exercises', 'read_workouts', 'read_armcare', 'read_calendar', 'read_program', 'read_3d_history', 'read_settings', 'read_checkins', 'change_week', 'change_today', 'goal', 'draft_pitch_log', 'open_screen']) && TOOL_DEFS.every((d) => d.input_schema.type === 'object' && (d.input_schema as { additionalProperties?: unknown }).additionalProperties === false));
+  check('⑬ 도구 목록: 차례 고정 · 모르는 칸 없음 · 이름 겹침 없음', JSON.stringify(names) === JSON.stringify(['read_pitch_logs', 'find_exercises', 'read_workouts', 'read_armcare', 'read_calendar', 'read_program', 'read_3d_history', 'read_settings', 'read_checkins', 'change_week', 'change_today', 'goal', 'draft_pitch_log', 'open_screen', 'calendar', 'throw_plan', 'favorite', 'training_settings', 'armcare_today', 'program_day', 'draft_post']) && TOOL_DEFS.every((d) => d.input_schema.type === 'object' && (d.input_schema as { additionalProperties?: unknown }).additionalProperties === false));
   check('⑬ 도구 목록은 부를 때마다 같은 글자(캐시)', JSON.stringify(TOOL_DEFS) === JSON.stringify(TOOL_DEFS.map((d) => ({ ...d }))) && !JSON.stringify(TOOL_DEFS).includes('$schema'));
   const skip = propose('change_week', pc, { kind: 'skip', date: '2026-11-06', minutes: null, from: null, to: null });
   check('⑬ 일정 쉬기 → 카드(미리보기 줄 · 적용)', 'card' in skip && skip.card.cta === '적용' && skip.card.title === `${dayText('2026-11-06')} 운동 쉬기` && skip.card.lines.length >= 1 && !skip.card.open, JSON.stringify(skip));
@@ -413,7 +413,7 @@ check('⑩ 답 글에 샌 칸 이름은 우리말로(조사도)', scrubCodes('�
   check('⑬ 오늘이 바뀌면 카드가 오늘 운동도 바뀐다고 말한다', 'card' in skipToday && skipToday.card.lines.some((l) => l.includes('걷어요')) && !!minToday && 'card' in minToday && minToday.card.lines.some((l) => l.includes('다시 짜요')) && 'card' in skip && !skip.card.lines.some((l) => l.includes('오늘')), JSON.stringify([skipToday, minToday]));
   const log = propose('draft_pitch_log', pc, { date: null, type: '불펜', count: 40 });
   check('⑬ 투구 기록 초안 → 앱이 여는 카드(말한 공 수만)', 'card' in log && log.card.open?.kind === 'log' && log.card.open.count === 40 && log.card.open.date === T && 'card' in propose('draft_pitch_log', pc, { date: null, type: '불펜', count: 45 }) && (propose('draft_pitch_log', pc, { date: null, type: '불펜', count: 45 }) as { card: CoachCard }).card.open?.kind === 'log' && ((propose('draft_pitch_log', pc, { date: null, type: '불펜', count: 45 }) as { card: CoachCard }).card.open as { count: number | null }).count === null);
-  check('⑬ 화면 열기 · 모르는 화면은 까닭', 'card' in propose('open_screen', pc, { screen: 'checkin' }) && 'refuse' in propose('open_screen', pc, { screen: 'settings' }) && (COACH_VELOCITY || 'refuse' in propose('open_screen', pc, { screen: 'velocity' })));
+  check('⑬ 화면 열기 · 모르는 화면은 까닭', 'card' in propose('open_screen', pc, { screen: 'checkin' }) && 'refuse' in propose('open_screen', pc, { screen: 'payment' }) && 'card' in propose('open_screen', pc, { screen: 'programs' }) && (COACH_VELOCITY || 'refuse' in propose('open_screen', pc, { screen: 'velocity' })));
   check('⑬ 목표: 정하기 카드 · 통증 목표 · 지울 목표 없음은 까닭', 'card' in propose('goal', pc, { kind: 'set', what: '착지 균형', trigger: '불펜', checkOn: '2026-11-06' }) && 'refuse' in propose('goal', pc, { kind: 'set', what: '통증 없이 던지기', trigger: null, checkOn: '2026-11-06' }) && 'refuse' in propose('goal', pc, { kind: 'drop', what: null, trigger: null, checkOn: null }) && 'card' in propose('goal', { ...pc, goalOpen: true }, { kind: 'drop', what: null, trigger: null, checkOn: null }));
   check('⑬ 모르는 도구 · 틀린 입력은 까닭', 'refuse' in propose('delete_all', pc, {}) && 'refuse' in propose('change_week', pc, { kind: 'nuke' }) && parseToolInput('read_pitch_logs', { from: T }) === null && parseToolInput('read_pitch_logs', { from: T, to: T }) !== null);
   const cards: CoachCard[] = [];
@@ -492,6 +492,31 @@ check('⑩ 답 글에 샌 칸 이름은 우리말로(조사도)', scrubCodes('�
   const up = { setDelta: 1 as const, intensityStep: 0 as const, why: '코치와 정해 본운동을 한 세트씩 늘렸어요.' };
   check('⑯ 세트 +1 은 다섯 세트까지 · 무게 드는 운동만', applyVolume(ex(3), up).sets === 4 && applyVolume(ex(VOLUME_MAX_SETS), up).sets === VOLUME_MAX_SETS && applyVolume({ ...ex(3), category: '모빌리티' }, up).sets === 3);
   check('⑯ 저장된 +1 을 읽고, 늘린 날은 무게 올림을 안 멈춘다', readPlanVolume(up)?.setDelta === 1 && !holdsWeight({ volume: up }) && holdsWeight({ volume: { setDelta: -1, intensityStep: 0, why: 'x' } }) && readPlanVolume({ setDelta: 2, why: 'x' }) === null);
+}
+
+/* ⑰ 비서 쓰기(4단계) — 카드 글 · 확인. DB 읽기 · 실행은 서버(lib/coach/assist.ts) */
+{
+  const T4 = '2026-11-20';
+  const cal = (i: Record<string, unknown>, rows: { id: string; date: string; title: string; time: string | null }[] = []) =>
+    calendarCard({ date: T4, eventKind: '경기', title: null, time: null, newDate: null, ...i }, T4, rows);
+  const add = cal({ kind: 'add', date: '2026-11-28', title: '연습경기 등판', time: '14:00' });
+  check('⑰ 달력 더하기: 경기는 등판으로 읽힌다고 말한다', 'card' in add && add.card.cta === '더하기' && add.card.lines.some((l) => l.includes('투구 계획')) && (add.card.args as { title: string }).title === '연습경기 등판', JSON.stringify(add));
+  check('⑰ 달력: 경기인데 경기로 안 읽히는 이름 · 지난 날 · 180일 넘게 · 틀린 시각은 까닭', 'refuse' in cal({ kind: 'add', date: '2026-11-28', title: '주말 연습' }) && 'refuse' in cal({ kind: 'add', date: '2026-11-19', title: '경기' }) && 'refuse' in cal({ kind: 'add', date: '2027-06-01', title: '경기' }) && 'refuse' in cal({ kind: 'add', date: '2026-11-28', title: '경기', time: '25:00' }));
+  const rows = [{ id: 'e1', date: '2026-11-28', title: '리그 경기', time: '10:00' }, { id: 'e2', date: '2026-11-28', title: '팀 훈련', time: null }];
+  const del = cal({ kind: 'delete', date: '2026-11-28' }, rows);
+  check('⑰ 달력 지우기: 날 · 종류로 찾고 한 번 더 묻는다 · 원래 이름은 카드 제목(AI 에 돌아가는 글)에 없다', 'card' in del && !!del.card.confirm && (del.card.args as { id: string }).id === 'e1' && !del.card.title.includes('리그') && del.card.lines.some((l) => l.includes('리그 경기')), JSON.stringify(del));
+  const mv = cal({ kind: 'change', date: '2026-11-28', newDate: '2026-11-29' }, rows);
+  check('⑰ 달력 바꾸기: 안 준 칸은 그대로', 'card' in mv && JSON.stringify(mv.card.args) === JSON.stringify({ kind: 'change', id: 'e1', date: '2026-11-29', title: '리그 경기', time: '10:00' }), JSON.stringify(mv));
+  check('⑰ 달력: 못 찾음 · 같은 종류 둘 · 바뀌는 것 없음은 까닭', 'refuse' in cal({ kind: 'delete', date: '2026-11-27' }, rows) && 'refuse' in cal({ kind: 'delete', date: '2026-11-28' }, [...rows, { id: 'e3', date: '2026-11-28', title: '경기 2', time: null }]) && 'refuse' in cal({ kind: 'change', date: '2026-11-28' }, rows));
+  check('⑰ 등판 답: 여섯 중 하나 · 체크인 먼저', 'card' in throwPlanCard('내일 등판', true) && 'refuse' in throwPlanCard('모레 등판', true) && 'refuse' in throwPlanCard('내일 등판', false));
+  check('⑰ 즐겨찾기: 못 찾음 · 이미 그런 상태는 까닭', 'card' in favoriteCard('운동', { id: 'x', title: '고블렛 스쿼트' }, true, false) && 'refuse' in favoriteCard('운동', null, true, false) && 'refuse' in favoriteCard('운동', { id: 'x', title: 'a' }, true, true));
+  const eq = settingsCard('add_equipment', '케틀벨', '입문', ['맨몸', '덤벨']);
+  check('⑰ 설정: 장비 더하기 · 안 고른 사람은 화면으로 · 모르는 장비 · 경력', 'card' in eq && 'refuse' in settingsCard('add_equipment', '케틀벨', null, []) && 'refuse' in settingsCard('add_equipment', '로켓', null, ['맨몸']) && 'refuse' in settingsCard('level', '신', '입문', []) && 'refuse' in settingsCard('remove_equipment', '바벨', null, ['맨몸', '덤벨']));
+  check('⑰ 장비 목록: 맨몸은 늘 · 빼기 · 겹침 없음', JSON.stringify(nextEquipment(['맨몸', '덤벨'], 'add_equipment', '덤벨')) === '["덤벨"]' && JSON.stringify(nextEquipment(['맨몸', '덤벨', '바벨'], 'remove_equipment', '바벨')) === '["덤벨"]');
+  check('⑰ 암케어 · 프로그램: 체크인 먼저 · 진행 중 없음 · 그만두기는 한 번 더', 'refuse' in armcareCard(false) && 'refuse' in programCard('skip', null) && (programCard('skip', { name: '5×5', nextDay: 3 }) as { card: CoachCard }).card.title.includes('3번째') && !!(programCard('stop', { name: '5×5', nextDay: 3 }) as { card: CoachCard }).card.confirm);
+  const post = postCard({ category: 'question', title: '착지 질문', body: '착지할 때 무릎이 안으로 들어가요.' });
+  check('⑰ 덕아웃 글: 화면을 채워 여는 초안(실행 없음) · 빈 글 · 기관 이름은 까닭', 'card' in post && post.card.open?.kind === 'post' && post.card.args === undefined && 'refuse' in postCard({ category: 'free', title: ' ', body: 'x' }) && 'refuse' in postCard({ category: 'free', title: '드라이브라인 후기', body: 'x' }));
+  check('⑰ 저장 · 읽기: 한 번 더 묻는 글이 남는다', readCards({ cards: [{ ...(del as { card: CoachCard }).card, id: 'c0' }] })?.[0].confirm === '이 일정을 지울까요?');
 }
 
 console.log(`coach-ai: ${pass}개 통과${fails.length ? `, ${fails.length}개 실패` : ''}`);

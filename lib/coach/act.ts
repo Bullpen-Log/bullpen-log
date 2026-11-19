@@ -19,7 +19,7 @@ export const ACT_MAX_COUNT = 500;
  */
 export const COACH_VELOCITY = false;
 
-export const OPEN_SCREENS = ['checkin', 'training', 'armcare', 'mechanics', 'lab', 'velocity'] as const;
+export const OPEN_SCREENS = ['checkin', 'training', 'armcare', 'mechanics', 'lab', 'velocity', 'calendar', 'programs', 'settings'] as const;
 export type OpenScreen = (typeof OPEN_SCREENS)[number];
 /** 지금 단추로 낼 수 있는 화면 */
 const SHOWN_SCREENS: readonly unknown[] = COACH_VELOCITY ? OPEN_SCREENS : OPEN_SCREENS.filter((s) => s !== 'velocity');
@@ -30,6 +30,9 @@ export const OPEN_LABEL: Record<OpenScreen, string> = {
   mechanics: '메커니즘 드릴',
   lab: '3D 동작 분석',
   velocity: '구속 측정',
+  calendar: '달력',
+  programs: '근력 프로그램 고르기',
+  settings: '트레이닝 설정',
 };
 
 export type CoachAct = { kind: 'log'; date: string; type: ActLogType; count: number | null; done?: boolean } | { kind: 'open'; screen: OpenScreen };

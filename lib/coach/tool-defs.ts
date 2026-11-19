@@ -6,8 +6,11 @@ import { sanitizeGoal, type GoalOffer } from '@/lib/coach/goal';
 import { scrubNames } from '@/lib/coach/ai-prompt';
 import { weekdayOf, type DaySlot } from '@/lib/coach/week';
 import type { CoachCard } from '@/lib/coach/card';
-import { WORKOUT_KINDS } from '@/lib/checkin';
-import { GOAL_FOCUSES } from '@/lib/report/personalize';
+import { THROW_PLANS, WORKOUT_KINDS } from '@/lib/checkin';
+import { GOAL_FOCUSES, TRAINING_LEVEL_NAMES } from '@/lib/report/personalize';
+import { ALWAYS_OWNED, SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
+import { cleanEvent, isOutingTitle } from '@/lib/calendar-event';
+import { POST_BODY_MAX, POST_CATEGORIES, POST_TITLE_MAX } from '@/lib/community';
 
 /**
  * 코치 도구 표(개인 비서 1단계, 2026-11-20 김민: "AI 코치가 싱커 안 개인 비서 — 모든 부분에서 액세스와 컨트롤") — 순수 파일.
@@ -47,7 +50,7 @@ const LogIn = z.object({
   type: z.enum(ACT_LOG_TYPES),
   count: z.number().int().nullable().describe('사용자가 이번 말에 숫자로 말한 공 수만, 아니면 null'),
 });
-const OpenIn = z.object({ screen: z.string().describe('checkin · training · armcare · mechanics · lab') });
+const OpenIn = z.object({ screen: z.string().describe('checkin · training · armcare · mechanics · lab · calendar · programs · settings') });
 const RangeIn = z.object({ from: ymd, to: ymd });
 const TodayIn = z.object({
   kind: z.enum(['lighter', 'harder', 'focus', 'workout', 'remove', 'add', 'swap']).describe(
@@ -60,6 +63,33 @@ const TodayIn = z.object({
 });
 const NoIn = z.object({});
 const FindIn = z.object({ query: z.string().describe('운동 이름 일부 · 부위(예: 스쿼트, 하체, 어깨)') });
+
+/* 4단계 쓰기 — 확인 · 실행은 서버(lib/coach/assist.ts), 카드 글은 아래 순수 함수 */
+export const CALENDAR_KINDS = ['경기', '훈련', '레슨', '기타'] as const;
+const CalendarIn = z.object({
+  kind: z.enum(['add', 'change', 'delete']).describe('add 새 일정 · change 날 · 시각 · 이름 바꾸기 · delete 지우기'),
+  date: ymd.describe('add 는 새 일정의 날, change · delete 는 바꿀 일정의 지금 날'),
+  eventKind: z.enum(CALENDAR_KINDS).describe('add 는 새 일정의 종류, change · delete 는 바꿀 일정의 종류(read_calendar 로 본 것)'),
+  title: z.string().nullable().describe('add 의 이름 · change 의 새 이름(짧게, 예: 연습경기 등판), 아니면 null'),
+  time: z.string().nullable().describe('HH:MM(24시) — add 의 시각 · change 의 새 시각, 모르면 null'),
+  newDate: ymd.nullable().describe('change 일 때 옮길 날, 아니면 null'),
+});
+const ThrowPlanIn = z.object({ answer: z.enum(THROW_PLANS).describe('오늘 등판 답') });
+const FavoriteIn = z.object({
+  kind: z.enum(['운동', '드릴']),
+  name: z.string().describe('운동 · 드릴 이름(read_workouts · find_exercises 로 본 그대로)'),
+  on: z.boolean().describe('true 즐겨찾기 · false 빼기'),
+});
+const SettingsIn = z.object({
+  kind: z.enum(['level', 'add_equipment', 'remove_equipment']).describe('level 웨이트 경력 · add_equipment 가진 장비 더하기 · remove_equipment 빼기'),
+  value: z.string().describe('경력 이름 또는 장비 이름'),
+});
+const ProgramIn = z.object({ kind: z.enum(['skip', 'stop']).describe('skip 이번 세션 건너뛰기 · stop 프로그램 그만두기') });
+const PostIn = z.object({
+  category: z.enum(POST_CATEGORIES.map((c) => c.key) as [string, ...string[]]).describe('free 자유 · question 질문 · 답변 · meetup 번개 · team 팀 홍보 · 선수 모집'),
+  title: z.string(),
+  body: z.string(),
+});
 
 type Def = { name: string; description: string; input: z.ZodType };
 
@@ -119,7 +149,32 @@ export const WRITE_DEFS = [
     description: '사용자가 던졌다고 말했는데 기록이 없을 때 투구 기록 초안 카드(기록 화면을 채워 연다 — 저장은 사용자가).',
     input: LogIn,
   },
-  { name: 'open_screen', description: '지금 할 일이 다른 화면에 있을 때 그 화면 열기 카드(체크인 · 오늘 운동 · 암케어 · 메커니즘 · 3D 동작 분석).', input: OpenIn },
+  {
+    name: 'open_screen',
+    description:
+      '지금 할 일이 다른 화면에 있을 때 그 화면 열기 카드(체크인 · 오늘 운동 · 암케어 · 메커니즘 · 3D 동작 분석 · 달력 · 근력 프로그램 고르기 · 트레이닝 설정). 3D 분석 요청 · 메커니즘 처방 고르기 · 프로그램 시작은 그 화면에서 사용자가 한다.',
+    input: OpenIn,
+  },
+  {
+    name: 'calendar',
+    description:
+      "내 달력 일정 더하기 · 바꾸기 · 지우기 카드(오늘부터 180일 안). 팀 · 레슨 일정은 못 바꾼다. 경기 · 등판 일정은 이름에 '경기' 또는 '등판'을 넣는다(앱이 다음 등판으로 읽는다). 지우기는 앱이 한 번 더 묻는다.",
+    input: CalendarIn,
+  },
+  { name: 'throw_plan', description: '오늘 등판 답(던지는 일정) 저장 카드. 오늘 체크인이 있어야 저장된다. 오늘 운동 · 투구 계획이 이 답을 읽는다.', input: ThrowPlanIn },
+  { name: 'favorite', description: '운동 · 드릴 즐겨찾기 달기 · 빼기 카드.', input: FavoriteIn },
+  {
+    name: 'training_settings',
+    description: `트레이닝 설정 카드 — 웨이트 경력(${TRAINING_LEVEL_NAMES.join(' · ')}) 또는 가진 장비 더하기 · 빼기(${SELECTABLE_EQUIPMENT.join(' · ')}). 다음에 만드는 운동부터 바뀐다.`,
+    input: SettingsIn,
+  },
+  { name: 'armcare_today', description: '오늘 암케어 루틴 만들기 카드(오늘 몸 상태로 앱이 짠다, 있으면 새로). 오늘 체크인이 있어야 한다.', input: NoIn },
+  { name: 'program_day', description: '진행 중인 근력 프로그램의 이번 세션 건너뛰기 · 그만두기 카드(그만두기는 앱이 한 번 더 묻는다, 기록은 남는다). 새 프로그램 시작은 open_screen programs.', input: ProgramIn },
+  {
+    name: 'draft_post',
+    description: '덕아웃 커뮤니티 글 초안 카드 — 글쓰기 화면을 채워 연다. 올리기는 사용자가 직접 한다. 다른 사람의 이름 · 연락처 · 건강정보는 넣지 않는다.',
+    input: PostIn,
+  },
 ] as const satisfies readonly Def[];
 
 export type ToolName = (typeof READ_DEFS)[number]['name'] | (typeof WRITE_DEFS)[number]['name'];
@@ -223,7 +278,7 @@ export type TodayWork = {
 
 /** 이름 맞추기 — 띄어쓰기 · 대소문자 무시. 꼭 같은 것 먼저, 아니면 하나만 걸리는 일부 */
 export const norm = (t: string) => t.replace(/\s+/g, '').toLowerCase();
-function byName<T extends { title: string }>(items: readonly T[], name: string | null): T | null {
+export function byName<T extends { title: string }>(items: readonly T[], name: string | null): T | null {
   if (!name) return null;
   const n = norm(name);
   const exact = items.find((i) => norm(i.title) === n);
@@ -270,7 +325,9 @@ export async function proposeToday(w: TodayWork | undefined, input: Record<strin
 }
 
 /** 순수 확인 — change_today 는 오늘 판 · 후보가 필요해 서버(lib/coach/tools.ts proposeToday)가 한다 */
-const PROPOSERS: Record<Exclude<(typeof WRITE_DEFS)[number]['name'], 'change_today'>, (ctx: ProposeCtx, input: Record<string, unknown>) => Proposed> = {
+/** 서버가 DB 를 보고 확인하는 도구 — lib/coach/assist.ts ASSIST_PROPOSERS */
+export const SERVER_TOOLS = ['change_today', 'calendar', 'throw_plan', 'favorite', 'training_settings', 'armcare_today', 'program_day', 'draft_post'] as const;
+const PROPOSERS: Record<Exclude<(typeof WRITE_DEFS)[number]['name'], (typeof SERVER_TOOLS)[number]>, (ctx: ProposeCtx, input: Record<string, unknown>) => Proposed> = {
   change_week: proposeWeek,
   goal: proposeGoal,
   draft_pitch_log: proposeLog,
@@ -294,4 +351,137 @@ export function addCard(cards: CoachCard[], card: Omit<CoachCard, 'id'>, max: nu
   const id = `c${cards.length}`;
   cards.push({ id, ...card });
   return { id };
+}
+
+/* ───────────── 4단계 카드 글(순수 — 확인 재료는 서버가 읽어 넘긴다) ───────────── */
+
+/** 일정 이름 → 종류(read_calendar 와 같은 판정 — AI 는 이름 대신 종류로 일정을 가리킨다) */
+export const calendarKindOf = (title: string): (typeof CALENDAR_KINDS)[number] =>
+  isOutingTitle(title) ? '경기' : /레슨/.test(title) ? '레슨' : /훈련|연습/.test(title) ? '훈련' : '기타';
+
+const CAL_AHEAD = 180;
+const shiftDay = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+const inCalRange = (d: string, today: string) => d >= today && d <= shiftDay(today, CAL_AHEAD);
+
+type CalRow = { id: string; date: string; title: string; time: string | null };
+const OUTING_LINE = '경기 · 등판 일정은 이번 주 일정 · 투구 계획이 읽어요';
+
+/**
+ * 달력 카드 — rows 는 그날(change · delete 의 date) 내 일정. 카드 제목에는 원래 일정 이름을 안 넣는다(이름은 AI 에게 안 보낸다 —
+ * 도구 결과가 카드 제목을 돌려준다). 이름은 사용자만 보는 줄에.
+ */
+export function calendarCard(input: Record<string, unknown>, today: string, rows: readonly CalRow[]): Proposed {
+  const i = input as { kind: 'add' | 'change' | 'delete'; date: string; eventKind: (typeof CALENDAR_KINDS)[number]; title: string | null; time: string | null; newDate: string | null };
+  if (!inCalRange(i.date, today) || (i.newDate && !inCalRange(i.newDate, today))) return { refuse: `오늘부터 ${CAL_AHEAD}일 안의 날만 돼요.` };
+  if (i.kind === 'add') {
+    const title = (i.title ?? i.eventKind).trim();
+    const clean = cleanEvent({ date: i.date, title, time: i.time }, today);
+    if (!clean.ok) return { refuse: clean.error };
+    if (calendarKindOf(title) !== i.eventKind)
+      return { refuse: i.eventKind === '경기' ? "경기 · 등판 일정은 이름에 '경기' 또는 '등판'을 넣어 주세요." : `이름이 ${i.eventKind} 일정으로 안 읽혀요. 이름을 바꿔 주세요.` };
+    if (scrubNames(title) !== title) return { refuse: '다른 기관 이름은 일정에 넣지 않아요.' };
+    return {
+      card: {
+        tool: 'calendar',
+        title: `${dayText(i.date)} ${i.eventKind} 일정 더하기`,
+        lines: [`이름: ${title}${i.time ? ` · ${i.time}` : ''}`, ...(i.eventKind === '경기' ? [OUTING_LINE] : [])],
+        cta: '더하기',
+        args: { kind: 'add', date: i.date, title, time: i.time },
+      },
+    };
+  }
+  const same = rows.filter((r) => r.date === i.date && calendarKindOf(r.title) === i.eventKind);
+  if (!same.length) return { refuse: '그날 그 종류의 내 일정을 못 찾았어요(팀 · 레슨 일정은 바꿀 수 없어요).' };
+  if (same.length > 1) return { refuse: '그날 같은 종류 일정이 둘 이상이에요. 달력에서 직접 골라 주세요(open_screen calendar).' };
+  const row = same[0];
+  if (i.kind === 'delete')
+    return {
+      card: {
+        tool: 'calendar',
+        title: `${dayText(i.date)} ${i.eventKind} 일정 지우기`,
+        lines: [`이름: ${row.title}${row.time ? ` · ${row.time}` : ''}`],
+        cta: '지우기',
+        confirm: '이 일정을 지울까요?',
+        args: { kind: 'delete', id: row.id },
+      },
+    };
+  const next = { date: i.newDate ?? row.date, title: (i.title ?? row.title).trim(), time: i.time ?? row.time };
+  if (next.date === row.date && next.title === row.title && next.time === row.time) return { refuse: '바뀌는 게 없어요.' };
+  const clean = cleanEvent(next, today);
+  if (!clean.ok) return { refuse: clean.error };
+  if (scrubNames(next.title) !== next.title) return { refuse: '다른 기관 이름은 일정에 넣지 않아요.' };
+  const was = `${dayText(row.date)} ${row.title}${row.time ? ` ${row.time}` : ''}`;
+  const now = `${dayText(next.date)} ${next.title}${next.time ? ` ${next.time}` : ''}`;
+  return {
+    card: {
+      tool: 'calendar',
+      title: `${dayText(i.date)} ${i.eventKind} 일정 바꾸기`,
+      lines: [`${was} → ${now}`, ...(i.eventKind === '경기' || isOutingTitle(next.title) ? [OUTING_LINE] : [])],
+      cta: '바꾸기',
+      args: { kind: 'change', id: row.id, date: next.date, title: next.title, time: next.time },
+    },
+  };
+}
+
+export function throwPlanCard(answer: unknown, checkedIn: boolean): Proposed {
+  const a = THROW_PLANS.find((p) => p === answer);
+  if (!a) return { refuse: `등판 답은 ${THROW_PLANS.join(' · ')} 중 하나예요.` };
+  if (!checkedIn) return { refuse: '오늘 체크인을 먼저 해야 등판 답이 저장돼요(open_screen checkin).' };
+  return { card: { tool: 'throw_plan', title: `오늘 등판 답: ${a}`, lines: ['오늘 운동 · 투구 계획이 이 답을 읽어요'], cta: '저장', args: { answer: a } } };
+}
+
+export function favoriteCard(kind: '운동' | '드릴', found: { id: string; title: string } | null, on: boolean, already: boolean): Proposed {
+  if (!found) return { refuse: `그 ${kind}을 못 찾았어요. 이름을 그대로 주세요.` };
+  if (already === on) return { refuse: on ? '이미 즐겨찾기예요.' : '즐겨찾기에 없어요.' };
+  return { card: { tool: 'favorite', title: `${found.title} 즐겨찾기${on ? '' : ' 빼기'}`, lines: [], cta: on ? '달기' : '빼기', args: { kind, id: found.id, on } } };
+}
+
+/** 트레이닝 설정 카드 — owned 는 지금 가진 장비(한 번도 안 골랐으면 빈 목록) */
+export function settingsCard(kind: 'level' | 'add_equipment' | 'remove_equipment', value: string, level: string | null, owned: readonly string[]): Proposed {
+  const v = value.trim();
+  const after = '다음에 만드는 운동부터 바뀌어요(오늘 만든 목록은 그대로)';
+  if (kind === 'level') {
+    if (!TRAINING_LEVEL_NAMES.includes(v)) return { refuse: `경력은 ${TRAINING_LEVEL_NAMES.join(' · ')} 중 하나예요.` };
+    if (v === level) return { refuse: '이미 그 경력이에요.' };
+    return { card: { tool: 'training_settings', title: `웨이트 경력: ${level ?? '모름'} → ${v}`, lines: [after], cta: '바꾸기', args: { kind, value: v } } };
+  }
+  if (!(SELECTABLE_EQUIPMENT as readonly string[]).includes(v)) return { refuse: `장비는 ${SELECTABLE_EQUIPMENT.join(' · ')} 중 하나예요.` };
+  /* 한 번도 안 고른 사람(빈 목록)은 앱이 모든 장비를 켠 채로 본다 — 하나만 더하면 나머지가 빠진다 */
+  if (!owned.length) return { refuse: '가진 장비를 아직 안 골랐어요. 트레이닝 설정에서 한 번 골라 주세요(open_screen settings).' };
+  const has = owned.includes(v);
+  if (kind === 'add_equipment' ? has : !has) return { refuse: has ? '이미 가진 장비예요.' : '가진 장비에 없어요.' };
+  return {
+    card: { tool: 'training_settings', title: `가진 장비 ${kind === 'add_equipment' ? '더하기' : '빼기'}: ${v}`, lines: [after], cta: kind === 'add_equipment' ? '더하기' : '빼기', args: { kind, value: v } },
+  };
+}
+
+/** 장비 목록 바꾸기(실행할 때 지금 목록에 다시 건다) — 맨몸은 늘 */
+export function nextEquipment(owned: readonly string[], kind: 'add_equipment' | 'remove_equipment', v: string): string[] {
+  const rest = owned.filter((n) => n !== ALWAYS_OWNED && n !== v);
+  return kind === 'add_equipment' ? [...rest, v] : rest;
+}
+
+export function armcareCard(checkedIn: boolean): Proposed {
+  if (!checkedIn) return { refuse: '오늘 체크인을 먼저 해야 암케어를 짤 수 있어요(open_screen checkin).' };
+  return { card: { tool: 'armcare_today', title: '오늘 암케어 루틴 만들기', lines: ['오늘 몸 상태로 짜요(이미 있으면 새로 짜요)'], cta: '만들기', args: {} } };
+}
+
+export function programCard(kind: 'skip' | 'stop', p: { name: string; nextDay: number } | null): Proposed {
+  if (!p) return { refuse: '진행 중인 근력 프로그램이 없어요.' };
+  if (kind === 'skip')
+    return { card: { tool: 'program_day', title: `${p.name} ${p.nextDay}번째 세션 건너뛰기`, lines: ['건너뜀으로 세고 다음 세션으로 넘어가요'], cta: '건너뛰기', args: { kind, day: p.nextDay } } };
+  return { card: { tool: 'program_day', title: `${p.name} 그만두기`, lines: ['지금까지 기록은 남아요'], cta: '그만두기', confirm: '근력 프로그램을 그만둘까요?', args: { kind } } };
+}
+
+export function postCard(input: Record<string, unknown>): Proposed {
+  const { category, title, body } = input as { category: string; title: string; body: string };
+  const t = title.trim();
+  const b = body.trim();
+  if (!t || !b) return { refuse: '제목과 내용을 적어 주세요.' };
+  if (t.length > POST_TITLE_MAX || b.length > POST_BODY_MAX) return { refuse: `제목은 ${POST_TITLE_MAX}자 · 내용은 ${POST_BODY_MAX}자까지예요.` };
+  if (scrubNames(t) !== t || scrubNames(b) !== b) return { refuse: '다른 기관 이름은 글에 넣지 않아요.' };
+  const label = POST_CATEGORIES.find((c) => c.key === category)?.label ?? '자유';
+  return {
+    card: { tool: 'draft_post', title: `덕아웃 글 초안(${label}): ${t}`, lines: ['눌러서 고치고 직접 올려 주세요'], cta: '초안 열기', open: { kind: 'post', category, title: t, body: b } },
+  };
 }

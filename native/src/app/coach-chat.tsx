@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { router, useFocusEffect, type Href } from 'expo-router';
-import { ActivityIndicator, KeyboardAvoidingView, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance, type TextInputInstance } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance, type TextInputInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { applyCoachAdjust, previewCoachAdjust } from '@/app/actions/coach';
 import type { applyCoachCard, applyCoachGoal, loadCoachChat, sendCoachMessage } from '@/app/actions/coach-chat';
@@ -229,6 +229,12 @@ function CardView({ messageId, card, c }: { messageId: string; card: Msg['cards'
     const o = card.open;
     if (o?.kind === 'screen') return openScreen(o.screen);
     if (o?.kind === 'log') return pushOpen({ pathname: '/pitch/edit' as Href as never, params: { date: o.date, type: o.type, ...(o.count ? { count: String(o.count) } : {}) } });
+    if (o?.kind === 'post') {
+      router.back();
+      return pushOpen({ pathname: '/community/new' as Href as never, params: { category: o.category, title: o.title, body: o.body } });
+    }
+    /* 지우기 · 그만두기는 한 번 더 묻는다(4단계) */
+    if (card.confirm && !(await ask(card.confirm, card.cta))) return;
     setState('busy');
     setErr(null);
     const r = await rpc<Awaited<ReturnType<typeof applyCoachCard>>>('coach-chat.applyCoachCard', messageId, card.id).catch(() => null);
@@ -264,6 +270,14 @@ function CardView({ messageId, card, c }: { messageId: string; card: Msg['cards'
   );
 }
 
+const ask = (title: string, cta: string) =>
+  new Promise<boolean>((done) =>
+    Alert.alert(title, undefined, [
+      { text: '취소', style: 'cancel', onPress: () => done(false) },
+      { text: cta, style: 'destructive', onPress: () => done(true) },
+    ], { cancelable: true, onDismiss: () => done(false) })
+  );
+
 /** 화면 열기 — 대화 창을 닫고 연다(체크인은 웹 흐름) */
 const SCREEN_HREF: Record<Exclude<OpenScreen, 'checkin'>, string> = {
   training: '/training-today',
@@ -271,6 +285,9 @@ const SCREEN_HREF: Record<Exclude<OpenScreen, 'checkin'>, string> = {
   mechanics: '/training-mechanics',
   lab: '/lab',
   velocity: '/velocity',
+  calendar: '/calendar',
+  programs: '/training/programs',
+  settings: '/training/settings',
 };
 function openScreen(screen: OpenScreen) {
   if (screen === 'checkin') return openCheckin();

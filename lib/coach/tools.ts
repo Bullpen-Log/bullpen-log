@@ -2,7 +2,6 @@ import 'server-only';
 import { createHash } from 'node:crypto';
 import { prisma } from '@/lib/prisma';
 import { effortPctOf, shiftDateKey, toDateKey } from '@/lib/pitch-stats';
-import { isOutingTitle } from '@/lib/calendar-event';
 import { EVENT_KINDS } from '@/lib/org/rules';
 import { parseProgram } from '@/lib/program/program';
 import { mechFocusFrom, readProgramState } from '@/lib/mechanics/program';
@@ -11,9 +10,10 @@ import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { decideAccess, type Capability } from '@/lib/release-access';
 import { releaseStage } from '@/lib/release-gate';
 import { CARDS_MAX, type CoachCard } from '@/lib/coach/card';
-import { READ_NAMES, WRITE_NAMES, addCard, norm, parseToolInput, propose, proposeToday, type ProposeCtx, type TodayWork } from '@/lib/coach/tool-defs';
+import { READ_NAMES, WRITE_NAMES, addCard, calendarKindOf, norm, parseToolInput, propose, proposeToday, type ProposeCtx, type TodayWork } from '@/lib/coach/tool-defs';
 export type { TodayWork } from '@/lib/coach/tool-defs';
 import type { Toolbox } from '@/lib/coach/ai';
+import { ASSIST_TOOLS, proposeAssist } from '@/lib/coach/assist';
 import type { DaySlot } from '@/lib/coach/week';
 
 /**
@@ -59,8 +59,6 @@ function rangeOf(input: Record<string, unknown>, today: string, maxDays: number)
 
 type Reader = (s: ToolSession, input: Record<string, unknown>) => Promise<{ text: string; error?: boolean }>;
 
-/** 달력 일정 제목 → 종류만(제목 글은 안 보낸다 — 동의 글 '달력 일정의 종류와 날짜') */
-const calendarKind = (title: string) => (isOutingTitle(title) ? '경기' : /레슨/.test(title) ? '레슨' : /훈련|연습/.test(title) ? '훈련' : '기타');
 const EVENT_LABEL: Record<string, string> = Object.fromEntries(EVENT_KINDS.map((k) => [k.key, k.label]));
 const PROGRAM_STATUS: Record<string, string> = { active: '진행 중', done: '마침', ended: '그만둠' };
 
@@ -127,7 +125,7 @@ const READERS: Record<string, Reader> = {
       }),
     ]);
     const rows = [
-      ...own.map((e) => ({ d: keyOfDbDate(e.date), t: e.time, k: calendarKind(e.title), from: '내 달력' })),
+      ...own.map((e) => ({ d: keyOfDbDate(e.date), t: e.time, k: calendarKindOf(e.title), from: '내 달력' })),
       ...team.map((e) => ({ d: keyOfDbDate(e.date), t: e.time, k: EVENT_LABEL[e.kind] ?? '기타', from: '팀 · 레슨' })),
     ].sort((a, b) => (a.d === b.d ? (a.t ?? '').localeCompare(b.t ?? '') : a.d < b.d ? -1 : 1));
     if (!rows.length) return { text: `${from} ~ ${to}: 일정 없음` };
@@ -246,7 +244,7 @@ export function toolboxOf(s: ToolSession): Toolbox {
         return READERS[name](s, input);
       }
       if (!WRITE_NAMES.has(name)) return { text: '모르는 도구예요.', error: true };
-      const p = name === 'change_today' ? await proposeTodayRaw(s.todayWork, raw) : propose(name, ctx, raw);
+      const p = name === 'change_today' ? await proposeTodayRaw(s.todayWork, raw) : ASSIST_TOOLS.has(name) ? await proposeAssist(s.user, s.today, name, raw) : propose(name, ctx, raw);
       if ('refuse' in p) return { text: `카드를 못 만들었어요: ${p.refuse}`, error: true };
       const card = name === 'change_week' ? { ...p.card, args: { ...(p.card.args as object), token: slotsKey(s.week) } } : p.card;
       const added = addCard(s.cards, card, CARDS_MAX);

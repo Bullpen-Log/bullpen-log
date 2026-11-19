@@ -1,5 +1,6 @@
 'use server';
 
+import { ASSIST_TOOLS, applyAssist } from '@/lib/coach/assist';
 import { revalidatePath } from 'next/cache';
 import type { Prisma } from '@prisma/client';
 import { requireUser } from '@/lib/dal';
@@ -531,7 +532,9 @@ export async function applyCoachCard(messageId: unknown, cardId: unknown): Promi
         ? await applyGoalOffer(user.id, args.offer as GoalOffer, m.createdAt)
         : card.tool === 'change_today'
           ? await applyTodayChange(user, args)
-          : { error: '이 카드는 실행할 수 없어요.' };
+          : ASSIST_TOOLS.has(card.tool)
+            ? await applyAssist(user, card.tool, args, toDateKey(m.createdAt))
+            : { error: '이 카드는 실행할 수 없어요.' };
   if ('error' in r) return r;
   await prisma.coachMessage.update({ where: { id: messageId }, data: { act: cardsJson(cards.map((c) => (c.id === cardId ? { ...c, done: true } : c))) } });
   revalidatePath('/coach');

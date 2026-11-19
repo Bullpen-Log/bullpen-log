@@ -1,9 +1,9 @@
 import * as Haptics from 'expo-haptics';
-import { type Href, router } from 'expo-router';
+import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { POST_BODY_MAX, POST_CATEGORIES, POST_TITLE_MAX, type PostCategory } from '@/lib/community';
+import { POST_BODY_MAX, POST_CATEGORIES, POST_TITLE_MAX, isPostCategory, type PostCategory } from '@/lib/community';
 import { useDraftGuard } from '~/community/draft-guard';
 import { Bar, BarButton, call, Chip, s, useBusy } from '~/community/parts';
 import { usePalette } from '~/lib/ui';
@@ -13,14 +13,15 @@ import { Press } from '~/shell/press';
 /**
  * 글쓰기(앱 화면) — 웹 app/(app)/community/new/community-post-form.tsx 를 옮겼다. 구분 · 제목 · 내용, 같은 한도 · 같은 서버 검사
  * (community.createAppPost → app/actions/community.ts tryCreatePost). 올리면 그 글 화면으로 바꿔 연다. 웹처럼 글만(사진은 없다).
- * 못 올리면 적은 글은 그대로 남는다.
+ * 못 올리면 적은 글은 그대로 남는다. AI 코치의 글 초안 카드(lib/coach/tool-defs.ts postCard)가 category · title · body 로 채워 연다 — 올리기는 사용자가.
  */
 export default function NewPostScreen() {
   const c = usePalette();
   const inset = useSafeAreaInsets();
-  const [category, setCategory] = useState<PostCategory>(POST_CATEGORIES[0].key);
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
+  const draft = useLocalSearchParams<{ category?: string; title?: string; body?: string }>();
+  const [category, setCategory] = useState<PostCategory>(isPostCategory(draft.category) ? draft.category : POST_CATEGORIES[0].key);
+  const [title, setTitle] = useState(typeof draft.title === 'string' ? draft.title.slice(0, POST_TITLE_MAX) : '');
+  const [body, setBody] = useState(typeof draft.body === 'string' ? draft.body.slice(0, POST_BODY_MAX) : '');
   const send = useBusy();
   const allowLeave = useDraftGuard(!!(title.trim() || body.trim()));
 

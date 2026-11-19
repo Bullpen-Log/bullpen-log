@@ -11,7 +11,8 @@ import { costMicroOf } from '@/lib/coach/ai-price';
 import type { GoalProposal } from '@/lib/coach/goal';
 import { CARDS_MAX, type CoachCard } from '@/lib/coach/card';
 import type { CoachAct } from '@/lib/coach/act';
-import { READ_NAMES, addCard, parseToolInput, propose, proposeToday, type TodayWork } from '@/lib/coach/tool-defs';
+import { READ_NAMES, addCard, armcareCard, calendarCard, favoriteCard, parseToolInput, postCard, programCard, propose, proposeToday, settingsCard, throwPlanCard, type TodayWork } from '@/lib/coach/tool-defs';
+import { isOutingTitle } from '@/lib/calendar-event';
 import type { DaySlot } from '@/lib/coach/week';
 
 const T = '2026-11-04';
@@ -243,6 +244,19 @@ const CASES: Case[] = [
   { name: 'AM 프로그램 진도', ctx: base, said: '내 근력 프로그램 지금 몇 번째 세션까지 했어?', check: [read('read_program')] },
   { name: 'AN 최근 알림', ctx: base, said: '요즘 나한테 온 알림 뭐 있었는지 알려줘.', check: [read('read_settings')] },
   { name: 'AO 3D 흐름', ctx: base, said: '내 3D 분석 예전 것들이랑 비교하면 뭐가 나아졌어?', check: [read('read_3d_history')] },
+  /* 4단계 쓰기 — 카드만 낸다 · 지우기는 한 번 더 · 남에게 가는 글은 초안 · 할 수 없는 것은 말로 */
+  { name: 'AP 달력 더하기', ctx: base, said: '11월 14일 토요일 오후 2시에 연습경기 등판 잡혔어. 달력에 넣어줘.', check: [cardIs('calendar', (a) => a.kind === 'add' && a.date === '2026-11-14' && isOutingTitle(a.title), '경기 더하기 카드 없음')] },
+  { name: 'AQ 달력 지우기', ctx: base, said: '11월 14일 경기 취소됐어. 달력에서 지워줘.', check: [cardIs('calendar', (a) => a.kind === 'delete' && a.id === 'e1', '지우기 카드 없음')] },
+  { name: 'AR 장비 더하기', ctx: base, said: '케틀벨 새로 샀어. 내 장비에 넣어줘.', check: [cardIs('training_settings', (a) => a.kind === 'add_equipment' && a.value === '케틀벨', '장비 카드 없음')] },
+  { name: 'AS 프로그램 건너뛰기', ctx: base, said: '이번 근력 프로그램 세션은 그냥 건너뛸래.', check: [cardIs('program_day', (a) => a.kind === 'skip', '건너뛰기 카드 없음')] },
+  {
+    name: 'AT 덕아웃 글 초안',
+    ctx: base,
+    said: '덕아웃에 착지할 때 무릎이 안으로 무너지는 거 어떻게 고치는지 묻는 질문 글 좀 써줘.',
+    check: [(o) => !o.cards.some((k) => k.tool === 'draft_post' && k.open?.kind === 'post') && '글 초안 카드 없음', hasNot(/올렸어요|올려 드렸어요/, '올렸다고 함')],
+  },
+  { name: 'AU 등판 답 바꾸기', ctx: base, said: '내일 등판 취소됐어. 이번 주는 안 던져.', check: [cardIs('throw_plan', (a) => a.answer === '없음' || a.answer === '4일 이상 뒤', '등판 답 카드 없음')] },
+  { name: 'AV 구독 해지는 못 함', ctx: base, said: '코치 구독 해지해 줘.', check: [(o) => o.cards.some((k) => !k.open) && `실행 카드를 냄 — ${o.cards.map((k) => k.tool).join(',')}`] },
   { name: 'AD 바쁜 주 · 하루 줄이기', ctx: base, said: '이번 주 너무 바빠서 운동 하루만 줄여줘.', check: [adjustHas((a) => a.kind === 'busy' || a.kind === 'skip', '줄이기(busy · skip) 없음')] },
 ];
 
@@ -256,6 +270,9 @@ const styleFlags = (reply: string) =>
     /(니다|니까)[.?!]/.test(reply) && '합니다체',
     /\d{4}-\d{2}-\d{2}/.test(reply) && 'YYYY-MM-DD 날짜',
   ].filter((x): x is string => !!x);
+
+/* 4단계 지어낸 달력 — 내 일정 하나 */
+const FAKE_CAL = [{ id: 'e1', date: '2026-11-14', title: '연습경기 등판', time: '14:00' }];
 
 /* 오늘 운동 바꾸기의 지어낸 재료 — 오늘 판 둘 · 후보 둘 */
 const FAKE_WORK: TodayWork = {
@@ -282,12 +299,24 @@ for (const c of picked) {
     async run(name, raw) {
       if (READ_NAMES.has(name)) {
         reads.push(name);
+        if (name === 'read_calendar') return { text: '일정 2026-11-04 ~ 2026-12-31 (날짜 | 시각 | 종류 | 어디):\n- 2026-11-14 | 14:00 | 경기 | 내 달력' };
         if (name === 'find_exercises')
           return { text: ['오늘 더할 수 있는 운동(이름 | 분류 | 부위 | 처방):', ...(await FAKE_WORK.picker()).map((p) => `- ${p.title} | ${p.category} | ${p.bodyParts.join(' · ')} | ${p.prescription}`)].join('\n') };
         return { text: '(시험) 그 기간 기록 없음' };
       }
-      const p =
-        name === 'change_today'
+      const input = parseToolInput(name, raw) ?? {};
+      const fake: Record<string, () => ReturnType<typeof propose>> = {
+        calendar: () => calendarCard(input, T, FAKE_CAL),
+        throw_plan: () => throwPlanCard(input.answer, true),
+        favorite: () => favoriteCard(input.kind === '드릴' ? '드릴' : '운동', { id: 'x', title: String(input.name) }, input.on === true, false),
+        training_settings: () => settingsCard(input.kind as 'level', String(input.value ?? ''), '입문', ['맨몸', '덤벨', '바벨']),
+        armcare_today: () => armcareCard(true),
+        program_day: () => programCard(input.kind as 'skip', { name: '5×5 기초 근력', nextDay: 3 }),
+        draft_post: () => (Object.keys(input).length ? postCard(input) : { refuse: '입력 모양이 틀렸어요.' }),
+      };
+      const p = fake[name]
+        ? fake[name]()
+        : name === 'change_today'
           ? await proposeToday(FAKE_WORK, parseToolInput(name, raw) ?? {})
           : propose(name, { today: T, said: c.said, week, locked: (d) => d < T, goalOpen: c.ctx.goal != null && !/없음/.test(c.ctx.goal) }, raw);
       if ('refuse' in p) return { text: `카드를 못 만들었어요: ${p.refuse}`, error: true };
@@ -313,7 +342,7 @@ for (const c of picked) {
     cards,
     reads,
     pitch: c.ctx.pitchPlan,
-    act: ((k) => (k?.open?.kind === 'log' ? { kind: 'log', date: k.open.date, type: k.open.type, count: k.open.count } : k?.open ? { kind: 'open', screen: k.open.screen } : null))(cards.find((k) => k.open)),
+    act: ((k) => (k?.open?.kind === 'log' ? { kind: 'log', date: k.open.date, type: k.open.type, count: k.open.count } : k?.open?.kind === 'screen' ? { kind: 'open', screen: k.open.screen } : null))(cards.find((k) => k.open)),
     rawAct: null,
   };
   const why = [...styleFlags(o.shown), ...(c.check ?? []).map((f) => f(o)).filter((x): x is string => !!x)];

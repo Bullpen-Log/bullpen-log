@@ -5,7 +5,11 @@ import type { ActLogType, OpenScreen } from '@/lib/coach/act';
  * 코치는 바꾸지 않는다: 카드를 만들 뿐이고 선수가 눌러야 실행된다(서버가 그때 다시 확인). 화면 열기 · 투구 기록 초안은 앱이 그 화면을 연다(open).
  * 저장은 CoachMessage.act 칸에 { cards } 로(옛 마디의 act 는 대신 해 주기 하나 — lib/coach/act.ts readAct). 순수 파일 — 앱도 읽는다.
  */
-export type CardOpen = { kind: 'screen'; screen: OpenScreen } | { kind: 'log'; date: string; type: ActLogType; count: number | null };
+export type CardOpen =
+  | { kind: 'screen'; screen: OpenScreen }
+  | { kind: 'log'; date: string; type: ActLogType; count: number | null }
+  /** 덕아웃 글 초안 — 글쓰기 화면을 채워 연다(올리기는 사용자가, 4단계) */
+  | { kind: 'post'; category: string; title: string; body: string };
 
 export type CoachCard = {
   /** 마디 안에서만 고유('c0' …) */
@@ -21,6 +25,8 @@ export type CoachCard = {
   open?: CardOpen;
   /** 서버 실행 카드의 입력(도구가 거른 값) */
   args?: unknown;
+  /** 지우기 · 그만두기처럼 되돌리기 어려운 카드 — 앱이 이 글로 한 번 더 묻는다(4단계 '지우기는 두 번 묻는다') */
+  confirm?: string;
   done?: boolean;
 };
 
@@ -42,6 +48,7 @@ export function readCards(raw: unknown): CoachCard[] | null {
       cta: c.cta as string,
       ...(c.open && typeof c.open === 'object' ? { open: c.open as CardOpen } : {}),
       ...(c.args !== undefined ? { args: c.args } : {}),
+      ...(str(c.confirm) ? { confirm: c.confirm } : {}),
       ...(c.done ? { done: true } : {}),
     }));
 }
