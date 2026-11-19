@@ -1,0 +1,450 @@
+{
+  "reviewer": "김민",
+  "scope": "암케어 영상 설명",
+  "reviewed": "직접 촬영 86개와 참고 영상 2개 중 기록된 88개",
+  "approvedChanges": 87,
+  "pendingApproval": [
+    "튜빙 전완 수피네이션: 설명안 승인 여부 확인 필요"
+  ],
+  "status": "87개 설명 운영 데이터 반영 및 재조회 확인, 캐시 갱신 배포 대기",
+  "notes": "운동 ID·제목 외 원본 영상 주소와 개인정보는 공유하지 않음. 별도 검수되지 않은 참고 영상이 남아 있을 수 있음.",
+  "exercises": [
+    {
+      "position": 1,
+      "title": "싱글암 90/90 플라이오볼 벽 던지기",
+      "id": "45452ae0-a2f5-4bc6-a5c7-d01761fc5f56"
+    },
+    {
+      "position": 2,
+      "title": "월 슬라이드",
+      "id": "b2400146-241d-4d03-92a5-bf8aa679ad80"
+    },
+    {
+      "position": 3,
+      "title": "프론 로우 + 외회전",
+      "id": "c791d242-f45e-43db-b441-5c42eabd7bc6"
+    },
+    {
+      "position": 4,
+      "title": "엘보 플렉션 아이소메트릭 프레스",
+      "id": "83af9c25-7f87-4928-8491-988a18c44935"
+    },
+    {
+      "position": 5,
+      "title": "어깨 외전 아이소메트릭 프레스",
+      "id": "66d0505f-4356-4e67-9907-3f85a8442dc6"
+    },
+    {
+      "position": 6,
+      "title": "어깨 내회전 아이소메트릭 프레스",
+      "id": "f3f38691-5ac2-459d-bc26-840f721d2727"
+    },
+    {
+      "position": 7,
+      "title": "원판 핀치 홀드",
+      "id": "38235418-c222-443a-b577-d937276afd99"
+    },
+    {
+      "position": 8,
+      "title": "덤벨 핑거 컬",
+      "id": "c04e48f1-76fb-4613-8c0a-a70d473b90fb"
+    },
+    {
+      "position": 9,
+      "title": "밴드 프론트 레이즈",
+      "id": "70a418c7-0510-4dd1-ac51-f25c9162da5e"
+    },
+    {
+      "position": 10,
+      "title": "푸시업 플러스",
+      "id": "0bb9bcac-5b06-48ff-9fbd-75f66aad547a"
+    },
+    {
+      "position": 11,
+      "title": "싱글암 덤벨 오버헤드 슈러그",
+      "id": "877869ef-dcc3-4273-b58d-936222c4f60d"
+    },
+    {
+      "position": 12,
+      "title": "시티드 외회전 에센트릭 오버로드",
+      "id": "2c09b44b-efef-4371-ad81-5f120e70700a"
+    },
+    {
+      "position": 13,
+      "title": "수파인 내회전 에센트릭 오버로드",
+      "id": "6fa41de9-408e-43ff-b37f-70e8d4ab69f6"
+    },
+    {
+      "position": 14,
+      "title": "리스트 익스텐션 에센트릭 오버로드",
+      "id": "23b0a88b-9081-404f-a25a-7eac7f9460d4"
+    },
+    {
+      "position": 15,
+      "title": "리스트 플렉션 에센트릭 오버로드",
+      "id": "a0a44ae3-9f9f-493a-aa6d-eb6bc052245e"
+    },
+    {
+      "position": 16,
+      "title": "덤벨 컬 드롭 캐치",
+      "id": "9f24f527-c615-44ea-8ac4-8fd1156184e7"
+    },
+    {
+      "position": 17,
+      "title": "프론트 레이즈 드롭 캐치",
+      "id": "23dada11-1e8b-4735-bc02-d45940e8a832"
+    },
+    {
+      "position": 18,
+      "title": "프론트 레이즈 리바운드",
+      "id": "a095c8d4-c6f1-46a4-96df-d131ec71aa73"
+    },
+    {
+      "position": 19,
+      "title": "레터럴 레이즈 리바운드",
+      "id": "34134316-47e2-478d-af1d-5a425d14e157"
+    },
+    {
+      "position": 20,
+      "title": "튜빙 내회전 0도 리바운드",
+      "id": "4e55dc31-04e8-4b8d-8fa4-e033f093cd7d"
+    },
+    {
+      "position": 21,
+      "title": "사이드라잉 외회전 리바운드",
+      "id": "80eb4f68-b4ae-40a2-956c-99b0da4b35a9"
+    },
+    {
+      "position": 22,
+      "title": "전완 프로네이션 아이소메트릭 프레스",
+      "id": "fe01038d-0a4c-480f-a14c-3879f2e2bb15"
+    },
+    {
+      "position": 23,
+      "title": "전완 수피네이션 아이소메트릭 프레스",
+      "id": "41d546f6-2e29-43f1-b9df-05cfd4e3dcd2"
+    },
+    {
+      "position": 24,
+      "title": "리스트 익스텐션 아이소메트릭 프레스",
+      "id": "a8641f36-bfa4-47cb-9743-d04b931d0abe"
+    },
+    {
+      "position": 25,
+      "title": "리스트 플렉션 아이소메트릭 프레스",
+      "id": "dea70baa-63e0-452e-ad30-bc56c4a71a4a"
+    },
+    {
+      "position": 26,
+      "title": "벤치 지지 덤벨 외회전",
+      "id": "8bc45844-1c4a-46fd-90f5-cd81ba745f80"
+    },
+    {
+      "position": 27,
+      "title": "수파인 덤벨 내회전 90도",
+      "id": "286b186f-b322-43fc-9da5-462e4e064195"
+    },
+    {
+      "position": 28,
+      "title": "밴드 하이 바이셉스 컬",
+      "id": "119ee9f0-b5da-4454-bc4f-2d4ebfbbb56e"
+    },
+    {
+      "position": 29,
+      "title": "덤벨 어라운드 더 월드",
+      "id": "f8c5318d-025e-4ccf-88c6-c685f077e274"
+    },
+    {
+      "position": 30,
+      "title": "TRX T 레이즈",
+      "id": "b270c0fa-f0d7-49c4-a97b-a9876fa4082f"
+    },
+    {
+      "position": 31,
+      "title": "TRX Y 레이즈",
+      "id": "40532dd5-fd37-41e1-9b77-a5f2e08b4a49"
+    },
+    {
+      "position": 32,
+      "title": "TRX I 레이즈",
+      "id": "5ae8f382-bd23-4c08-8651-a74f509bda5b"
+    },
+    {
+      "position": 33,
+      "title": "톨닐링 밴드 페이스 풀",
+      "id": "39f4a4da-8f5d-4c8a-b5c5-432d15d83824"
+    },
+    {
+      "position": 34,
+      "title": "프론 인클라인 리어델트 레이즈",
+      "id": "14f96cdf-023f-4a2b-8733-1e830a41049b"
+    },
+    {
+      "position": 35,
+      "title": "6방향 덤벨 숄더 레이즈",
+      "id": "b9c417d1-ff28-4c50-85dd-e32b180f794c"
+    },
+    {
+      "position": 36,
+      "title": "밴드 트라이셉스 푸시다운",
+      "id": "f554831b-75fc-4507-afa7-8fd35c181f9f"
+    },
+    {
+      "position": 37,
+      "title": "밴드 풀 어파트",
+      "id": "76bc96af-7a76-44da-b245-df106aebbb2d"
+    },
+    {
+      "position": 38,
+      "title": "에센트릭 밴드 바이셉스 컬",
+      "id": "4d9e09d9-5d9e-43a0-850d-cd916c1a4764"
+    },
+    {
+      "position": 39,
+      "title": "덤벨 울나 디비에이션",
+      "id": "7ed34709-2841-430c-89d1-b7f6c676c167"
+    },
+    {
+      "position": 40,
+      "title": "덤벨 래디얼 디비에이션",
+      "id": "f70c850d-d583-474d-832d-7667a2efb843"
+    },
+    {
+      "position": 41,
+      "title": "덤벨 전완 프로네이션·수피네이션",
+      "id": "9e9805c1-024a-4656-ba69-411d6df282e1"
+    },
+    {
+      "position": 42,
+      "title": "덤벨 리스트 익스텐션",
+      "id": "84b2db84-b873-4005-86a3-77294b59f077"
+    },
+    {
+      "position": 43,
+      "title": "덤벨 리스트 플렉션",
+      "id": "7c125173-4fd4-4040-8f8a-f6ced2918ac6"
+    },
+    {
+      "position": 44,
+      "title": "튜빙 울나 디비에이션 (두꺼운 그립)",
+      "id": "2409a369-3a9a-47bf-977b-1d629904fed0"
+    },
+    {
+      "position": 45,
+      "title": "튜빙 울나 디비에이션",
+      "id": "fd1ebc45-51d1-4f22-aa84-8b1ae623c0bb"
+    },
+    {
+      "position": 46,
+      "title": "튜빙 래디얼 디비에이션 (두꺼운 그립)",
+      "id": "d05ce8ba-9785-48c1-9e88-8a4992558f3f"
+    },
+    {
+      "position": 47,
+      "title": "튜빙 래디얼 디비에이션",
+      "id": "86f1f699-8956-4bd2-94d0-06b596e99363"
+    },
+    {
+      "position": 49,
+      "title": "튜빙 전완 프로네이션",
+      "id": "387f7655-9023-4cf3-bc4c-261e825ca736"
+    },
+    {
+      "position": 50,
+      "title": "튜빙 리스트 익스텐션",
+      "id": "c06d787c-1628-465c-b4e5-c969aa8fd56d"
+    },
+    {
+      "position": 51,
+      "title": "튜빙 리스트 플렉션",
+      "id": "39f3e556-3b31-440c-87b5-9a9c5b062320"
+    },
+    {
+      "position": 52,
+      "title": "쿼드러펫 외회전",
+      "id": "fc08b2a7-6349-41d7-a1d8-31c429000181"
+    },
+    {
+      "position": 53,
+      "title": "쿼드러펫 T 레이즈",
+      "id": "3321b1ea-e55b-4f7c-a948-134292dee3d5"
+    },
+    {
+      "position": 54,
+      "title": "쿼드러펫 Y 레이즈",
+      "id": "b1ea2faa-4799-49dc-a1a0-c2cbb6c3d5e4"
+    },
+    {
+      "position": 55,
+      "title": "스플릿 스탠스 페이스 풀",
+      "id": "1f8efd0c-6068-4c3c-b923-419560baa3cb"
+    },
+    {
+      "position": 56,
+      "title": "스플릿 스탠스 90/90 아이소 홀드",
+      "id": "6718b9aa-106e-45f6-9473-0024a38f05c3"
+    },
+    {
+      "position": 57,
+      "title": "케이블 내·외회전 아이소 홀드",
+      "id": "1f3818c9-d225-42d8-a125-d7009ae62b8e"
+    },
+    {
+      "position": 58,
+      "title": "프론 슈퍼맨",
+      "id": "7081f9e6-246c-4c8b-aa90-41b94177631a"
+    },
+    {
+      "position": 59,
+      "title": "프론 원판 스위머",
+      "id": "28b398e2-2072-47e8-99e3-1c8c38720e4f"
+    },
+    {
+      "position": 60,
+      "title": "프론 Y 레이즈",
+      "id": "99021953-678a-4997-aa36-5431349dcae5"
+    },
+    {
+      "position": 61,
+      "title": "프론 막대 스캡 홀드",
+      "id": "c8f2b021-00d1-49aa-907d-6c6c0ad6f8eb"
+    },
+    {
+      "position": 62,
+      "title": "수파인 서라투스 잽",
+      "id": "4fe5cfb9-1867-4f5a-86fe-51e4775f8e98"
+    },
+    {
+      "position": 63,
+      "title": "튜빙 서라투스 펀치",
+      "id": "103afb5c-9760-4506-bef1-56705d07e30e"
+    },
+    {
+      "position": 64,
+      "title": "튜빙 W",
+      "id": "0b35eea7-1833-460f-87d8-3dec83ec9f63"
+    },
+    {
+      "position": 65,
+      "title": "쿼드러펫 덤벨 T 레이즈",
+      "id": "ad977421-3082-491e-849c-9b1530fdebf6"
+    },
+    {
+      "position": 66,
+      "title": "쿼드러펫 덤벨 Y 레이즈",
+      "id": "9d374d76-2f51-4e64-aaab-c2a431dbb7af"
+    },
+    {
+      "position": 67,
+      "title": "스플릿 스탠스 튜빙 리버스 스로우",
+      "id": "87e4be5b-9652-43e4-bea1-7cef0519ed62"
+    },
+    {
+      "position": 68,
+      "title": "스플릿 스탠스 튜빙 대각선 스로우",
+      "id": "72a66279-37ad-4a97-afd6-ee2ec40bd3a5"
+    },
+    {
+      "position": 69,
+      "title": "스플릿 스탠스 싱글암 리버스 플라이",
+      "id": "f47f2526-1a8b-4aeb-82ce-5d369e17fe6e"
+    },
+    {
+      "position": 70,
+      "title": "스플릿 스탠스 싱글암 체스트 플라이",
+      "id": "52471c45-886b-43c8-810a-53f86880754b"
+    },
+    {
+      "position": 71,
+      "title": "스플릿 스탠스 튜빙 내회전 90도",
+      "id": "2e1e5029-d52a-4f40-8484-a57461fcbb04"
+    },
+    {
+      "position": 72,
+      "title": "스플릿 스탠스 튜빙 외회전 90도",
+      "id": "ed3db20e-7f6a-4831-97f6-414ddbb90e0f"
+    },
+    {
+      "position": 73,
+      "title": "스플릿 스탠스 튜빙 내회전 0도",
+      "id": "7224e0d2-9acc-428c-9ebc-00c397e57306"
+    },
+    {
+      "position": 74,
+      "title": "스플릿 스탠스 튜빙 외회전 0도",
+      "id": "b7b7a573-6e6f-4d4d-9be4-4a3c46125766"
+    },
+    {
+      "position": 75,
+      "title": "하프닐링 튜빙 내회전 90도",
+      "id": "0f310e31-41ac-46d5-83d3-d57d014b6998"
+    },
+    {
+      "position": 76,
+      "title": "하프닐링 튜빙 외회전 90도",
+      "id": "0dbab8a6-d0b3-4817-ae05-684594416dd5"
+    },
+    {
+      "position": 77,
+      "title": "케이블 외회전 0도",
+      "id": "26177baa-e3c1-4fc5-ad21-29b18b2b250c"
+    },
+    {
+      "position": 78,
+      "title": "케이블 내회전 0도",
+      "id": "533d5541-2281-4f23-ac6c-8b4385376882"
+    },
+    {
+      "position": 79,
+      "title": "튜빙 내회전 0도",
+      "id": "95770699-90ea-4c31-aab3-db002f753243"
+    },
+    {
+      "position": 80,
+      "title": "튜빙 외회전 0도",
+      "id": "46c17012-00e4-42c7-a451-6d2ed06b1374"
+    },
+    {
+      "position": 81,
+      "title": "케틀벨 바텀업 웨이터 캐리",
+      "id": "9d0c2eff-63cb-4bba-8591-512830623e46"
+    },
+    {
+      "position": 82,
+      "title": "케틀벨 바텀업 캐리",
+      "id": "71483c05-7a8a-4fec-987a-e099b99e0cf6"
+    },
+    {
+      "position": 83,
+      "title": "싱글암 Y 레이즈",
+      "id": "d59824d5-97fd-4d23-a189-380ef10f9d59"
+    },
+    {
+      "position": 84,
+      "title": "에센트릭 덤벨 프리처 컬",
+      "id": "51cef6b8-8712-4127-bfb5-0a2876f3a32c"
+    },
+    {
+      "position": 85,
+      "title": "사이드라잉 덤벨 내회전 아이소메트릭 홀드",
+      "id": "0eadca52-7aa7-4b66-a9d9-cd3f27df48cb"
+    },
+    {
+      "position": 86,
+      "title": "90/90 어깨 아이소메트릭 홀드",
+      "id": "a3d989e4-96ab-4e4c-a223-66cc7b50c4c0"
+    },
+    {
+      "position": 87,
+      "title": "사이드라잉 T 레이즈",
+      "id": "c7dd043f-3209-46bb-948d-cc806a55986b"
+    },
+    {
+      "position": 88,
+      "title": "데드행",
+      "id": "501229df-953e-4e91-90df-58adea35b458"
+    }
+  ],
+  "hiddenPreserved": 8,
+  "appliedAt": "2026-11-20T00:43:16.039545+09:00"
+}

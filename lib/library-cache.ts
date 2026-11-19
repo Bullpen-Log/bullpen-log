@@ -112,7 +112,8 @@ const exerciseRows = unstable_cache(
   /* :v51 — 2026-11-16 암케어 팔꿈치 후방 1 → 5: '나중에 촬영' 둘을 되돌리고 참고 영상 둘을 더함(scripts/library-elbow-back-2026-11-16.mjs). */
   /* :v52 — 2026-11-16 덤벨 벤트오버 로우를 더함(scripts/library-add-db-row-2026-11-16.mjs) — 덤벨만 있고 벤치가 없으면 '중간' 이상 로우가 0개였다. */
   /* :v53 — 2026-11-16 직접 찍은 영상 중 사람이 작은 운동 38개를 잘라 키운 판으로, 앞뒤 빈 시간이 긴 12개를 자른 판으로 경로 바꿈(scripts/shoot-trim/size/). */
-  ['library:exercises:v53'],
+  /* :v54 — 2026-11-20 김민 검수 암케어 설명 반영 후 캐시 갱신. */
+  ['library:exercises:v54'],
   { tags: [LIBRARY_TAG] }
 );
 
