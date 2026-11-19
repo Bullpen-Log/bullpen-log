@@ -1,7 +1,5 @@
 import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
-import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
-import { z } from 'zod';
 import { COACH_SYSTEM_BLOCK } from '@/lib/coach/ai-prompt';
 import { TOOL_DEFS } from '@/lib/coach/tool-defs';
 import type { AiUsage } from '@/lib/coach/ai-price';
@@ -22,8 +20,10 @@ let client: Anthropic | null = null;
 /* 15초 · 재시도 둘(SDK 기본 재시도 규칙) — 넘으면 정해진 문장 */
 const clientOf = () => (client ??= new Anthropic({ timeout: 15_000, maxRetries: 2 }));
 
-/* 답 글 하나 — 바꾸기 제안은 도구(카드)로 낸다(개인 비서 1단계, lib/coach/tool-defs.ts) */
-const ChatOut = z.object({ reply: z.string() });
+/*
+ * 답은 글 하나 — 바꾸기 제안은 도구(카드)로 낸다(개인 비서 1단계, lib/coach/tool-defs.ts). 예전의 구조화 출력(JSON)은 걷었다: 답이 JSON 으로 묶여
+ * 있으면 모델이 도구를 부르지 않고 바로 답부터 쓰며 '카드를 만들었어요'라고만 적었다(실제 호출 11-20 — 14상황 중 바꾸기 도구 0번).
+ */
 
 /** 한 답에 도구를 부르는 횟수(되돌기) 상한 · 전체 시간 — 넘으면 도구 없이 답을 맺게 한다(값 · 기다림을 묶는다) */
 export const MAX_TOOL_ROUNDS = 3;
@@ -36,7 +36,7 @@ export type ChatLine = { role: 'user' | 'coach'; text: string };
 
 export type ChatTurn =
   | { ok: true; reply: string; model: string; usage: AiUsage; ms: number; rounds: number }
-  | { ok: false; why: 'refusal' | 'parse' | 'error'; model: string; usage: AiUsage; ms: number };
+  | { ok: false; why: 'refusal' | 'parse' | 'error'; model: string; usage: AiUsage; ms: number; stop?: string | null };
 
 const addUsage = (sum: AiUsage, u: AiUsage) => {
   for (const k of ['input_tokens', 'output_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens'] as const) sum[k] = (sum[k] ?? 0) + (u[k] ?? 0);
@@ -72,18 +72,28 @@ export async function chatTurn(history: readonly ChatLine[], context: string, te
   let model = COACH_MODEL_CHAT;
   const usage: AiUsage = {};
   const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [...turnsOf(history), { role: 'user', content: `${context}\n\n[사용자 말]\n${text}` }];
+  /* 도구를 부르기 전에 쓴 글 — 답을 먼저 쓰고 도구를 부른 뒤 글 없이 끝내는 일이 있어(실제 호출 11-20, 36상황 중 3) 그때 답으로 쓴다 */
+  let earlier = '';
+  /* 글 없이 끝난 응답은 한 번만 다시 묻는다(같은 요청 — 실제 호출 11-20 에 생각만 하고 글 없이 끝난 일이 36상황 중 3) */
+  let retried = false;
+  const textOf = (content: readonly Anthropic.Beta.Messages.BetaContentBlock[]) =>
+    content
+      .flatMap((b) => (b.type === 'text' ? [b.text] : []))
+      .join('\n')
+      .trim();
   try {
     for (let round = 0; ; round++) {
       const last = round >= MAX_TOOL_ROUNDS || Date.now() - t0 > TURN_BUDGET_MS;
-      const r = await clientOf().beta.messages.parse({
+      const r = await clientOf().beta.messages.create({
         model: COACH_MODEL_CHAT,
-        max_tokens: 2000,
+        /* 생각 + 답 — 2000 이면 생각이 길 때 답 없이 끊길 수 있다 */
+        max_tokens: 4000,
         /* 도구 목록 + 규칙 글 + 지식 카드 — 모든 사용자가 같아 여기 캐시 표시(도구가 system 앞에 붙어 같이 캐시된다) */
         tools: TOOL_DEFS,
         tool_choice: { type: last ? 'none' : 'auto' },
         system: [{ type: 'text', text: COACH_SYSTEM_BLOCK, cache_control: { type: 'ephemeral' } }],
         messages,
-        output_config: { effort: 'low', format: betaZodOutputFormat(ChatOut) },
+        output_config: { effort: 'low' },
         /* 캐시 표시는 고정 덩이 끝(system) · 지난 마디 끝(turnsOf) 둘 — usage.cache_read_input_tokens 로 확인 */
         ...(COACH_MODEL_CHAT.includes('haiku') ? {} : { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const }),
       });
@@ -92,6 +102,7 @@ export async function chatTurn(history: readonly ChatLine[], context: string, te
       if (r.stop_reason === 'refusal') return { ok: false, why: 'refusal', model, usage, ms: Date.now() - t0 };
       if (r.stop_reason === 'tool_use' && !last) {
         const uses = r.content.filter((b): b is Anthropic.Beta.Messages.BetaToolUseBlock => b.type === 'tool_use');
+        earlier = textOf(r.content) || earlier;
         messages.push({ role: 'assistant', content: r.content as Anthropic.Beta.Messages.BetaContentBlockParam[] });
         const results = await Promise.all(
           uses.map(async (u) => {
@@ -105,9 +116,18 @@ export async function chatTurn(history: readonly ChatLine[], context: string, te
         messages.push({ role: 'user', content: results });
         continue;
       }
-      const out = r.parsed_output;
-      if (!out || !out.reply.trim()) return { ok: false, why: 'parse', model, usage, ms: Date.now() - t0 };
-      return { ok: true, reply: out.reply.trim().slice(0, 600), model, usage, ms: Date.now() - t0, rounds: round };
+      /* 마지막 응답의 글만(생각 · 도구 블록은 빼고), 없으면 도구 앞에 쓴 글 */
+      const reply = textOf(r.content) || earlier;
+      if (!reply && !retried) {
+        retried = true;
+        round--;
+        continue;
+      }
+      if (!reply) {
+        console.error('[coach-ai] empty reply:', r.stop_reason);
+        return { ok: false, why: 'parse', model, usage, ms: Date.now() - t0, stop: r.stop_reason };
+      }
+      return { ok: true, reply: reply.slice(0, 600), model, usage, ms: Date.now() - t0, rounds: round };
     }
   } catch (e) {
     /* 왜 실패했는지 서버 로그에 남긴다(열쇠 · 사용자 글은 안 찍힌다 — SDK 오류 글만) */
