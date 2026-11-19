@@ -58,6 +58,7 @@ const TodayIn = z.object({
   exercise: z.string().nullable().describe('remove · swap 은 오늘 목록의 운동 이름 그대로, add 는 더할 운동 이름(find_exercises 로 찾은 것)'),
   with: z.string().nullable().describe('swap 일 때 넣을 운동 이름(find_exercises 로 찾은 것)'),
 });
+const NoIn = z.object({});
 const FindIn = z.object({ query: z.string().describe('운동 이름 일부 · 부위(예: 스쿼트, 하체, 어깨)') });
 
 type Def = { name: string; description: string; input: z.ZodType };
@@ -74,6 +75,24 @@ export const READ_DEFS = [
     description: '오늘 더하거나 바꿔 넣을 수 있는 운동을 이름 · 부위로 찾는다(오늘 장비 · 몸 상태로 앱이 고른 후보, 처방 포함). change_today add · swap 전에 쓴다.',
     input: FindIn,
   },
+  {
+    name: 'read_workouts',
+    description: '운동 기록을 날짜 범위로 읽는다(최대 31일). 날마다 한 운동 · 세트 · 횟수 · 무게 · 운동 힘듦. 오늘 운동 목록이 아니라 지난 기록이 필요할 때.',
+    input: RangeIn,
+  },
+  {
+    name: 'read_armcare',
+    description: '암케어 기록을 날짜 범위로 읽는다(최대 31일). 날마다 한 암케어 운동.',
+    input: RangeIn,
+  },
+  {
+    name: 'read_calendar',
+    description: '달력 일정과 팀 · 레슨 일정을 날짜 범위로 읽는다(최대 60일, 오늘부터 60일 뒤까지). 종류(경기 · 훈련 · 레슨 · 기타) · 날짜 · 시각.',
+    input: RangeIn,
+  },
+  { name: 'read_program', description: '근력 · 파워 프로그램 진행(이름 · 몇 번째 세션 · 마지막 한 날 · 지난 프로그램)과 메커니즘 처방 진행(요소 · 단계 · 한 세션 수).', input: NoIn },
+  { name: 'read_3d_history', description: '3D 동작 분석을 한 날들(최근 10개)과 가장 최근 판정.', input: NoIn },
+  { name: 'read_settings', description: '앱 설정 — 던지는 손 · 하루 운동 시간 · 웨이트 경력 · 운동 목표 · 가진 장비, 최근 알림 10개(종류 · 제목 · 날짜).', input: NoIn },
   {
     name: 'read_checkins',
     description: '체크인을 날짜 범위로 읽는다(최대 30일). 컨디션 · 잠의 질 · 어깨 · 팔꿈치. 건강정보 동의가 없으면 못 읽는다.',

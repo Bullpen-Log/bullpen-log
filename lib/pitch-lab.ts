@@ -498,12 +498,16 @@ export async function listLabSamples(viewer: LabViewer, sport: LabSport = 'pitch
 export async function loadLatestReport(
   userId: string
 ): Promise<{ reportId: string; finishedAt: string | null; summary: ReportSummary } | null> {
+  return (await loadReportSummaries(userId))[0] ?? null;
+}
+
+/** 요약이 있는 리포트 모두 — 가까운 것부터(코치 read_3d_history 가 판정 흐름을 읽는다) */
+export async function loadReportSummaries(userId: string): Promise<{ reportId: string; finishedAt: string | null; summary: ReportSummary }[]> {
   const found = (await pitchLabJobs(userId)).flatMap(({ reportId, job }) => {
     const summary = jobReportSummary(job);
     return summary ? [{ reportId, finishedAt: job.finishedAt ?? job.requestedAt, summary }] : [];
   });
-  found.sort((a, b) => (b.finishedAt ?? '').localeCompare(a.finishedAt ?? ''));
-  return found[0] ?? null;
+  return found.sort((a, b) => (b.finishedAt ?? '').localeCompare(a.finishedAt ?? ''));
 }
 
 /** 한 사람의 투구 분석 작업 기록(마커 실험 영상 빼고) — 샘플마다 job.json · meta.json 두 작은 파일만 */

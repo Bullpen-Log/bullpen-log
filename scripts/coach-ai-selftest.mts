@@ -402,7 +402,7 @@ check('⑩ 답 글에 샌 칸 이름은 우리말로(조사도)', scrubCodes('�
   const T = '2026-11-04';
   const pc = { today: T, said: '오늘 팀 불펜 40개 던졌어', week, locked: (d: string) => d < T, goalOpen: false };
   const names = TOOL_DEFS.map((d) => d.name);
-  check('⑬ 도구 목록: 차례 고정 · 모르는 칸 없음 · 이름 겹침 없음', JSON.stringify(names) === JSON.stringify(['read_pitch_logs', 'find_exercises', 'read_checkins', 'change_week', 'change_today', 'goal', 'draft_pitch_log', 'open_screen']) && TOOL_DEFS.every((d) => d.input_schema.type === 'object' && (d.input_schema as { additionalProperties?: unknown }).additionalProperties === false));
+  check('⑬ 도구 목록: 차례 고정 · 모르는 칸 없음 · 이름 겹침 없음', JSON.stringify(names) === JSON.stringify(['read_pitch_logs', 'find_exercises', 'read_workouts', 'read_armcare', 'read_calendar', 'read_program', 'read_3d_history', 'read_settings', 'read_checkins', 'change_week', 'change_today', 'goal', 'draft_pitch_log', 'open_screen']) && TOOL_DEFS.every((d) => d.input_schema.type === 'object' && (d.input_schema as { additionalProperties?: unknown }).additionalProperties === false));
   check('⑬ 도구 목록은 부를 때마다 같은 글자(캐시)', JSON.stringify(TOOL_DEFS) === JSON.stringify(TOOL_DEFS.map((d) => ({ ...d }))) && !JSON.stringify(TOOL_DEFS).includes('$schema'));
   const skip = propose('change_week', pc, { kind: 'skip', date: '2026-11-06', minutes: null, from: null, to: null });
   check('⑬ 일정 쉬기 → 카드(미리보기 줄 · 적용)', 'card' in skip && skip.card.cta === '적용' && skip.card.title === `${dayText('2026-11-06')} 운동 쉬기` && skip.card.lines.length >= 1 && !skip.card.open, JSON.stringify(skip));

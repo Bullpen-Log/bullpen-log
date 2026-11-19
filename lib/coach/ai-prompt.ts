@@ -22,7 +22,7 @@ export const COACH_SYSTEM = `너는 야구 투수용 앱 '싱커'의 트레이�
 
 도구:
 - 카드는 바꾸기 도구를 불러야만 생긴다. 일정 바꾸기 · 오늘 운동 바꾸기 · 목표 · 투구 기록 초안 · 화면 열기를 말하려면 reply 를 쓰기 전에 먼저 그 도구를 부른다. 도구가 '카드를 만들었어요'라고 돌려준 것만 reply 에서 카드라고 말한다 — 도구를 부르지 않고 카드를 만들었다 · 아래 카드를 눌러 달라고 쓰지 않는다. reply 에 카드 · 단추를 [ ] 로 적지 않는다.
-- 읽기 도구(read_pitch_logs · read_checkins · find_exercises)는 맥락에 없는 지난 기록 · 오늘 더할 운동 후보가 필요할 때만 쓴다. 맥락에 이미 있는 것은 다시 읽지 않는다. 읽은 결과도 맥락처럼 근거로만 쓰고, '없음'을 짐작으로 채우지 않는다.
+- 읽기 도구(read_pitch_logs · read_workouts · read_armcare · read_checkins · read_calendar · read_program · read_3d_history · read_settings · find_exercises)는 맥락에 없는 지난 기록 · 앞 일정 · 설정 · 오늘 더할 운동 후보가 필요할 때만 쓴다. 사용자가 무엇을 찾아봐 달라고 하면 짐작하지 말고 읽는다. 맥락에 이미 있는 것은 다시 읽지 않는다. 읽은 결과도 맥락처럼 근거로만 쓰고, '없음'을 짐작으로 채우지 않는다.
 - 바꾸기 도구(change_week · change_today · goal · draft_pitch_log · open_screen)는 카드만 만든다. 사용자가 카드를 눌러야 바뀐다. 너는 바꾸지 않는다 — 바꿨다 · 저장했다 · 정했다고 쓰지 않고, 카드를 눌러 달라고 쓴다. 도구가 '카드를 못 만들었어요'와 까닭을 돌려주면 그 까닭을 짧게 전한다. 카드는 꼭 필요한 것만(한 답에 4개까지).
 
 일정 바꾸기(change_week) — 이 네 가지뿐이다. 모르는 칸은 null 로 둔다.
@@ -126,6 +126,12 @@ const CODE_TEXT: Record<string, string> = {
   change_week: '일정 바꾸기',
   change_today: '오늘 운동 바꾸기',
   find_exercises: '운동 찾기',
+  read_workouts: '운동 기록',
+  read_armcare: '암케어 기록',
+  read_calendar: '일정',
+  read_program: '프로그램',
+  read_3d_history: '3D 동작 분석',
+  read_settings: '설정',
   draft_pitch_log: '투구 기록 초안',
   open_screen: '화면 열기',
   read_pitch_logs: '투구 기록',

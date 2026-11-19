@@ -237,6 +237,12 @@ const CASES: Case[] = [
   { name: 'AH 오늘 몇 개', ctx: base, said: '오늘 가볍게 공 던질 건데 몇 개 정도 던지면 돼?', check: [has(/\d+\s*(~|-|에서)?\s*\d*\s*(구|개)/, '공 수를 추천 안 함'), pitchSafe] },
   { name: 'AI 동의 없음 · 몇 개', ctx: { ...base, signals: 'no-consent', arm: null, limits: [], pitchPlan: 'no-consent' } as CoachAiContext, said: '오늘 공 몇 개 던지면 돼?', check: [pitchSafe] },
   { name: 'AJ 지난 기록 찾아보기', ctx: base, said: '지난달에 불펜 몇 번이나 던졌는지 찾아봐 줘.', check: [read('read_pitch_logs')] },
+  /* 3단계 읽기 — 맥락에 없는 지난 기록 · 설정은 짐작하지 말고 읽는다 */
+  { name: 'AK 지난 운동 무게', ctx: base, said: '지난주에 데드리프트 몇 kg까지 들었는지 찾아봐 줘.', check: [read('read_workouts')] },
+  { name: 'AL 다음 달 일정', ctx: base, said: '다음 달에 잡혀 있는 경기나 팀 일정 뭐 있는지 봐 줘.', check: [read('read_calendar')] },
+  { name: 'AM 프로그램 진도', ctx: base, said: '내 근력 프로그램 지금 몇 번째 세션까지 했어?', check: [read('read_program')] },
+  { name: 'AN 최근 알림', ctx: base, said: '요즘 나한테 온 알림 뭐 있었는지 알려줘.', check: [read('read_settings')] },
+  { name: 'AO 3D 흐름', ctx: base, said: '내 3D 분석 예전 것들이랑 비교하면 뭐가 나아졌어?', check: [read('read_3d_history')] },
   { name: 'AD 바쁜 주 · 하루 줄이기', ctx: base, said: '이번 주 너무 바빠서 운동 하루만 줄여줘.', check: [adjustHas((a) => a.kind === 'busy' || a.kind === 'skip', '줄이기(busy · skip) 없음')] },
 ];
 

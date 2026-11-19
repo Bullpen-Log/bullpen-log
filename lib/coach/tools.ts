@@ -1,7 +1,12 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
 import { prisma } from '@/lib/prisma';
-import { effortPctOf, shiftDateKey } from '@/lib/pitch-stats';
+import { effortPctOf, shiftDateKey, toDateKey } from '@/lib/pitch-stats';
+import { isOutingTitle } from '@/lib/calendar-event';
+import { EVENT_KINDS } from '@/lib/org/rules';
+import { parseProgram } from '@/lib/program/program';
+import { mechFocusFrom, readProgramState } from '@/lib/mechanics/program';
+import { loadReportSummaries } from '@/lib/pitch-lab';
 import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { decideAccess, type Capability } from '@/lib/release-access';
 import { releaseStage } from '@/lib/release-gate';
@@ -54,7 +59,126 @@ function rangeOf(input: Record<string, unknown>, today: string, maxDays: number)
 
 type Reader = (s: ToolSession, input: Record<string, unknown>) => Promise<{ text: string; error?: boolean }>;
 
+/** 달력 일정 제목 → 종류만(제목 글은 안 보낸다 — 동의 글 '달력 일정의 종류와 날짜') */
+const calendarKind = (title: string) => (isOutingTitle(title) ? '경기' : /레슨/.test(title) ? '레슨' : /훈련|연습/.test(title) ? '훈련' : '기타');
+const EVENT_LABEL: Record<string, string> = Object.fromEntries(EVENT_KINDS.map((k) => [k.key, k.label]));
+const PROGRAM_STATUS: Record<string, string> = { active: '진행 중', done: '마침', ended: '그만둠' };
+
+/** 운동 시간 — 판을 안 닫아 몇 시간으로 남은 것(10-21 895분 같은)은 숫자를 안 준다(AI 가 그대로 읽어 '15시간 했다'고 말하지 않게) */
+const minutesText = (sec: number | null | undefined) => (!sec ? '모름' : sec > 4 * 3600 ? '모름(시간 기록이 이상해요)' : `${Math.round(sec / 60)}분`);
+
 const READERS: Record<string, Reader> = {
+  async read_workouts(s, input) {
+    if (!canUse(s, 'training')) return { text: '이 사람은 지금 트레이닝을 쓸 수 없어요.', error: true };
+    const r = rangeOf(input, s.today, 31);
+    if (typeof r === 'string') return { text: r, error: true };
+    const where = { userId: s.user.id, date: { gte: dbDate(r.from), lte: dbDate(r.to) } };
+    const [logs, sessions, notes] = await Promise.all([
+      prisma.userExerciseLog.findMany({
+        where: { ...where, completed: true, exercise: { category: { not: '암케어' } } },
+        orderBy: { date: 'asc' },
+        select: { date: true, setsDone: true, repsDone: true, holdSecondsDone: true, weightKg: true, exercise: { select: { title: true } } },
+      }),
+      prisma.trainingSession.findMany({ where, select: { date: true, themeKey: true, status: true, activeSeconds: true } }),
+      prisma.dailyTrainingNote.findMany({ where, select: { date: true, intensity: true } }),
+    ]);
+    const days = [...new Set([...logs, ...sessions].map((x) => keyOfDbDate(x.date)))].sort();
+    if (!days.length) return { text: `${r.from} ~ ${r.to}: 운동 기록 없음(안 했다는 뜻은 아님)` };
+    const amount = (l: (typeof logs)[number]) =>
+      [l.setsDone ? `${l.setsDone}세트` : '', l.repsDone ? `${l.repsDone}회` : l.holdSecondsDone ? `${l.holdSecondsDone}초` : '', l.weightKg ? `${l.weightKg}kg` : '']
+        .filter(Boolean)
+        .join(' × ');
+    return {
+      text: [
+        `운동 기록 ${r.from} ~ ${r.to} (날짜 | 분 | 운동 힘듦 1~10 | 한 운동):`,
+        ...days.map((d) => {
+          const sess = sessions.find((x) => keyOfDbDate(x.date) === d);
+          const note = notes.find((x) => keyOfDbDate(x.date) === d);
+          const done = logs.filter((l) => keyOfDbDate(l.date) === d).map((l) => `${l.exercise.title}${amount(l) ? `(${amount(l)})` : ''}`);
+          return `- ${d} | ${minutesText(sess?.activeSeconds)} | ${note?.intensity ?? '없음'} | ${done.join(' · ') || '체크한 운동 없음'}`;
+        }),
+      ].join('\n'),
+    };
+  },
+  async read_armcare(s, input) {
+    if (!canUse(s, 'armcare')) return { text: '이 사람은 지금 암케어를 쓸 수 없어요.', error: true };
+    const r = rangeOf(input, s.today, 31);
+    if (typeof r === 'string') return { text: r, error: true };
+    const logs = await prisma.userExerciseLog.findMany({
+      where: { userId: s.user.id, completed: true, date: { gte: dbDate(r.from), lte: dbDate(r.to) }, exercise: { category: '암케어' } },
+      orderBy: { date: 'asc' },
+      select: { date: true, exercise: { select: { title: true } } },
+    });
+    if (!logs.length) return { text: `${r.from} ~ ${r.to}: 암케어 기록 없음` };
+    const days = [...new Set(logs.map((l) => keyOfDbDate(l.date)))];
+    return { text: [`암케어 ${r.from} ~ ${r.to} (${days.length}일):`, ...days.map((d) => `- ${d} | ${logs.filter((l) => keyOfDbDate(l.date) === d).map((l) => l.exercise.title).join(' · ')}`)].join('\n') };
+  },
+  async read_calendar(s, input) {
+    const { from, to } = input as { from: string; to: string };
+    if (!DAY_RE.test(from) || !DAY_RE.test(to) || from > to) return { text: '날짜는 YYYY-MM-DD 로, 시작 날이 먼저예요.', error: true };
+    if (daysBetween(from, to) >= 60 || to > shiftDateKey(s.today, 60) || from < shiftDateKey(s.today, -365)) return { text: '한 번에 60일, 오늘부터 60일 뒤까지 읽을 수 있어요.', error: true };
+    const range = { gte: dbDate(from), lte: dbDate(to) };
+    const [own, team] = await Promise.all([
+      prisma.calendarEvent.findMany({ where: { userId: s.user.id, date: range }, orderBy: { date: 'asc' }, select: { date: true, time: true, title: true } }),
+      prisma.orgEvent.findMany({
+        where: { date: range, status: { not: 'cancelled' }, org: { members: { some: { userId: s.user.id, status: 'ACTIVE' } } } },
+        orderBy: { date: 'asc' },
+        select: { date: true, time: true, kind: true },
+      }),
+    ]);
+    const rows = [
+      ...own.map((e) => ({ d: keyOfDbDate(e.date), t: e.time, k: calendarKind(e.title), from: '내 달력' })),
+      ...team.map((e) => ({ d: keyOfDbDate(e.date), t: e.time, k: EVENT_LABEL[e.kind] ?? '기타', from: '팀 · 레슨' })),
+    ].sort((a, b) => (a.d === b.d ? (a.t ?? '').localeCompare(b.t ?? '') : a.d < b.d ? -1 : 1));
+    if (!rows.length) return { text: `${from} ~ ${to}: 일정 없음` };
+    return { text: [`일정 ${from} ~ ${to} (날짜 | 시각 | 종류 | 어디):`, ...rows.map((e) => `- ${e.d} | ${e.t ?? '시각 없음'} | ${e.k} | ${e.from}`)].join('\n') };
+  },
+  async read_program(s) {
+    const [programs, mech] = await Promise.all([
+      prisma.userTrainingProgram.findMany({ where: { userId: s.user.id }, orderBy: { startedAt: 'desc' }, take: 4, select: { programKey: true, status: true, nextDay: true, lastDoneDate: true, startedAt: true, endReason: true } }),
+      prisma.mechanicsProgram.findUnique({ where: { userId: s.user.id }, select: { progress: true, sessionsDone: true, lastSessionOn: true } }),
+    ]);
+    const prog = programs.map((p) => {
+      const plan = parseProgram(p.programKey);
+      return `- ${plan?.def.name ?? p.programKey} | ${PROGRAM_STATUS[p.status] ?? p.status} | ${p.nextDay}번째 세션 차례 | 마지막 한 날 ${p.lastDoneDate ? keyOfDbDate(p.lastDoneDate) : '없음'} | 시작 ${toDateKey(p.startedAt)}`;
+    });
+    const state = mech ? readProgramState(mech.progress) : null;
+    const focus = state?.focus?.rx[0] ? mechFocusFrom(state.focus) : null;
+    return {
+      text: [
+        '근력 · 파워 프로그램(최근 4개):',
+        ...(prog.length ? prog : ['- 없음']),
+        `메커니즘: ${mech ? `세션 ${mech.sessionsDone}번 · 마지막 ${mech.lastSessionOn ? keyOfDbDate(mech.lastSessionOn) : '없음'}${focus ? ` | 처방 ${focus.element} · ${focus.total == null ? `${focus.done}회` : `${focus.done}/${focus.total}회`}${focus.stage ? ` · 단계 ${focus.stage}` : ''}${focus.finished ? ' · 마침' : ''}` : ' | 처방 없음'}` : '시작 안 함'}`,
+      ].join('\n'),
+    };
+  },
+  async read_3d_history(s) {
+    if (!canUse(s, 'pitch3d')) return { text: '이 사람은 지금 3D 동작 분석을 쓸 수 없어요.', error: true };
+    const list = (await loadReportSummaries(s.user.id)).slice(0, 10);
+    if (!list.length) return { text: '3D 동작 분석을 한 적이 없어요.' };
+    const verdict = ({ summary: m }: (typeof list)[number]) =>
+      !m.judged ? '판정 못 함(영상 조건)' : m.bad.length ? m.bad.map((b) => `${b.element} ${b.level === 'improve' ? '고칠 점' : '경계'}`).join(' · ') : '고칠 점 없음';
+    return {
+      text: [
+        `3D 동작 분석 ${list.length}개(가까운 날부터 | 판정):`,
+        ...list.map((a) => `- ${a.finishedAt ? toDateKey(new Date(a.finishedAt)) : '모름'} | ${verdict(a)}`),
+      ].join('\n'),
+    };
+  },
+  async read_settings(s) {
+    const [u, notes] = await Promise.all([
+      prisma.user.findUnique({ where: { id: s.user.id }, select: { throwingHand: true, dailyWorkoutMinutes: true, trainingLevel: true, trainingGoal: true, ownedEquipment: true } }),
+      prisma.notification.findMany({ where: { userId: s.user.id }, orderBy: { createdAt: 'desc' }, take: 10, select: { kind: true, title: true, createdAt: true, readAt: true } }),
+    ]);
+    if (!u) return { text: '설정을 못 읽었어요.', error: true };
+    return {
+      text: [
+        `설정: 던지는 손 ${u.throwingHand ?? '모름'} | 하루 운동 시간 ${u.dailyWorkoutMinutes ?? '기본'}분 | 웨이트 경력 ${u.trainingLevel ?? '모름'} | 목표 ${u.trainingGoal ?? '없음'} | 가진 장비 ${u.ownedEquipment.join(' · ') || '없음'}`,
+        '최근 알림(날짜 | 종류 | 제목 | 읽음):',
+        ...(notes.length ? notes.map((n) => `- ${toDateKey(n.createdAt)} | ${n.kind} | ${n.title} | ${n.readAt ? '읽음' : '안 읽음'}`) : ['- 없음']),
+      ].join('\n'),
+    };
+  },
   async find_exercises(s, input) {
     if (!s.todayWork) return { text: '지금은 운동을 찾을 수 없어요.', error: true };
     const q = norm(String(input.query ?? ''));
