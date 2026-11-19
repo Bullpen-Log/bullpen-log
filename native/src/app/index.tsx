@@ -110,6 +110,8 @@ const NATIVE_ROUTES = [
   /^\/lab(\/guide|\/[0-9a-f-]{36})?(\?[\w=&%.-]*)?$/,
   /^\/login\?native=1$/,
   /^\/(signup|account)$/,
+  /* 코치 대화 — 코치가 먼저 건 말(자비스 3단계) 알림을 누르면 */
+  /^\/coach-chat$/,
   /* 팀 · 레슨장 공간(1단계, docs/designs/sinker-team-lesson-contract.md 2-2) — 웹 /manage · /join 은 nativeOfWeb 이 이리로 */
   /^\/org(\/join(\?code=\w+)?|\/member\/[\w-]+\?org=[\w-]+|\/share\/[\w-]+)?$/,
 ];

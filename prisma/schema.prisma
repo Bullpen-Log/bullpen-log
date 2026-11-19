@@ -283,6 +283,8 @@ model CoachProfile {
   /// 'draft' · 'active' · 'paused'
   status    String    @default("draft")
   startedAt DateTime?
+  /// 코치가 먼저 말 걸기(자비스 3단계 — 목표 · 통증 알림, lib/coach/nudge.ts) 켬 · 끔
+  nudges    Boolean   @default(true)
   updatedAt DateTime  @updatedAt
 }
 

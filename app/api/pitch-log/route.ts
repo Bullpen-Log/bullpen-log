@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { appNowMs } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
@@ -10,6 +10,8 @@ import { isFutureDateKey, toDateKey } from '@/lib/pitch-stats';
 import { cleanCues, isRatedSession, readSatisfaction } from '@/lib/pitch-satisfaction';
 import { effortUpdate, readEffortInput } from '@/lib/pitch-effort';
 import { linkSessionsToLog } from '@/lib/velocity-link';
+import { keyOfDbDate } from '@/lib/nutrition/days';
+import { nudgeAfterPitchLog } from '@/lib/coach/nudge-send';
 
 const MAX_VIDEOS = 2;
 
@@ -354,6 +356,8 @@ export async function POST(req: Request) {
       },
     });
     const velocityLink = await linkVelocitySessions(body.velocitySessionIds, user.id, parsedDate, log.id);
+    /* 정한 목표의 종류면 코치가 '어땠어요?' — 답을 늦추지 않게 보낸 뒤에(lib/coach/nudge-send.ts) */
+    after(() => nudgeAfterPitchLog(user.id, keyOfDbDate(log.date), log.sessionType));
 
     return NextResponse.json({ ...log, velocityLink }, { status: 201 });
   } catch (error) {

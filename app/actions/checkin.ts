@@ -1,6 +1,9 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { after } from 'next/server';
+import { nudgeAfterCheckin } from '@/lib/coach/nudge-send';
+import type { PainPart } from '@/lib/coach/nudge';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import {
@@ -155,6 +158,9 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
   revalidatePath('/nutrition');
   /* 체크인 관문은 모든 화면의 틀(레이아웃)에 있다. 거기도 오늘 체크인을 알아야 한다. */
   revalidatePath('/', 'layout');
+  /* 어깨 · 팔꿈치 통증이면 코치가 대화에 한마디(lib/coach/nudge-send.ts) — 답을 늦추지 않게 보낸 뒤에 */
+  const painParts: PainPart[] = [...(saved.shoulder === '통증' ? ['어깨' as const] : []), ...(saved.elbow === '통증' ? ['팔꿈치' as const] : [])];
+  if (painParts.length) after(() => nudgeAfterCheckin(user.id, painParts));
   return { success: '오늘 체크인을 저장했어요.', savedDate: dateKey };
 }
 

@@ -1,6 +1,6 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadCoachChat } from '@/app/actions/coach-chat';
 import { READABLE } from '~/lib/layout';
@@ -32,6 +32,19 @@ export default function CoachSettingsScreen() {
     );
   }, []);
   useFocusEffect(load);
+
+  /* 코치가 먼저 말 걸기(자비스 3단계) — 바로 바꾸고, 안 되면 되돌린다 */
+  const setNudges = async (on: boolean) => {
+    if (!chat) return;
+    setChat({ ...chat, nudges: on });
+    try {
+      const r = await rpc<{ ok: true } | { error: string }>('coach-chat.setCoachNudges', on);
+      if ('error' in r) throw new Error(r.error);
+    } catch {
+      setChat((current) => (current ? { ...current, nudges: !on } : current));
+      toast('신호가 약해요. 다시 눌러 주세요.');
+    }
+  };
 
   const apply = async () => {
     if (!confirm || busy) return;
@@ -65,6 +78,15 @@ export default function CoachSettingsScreen() {
           <View style={[st.group, { backgroundColor: c.card, boxShadow: c.float }]}>
             <View style={st.row}><Text style={[TYPE.card, { flex: 1, color: c.ink }]}>AI 대화</Text><Text style={[TYPE.body, { color: chat.consented ? c.ok : c.muted }]}>{chat.consented ? '동의함' : '꺼짐'}</Text></View>
             <View style={[st.row, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }]}><Text style={[TYPE.card, { flex: 1, color: c.ink }]}>대화 기록</Text><Text style={[TYPE.body, { color: c.muted }]}>{chat.messages.length ? `${chat.messages.length}개 · 최근 30일` : '없음'}</Text></View>
+          </View>
+          <View style={[st.group, { backgroundColor: c.card, boxShadow: c.float }]}>
+            <View style={st.row}>
+              <View style={{ flex: 1, gap: 3, paddingVertical: 12 }}>
+                <Text style={[TYPE.card, { color: c.ink }]}>코치가 먼저 말 걸기</Text>
+                <Text style={[TYPE.sub, { color: c.muted }]}>정한 목표를 확인할 때 · 통증을 적은 날 알려요. 하루 두 번까지예요.</Text>
+              </View>
+              <Switch value={chat.nudges} onValueChange={(on) => void setNudges(on)} accessibilityLabel="코치가 먼저 말 걸기" trackColor={{ true: c.action }} />
+            </View>
           </View>
           {chat.block && chat.consented ? <Text style={[TYPE.sub, { color: c.muted }]}>{chat.block}</Text> : null}
           <Text style={[TYPE.body, { color: c.muted }]}>AI를 끄면 동의를 철회하고 대화 기록도 함께 지워요. 다시 켜려면 동의 내용을 읽고 새로 동의해야 해요.</Text>

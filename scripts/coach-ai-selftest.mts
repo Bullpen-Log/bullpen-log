@@ -6,11 +6,12 @@
 import { aiGate, capUsdOf, AI_DAILY_CHATS, AI_BLOCK_TEXT, type AiGateInput } from '@/lib/coach/ai-gate';
 import { costMicroOf } from '@/lib/coach/ai-price';
 import { COACH_SYSTEM, COACH_SYSTEM_BLOCK, contextBlock, ageBandOf, scrubNames, throwsOf, type CoachAiContext, type CoachAiRecords, veloRowsOf, dateTable, pastDateTable, scrubCodes } from '@/lib/coach/ai-prompt';
+import { NUDGE_DAILY_CAP, goalDayNudge, goalLogNudge, nudgeAllowed, painNudge } from '@/lib/coach/nudge';
 import { readAct, sanitizeAct, saidNumber } from '@/lib/coach/act';
 import { COACH_AI_CONSENT } from '@/lib/coach/ai-consent';
 import { HEALTH_CONSENT, healthCutoffOf, historyFloorOf } from '@/lib/health-consent';
 import { reasonTextsFor } from '@/lib/coach/answers';
-import { applyGoalAnswer, dayWord, goalCardOf, goalFromProposal, goalLine, readGoalAnswer, sanitizeGoal } from '@/lib/coach/goal';
+import { applyGoalAnswer, dayWord, goalCardOf, goalFromProposal, goalLine, hasHealthWords, readGoalAnswer, sanitizeGoal } from '@/lib/coach/goal';
 import { activeRx, focusView, mechFocusFrom } from '@/lib/mechanics/program';
 import { newProgression } from '@/lib/mechanics/progression';
 import { REPORT_CRITERIA } from '@/lib/pitch-3d/v2/report-policy';
@@ -348,6 +349,27 @@ check('⑩ 답 글에 샌 칸 이름은 우리말로(조사도)', scrubCodes('�
   check('⑪ 답 글에 샌 화면 이름은 우리말로 · 받침에 맞춘 조사', scrubCodes('checkin을 열어 보세요. lab으로 가요. training이 있어요. armcare를 해요.') === '체크인을 열어 보세요. 3D 동작 분석으로 가요. 오늘 운동이 있어요. 암케어를 해요.', scrubCodes('checkin을 열어 보세요. lab으로 가요. training이 있어요. armcare를 해요.'));
   const did = goalCardOf({ what: '착지 균형', trigger: '불펜', checkOn: '2026-11-19', watchFrom: '2026-11-16', status: 'open', feel: null, result: null, setOn: '2026-11-16', laterOn: null, answeredOn: null }, [], '2026-11-20');
   check('⑪ 목표 카드: 했어요? 카드에 그날 그 종류 기록 단추', did?.kind === 'did' && JSON.stringify(did.log) === JSON.stringify({ date: '2026-11-19', type: '불펜' }));
+}
+
+/* ⑫ 먼저 말 걸기(자비스 3단계) — 정해진 글 · 목표 카드와 같은 판정 · 하루 상한 · 잠금 화면에 몸 상태 낱말 없음 */
+{
+  const g = { what: '착지 균형', trigger: '불펜' as const, checkOn: '2026-11-19', watchFrom: '2026-11-16', status: 'open' as const, feel: null, result: null, setOn: '2026-11-16', laterOn: null, answeredOn: null };
+  const bull = (date: string) => ({ date, sessionType: '불펜', pitchCount: 40 });
+  const how = goalLogNudge(g, [bull('2026-11-18')], '2026-11-18', '2026-11-18');
+  check('⑫ 기록 뒤: 정한 종류를 남기면 카드와 같은 어땠어요?', how?.link === '/coach' && how.push === goalCardOf(g, [bull('2026-11-18')], '2026-11-18')?.text && how.push.includes('어땠어요'));
+  check('⑫ 기록 뒤: 다른 날 기록 · 0구 · 닫힌 목표 · 다른 종류는 없음', goalLogNudge(g, [bull('2026-11-17')], '2026-11-18', '2026-11-18') === null && goalLogNudge(g, [{ ...bull('2026-11-18'), pitchCount: 0 }], '2026-11-18', '2026-11-18') === null && goalLogNudge({ ...g, status: 'done' }, [bull('2026-11-18')], '2026-11-18', '2026-11-18') === null && goalLogNudge(g, [{ ...bull('2026-11-18'), sessionType: '캐치볼' }], '2026-11-18', '2026-11-18') === null);
+  const before = goalDayNudge(g, [], '2026-11-19');
+  check('⑫ 18시: 확인할 날 아직 기록 없음 → 미리 한 번', !!before && before.push.startsWith('오늘 불펜에서 착지 균형을') && before.link === '/coach');
+  check('⑫ 18시: 그날 이미 남겼으면 · 나중에 누른 날 · 이틀 전 날은 없음', goalDayNudge(g, [bull('2026-11-19')], '2026-11-19') === null && goalDayNudge({ ...g, laterOn: '2026-11-19' }, [], '2026-11-19') === null && goalDayNudge(g, [], '2026-11-18') === null && goalDayNudge(g, [], '2026-11-21') === null);
+  const after = goalDayNudge(g, [], '2026-11-20');
+  check('⑫ 18시: 그날 기록 없이 지나가면 다음 날 했어요?(카드 글)', !!after && after.push === goalCardOf(g, [], '2026-11-20')?.text && after.push.includes('했어요'));
+  const dateOnly = { ...g, trigger: null };
+  check('⑫ 날짜만 정한 목표: 그날 18시에 했어요? · 다음 날은 없음', goalDayNudge(dateOnly, [], '2026-11-19')?.push.includes('했어요') === true && goalDayNudge(dateOnly, [], '2026-11-20') === null);
+  const pain = painNudge(['어깨', '팔꿈치']);
+  check('⑫ 통증: 대화에 쉬기 먼저 · 병원 · 오늘 운동 단추', !!pain?.chat && pain.chat.text.includes('어깨와 팔꿈치 통증') && pain.chat.text.includes('던지지 말고') && pain.chat.text.includes('병원') && pain.chat.act?.kind === 'open' && pain.link === '/coach-chat' && painNudge([]) === null);
+  check('⑫ 잠금 화면 글에 몸 상태 낱말 없음', !!pain && !/통증|아프|어깨|팔꿈치/.test(pain.push) && !hasHealthWords(before?.push ?? ''));
+  check('⑫ 하루 상한 · 같은 글 하루 한 번', NUDGE_DAILY_CAP === 2 && nudgeAllowed([], pain!) && !nudgeAllowed([pain!.push], pain!) && !nudgeAllowed(['a', 'b'], pain!) && nudgeAllowed([null], pain!));
+  check('⑫ 정해진 글은 해요체 · 줄표 없음', [before!.push, after!.push, pain!.push, pain!.chat!.text].every((t) => !t.includes('—') && /요[.?!]$/.test(t)));
 }
 
 console.log(`coach-ai: ${pass}개 통과${fails.length ? `, ${fails.length}개 실패` : ''}`);
