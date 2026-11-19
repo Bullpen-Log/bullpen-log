@@ -11,6 +11,7 @@ import { serviceHour } from '@/lib/nutrition/advice-input';
 import { countryOf, hasNutrition } from '@/lib/country';
 import type { DayDetailUser } from '@/lib/day-detail';
 import { veloRowsOf, type CoachAiRecords } from '@/lib/coach/ai-prompt';
+import { COACH_VELOCITY } from '@/lib/coach/act';
 import { dbDate } from '@/lib/nutrition/days';
 
 /**
@@ -95,7 +96,7 @@ export async function coachRecordsOf(user: CoachRecordsUser, today: string, now:
   const [lab, mechFocus, velo, armcare, food] = await Promise.all([
     soft(cachedLab(user.id), LAB_WAIT_MS),
     soft(mechFocusOf(user.id)),
-    soft(veloOf(user.id, today)),
+    COACH_VELOCITY ? soft(veloOf(user.id, today)) : null,
     soft(armcareOf(user.id, today)),
     soft(foodOf(user, today, now)),
   ]);

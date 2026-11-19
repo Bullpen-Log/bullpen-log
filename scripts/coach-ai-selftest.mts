@@ -7,7 +7,7 @@ import { aiGate, capUsdOf, AI_DAILY_CHATS, AI_BLOCK_TEXT, type AiGateInput } fro
 import { costMicroOf } from '@/lib/coach/ai-price';
 import { COACH_SYSTEM, COACH_SYSTEM_BLOCK, contextBlock, ageBandOf, scrubNames, throwsOf, type CoachAiContext, type CoachAiRecords, veloRowsOf, dateTable, pastDateTable, scrubCodes } from '@/lib/coach/ai-prompt';
 import { NUDGE_DAILY_CAP, goalDayNudge, goalLogNudge, nudgeAllowed, painNudge } from '@/lib/coach/nudge';
-import { readAct, sanitizeAct, saidNumber } from '@/lib/coach/act';
+import { COACH_VELOCITY, readAct, sanitizeAct, saidNumber } from '@/lib/coach/act';
 import { COACH_AI_CONSENT } from '@/lib/coach/ai-consent';
 import { HEALTH_CONSENT, healthCutoffOf, historyFloorOf } from '@/lib/health-consent';
 import { reasonTextsFor } from '@/lib/coach/answers';
@@ -222,14 +222,19 @@ check('⑤ 시스템 글은 이름을 안 쓰고 말하지 말라고 한다', sc
   const b = contextBlock({ ...ctx, records: recs });
   check('⑦ 3D 판정 줄(요소 · 고칠 점 · 경계)', b.includes('3D 동작 분석(가장 최근): 2026-11-12 | 드롭(고칠 점), 브레이크(경계)'));
   check('⑦ 메커니즘 처방 줄', b.includes('메커니즘 처방: 드롭 | 3/9회 | 단계 기초'));
-  check('⑦ 구속 줄(소수 한 자리)', b.includes('- 2026-11-15 | 불펜 | 14구 | 최고 128.3 | 평균 122.1'));
+  check(
+    COACH_VELOCITY ? '⑦ 구속 줄(소수 한 자리)' : '⑦ 구속을 끄면 구속 줄 · 지시문 · 단추가 없다',
+    COACH_VELOCITY
+      ? b.includes('- 2026-11-15 | 불펜 | 14구 | 최고 128.3 | 평균 122.1')
+      : !b.includes('velo(') && !b.includes('128.3') && !COACH_SYSTEM.includes('velocity(') && COACH_SYSTEM.includes('구속 측정을 하라고 권하지 않는다') && sanitizeAct({ kind: 'open', screen: 'velocity' }, '2026-11-19', '') === null && readAct({ kind: 'open', screen: 'velocity' }) === null
+  );
   check('⑦ 암케어 줄', b.includes('암케어(최근 14일): 6일 · 마지막 2026-11-17'));
   check('⑦ 영양 줄 — 넘긴 양은 음수 대신 넘음', b.includes('할 일: 저녁에 밥을 넉넉히 드세요') && b.includes('지방 목표보다 10g 넘음') && b.includes('균형 점수: 72'));
   check('⑦ 기록 칸이 week 앞에', b.indexOf('3D 동작 분석') < b.indexOf('week:'));
   const none = contextBlock(ctx);
-  check("⑦ records 가 없으면 모두 '모름'(짐작 안 함)", ['3D 동작 분석(가장 최근): 모름', '메커니즘 처방: 모름', '- 모름', '암케어(최근 14일): 모름', '영양(오늘): 모름'].every((w) => none.includes(w)));
+  check("⑦ records 가 없으면 모두 '모름'(짐작 안 함)", ['3D 동작 분석(가장 최근): 모름', '메커니즘 처방: 모름', ...(COACH_VELOCITY ? ['- 모름'] : []), '암케어(최근 14일): 모름', '영양(오늘): 모름'].every((w) => none.includes(w)));
   const empty = contextBlock({ ...ctx, records: { lab: 'none', mechFocus: 'none', velo: [], armcare: { days: 0, last: null }, food: 'unset' } });
-  check('⑦ 없음 · 안 함 · 설정 안 함은 모름과 다르게', ['분석한 적 없음', '메커니즘 처방: 없음', '- 측정 없음', '암케어(최근 14일): 안 함', '영양 설정 안 함'].every((w) => empty.includes(w)));
+  check('⑦ 없음 · 안 함 · 설정 안 함은 모름과 다르게', ['분석한 적 없음', '메커니즘 처방: 없음', ...(COACH_VELOCITY ? ['- 측정 없음'] : []), '암케어(최근 14일): 안 함', '영양 설정 안 함'].every((w) => empty.includes(w)));
   check('⑦ 판정 못 한 3D 는 영상 조건이라고', contextBlock({ ...ctx, records: { ...recs, lab: { date: '2026-11-12', judged: false, issues: [] } } }).includes('판정한 요소 없음(영상 조건)'));
   const off = contextBlock({ ...ctx, records: { ...recs, food: 'off' } });
   check('⑦ 영양 기능을 안 쓰면 영양 값이 안 실린다', off.includes('영양 기능 안 씀') && !off.includes('균형 점수'));
@@ -286,7 +291,7 @@ check('⑤ 시스템 글은 이름을 안 쓰고 말하지 말라고 한다', sc
   check('⑧ 같은 날 불펜 · 캐치볼은 따로', v.filter((r) => r.date === '2026-11-15').length === 2 && v.some((r) => r.type === '캐치볼' && r.avg === 90));
   check('⑧ 같은 종류 여러 세션은 구수 더하고 평균은 구수로 무게', pen?.n === 40 && pen.max === 128 && pen.avg === 123);
   check('⑧ 가까운 측정일 셋까지(0구는 측정일 아님)', JSON.stringify([...new Set(v.map((r) => r.date))]) === JSON.stringify(['2026-11-15', '2026-11-10', '2026-11-08']));
-  check('⑧ 종류 모름은 그렇게 적는다', contextBlock({ ...ctx, records: { lab: 'none', mechFocus: 'none', velo: v, armcare: null, food: null } }).includes('- 2026-11-10 | 종류 모름 | 4구'));
+  if (COACH_VELOCITY) check('⑧ 종류 모름은 그렇게 적는다', contextBlock({ ...ctx, records: { lab: 'none', mechFocus: 'none', velo: v, armcare: null, food: null } }).includes('- 2026-11-10 | 종류 모름 | 4구'));
 }
 
 /* ⑨ 정한 목표 이어 묻기(자비스 2단계) — 코덱스 본보기: 월요일 "목요일 팀 불펜에서 착지 균형" */
