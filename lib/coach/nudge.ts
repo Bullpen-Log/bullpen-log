@@ -2,7 +2,7 @@
  * 코치가 먼저 말 걸기(docs/designs/ai-coach-knowledge-memory.md 8절 3단계) — 정해진 문장(AI 아님 · 돈 안 듦). 순수 파일.
  * - 목표: 정한 종류 투구 기록이 올라오면 그 자리에서 '어땠어요?'(목표 카드와 같은 글), 확인할 날 18시에 한 번, 그날 기록이 없으면 다음 날 18시에 한 번.
  * - 통증: 체크인에 어깨 · 팔꿈치 통증을 적으면 대화에 코치 말 한 마디(쉬기 먼저 · 오늘 운동 화면 단추).
- * 하루 두 번까지 · 같은 글은 하루 한 번 · 코치 설정에서 끈다. 폰 알림 글은 잠금 화면에 보이므로 몸 상태 낱말을 넣지 않는다.
+ * 하루 두 번까지(통증 말은 상한 밖) · 같은 글은 하루 한 번 · 코치 설정에서 끈다. 폰 알림 글은 잠금 화면에 보이므로 몸 상태 낱말을 넣지 않는다.
  */
 import { goalCardOf, type CoachGoalState, type GoalLog } from '@/lib/coach/goal';
 import { withJosa } from '@/lib/korean';
@@ -20,6 +20,8 @@ export type Nudge = {
   link: '/coach' | '/coach-chat';
   /** 대화에 코치 말로 남길 글 · 단추(있으면 AI 동의 · 건강 동의가 있을 때만 보낸다) */
   chat?: { text: string; act: CoachAct | null };
+  /** 몸을 지키는 말(통증) — 하루 상한을 안 센다(목표 알림 둘이 먼저 나간 날에도 간다). 같은 글 하루 한 번은 그대로 */
+  safety?: true;
 };
 
 const shift = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
@@ -50,6 +52,7 @@ export function painNudge(parts: readonly PainPart[]): Nudge | null {
   return {
     push: '오늘 체크인을 보고 코치가 한마디 남겼어요.',
     link: '/coach-chat',
+    safety: true,
     chat: {
       text: `오늘 체크인에 ${where} 통증을 적었어요. 아픈 날은 던지지 말고 쉬는 게 먼저예요. 통증이 며칠 이어지면 병원에서 확인받아요. 오늘 운동은 지금 상태에 맞춰 다시 볼 수 있어요.`,
       act: { kind: 'open', screen: 'training' },
@@ -59,5 +62,5 @@ export function painNudge(parts: readonly PainPart[]): Nudge | null {
 
 /** 오늘 이미 보낸 글들(같은 제목) → 이 말을 보내도 되나 */
 export function nudgeAllowed(sentToday: readonly (string | null)[], n: Nudge): boolean {
-  return sentToday.length < NUDGE_DAILY_CAP && !sentToday.includes(n.push);
+  return (n.safety || sentToday.length < NUDGE_DAILY_CAP) && !sentToday.includes(n.push);
 }

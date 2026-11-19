@@ -57,7 +57,13 @@ final class CoachVoiceCore: NSObject, AVSpeechSynthesizerDelegate {
         request = req
         heard = ""
         let input = engine.inputNode
-        input.installTap(onBus: 0, bufferSize: 1024, format: input.outputFormat(forBus: 0)) { buffer, _ in req.append(buffer) }
+        /* 다른 앱이 마이크를 쥐었거나 경로가 바뀌면 형식이 빌 수 있다 — 빈 형식으로 installTap 하면 앱이 꺼진다(Swift catch 로 못 잡는 예외) */
+        let format = input.outputFormat(forBus: 0)
+        guard format.channelCount > 0, format.sampleRate > 0 else {
+            teardown()
+            throw VoiceError("마이크를 켜지 못했어요.")
+        }
+        input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in req.append(buffer) }
         engine.prepare()
         do {
             try engine.start()

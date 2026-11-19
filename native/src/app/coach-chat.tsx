@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { router, useFocusEffect, type Href } from 'expo-router';
-import { ActivityIndicator, KeyboardAvoidingView, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance, type TextInputInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { applyCoachAdjust, previewCoachAdjust } from '@/app/actions/coach';
 import type { applyCoachGoal, loadCoachChat, sendCoachMessage } from '@/app/actions/coach-chat';
@@ -55,6 +55,7 @@ export default function CoachChatScreen() {
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const scroll = useRef<ScrollViewInstance>(null);
+  const input = useRef<TextInputInstance>(null);
   const voice = useCoachVoice();
   /* 입력 칸 글이 받아쓰기로 왔나 — 그 말을 보내면 코치 답을 소리로 읽는다 */
   const spoken = useRef(false);
@@ -99,18 +100,21 @@ export default function CoachChatScreen() {
         setNotice(r.error ?? '다시 보내 주세요.');
         setChat((cur) => (cur ? { ...cur, messages: cur.messages.filter((m) => m.id !== mine.id) } : cur));
         setText(t);
+        spoken.current = aloud;
       } else if ('blocked' in r) {
         setNotice(r.blocked);
         setChat((cur) => (cur ? { ...cur, messages: cur.messages.filter((m) => m.id !== mine.id) } : cur));
         setText(t);
+        spoken.current = aloud;
       } else {
         setChat((cur) => (cur ? { ...cur, left: r.left, messages: [...cur.messages, { id: r.messageId, role: 'coach', text: r.reply, adjusts: r.adjusts, goal: r.goal, act: r.act }] } : cur));
-        if (aloud) voice.speak(r.messageId, r.reply);
+        if (aloud) voice.speak(r.messageId, r.reply, true);
       }
     } catch {
       setNotice('신호가 약해요. 다시 보내 주세요.');
       setChat((cur) => (cur ? { ...cur, messages: cur.messages.filter((m) => m.id !== mine.id) } : cur));
       setText(t);
+      spoken.current = aloud;
     } finally {
       setSending(false);
       setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 50);
@@ -145,7 +149,18 @@ export default function CoachChatScreen() {
                 <Text style={[TYPE.body, { color: c.muted }]}>던진 것 · 이번 주 일정 · 해 보고 싶은 것을 말해 주세요. 바꿀 것 · 정할 목표 · 투구 기록 초안은 미리 보여 드리고, 저장은 직접 눌러요.</Text>
                 <View style={st.chips}>
                   {EXAMPLES.map((e) => (
-                    <Press key={e} accessibilityRole="button" onPress={() => void send(e)} style={[st.chip, { backgroundColor: c.card, borderColor: c.line }]}>
+                    <Press
+                      key={e}
+                      accessibilityRole="button"
+                      accessibilityHint="입력 칸에 넣어요. 고친 뒤 보내요."
+                      onPress={() => {
+                        /* 보기 글은 바로 보내지 않는다 — '40개 던졌어'가 하지 않은 일로 남고 기록 초안까지 뜬다(전체 검토 11-19) */
+                        if (voice.listening) voice.cancel();
+                        spoken.current = false;
+                        setText(e);
+                        input.current?.focus();
+                      }}
+                      style={[st.chip, { backgroundColor: c.card, borderColor: c.line }]}>
                       <Text style={[TYPE.body, { color: c.ink }]}>{e}</Text>
                     </Press>
                   ))}
@@ -173,6 +188,7 @@ export default function CoachChatScreen() {
                 </Press>
               ) : null}
               <TextInput
+                ref={input}
                 value={text}
                 onChangeText={(t) => {
                   if (!t.trim()) spoken.current = false;

@@ -40,7 +40,13 @@ export function useCoachVoice() {
       return false;
     }
   });
-  const [listening, setListening] = useState(false);
+  const [listening, setListeningState] = useState(false);
+  /* 지금 듣는 중인지 — 늦게 끝나는 보내기(코치 답 읽기)가 옛 화면 값을 보지 않게 */
+  const live = useRef(false);
+  const setListening = (v: boolean) => {
+    live.current = v;
+    setListeningState(v);
+  };
   const [speaking, setSpeaking] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const heard = useRef<((text: string) => void) | null>(null);
@@ -88,16 +94,20 @@ export function useCoachVoice() {
   const listen = useCallback(
     async (onText: (text: string) => void) => {
       if (!Voice) return;
-      if (listening) return void Voice.stop();
+      if (live.current) return void Voice.stop();
       setNote(null);
       setSpeaking(null);
       const ok = await Voice.authorize().catch(() => false);
+      if (!alive.current) return;
       if (!ok) return setNote('설정 › Sinker 에서 마이크와 음성 인식을 허용해 주세요.');
       heard.current = onText;
       /* 시작 전에 켠다 — 듣기가 곧바로 끝나도 'end' 가 끈다 */
       setListening(true);
       try {
         await Voice.start();
+        /* 켜는 사이 화면을 닫았거나 그만뒀으면 바로 끈다(마이크가 화면 없이 켜져 있지 않게) */
+        if (!alive.current || !live.current) return void Voice.cancel();
+        clear();
         quietIn(FIRST_WORD_MS);
         max.current = setTimeout(() => void Voice.stop(), MAX_MS);
       } catch (e) {
@@ -106,7 +116,7 @@ export function useCoachVoice() {
         setNote(e instanceof Error ? e.message : '마이크를 켜지 못했어요.');
       }
     },
-    [listening]
+    []
   );
 
   /** 듣기 그만(받아쓴 글을 더 넣지 않음) — 듣는 중에 보낼 때 */
@@ -117,15 +127,20 @@ export function useCoachVoice() {
     void Voice?.cancel();
   }, []);
 
-  /** 코치 말 읽기 — 같은 말을 다시 누르면 멈춤 */
+  /** 코치 말 읽기 — 같은 말을 다시 누르면 멈춤. auto(말로 보낸 답 읽기)는 그새 다시 듣는 중이면 읽지 않는다 */
   const speak = useCallback(
-    (id: string, text: string) => {
+    (id: string, text: string, auto = false) => {
       if (!Voice || !alive.current) return;
       if (speaking === id) return void Voice.stopSpeaking();
+      if (live.current) {
+        if (auto) return;
+        /* 앱 부품의 읽기는 듣기를 알림 없이 끊는다 — 여기서 먼저 끝내야 마이크가 '듣는 중'에 멈추지 않는다 */
+        cancel();
+      }
       setSpeaking(id);
       void Voice.speak(text);
     },
-    [speaking]
+    [speaking, cancel]
   );
 
   return { available, listening, speaking, note, listen, cancel, speak };

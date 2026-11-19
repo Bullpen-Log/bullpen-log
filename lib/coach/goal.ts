@@ -42,7 +42,7 @@ export type GoalProposal = { kind: 'set'; what: string; trigger: GoalTrigger | n
 export type GoalOffer = GoalProposal & { applied?: boolean };
 
 /** 목표 · 결과에 담지 않는 건강 낱말 — 목표는 동작 · 훈련만(통증 · 진단은 체크인 · 전문가로) */
-const HEALTH_RE = /통증|아프|아파|아픈|아팠|부상|저리|저림|찌릿|붓|부었|염증|인대|힘줄|진단|병원|재활|뻐근|쑤시/;
+const HEALTH_RE = /통증|아프|아파|아픈|아팠|부상|저리|저림|찌릿|붓|부었|염증|인대|힘줄|진단|병원|재활|뻐근|쑤시|결림|결려|시큰|삐끗|삐었|\bpain\b|\binjur/i;
 export const hasHealthWords = (t: string) => HEALTH_RE.test(t);
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;

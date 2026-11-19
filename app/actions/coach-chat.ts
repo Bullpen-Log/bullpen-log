@@ -272,6 +272,9 @@ export async function sendCoachMessage(
   const said = typeof text === 'string' ? text.trim() : '';
   if (!said) return { error: '할 말을 적어 주세요.' };
   if (said.length > MAX_TEXT) return { error: `${MAX_TEXT}자 안으로 적어 주세요.` };
+  /* 막힌 사람(동의 · 나이 · 하루 상한 · 월 비용)은 비싼 자료(3D · 영양 · 구속) 읽기 전에 — 자리 잡기 안에서 한 번 더 본다 */
+  const pre = (await gateFor(user)).gate;
+  if (!pre.ok) return { ok: true, blocked: AI_BLOCK_TEXT[pre.why] };
   const base = await coachWeekBase(user.id);
   const context = await contextOf(user, base, ageOn(user.birthDate, appNow()) ?? 20);
   if (!context || !base.slots) return { error: '이번 주 일정이 없어요.' };
@@ -321,16 +324,20 @@ export async function sendCoachMessage(
   const reply = turn.ok ? scrubCodes(scrubNames(turn.reply)) : turn.why === 'refusal' ? FALLBACK.refusal : FALLBACK.other;
   const adjusts = turn.ok ? sanitizeAdjusts(turn.adjusts, base.slots, base.today, base.locked) : [];
   /* 지우기 제안은 지울 목표가 있을 때만 */
-  const proposed = turn.ok ? sanitizeGoal(turn.goal, base.today) : null;
+  const sane = turn.ok ? sanitizeGoal(turn.goal, base.today) : null;
+  /* 목표 글은 잠금 화면 알림 · 카드에 그대로 나간다 — 기관 이름이 있으면 카드를 안 보인다(지우면 '다른 곳 …'이 목표로 남는다) */
+  const proposed = sane?.kind === 'set' && scrubNames(sane.what) !== sane.what ? null : sane;
   const goal: GoalOffer | null =
     proposed?.kind === 'drop' && !(await prisma.coachGoal.findFirst({ where: { userId: user.id, status: 'open' }, select: { id: true } })) ? null : proposed;
   /* 대신 해 주기 — 공 수는 이번 말에 숫자로 있을 때만. 그날 그 종류 기록이 이미 있으면 초안은 '기록함'으로 */
   const [act] = await markLogged(user.id, [{ act: turn.ok ? sanitizeAct(turn.act, base.today, said) : null }]);
-  await prisma.coachMessage.create({ data: { userId: user.id, role: 'user', text: said }, select: { id: true } });
-  const saved = await prisma.coachMessage.create({
-    data: { userId: user.id, role: 'coach', text: reply, adjusts: adjusts.length ? adjusts : undefined, goal: goal ?? undefined, act: act.act ?? undefined },
-    select: { id: true },
-  });
+  const [, saved] = await prisma.$transaction([
+    prisma.coachMessage.create({ data: { userId: user.id, role: 'user', text: said }, select: { id: true } }),
+    prisma.coachMessage.create({
+      data: { userId: user.id, role: 'coach', text: reply, adjusts: adjusts.length ? adjusts : undefined, goal: goal ?? undefined, act: act.act ?? undefined },
+      select: { id: true },
+    }),
+  ]);
   revalidatePath('/coach');
   return { ok: true, reply, adjusts, goal, act: act.act, messageId: saved.id, left: Math.max(0, seat.left - 1) };
 }
@@ -366,10 +373,15 @@ export async function applyCoachGoal(messageId: unknown): Promise<{ ok: true } |
   const user = await requireUser();
   if (!(await activeCoach(user))) return { error: '코치를 시작한 뒤에 쓸 수 있어요.' };
   if (typeof messageId !== 'string') return { error: '다시 눌러 주세요.' };
-  const m = await prisma.coachMessage.findFirst({ where: { id: messageId, userId: user.id, role: 'coach' }, select: { goal: true } });
+  const [m, current] = await Promise.all([
+    prisma.coachMessage.findFirst({ where: { id: messageId, userId: user.id, role: 'coach' }, select: { goal: true, createdAt: true } }),
+    prisma.coachGoal.findUnique({ where: { userId: user.id }, select: { setAt: true } }),
+  ]);
   const offer = m?.goal && typeof m.goal === 'object' ? (m.goal as GoalOffer) : null;
   if (!offer) return { error: '이 제안을 찾지 못했어요.' };
   if (offer.applied) return { ok: true };
+  /* 지금 목표를 정한 뒤로 지난 제안(옛 '그만두기' · 옛 목표)은 새 목표를 덮지 않는다 — 둘 다 실제 시각 */
+  if (current && m!.createdAt < current.setAt) return { error: '지난 제안이에요. 코치에게 다시 말해 주세요.' };
   const today = toDateKey(appNow());
   const p = sanitizeGoal(offer, today);
   if (!p) return { error: '확인할 날이 지났어요. 코치에게 다시 말해 주세요.' };

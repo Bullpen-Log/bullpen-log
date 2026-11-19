@@ -167,6 +167,15 @@ check(
     scrubNames('드라이브라인이라는 곳의 방식, 트레드라는 곳') === '다른 곳의 방식, 다른 곳',
   scrubNames('Driveline 방식, 트레드 애슬레틱스 방식, Tread Athletics')
 );
+check(
+  '⑤ 띄어 쓰거나 줄표 · 점으로 끊은 이름도 지운다(전체 검토 11-19)',
+  ['drive line', 'Drive-Line', '드라이브-라인', '드라이브 · 라인'.replace(' · ', '·'), '드라이브.라인'].every((n) => scrubNames(`${n} 루틴`) === '다른 곳 루틴'),
+  ['drive line', 'Drive-Line', '드라이브-라인', '드라이브·라인', '드라이브.라인'].map((n) => scrubNames(`${n} 루틴`)).join(' | ')
+);
+check(
+  '⑤ 목표 글의 건강 낱말 — 결림 · 시큰 · 삐끗 · pain 도 막는다(전체 검토 11-19)',
+  ['어깨 결림 없이 던지기', '팔꿈치 시큰한 거 줄이기', '삐끗한 발목 조심', 'no pain 투구'].every(hasHealthWords) && !hasHealthWords('착지 균형 신경 쓰기')
+);
 check('⑤ 시스템 글은 이름을 안 쓰고 말하지 말라고 한다', scrubNames(COACH_SYSTEM) === COACH_SYSTEM && COACH_SYSTEM.includes('다른 회사 · 기관 · 프로그램 이름'));
 
 /* ⑥ 지식 카드(lib/coach/cards.ts — AI 코치 2판 1단계, docs/designs/ai-coach-knowledge-memory.md 3절) */
@@ -368,7 +377,9 @@ check('⑩ 답 글에 샌 칸 이름은 우리말로(조사도)', scrubCodes('�
   const pain = painNudge(['어깨', '팔꿈치']);
   check('⑫ 통증: 대화에 쉬기 먼저 · 병원 · 오늘 운동 단추', !!pain?.chat && pain.chat.text.includes('어깨와 팔꿈치 통증') && pain.chat.text.includes('던지지 말고') && pain.chat.text.includes('병원') && pain.chat.act?.kind === 'open' && pain.link === '/coach-chat' && painNudge([]) === null);
   check('⑫ 잠금 화면 글에 몸 상태 낱말 없음', !!pain && !/통증|아프|어깨|팔꿈치/.test(pain.push) && !hasHealthWords(before?.push ?? ''));
-  check('⑫ 하루 상한 · 같은 글 하루 한 번', NUDGE_DAILY_CAP === 2 && nudgeAllowed([], pain!) && !nudgeAllowed([pain!.push], pain!) && !nudgeAllowed(['a', 'b'], pain!) && nudgeAllowed([null], pain!));
+  check('⑫ 하루 상한 · 같은 글 하루 한 번', NUDGE_DAILY_CAP === 2 && nudgeAllowed([], pain!) && !nudgeAllowed([pain!.push], pain!) && nudgeAllowed([null], pain!));
+  /* 통증 말은 목표 알림 둘이 먼저 나간 날에도 간다 — 목표 알림은 상한에 막힌다(전체 검토 11-19) */
+  check('⑫ 통증 말은 하루 상한 밖', nudgeAllowed(['a', 'b'], pain!) && !nudgeAllowed(['a', 'b'], { push: 'c', link: '/coach' }) && !nudgeAllowed(['a', pain!.push], pain!));
   check('⑫ 정해진 글은 해요체 · 줄표 없음', [before!.push, after!.push, pain!.push, pain!.chat!.text].every((t) => !t.includes('—') && /요[.?!]$/.test(t)));
 }
 

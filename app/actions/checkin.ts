@@ -5,6 +5,8 @@ import { after } from 'next/server';
 import { nudgeAfterCheckin } from '@/lib/coach/nudge-send';
 import type { PainPart } from '@/lib/coach/nudge';
 import { prisma } from '@/lib/prisma';
+import { appNow } from '@/lib/clock';
+import { toDateKey } from '@/lib/pitch-stats';
 import { getCurrentUser } from '@/lib/dal';
 import {
   CHECKIN_NOTE_MAX,
@@ -160,7 +162,8 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
   revalidatePath('/', 'layout');
   /* 어깨 · 팔꿈치 통증이면 코치가 대화에 한마디(lib/coach/nudge-send.ts) — 답을 늦추지 않게 보낸 뒤에 */
   const painParts: PainPart[] = [...(saved.shoulder === '통증' ? ['어깨' as const] : []), ...(saved.elbow === '통증' ? ['팔꿈치' as const] : [])];
-  if (painParts.length) after(() => nudgeAfterCheckin(user.id, painParts));
+  /* 말이 '오늘 체크인에…'라 오늘 것만(어제 · 내일 체크인을 고친 것은 안 보낸다) */
+  if (painParts.length && dateKey === toDateKey(appNow())) after(() => nudgeAfterCheckin(user.id, painParts));
   return { success: '오늘 체크인을 저장했어요.', savedDate: dateKey };
 }
 
