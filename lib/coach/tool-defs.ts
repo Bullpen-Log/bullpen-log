@@ -63,6 +63,7 @@ const TodayIn = z.object({
 });
 const NoIn = z.object({});
 const FindIn = z.object({ query: z.string().describe('운동 이름 일부 · 부위(예: 스쿼트, 하체, 어깨)') });
+const InfoIn = z.object({ kind: z.enum(['운동', '드릴']), name: z.string().describe('운동 · 드릴 이름(일부여도 됨)') });
 
 /* 4단계 쓰기 — 확인 · 실행은 서버(lib/coach/assist.ts), 카드 글은 아래 순수 함수 */
 export const CALENDAR_KINDS = ['경기', '훈련', '레슨', '기타'] as const;
@@ -123,6 +124,12 @@ export const READ_DEFS = [
   { name: 'read_program', description: '근력 · 파워 프로그램 진행(이름 · 몇 번째 세션 · 마지막 한 날 · 지난 프로그램)과 메커니즘 처방 진행(요소 · 단계 · 한 세션 수).', input: NoIn },
   { name: 'read_3d_history', description: '3D 동작 분석을 한 날들(최근 10개)과 가장 최근 판정.', input: NoIn },
   { name: 'read_settings', description: '앱 설정 — 던지는 손 · 하루 운동 시간 · 웨이트 경력 · 운동 목표 · 가진 장비, 최근 알림 10개(종류 · 제목 · 날짜).', input: NoIn },
+  {
+    name: 'read_exercise_info',
+    description:
+      '앱 운동 · 드릴 설명을 읽는다 — 하는 법 · 주의 · 투수에게 왜 필요한가 · 기본 처방 · 장비 · 부위(드릴은 요소 · 단계). 자세 · 운동법 · 이 운동이 왜 필요한지 물을 때 짐작하지 말고 읽는다.',
+    input: InfoIn,
+  },
   {
     name: 'read_checkins',
     description: '체크인을 날짜 범위로 읽는다(최대 30일). 컨디션 · 잠의 질 · 어깨 · 팔꿈치. 건강정보 동의가 없으면 못 읽는다.',

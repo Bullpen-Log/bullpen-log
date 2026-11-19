@@ -66,10 +66,15 @@ export type FreeSuggestion = {
 };
 
 /** 올리는 비율 — 프로그램(next-weight.ts ②)과 같다 */
-const RAISE_BIG_LOWER = 1.05;
-const RAISE_OTHER = 1.025;
+export const RAISE_BIG_LOWER = 1.05;
+export const RAISE_OTHER = 1.025;
 /** 내리는 비율(④) — 프로그램의 '두 번 연속 못 채움'(next-weight.ts missTwice)과 같은 5% */
-const LOWER_RATIO = 0.95;
+export const LOWER_RATIO = 0.95;
+/** 쉰 기간 낮춤(⑤) — 8~14일 · 15~28일 */
+export const BREAK_SHORT_RATIO = 0.9;
+export const BREAK_LONG_RATIO = 0.85;
+export const BREAK_SHORT_FROM_DAYS = 8;
+export const BREAK_LONG_FROM_DAYS = 15;
 
 /** 횟수 범위의 아래 끝 = 처방 횟수(위 끝)의 이만큼(올림) — 8회 → 6, 5회 → 4, 10회 → 8, 15회 → 12 */
 export const REP_FLOOR_RATIO = 0.75;
@@ -179,11 +184,11 @@ export function suggestFreeWeight(input: {
   const prev = `지난번 ${top}kg`;
 
   /* ⑤ 쉰 기간 — 낮춰서, 올리지 않는다 */
-  if (gap >= 15) {
-    return { kg: roundToUnit(top * 0.85, kind), note: `${gap}일 쉬어서 ${prev}보다 15% 낮췄어요` };
+  if (gap >= BREAK_LONG_FROM_DAYS) {
+    return { kg: roundToUnit(top * BREAK_LONG_RATIO, kind), note: `${gap}일 쉬어서 ${prev}보다 15% 낮췄어요` };
   }
-  if (gap >= 8) {
-    return { kg: roundToUnit(top * 0.9, kind), note: `${gap}일 쉬어서 ${prev}보다 10% 낮췄어요` };
+  if (gap >= BREAK_SHORT_FROM_DAYS) {
+    return { kg: roundToUnit(top * BREAK_SHORT_RATIO, kind), note: `${gap}일 쉬어서 ${prev}보다 10% 낮췄어요` };
   }
 
   const reps = input.plannedReps;

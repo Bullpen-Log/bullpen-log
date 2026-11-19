@@ -14,6 +14,8 @@ import { READ_NAMES, WRITE_NAMES, addCard, calendarKindOf, norm, parseToolInput,
 export type { TodayWork } from '@/lib/coach/tool-defs';
 import type { Toolbox } from '@/lib/coach/ai';
 import { ASSIST_TOOLS, proposeAssist } from '@/lib/coach/assist';
+import { visibleExercises, visibleGuides } from '@/lib/library-cache';
+import { scrubNames } from '@/lib/coach/ai-prompt';
 import type { DaySlot } from '@/lib/coach/week';
 
 /**
@@ -64,6 +66,13 @@ const PROGRAM_STATUS: Record<string, string> = { active: '진행 중', done: '�
 
 /** 운동 시간 — 판을 안 닫아 몇 시간으로 남은 것(10-21 895분 같은)은 숫자를 안 준다(AI 가 그대로 읽어 '15시간 했다'고 말하지 않게) */
 const minutesText = (sec: number | null | undefined) => (!sec ? '모름' : sec > 4 * 3600 ? '모름(시간 기록이 이상해요)' : `${Math.round(sec / 60)}분`);
+
+/** 운동 설명을 AI 에 실을 때의 글자 상한 — 라이브러리 글은 대개 이보다 짧다 */
+const INFO_MAX = 1500;
+const rxOf = (x: { sets: number | null; reps: number | null; holdSeconds: number | null; restSeconds: number | null; perSide: boolean }) =>
+  x.sets
+    ? `${x.sets}세트 × ${x.reps ? `${x.reps}회` : x.holdSeconds ? `${x.holdSeconds}초` : '?'}${x.perSide ? '(좌우 각각)' : ''}${x.restSeconds ? ` · 쉬기 ${x.restSeconds}초` : ''}`
+    : '없음';
 
 const READERS: Record<string, Reader> = {
   async read_workouts(s, input) {
@@ -176,6 +185,25 @@ const READERS: Record<string, Reader> = {
         ...(notes.length ? notes.map((n) => `- ${toDateKey(n.createdAt)} | ${n.kind} | ${n.title} | ${n.readAt ? '읽음' : '안 읽음'}`) : ['- 없음']),
       ].join('\n'),
     };
+  },
+  async read_exercise_info(s, input) {
+    const drill = input.kind === '드릴';
+    if (!canUse(s, drill ? 'mechanics' : 'training')) return { text: `이 사람은 지금 ${drill ? '메커니즘 드릴' : '트레이닝'}을 쓸 수 없어요.`, error: true };
+    const list = drill ? await visibleGuides() : await visibleExercises();
+    const q = norm(String(input.name ?? ''));
+    if (!q) return { text: '이름을 주세요.', error: true };
+    const exact = list.find((x) => norm(x.title) === q);
+    const some = exact ? [exact] : list.filter((x) => norm(x.title).includes(q));
+    if (!some.length) return { text: `그 이름의 ${input.kind}을 앱에서 못 찾았어요.` };
+    if (some.length > 1) return { text: `이름이 맞는 ${input.kind}이 여럿이에요(정확한 이름으로 다시): ${some.slice(0, 8).map((x) => x.title).join(' · ')}` };
+    const x = some[0];
+    /* 설명은 앱 라이브러리 글(우리가 다듬은 것) — 기관 이름은 한 번 더 지우고, 길면 자른다 */
+    const desc = scrubNames(x.description.trim()).slice(0, INFO_MAX);
+    const head =
+      'focusPoints' in x
+        ? `${x.title} | 드릴 · ${x.category} | 요소 ${x.focusPoints.join(' · ') || '없음'} | 단계 ${x.stage ?? '모름'} | 장비 ${x.equipment.join(' · ') || '없음'}`
+        : `${x.title} | ${x.category} | 강도 ${x.intensity} | 난이도 ${x.difficulty ?? '모름'} | 부위 ${x.bodyParts.join(' · ') || '없음'} | 장비 ${x.equipment.join(' · ') || '맨몸'} | 기본 처방 ${rxOf(x)}`;
+    return { text: `${head}\n설명(앱 라이브러리 — 이 글 안에서만 답한다):\n${desc || '설명 없음'}` };
   },
   async find_exercises(s, input) {
     if (!s.todayWork) return { text: '지금은 운동을 찾을 수 없어요.', error: true };

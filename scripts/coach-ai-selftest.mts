@@ -3,6 +3,11 @@
  * 맥락 덩이에 개인 정보 없음 · 건강 동의 없으면 신호 없음 · 바꿀 거리 거르기 · 판정 표 · 비용 셈.
  * 실행: npm run coach:ai-test
  */
+import { knowBlock } from '@/lib/coach/know';
+import { ADULT_AGE, AGE_PITCH_LIMITS, REST_REQUIREMENTS, YOUTH_AGE_THRESHOLD } from '@/lib/report/plan';
+import { HARD_OUTING_MIN_LOAD } from '@/lib/report/facts';
+import { SHORT_SLEEP_QUALITY } from '@/lib/checkin';
+import { LOWER_RATIO, RAISE_BIG_LOWER, STREAK_MAX_GAP_DAYS } from '@/lib/workout/free-weight';
 import { aiGate, capUsdOf, AI_DAILY_CHATS, AI_BLOCK_TEXT, type AiGateInput } from '@/lib/coach/ai-gate';
 import { costMicroOf } from '@/lib/coach/ai-price';
 import { COACH_SYSTEM, COACH_SYSTEM_BLOCK, contextBlock, guardPitchReply, type CoachAiPitchPlan, ageBandOf, scrubNames, throwsOf, type CoachAiContext, type CoachAiRecords, veloRowsOf, dateTable, pastDateTable, scrubCodes } from '@/lib/coach/ai-prompt';
@@ -192,17 +197,17 @@ check('⑤ 시스템 글은 이름을 안 쓰고 말하지 말라고 한다', sc
   const text = (c: (typeof COACH_CARDS)[number]) => `${c.when} ${c.do} ${c.dont}`;
   const safety = COACH_CARDS.filter((c) => c.kind === 'safety');
   const coaching = COACH_CARDS.filter((c) => c.kind === 'coaching');
-  check('⑥ 카드 25장(안전 19 · 코칭 6) · 번호가 겹치지 않는다', COACH_CARDS.length === 25 && safety.length === 19 && coaching.length === 6 && new Set(COACH_CARDS.map((c) => c.id)).size === 25);
+  check('⑥ 카드 29장(안전 23 · 코칭 6) · 번호가 겹치지 않는다', COACH_CARDS.length === 29 && safety.length === 23 && coaching.length === 6 && new Set(COACH_CARDS.map((c) => c.id)).size === 29);
   check('⑥ 숫자 처방 없음 — 카드 글에 숫자가 없다(투구 수 · 휴식일 · 세트 · 무게 · 시간은 앱 엔진만, D1)', COACH_CARDS.every((c) => !/\d/.test(text(c))), COACH_CARDS.filter((c) => /\d/.test(text(c))).map((c) => c.id).join());
   check('⑥ 출처 번호가 출처 표에 있다', COACH_CARDS.every((c) => c.sources.every((id) => id in CARD_SOURCES)));
   check('⑥ 카드 글에 기관 이름이 없다', COACH_CARDS.every((c) => scrubNames(text(c)) === text(c)));
   check(
     '⑥ 실리는 카드 — 안전 카드는 늘, 코칭 카드는 검토자가 적힌 것만(D3)',
-    shippedCards().length === 19 &&
+    shippedCards().length === 23 &&
       shippedCards().every((c) => c.kind === 'safety') &&
       shippedCards([...COACH_CARDS.slice(0, 1), { ...coaching[0], review: { by: '시험', at: '2026-11-17' } }]).length === 2
   );
-  check('⑥ 카드 25장을 다 실어도 4,000자 안(D2 — 글자 수로 어림)', cardsBlock(COACH_CARDS).length <= 4000, String(cardsBlock(COACH_CARDS).length));
+  check('⑥ 카드 29장을 다 실어도 4,000자 안(D2 — 글자 수로 어림)', cardsBlock(COACH_CARDS).length <= 4000, String(cardsBlock(COACH_CARDS).length));
   check(
     '⑥ AI 고정 덩이 = 규칙 글 + 실린 카드(검토 전 코칭 카드는 없다) · 날짜 없음(캐시)',
     COACH_SYSTEM_BLOCK.startsWith(COACH_SYSTEM) &&
@@ -402,7 +407,7 @@ check('⑩ 답 글에 샌 칸 이름은 우리말로(조사도)', scrubCodes('�
   const T = '2026-11-04';
   const pc = { today: T, said: '오늘 팀 불펜 40개 던졌어', week, locked: (d: string) => d < T, goalOpen: false };
   const names = TOOL_DEFS.map((d) => d.name);
-  check('⑬ 도구 목록: 차례 고정 · 모르는 칸 없음 · 이름 겹침 없음', JSON.stringify(names) === JSON.stringify(['read_pitch_logs', 'find_exercises', 'read_workouts', 'read_armcare', 'read_calendar', 'read_program', 'read_3d_history', 'read_settings', 'read_checkins', 'change_week', 'change_today', 'goal', 'draft_pitch_log', 'open_screen', 'calendar', 'throw_plan', 'favorite', 'training_settings', 'armcare_today', 'program_day', 'draft_post']) && TOOL_DEFS.every((d) => d.input_schema.type === 'object' && (d.input_schema as { additionalProperties?: unknown }).additionalProperties === false));
+  check('⑬ 도구 목록: 차례 고정 · 모르는 칸 없음 · 이름 겹침 없음', JSON.stringify(names) === JSON.stringify(['read_pitch_logs', 'find_exercises', 'read_workouts', 'read_armcare', 'read_calendar', 'read_program', 'read_3d_history', 'read_settings', 'read_exercise_info', 'read_checkins', 'change_week', 'change_today', 'goal', 'draft_pitch_log', 'open_screen', 'calendar', 'throw_plan', 'favorite', 'training_settings', 'armcare_today', 'program_day', 'draft_post']) && TOOL_DEFS.every((d) => d.input_schema.type === 'object' && (d.input_schema as { additionalProperties?: unknown }).additionalProperties === false));
   check('⑬ 도구 목록은 부를 때마다 같은 글자(캐시)', JSON.stringify(TOOL_DEFS) === JSON.stringify(TOOL_DEFS.map((d) => ({ ...d }))) && !JSON.stringify(TOOL_DEFS).includes('$schema'));
   const skip = propose('change_week', pc, { kind: 'skip', date: '2026-11-06', minutes: null, from: null, to: null });
   check('⑬ 일정 쉬기 → 카드(미리보기 줄 · 적용)', 'card' in skip && skip.card.cta === '적용' && skip.card.title === `${dayText('2026-11-06')} 운동 쉬기` && skip.card.lines.length >= 1 && !skip.card.open, JSON.stringify(skip));
@@ -517,6 +522,19 @@ check('⑩ 답 글에 샌 칸 이름은 우리말로(조사도)', scrubCodes('�
   const post = postCard({ category: 'question', title: '착지 질문', body: '착지할 때 무릎이 안으로 들어가요.' });
   check('⑰ 덕아웃 글: 화면을 채워 여는 초안(실행 없음) · 빈 글 · 기관 이름은 까닭', 'card' in post && post.card.open?.kind === 'post' && post.card.args === undefined && 'refuse' in postCard({ category: 'free', title: ' ', body: 'x' }) && 'refuse' in postCard({ category: 'free', title: '드라이브라인 후기', body: 'x' }));
   check('⑰ 저장 · 읽기: 한 번 더 묻는 글이 남는다', readCards({ cards: [{ ...(del as { card: CoachCard }).card, id: 'c0' }] })?.[0].confirm === '이 일정을 지울까요?');
+}
+
+/* ⑱ 앱 기준(5단계) — 숫자는 엔진 숫자표에서만, 고정 덩이에 실린다 */
+{
+  const k = knowBlock();
+  const restLine = REST_REQUIREMENTS.filter((r) => r.restDays > 0).map((r) => `${r.minPitches}구 이상 ${r.restDays}일`).join(' · ');
+  check('⑱ 휴식표 · 하루 한도 · 세게 던진 날이 엔진 값 그대로', k.includes(restLine) && AGE_PITCH_LIMITS.filter((r) => r.throughAge < ADULT_AGE).every((r) => k.includes(`${r.throughAge}세 ${r.dailyMax}구`)) && k.includes(HARD_OUTING_MIN_LOAD.toLocaleString('en-US')), k);
+  check('⑱ 무게 올림 · 내림 · 쉰 기간 비율도 엔진 값', k.includes(`${Math.round((RAISE_BIG_LOWER - 1) * 1000) / 10}%`) && k.includes(`${Math.round((1 - LOWER_RATIO) * 1000) / 10}%`) && k.includes(`${STREAK_MAX_GAP_DAYS}일 안`));
+  check('⑱ 고정 덩이에 실림 · 날짜 없음 · 2,000자 안', COACH_SYSTEM_BLOCK.includes(k) && !/\d{4}-\d{2}-\d{2}/.test(k) && k.length <= 2000, String(k.length));
+  check('⑱ 성장기 · 잠 · 컨디션 기준 글', k.includes(`만 ${YOUTH_AGE_THRESHOLD}세 미만`) && k.includes(`잠의 질 ${SHORT_SLEEP_QUALITY} 이하`) && k.includes('숫자는 앱에 없으니'));
+  check('⑱ 글로 흉내 낸 긴 카드([카드: …])도 지운다', scrubCodes('아래 카드를 눌러 주세요.\n\n[카드: 고블렛 스쿼트를 불가리안 스플릿 스쿼트로 바꾸기]') === '아래 카드를 눌러 주세요.');
+  check('⑱ 굵게 꾸밈(**)은 지운다', scrubCodes('던진 뒤 **4일** 쉬어요.') === '던진 뒤 4일 쉬어요.');
+  check('⑱ 새 안전 카드(웨이트 · 잠 · 컨디셔닝 · 회복)가 실린다', ['PA01', 'PA02', 'PA03', 'PA04'].every((id) => shippedCards().some((c) => c.id === id)) && COACH_SYSTEM_BLOCK.includes('read_exercise_info'));
 }
 
 console.log(`coach-ai: ${pass}개 통과${fails.length ? `, ${fails.length}개 실패` : ''}`);
