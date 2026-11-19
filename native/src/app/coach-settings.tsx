@@ -83,7 +83,7 @@ export default function CoachSettingsScreen() {
             <View style={st.row}>
               <View style={{ flex: 1, gap: 3, paddingVertical: 12 }}>
                 <Text style={[TYPE.card, { color: c.ink }]}>코치가 먼저 말 걸기</Text>
-                <Text style={[TYPE.sub, { color: c.muted }]}>정한 목표를 확인할 때 · 통증을 적은 날 알려요. 하루 두 번까지예요.</Text>
+                <Text style={[TYPE.sub, { color: c.muted }]}>정한 목표를 확인할 때 · 통증을 적은 날 알려요. 목표 알림은 하루 두 번까지예요.</Text>
               </View>
               <Switch value={chat.nudges} onValueChange={(on) => void setNudges(on)} accessibilityLabel="코치가 먼저 말 걸기" trackColor={{ true: c.action }} />
             </View>
