@@ -8,6 +8,8 @@ import { costMicroOf } from '@/lib/coach/ai-price';
 import { COACH_SYSTEM, COACH_SYSTEM_BLOCK, contextBlock, ageBandOf, scrubNames, throwsOf, type CoachAiContext, type CoachAiRecords, veloRowsOf, dateTable, pastDateTable, scrubCodes } from '@/lib/coach/ai-prompt';
 import { NUDGE_DAILY_CAP, goalDayNudge, goalLogNudge, nudgeAllowed, painNudge } from '@/lib/coach/nudge';
 import { COACH_VELOCITY, readAct, sanitizeAct, saidNumber } from '@/lib/coach/act';
+import { TOOL_DEFS, addCard, propose, parseToolInput, dayText } from '@/lib/coach/tool-defs';
+import { CARDS_MAX, readCards, shownCard, type CoachCard } from '@/lib/coach/card';
 import { COACH_AI_CONSENT } from '@/lib/coach/ai-consent';
 import { HEALTH_CONSENT, healthCutoffOf, historyFloorOf } from '@/lib/health-consent';
 import { reasonTextsFor } from '@/lib/coach/answers';
@@ -242,7 +244,7 @@ check('⑤ 시스템 글은 이름을 안 쓰고 말하지 말라고 한다', sc
     '⑦ 규칙 글: 구속 약속 금지 · 영상 본 척 금지 · 처방 바꾸라 안 함 · 모름 짐작 금지 · 먼저 꺼내 말함',
     ['구속이 얼마나 · 언제 오를지 약속하지 않고', '영상을 직접 본 것처럼 말하지 않는다', '단계를 올리거나 처방을 바꾸라고 하지 않는다', "'모름'인 칸을 짐작으로 채우지 않는다", '네가 먼저 꺼내 말한다'].every((w) => COACH_SYSTEM.includes(w))
   );
-  check('⑦ 동의 글에 새로 보내는 것이 적혀 있다', ['3D 동작 분석의 판정', '구속 측정값', '암케어', '더 먹을 양', '투구 기록', '정한 목표'].every((w) => COACH_AI_CONSENT.items.includes(w)) && COACH_AI_CONSENT.version === '2026-11-19');
+  check('⑦ 동의 글에 보내는 것이 적혀 있다(개인 비서 판)', ['3D 동작 분석의 판정', '암케어', '더 먹을 양', '투구 기록', '정한 목표', '찾아본 기간', '투구 계획', '오늘 운동'].every((w) => COACH_AI_CONSENT.items.includes(w)) && (COACH_VELOCITY || !COACH_AI_CONSENT.items.includes('구속')) && COACH_AI_CONSENT.purpose.includes('누를 때만') && COACH_AI_CONSENT.version === '2026-11-20');
 }
 
 /* ⑧ 검토 반영(2026-11-19) — 건강 동의가 없어진 뒤 보내는 것 · 지금 연습하는 요소 · 구속 종류별. 실제 AI 호출 없이 */
@@ -364,7 +366,7 @@ check('⑩ 답 글에 샌 칸 이름은 우리말로(조사도)', scrubCodes('�
   check('⑪ 지난 6일 줄: 어제까지 · 오늘 없음', pastDateTable('2026-11-04') === '2026-10-29 목, 2026-10-30 금, 2026-10-31 토, 2026-11-01 일, 2026-11-02 월, 2026-11-03 화(어제)' && contextBlock(ctx).includes('지난 6일: '));
   check(
     '⑪ 규칙 글: 초안은 저장 안 함 · 공 수는 말한 것만 · 강도 · 구속 안 넣음 · 아프면 체크인',
-    ['답은 네 칸뿐이다', '기록했다 · 저장했다고 쓰지 않는다', 'count 는 사용자가 이번 말에 숫자로 말한 공 수만', '강도 · 구속은 넣지 않는다', '아프다는 말에는 open checkin'].every((w) => COACH_SYSTEM.includes(w))
+    ['답(reply)은 사용자에게 보일 글 하나다', '기록했다 · 저장했다고 쓰지 않는다', 'count 는 사용자가 이번 말에 숫자로 말한 공 수만', '강도 · 구속은 넣지 않는다', '아프다는 말에는 open_screen checkin', '카드만 만든다'].every((w) => COACH_SYSTEM.includes(w))
   );
   check('⑪ 답 글에 샌 화면 이름은 우리말로 · 받침에 맞춘 조사', scrubCodes('checkin을 열어 보세요. lab으로 가요. training이 있어요. armcare를 해요.') === '체크인을 열어 보세요. 3D 동작 분석으로 가요. 오늘 운동이 있어요. 암케어를 해요.', scrubCodes('checkin을 열어 보세요. lab으로 가요. training이 있어요. armcare를 해요.'));
   const did = goalCardOf({ what: '착지 균형', trigger: '불펜', checkOn: '2026-11-19', watchFrom: '2026-11-16', status: 'open', feel: null, result: null, setOn: '2026-11-16', laterOn: null, answeredOn: null }, [], '2026-11-20');
@@ -392,6 +394,31 @@ check('⑩ 답 글에 샌 칸 이름은 우리말로(조사도)', scrubCodes('�
   /* 통증 말은 목표 알림 둘이 먼저 나간 날에도 간다 — 목표 알림은 상한에 막힌다(전체 검토 11-19) */
   check('⑫ 통증 말은 하루 상한 밖', nudgeAllowed(['a', 'b'], pain!) && !nudgeAllowed(['a', 'b'], { push: 'c', link: '/coach' }) && !nudgeAllowed(['a', pain!.push], pain!));
   check('⑫ 정해진 글은 해요체 · 줄표 없음', [before!.push, after!.push, pain!.push, pain!.chat!.text].every((t) => !t.includes('—') && /요[.?!]$/.test(t)));
+}
+
+/* ⑬ 도구 · 카드(개인 비서 1단계) — 바꾸기 도구는 확인을 통과한 것만 카드, 안 되면 까닭. 실행은 선수가 누를 때. 실제 AI 호출 없이 */
+{
+  const T = '2026-11-04';
+  const pc = { today: T, said: '오늘 팀 불펜 40개 던졌어', week, locked: (d: string) => d < T, goalOpen: false };
+  const names = TOOL_DEFS.map((d) => d.name);
+  check('⑬ 도구 목록: 차례 고정 · 모르는 칸 없음 · 이름 겹침 없음', JSON.stringify(names) === JSON.stringify(['read_pitch_logs', 'read_checkins', 'change_week', 'goal', 'draft_pitch_log', 'open_screen']) && TOOL_DEFS.every((d) => d.input_schema.type === 'object' && (d.input_schema as { additionalProperties?: unknown }).additionalProperties === false));
+  check('⑬ 도구 목록은 부를 때마다 같은 글자(캐시)', JSON.stringify(TOOL_DEFS) === JSON.stringify(TOOL_DEFS.map((d) => ({ ...d }))) && !JSON.stringify(TOOL_DEFS).includes('$schema'));
+  const skip = propose('change_week', pc, { kind: 'skip', date: '2026-11-06', minutes: null, from: null, to: null });
+  check('⑬ 일정 쉬기 → 카드(미리보기 줄 · 적용)', 'card' in skip && skip.card.cta === '적용' && skip.card.title === `${dayText('2026-11-06')} 운동 쉬기` && skip.card.lines.length >= 1 && !skip.card.open, JSON.stringify(skip));
+  const past = propose('change_week', pc, { kind: 'skip', date: '2026-11-03', minutes: null, from: null, to: null });
+  check('⑬ 지난 날 · 이번 주 밖 · 틀린 시간은 까닭으로', 'refuse' in past && past.refuse.includes('지난 날') && 'refuse' in propose('change_week', pc, { kind: 'skip', date: '2026-11-20', minutes: null, from: null, to: null }) && 'refuse' in propose('change_week', pc, { kind: 'minutes', date: '2026-11-04', minutes: 50, from: null, to: null }));
+  const log = propose('draft_pitch_log', pc, { date: null, type: '불펜', count: 40 });
+  check('⑬ 투구 기록 초안 → 앱이 여는 카드(말한 공 수만)', 'card' in log && log.card.open?.kind === 'log' && log.card.open.count === 40 && log.card.open.date === T && 'card' in propose('draft_pitch_log', pc, { date: null, type: '불펜', count: 45 }) && (propose('draft_pitch_log', pc, { date: null, type: '불펜', count: 45 }) as { card: CoachCard }).card.open?.kind === 'log' && ((propose('draft_pitch_log', pc, { date: null, type: '불펜', count: 45 }) as { card: CoachCard }).card.open as { count: number | null }).count === null);
+  check('⑬ 화면 열기 · 모르는 화면은 까닭', 'card' in propose('open_screen', pc, { screen: 'checkin' }) && 'refuse' in propose('open_screen', pc, { screen: 'settings' }) && (COACH_VELOCITY || 'refuse' in propose('open_screen', pc, { screen: 'velocity' })));
+  check('⑬ 목표: 정하기 카드 · 통증 목표 · 지울 목표 없음은 까닭', 'card' in propose('goal', pc, { kind: 'set', what: '착지 균형', trigger: '불펜', checkOn: '2026-11-06' }) && 'refuse' in propose('goal', pc, { kind: 'set', what: '통증 없이 던지기', trigger: null, checkOn: '2026-11-06' }) && 'refuse' in propose('goal', pc, { kind: 'drop', what: null, trigger: null, checkOn: null }) && 'card' in propose('goal', { ...pc, goalOpen: true }, { kind: 'drop', what: null, trigger: null, checkOn: null }));
+  check('⑬ 모르는 도구 · 틀린 입력은 까닭', 'refuse' in propose('delete_all', pc, {}) && 'refuse' in propose('change_week', pc, { kind: 'nuke' }) && parseToolInput('read_pitch_logs', { from: T }) === null && parseToolInput('read_pitch_logs', { from: T, to: T }) !== null);
+  const cards: CoachCard[] = [];
+  const c1 = addCard(cards, (skip as { card: CoachCard }).card, CARDS_MAX);
+  const dup = addCard(cards, (skip as { card: CoachCard }).card, CARDS_MAX);
+  for (const sc of ['checkin', 'training', 'armcare', 'mechanics']) addCard(cards, (propose('open_screen', pc, { screen: sc }) as { card: CoachCard }).card, CARDS_MAX);
+  check('⑬ 카드 모음: 같은 카드 한 번 · 4개까지 · id 차례', 'id' in c1 && c1.id === 'c0' && 'refuse' in dup && cards.length === CARDS_MAX && cards.map((c) => c.id).join() === 'c0,c1,c2,c3');
+  const back = readCards(JSON.parse(JSON.stringify({ cards })));
+  check('⑬ 저장 · 읽기: 같은 카드 · 옛 대신 해 주기는 카드 아님 · 앱에는 실행 입력 안 보냄', JSON.stringify(back) === JSON.stringify(cards) && readCards({ kind: 'open', screen: 'checkin' }) === null && !('args' in shownCard(cards[0])) && readAct({ cards }) === null);
 }
 
 console.log(`coach-ai: ${pass}개 통과${fails.length ? `, ${fails.length}개 실패` : ''}`);

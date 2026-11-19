@@ -1,6 +1,6 @@
 'use server';
 
-import { createHash } from 'node:crypto';
+import { slotsKey } from '@/lib/coach/tools';
 import { revalidatePath } from 'next/cache';
 import { requireUser } from '@/lib/dal';
 import { prisma } from '@/lib/prisma';
@@ -307,7 +307,6 @@ export async function ackWeeklyReview(weekStart: unknown): Promise<{ ok: true } 
 
 /* ─────────── 조정 단추(10-5 U35) — 미리보기 → 적용. 미리본 그 틀일 때만 적용(그새 바뀌었으면 다시 미리보기) ─────────── */
 
-const slotsKey = (slots: unknown) => createHash('sha1').update(JSON.stringify(slots)).digest('hex').slice(0, 16);
 
 
 export async function previewCoachAdjust(raw: unknown) {

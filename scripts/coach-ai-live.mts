@@ -1,15 +1,17 @@
 /**
  * 코치 AI 실제 호출 채점(30상황, docs/designs/ai-coach-knowledge-memory.md 5절) — 돈이 든다(Haiku 로 한 번 약 $0.03). 시험 묶음(coach:ai-test)에는 안 넣는다.
- * 지어낸 상황을 실제 길(chatTurn → 거르기)로 보내고, 상황마다 합격 조건(금지 · 꼭 할 것 · 바꿀 거리 · 목표 · 대신 해 주기 모양 · 말투)을 자동으로 본다.
+ * 지어낸 상황을 실제 길(chatTurn → 도구 확인 propose → 카드)로 보내고, 상황마다 합격 조건(금지 · 꼭 할 것 · 바꿀 거리 · 목표 · 대신 해 주기 모양 · 말투)을 자동으로 본다.
  * 사용자 자료는 안 보낸다(맥락은 여기서 지어낸 것). 열쇠는 환경변수 ANTHROPIC_API_KEY. 규칙 글 · 카드 · 모델을 바꿀 때마다 돌린다.
  * 실행: node --import ./scripts/alias-register.mjs scripts/coach-ai-live.mts [--only=A,B]
  */
-import { chatTurn, type ChatLine } from '@/lib/coach/ai';
+import { chatTurn, type ChatLine, type Toolbox } from '@/lib/coach/ai';
 import { contextBlock, scrubCodes, scrubNames, type CoachAiContext, type CoachAiRecords } from '@/lib/coach/ai-prompt';
-import { sanitizeAdjusts, type CoachAdjust } from '@/lib/coach/adjust';
+import type { CoachAdjust } from '@/lib/coach/adjust';
 import { costMicroOf } from '@/lib/coach/ai-price';
-import { sanitizeGoal } from '@/lib/coach/goal';
-import { sanitizeAct } from '@/lib/coach/act';
+import type { GoalProposal } from '@/lib/coach/goal';
+import { CARDS_MAX, type CoachCard } from '@/lib/coach/card';
+import type { CoachAct } from '@/lib/coach/act';
+import { READ_NAMES, addCard, propose } from '@/lib/coach/tool-defs';
 import type { DaySlot } from '@/lib/coach/week';
 
 const T = '2026-11-04';
@@ -77,9 +79,9 @@ type Out = {
   shown: string;
   raw: string;
   adjusts: CoachAdjust[];
-  goal: ReturnType<typeof sanitizeGoal>;
+  goal: GoalProposal | null;
   rawGoal: unknown;
-  act: ReturnType<typeof sanitizeAct>;
+  act: CoachAct | null;
   rawAct: unknown;
 };
 type Case = { name: string; ctx: CoachAiContext; said: string; history?: ChatLine[]; check?: ((o: Out) => string | false)[] };
@@ -210,7 +212,22 @@ const picked = only ? CASES.filter((c) => only.includes(c.name.split(' ')[0])) :
 let costMicro = 0;
 const failed: string[] = [];
 for (const c of picked) {
-  const turn = await chatTurn(c.history ?? [], contextBlock(c.ctx), c.said);
+  /* 도구 — 바꾸기는 실제와 같은 확인(propose)으로 카드만 모으고, 읽기는 지어낸 맥락 밖이라 '없음'으로 */
+  const cards: CoachCard[] = [];
+  const reads: string[] = [];
+  const box: Toolbox = {
+    async run(name, raw) {
+      if (READ_NAMES.has(name)) {
+        reads.push(name);
+        return { text: '(시험) 그 기간 기록 없음' };
+      }
+      const p = propose(name, { today: T, said: c.said, week, locked: (d) => d < T, goalOpen: c.ctx.goal != null && !/없음/.test(c.ctx.goal) }, raw);
+      if ('refuse' in p) return { text: `카드를 못 만들었어요: ${p.refuse}`, error: true };
+      const added = addCard(cards, p.card, CARDS_MAX);
+      return 'refuse' in added ? { text: `카드를 못 만들었어요: ${added.refuse}`, error: true } : { text: `카드를 만들었어요(${p.card.title}). 사용자가 눌러야 바뀌어요 — 바꿨다고 말하지 마세요.` };
+    },
+  };
+  const turn = await chatTurn(c.history ?? [], contextBlock(c.ctx), c.said, box);
   console.log(`\n── ${c.name}\n말: ${c.said}`);
   if (!turn.ok) {
     console.log(`실패: ${turn.why} · ${turn.model} · ${turn.ms}ms`);
@@ -221,15 +238,16 @@ for (const c of picked) {
   const o: Out = {
     shown: scrubCodes(scrubNames(turn.reply)),
     raw: turn.reply,
-    adjusts: sanitizeAdjusts(turn.adjusts, week, T, (d) => d < T),
-    goal: sanitizeGoal(turn.goal, T),
-    rawGoal: turn.goal,
-    act: sanitizeAct(turn.act, T, c.said),
-    rawAct: turn.act,
+    /* 카드 → 옛 채점 칸(바꿀 거리 · 목표 · 대신 해 주기) */
+    adjusts: cards.flatMap((k) => (k.tool === 'change_week' ? [(k.args as { adjust: CoachAdjust }).adjust] : [])),
+    goal: cards.flatMap((k) => (k.tool === 'goal' ? [(k.args as { offer: GoalProposal }).offer] : []))[0] ?? null,
+    rawGoal: null,
+    act: ((k) => (k?.open?.kind === 'log' ? { kind: 'log', date: k.open.date, type: k.open.type, count: k.open.count } : k?.open ? { kind: 'open', screen: k.open.screen } : null))(cards.find((k) => k.open)),
+    rawAct: null,
   };
   const why = [...styleFlags(o.shown), ...(c.check ?? []).map((f) => f(o)).filter((x): x is string => !!x)];
   console.log(`답: ${o.shown}${o.shown !== o.raw ? '  (이름 · 칸 이름 지움)' : ''}`);
-  console.log(`바꿀 거리: ${JSON.stringify(o.adjusts)} · 목표: ${JSON.stringify(o.goal)} · 대신 해 주기: ${JSON.stringify(o.act)}`);
+  console.log(`바꿀 거리: ${JSON.stringify(o.adjusts)} · 목표: ${JSON.stringify(o.goal)} · 대신 해 주기: ${JSON.stringify(o.act)} · 카드 ${cards.length} · 읽기 ${reads.join(',') || '없음'} · 되돌기 ${turn.rounds}`);
   console.log(`${why.length ? `✗ ${why.join(' · ')}` : '✓ 합격'} · ${turn.model} · ${turn.ms}ms · 출력 ${turn.usage.output_tokens ?? 0} · 캐시 읽기 ${turn.usage.cache_read_input_tokens ?? 0}`);
   if (why.length) failed.push(`${c.name}: ${why.join(' · ')}`);
 }

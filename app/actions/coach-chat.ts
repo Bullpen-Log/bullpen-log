@@ -15,7 +15,10 @@ import { AI_BLOCK_TEXT, AI_MIN_AGE, aiGate, capUsdOf, type AiGate } from '@/lib/
 import { costMicroOf } from '@/lib/coach/ai-price';
 import { ageBandOf, contextBlock, scrubCodes, scrubNames, throwsOf, type CoachAiContext } from '@/lib/coach/ai-prompt';
 import { COACH_MODEL_CHAT, aiKeyReady, chatTurn, type ChatLine } from '@/lib/coach/ai';
-import { sanitizeAdjusts, type CoachAdjust } from '@/lib/coach/adjust';
+import type { CoachAdjust } from '@/lib/coach/adjust';
+import { readCards, shownCard, type CoachCard } from '@/lib/coach/card';
+import { toolboxOf } from '@/lib/coach/tools';
+import { applyCoachAdjust } from '@/app/actions/coach';
 import { COACH_LIMITS, WEEKDAY_LABELS, reasonTextsFor, savedOf, slotLine } from '@/lib/coach/answers';
 import { slotProgressOf, slotStateOf } from '@/lib/coach/status';
 import { followupReasonText } from '@/lib/coach/followup';
@@ -33,7 +36,7 @@ import {
   type GoalCard,
   type GoalOffer,
 } from '@/lib/coach/goal';
-import { readAct, sanitizeAct, type CoachAct } from '@/lib/coach/act';
+import { readAct, type CoachAct } from '@/lib/coach/act';
 import { goalLogsOf, goalStateOf } from '@/lib/coach/goal-db';
 import { loadTrainingDone } from '@/lib/training-week';
 import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
@@ -87,15 +90,23 @@ async function activeCoach(user: User): Promise<boolean> {
   return p?.status === 'active';
 }
 
-type ShownMessage = { id: string; role: 'user' | 'coach'; text: string; adjusts: CoachAdjust[]; goal: GoalOffer | null; act: CoachAct | null };
+type ShownCard = Omit<CoachCard, 'args'>;
+/** 카드들 → act 칸(JSON) */
+const cardsJson = (cards: CoachCard[]) => ({ cards }) as unknown as Prisma.InputJsonObject;
+type ShownMessage = { id: string; role: 'user' | 'coach'; text: string; adjusts: CoachAdjust[]; goal: GoalOffer | null; act: CoachAct | null; cards: ShownCard[] };
 
-/** 투구 기록 초안은 그날 그 종류 기록이 이미 있으면 '기록함'으로(남긴 뒤 · 다른 데서 먼저 남긴 것 모두) — 조회 한 번 */
-async function markLogged<T extends { act: CoachAct | null }>(userId: string, items: T[]): Promise<T[]> {
-  const dates = [...new Set(items.flatMap((m) => (m.act?.kind === 'log' ? [m.act.date] : [])))];
+/** 투구 기록 초안(옛 대신 해 주기 · 카드)은 그날 그 종류 기록이 이미 있으면 '기록함'으로(남긴 뒤 · 다른 데서 먼저 남긴 것 모두) — 조회 한 번 */
+async function markLogged<T extends { act: CoachAct | null; cards: ShownCard[] }>(userId: string, items: T[]): Promise<T[]> {
+  const logDates = (m: T) => [...(m.act?.kind === 'log' ? [m.act.date] : []), ...m.cards.flatMap((c) => (c.open?.kind === 'log' ? [c.open.date] : []))];
+  const dates = [...new Set(items.flatMap(logDates))];
   if (!dates.length) return items;
   const logs = await prisma.pitchLog.findMany({ where: { userId, date: { in: dates.map(dbDate) } }, select: { date: true, sessionType: true } });
   const have = new Set(logs.map((l) => `${keyOfDbDate(l.date)}|${l.sessionType}`));
-  return items.map((m) => (m.act?.kind === 'log' && have.has(`${m.act.date}|${m.act.type}`) ? { ...m, act: { ...m.act, done: true } } : m));
+  return items.map((m) => ({
+    ...m,
+    act: m.act?.kind === 'log' && have.has(`${m.act.date}|${m.act.type}`) ? { ...m.act, done: true } : m.act,
+    cards: m.cards.map((c) => (c.open?.kind === 'log' && have.has(`${c.open.date}|${c.open.type}`) ? { ...c, done: true } : c)),
+  }));
 }
 
 /** 대화 시트 — 동의했나 · 막힘 글 · 남은 마디 · 최근 대화(30일, 40마디) */
@@ -118,7 +129,9 @@ export async function loadCoachChat() {
     text: m.text,
     adjusts: Array.isArray(m.adjusts) ? (m.adjusts as CoachAdjust[]) : [],
     goal: m.goal && typeof m.goal === 'object' ? (m.goal as GoalOffer) : null,
-    act: readAct(m.act),
+    /* act 칸에는 옛 대신 해 주기 하나 또는 카드들({ cards }, 개인 비서 1단계)이 있다 */
+    act: readCards(m.act) ? null : readAct(m.act),
+    cards: (readCards(m.act) ?? []).map(shownCard),
   }));
   const messages = await markLogged(user.id, shown);
   return {
@@ -182,7 +195,11 @@ const THROW_DAYS = 7;
  * 운동 힘듦 · 오늘 운동의 까닭)과 과제별 완료를 같이 보낸다. 건강정보(체크인 신호 · 팔 상태 · 피할 동작 · 오늘 운동의 까닭)는 건강 동의가 있을 때만.
  * 2026-11-19 넓힘(자비스 1단계): 일정 밖 기록(3D 판정 · 메커니즘 처방 · 구속 · 암케어 · 영양, lib/coach/records.ts)도 — 동의 글 판 2026-11-19.
  */
-async function contextOf(user: User, base: Awaited<ReturnType<typeof coachWeekBase>>, age: number): Promise<string | null> {
+async function contextOf(
+  user: User,
+  base: Awaited<ReturnType<typeof coachWeekBase>>,
+  age: number
+): Promise<{ text: string; health: boolean; goalOpen: boolean } | null> {
   const { today, slots, locked } = base;
   if (!slots) return null;
   const weekStart = slots[0].date;
@@ -251,7 +268,7 @@ async function contextOf(user: User, base: Awaited<ReturnType<typeof coachWeekBa
     records: health.valid || typeof records.food !== 'object' || records.food == null ? records : { ...records, food: { ...records.food, headline: null } },
     goal: goalLine(goalStateOf(goalRow), today),
   };
-  return contextBlock(ctx);
+  return { text: contextBlock(ctx), health: health.valid, goalOpen: goalRow?.status === 'open' };
 }
 
 const FALLBACK = {
@@ -264,7 +281,7 @@ export async function sendCoachMessage(
   text: unknown
 ): Promise<
   | { ok: true; blocked: string }
-  | { ok: true; reply: string; adjusts: CoachAdjust[]; goal: GoalOffer | null; act: CoachAct | null; messageId: string; left: number }
+  | { ok: true; reply: string; adjusts: CoachAdjust[]; goal: GoalOffer | null; act: CoachAct | null; cards: ShownCard[]; messageId: string; left: number }
   | { error: string }
 > {
   const user = await requireUser();
@@ -308,7 +325,10 @@ export async function sendCoachMessage(
       })
     : [];
   const lines: ChatLine[] = history.reverse().map((m) => ({ role: m.role === 'user' ? 'user' : 'coach', text: m.text }));
-  const turn = await chatTurn(lines, context, said);
+  /* 도구 — 읽기는 바로, 바꾸기는 카드만 모은다(lib/coach/tools.ts). 실행은 선수가 카드를 누를 때(applyCoachCard) */
+  const cards: CoachCard[] = [];
+  const box = toolboxOf({ user, today: base.today, said, health: context.health, week: base.slots, locked: base.locked, goalOpen: context.goalOpen, cards });
+  const turn = await chatTurn(lines, context.text, said, box);
   await prisma.coachLog.update({
     where: { id: seat.logId },
     data: {
@@ -322,24 +342,18 @@ export async function sendCoachMessage(
     },
   });
   const reply = turn.ok ? scrubCodes(scrubNames(turn.reply)) : turn.why === 'refusal' ? FALLBACK.refusal : FALLBACK.other;
-  const adjusts = turn.ok ? sanitizeAdjusts(turn.adjusts, base.slots, base.today, base.locked) : [];
-  /* 지우기 제안은 지울 목표가 있을 때만 */
-  const sane = turn.ok ? sanitizeGoal(turn.goal, base.today) : null;
-  /* 목표 글은 잠금 화면 알림 · 카드에 그대로 나간다 — 기관 이름이 있으면 카드를 안 보인다(지우면 '다른 곳 …'이 목표로 남는다) */
-  const proposed = sane?.kind === 'set' && scrubNames(sane.what) !== sane.what ? null : sane;
-  const goal: GoalOffer | null =
-    proposed?.kind === 'drop' && !(await prisma.coachGoal.findFirst({ where: { userId: user.id, status: 'open' }, select: { id: true } })) ? null : proposed;
-  /* 대신 해 주기 — 공 수는 이번 말에 숫자로 있을 때만. 그날 그 종류 기록이 이미 있으면 초안은 '기록함'으로 */
-  const [act] = await markLogged(user.id, [{ act: turn.ok ? sanitizeAct(turn.act, base.today, said) : null }]);
+  /* 실패한 답에는 카드를 붙이지 않는다(되돌기 중간에 모인 것 — 글 없이 단추만 남지 않게) */
+  const kept = turn.ok ? cards : [];
   const [, saved] = await prisma.$transaction([
     prisma.coachMessage.create({ data: { userId: user.id, role: 'user', text: said }, select: { id: true } }),
     prisma.coachMessage.create({
-      data: { userId: user.id, role: 'coach', text: reply, adjusts: adjusts.length ? adjusts : undefined, goal: goal ?? undefined, act: act.act ?? undefined },
+      data: { userId: user.id, role: 'coach', text: reply, act: kept.length ? cardsJson(kept) : undefined },
       select: { id: true },
     }),
   ]);
+  const [shown] = await markLogged(user.id, [{ act: null, cards: kept.map(shownCard) }]);
   revalidatePath('/coach');
-  return { ok: true, reply, adjusts, goal, act: act.act, messageId: saved.id, left: Math.max(0, seat.left - 1) };
+  return { ok: true, reply, adjusts: [], goal: null, act: null, cards: shown.cards, messageId: saved.id, left: Math.max(0, seat.left - 1) };
 }
 
 /* ─────────────── 정한 목표 이어 묻기(자비스 2단계, lib/coach/goal.ts · 설계 9절) ─────────────── */
@@ -367,31 +381,63 @@ export async function loadCoachGoal(): Promise<{ ok: true; card: GoalCard | null
 }
 
 /**
- * 대화 카드의 [정하기] · [지우기] — 제안은 서버에 둔 마디에서 읽는다(앱이 보낸 값을 믿지 않는다). 날이 지났으면 다시 거른다.
+ * 목표 제안 실행 — 옛 목표 카드(applyCoachGoal)와 코치 카드(applyCoachCard)가 같이 쓴다. 제안은 서버에 둔 마디에서 읽은 것만 온다.
+ * 지금 목표를 정한 뒤로 지난 제안(옛 '그만두기' · 옛 목표)은 새 목표를 덮지 않는다(둘 다 실제 시각). 날이 지났으면 다시 거른다.
  */
-export async function applyCoachGoal(messageId: unknown): Promise<{ ok: true } | { error: string }> {
-  const user = await requireUser();
-  if (!(await activeCoach(user))) return { error: '코치를 시작한 뒤에 쓸 수 있어요.' };
-  if (typeof messageId !== 'string') return { error: '다시 눌러 주세요.' };
-  const [m, current] = await Promise.all([
-    prisma.coachMessage.findFirst({ where: { id: messageId, userId: user.id, role: 'coach' }, select: { goal: true, createdAt: true } }),
-    prisma.coachGoal.findUnique({ where: { userId: user.id }, select: { setAt: true } }),
-  ]);
-  const offer = m?.goal && typeof m.goal === 'object' ? (m.goal as GoalOffer) : null;
-  if (!offer) return { error: '이 제안을 찾지 못했어요.' };
-  if (offer.applied) return { ok: true };
-  /* 지금 목표를 정한 뒤로 지난 제안(옛 '그만두기' · 옛 목표)은 새 목표를 덮지 않는다 — 둘 다 실제 시각 */
-  if (current && m!.createdAt < current.setAt) return { error: '지난 제안이에요. 코치에게 다시 말해 주세요.' };
+async function applyGoalOffer(userId: string, offer: GoalOffer, offeredAt: Date): Promise<{ ok: true } | { error: string }> {
+  const current = await prisma.coachGoal.findUnique({ where: { userId }, select: { setAt: true } });
+  if (current && offeredAt < current.setAt) return { error: '지난 제안이에요. 코치에게 다시 말해 주세요.' };
   const today = toDateKey(appNow());
   const p = sanitizeGoal(offer, today);
   if (!p) return { error: '확인할 날이 지났어요. 코치에게 다시 말해 주세요.' };
   if (p.kind === 'drop') {
-    await prisma.coachGoal.updateMany({ where: { userId: user.id, status: 'open' }, data: { status: 'dropped', answeredAt: new Date() } });
+    await prisma.coachGoal.updateMany({ where: { userId, status: 'open' }, data: { status: 'dropped', answeredAt: new Date() } });
   } else {
     const data = { ...goalData(goalFromProposal(p, today)), setAt: new Date(), answeredAt: null };
-    await prisma.coachGoal.upsert({ where: { userId: user.id }, create: { userId: user.id, ...data }, update: data });
+    await prisma.coachGoal.upsert({ where: { userId }, create: { userId, ...data }, update: data });
   }
+  return { ok: true };
+}
+
+/** 옛 대화 마디의 목표 카드 [정하기] · [지우기] — 제안은 서버에 둔 마디에서 읽는다(앱이 보낸 값을 믿지 않는다) */
+export async function applyCoachGoal(messageId: unknown): Promise<{ ok: true } | { error: string }> {
+  const user = await requireUser();
+  if (!(await activeCoach(user))) return { error: '코치를 시작한 뒤에 쓸 수 있어요.' };
+  if (typeof messageId !== 'string') return { error: '다시 눌러 주세요.' };
+  const m = await prisma.coachMessage.findFirst({ where: { id: messageId, userId: user.id, role: 'coach' }, select: { goal: true, createdAt: true } });
+  const offer = m?.goal && typeof m.goal === 'object' ? (m.goal as GoalOffer) : null;
+  if (!offer) return { error: '이 제안을 찾지 못했어요.' };
+  if (offer.applied) return { ok: true };
+  const r = await applyGoalOffer(user.id, offer, m!.createdAt);
+  if ('error' in r) return r;
   await prisma.coachMessage.update({ where: { id: messageId }, data: { goal: { ...offer, applied: true } } });
+  revalidatePath('/coach');
+  return { ok: true };
+}
+
+/**
+ * 코치 카드 실행(개인 비서 1단계) — 카드는 서버에 둔 마디에서 읽고(앱이 보낸 값을 믿지 않는다) 그 도구의 확인을 다시 탄 뒤 실행한다.
+ * 화면을 여는 카드(open)는 앱이 연다 — 여기 오지 않는다. 실행하면 카드를 '함'으로.
+ */
+export async function applyCoachCard(messageId: unknown, cardId: unknown): Promise<{ ok: true } | { error: string }> {
+  const user = await requireUser();
+  if (!(await activeCoach(user))) return { error: '코치를 시작한 뒤에 쓸 수 있어요.' };
+  if (typeof messageId !== 'string' || typeof cardId !== 'string') return { error: '다시 눌러 주세요.' };
+  const m = await prisma.coachMessage.findFirst({ where: { id: messageId, userId: user.id, role: 'coach' }, select: { act: true, createdAt: true } });
+  const cards = readCards(m?.act);
+  const card = cards?.find((c) => c.id === cardId);
+  if (!m || !cards || !card) return { error: '이 카드를 찾지 못했어요.' };
+  if (card.done) return { ok: true };
+  if (card.open) return { error: '앱에서 여는 카드예요.' };
+  const args = (card.args ?? {}) as Record<string, unknown>;
+  const r =
+    card.tool === 'change_week'
+      ? await applyCoachAdjust(args.adjust, args.token)
+      : card.tool === 'goal' && args.offer && typeof args.offer === 'object'
+        ? await applyGoalOffer(user.id, args.offer as GoalOffer, m.createdAt)
+        : { error: '이 카드는 실행할 수 없어요.' };
+  if ('error' in r) return r;
+  await prisma.coachMessage.update({ where: { id: messageId }, data: { act: cardsJson(cards.map((c) => (c.id === cardId ? { ...c, done: true } : c))) } });
   revalidatePath('/coach');
   return { ok: true };
 }

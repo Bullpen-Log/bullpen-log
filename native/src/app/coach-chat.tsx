@@ -3,7 +3,7 @@ import { router, useFocusEffect, type Href } from 'expo-router';
 import { ActivityIndicator, KeyboardAvoidingView, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance, type TextInputInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { applyCoachAdjust, previewCoachAdjust } from '@/app/actions/coach';
-import type { applyCoachGoal, loadCoachChat, sendCoachMessage } from '@/app/actions/coach-chat';
+import type { applyCoachCard, applyCoachGoal, loadCoachChat, sendCoachMessage } from '@/app/actions/coach-chat';
 import type { CoachAdjust } from '@/lib/coach/adjust';
 import type { GoalOffer } from '@/lib/coach/goal';
 import { OPEN_LABEL, type CoachAct, type OpenScreen } from '@/lib/coach/act';
@@ -84,7 +84,7 @@ export default function CoachChatScreen() {
     if (!t || sending || !chat) return;
     setSending(true);
     setNotice(null);
-    const mine: Msg = { id: `me-${++seq.current}`, role: 'user', text: t, adjusts: [], goal: null, act: null };
+    const mine: Msg = { id: `me-${++seq.current}`, role: 'user', text: t, adjusts: [], goal: null, act: null, cards: [] };
     setChat({ ...chat, messages: [...chat.messages, mine] });
     setText('');
     try {
@@ -98,7 +98,7 @@ export default function CoachChatScreen() {
         setChat((cur) => (cur ? { ...cur, messages: cur.messages.filter((m) => m.id !== mine.id) } : cur));
         setText(t);
       } else {
-        setChat((cur) => (cur ? { ...cur, left: r.left, messages: [...cur.messages, { id: r.messageId, role: 'coach', text: r.reply, adjusts: r.adjusts, goal: r.goal, act: r.act }] } : cur));
+        setChat((cur) => (cur ? { ...cur, left: r.left, messages: [...cur.messages, { id: r.messageId, role: 'coach', text: r.reply, adjusts: r.adjusts, goal: r.goal, act: r.act, cards: r.cards }] } : cur));
       }
     } catch {
       setNotice('신호가 약해요. 다시 보내 주세요.');
@@ -211,6 +211,55 @@ function Bubble({ m, c }: { m: Msg; c: Palette }) {
       ))}
       {m.goal ? <GoalOfferCard messageId={m.id} offer={m.goal} c={c} /> : null}
       {m.act ? <ActCard act={m.act} c={c} /> : null}
+      {m.cards.map((k) => (
+        <CardView key={`${m.id}-${k.id}`} messageId={m.id} card={k} c={c} />
+      ))}
+    </View>
+  );
+}
+
+/**
+ * 코치 카드(개인 비서 1단계, lib/coach/card.ts) — 코치가 도구로 낸 제안 하나. 눌러야 실행된다: 화면 열기 · 투구 기록 초안은 그 화면을 열고,
+ * 나머지는 서버가 그 마디에서 카드를 다시 읽어 확인한 뒤 실행한다(coach-chat.applyCoachCard). 취소는 이 화면에서만.
+ */
+function CardView({ messageId, card, c }: { messageId: string; card: Msg['cards'][number]; c: Palette }) {
+  const [state, setState] = useState<'idle' | 'busy' | 'done' | 'cancelled'>(card.done ? 'done' : 'idle');
+  const [err, setErr] = useState<string | null>(null);
+  const run = async () => {
+    const o = card.open;
+    if (o?.kind === 'screen') return openScreen(o.screen);
+    if (o?.kind === 'log') return pushOpen({ pathname: '/pitch/edit' as Href as never, params: { date: o.date, type: o.type, ...(o.count ? { count: String(o.count) } : {}) } });
+    setState('busy');
+    setErr(null);
+    const r = await rpc<Awaited<ReturnType<typeof applyCoachCard>>>('coach-chat.applyCoachCard', messageId, card.id).catch(() => null);
+    if (!r || 'error' in r) {
+      setState('idle');
+      return setErr(r && 'error' in r ? (r.error ?? '다시 눌러 주세요.') : '신호가 약해요. 다시 눌러 주세요.');
+    }
+    setState('done');
+    toast('적용했어요');
+  };
+  const doneText = card.open?.kind === 'log' ? '그날 기록이 있어요' : '적용함';
+  return (
+    <View style={[st.card, { backgroundColor: c.card, borderColor: c.line }]}>
+      <Text style={[TYPE.sub, { color: c.link, fontWeight: '700' }]}>{card.open ? '코치 제안' : '제안 · 눌러야 바뀌어요'}</Text>
+      <Text style={[TYPE.body, { color: c.ink, fontWeight: '600' }]}>{card.title}</Text>
+      {state !== 'done' && state !== 'cancelled'
+        ? card.lines.map((l, i) => (
+            <Text key={i} style={[TYPE.sub, { color: c.muted }]}>
+              {l}
+            </Text>
+          ))
+        : null}
+      {state === 'done' ? <Text style={[TYPE.sub, { color: c.link }]}>{doneText}</Text> : null}
+      {state === 'cancelled' ? <Text style={[TYPE.sub, { color: c.muted }]}>취소함</Text> : null}
+      {err ? <Text style={[TYPE.sub, { color: c.danger }]}>{err}</Text> : null}
+      {state === 'idle' || state === 'busy' ? (
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {card.open ? null : <ActionButton label="취소" compact tone="secondary" onPress={() => setState('cancelled')} style={{ flex: 1 }} />}
+          <ActionButton label={card.cta} compact busy={state === 'busy'} onPress={() => void run()} style={{ flex: 1 }} />
+        </View>
+      ) : null}
     </View>
   );
 }
