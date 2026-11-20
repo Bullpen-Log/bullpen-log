@@ -29,6 +29,8 @@ import { CARD_SOURCES, COACH_CARDS, cardsBlock, shippedCards } from '@/lib/coach
 import { slotProgressOf } from '@/lib/coach/status';
 import { sanitizeAdjusts } from '@/lib/coach/adjust';
 import type { DaySlot } from '@/lib/coach/week';
+import { goodDayLinesOf, liftTrendsOf, pitchFeelOf, progressLines, recheckOf, LIFTS_SHOWN } from '@/lib/coach/progress';
+import type { MechanicsReview, AnalysisSnapshot } from '@/lib/mechanics/comparison';
 
 let pass = 0;
 const fails: string[] = [];
@@ -251,7 +253,7 @@ check('⑤ 시스템 글은 이름을 안 쓰고 말하지 말라고 한다', sc
     '⑦ 규칙 글: 구속 약속 금지 · 영상 본 척 금지 · 처방 바꾸라 안 함 · 모름 짐작 금지 · 먼저 꺼내 말함',
     ['구속이 얼마나 · 언제 오를지 약속하지 않고', '영상을 직접 본 것처럼 말하지 않는다', '단계를 올리거나 처방을 바꾸라고 하지 않는다', "'모름'인 칸을 짐작으로 채우지 않는다", '네가 먼저 꺼내 말한다'].every((w) => COACH_SYSTEM.includes(w))
   );
-  check('⑦ 동의 글에 보내는 것이 적혀 있다(개인 비서 판)', ['3D 동작 분석의 판정', '암케어', '더 먹을 양', '투구 기록', '정한 목표', '찾아본 기간', '투구 계획', '오늘 운동'].every((w) => COACH_AI_CONSENT.items.includes(w)) && (COACH_VELOCITY || !COACH_AI_CONSENT.items.includes('구속')) && COACH_AI_CONSENT.purpose.includes('누를 때만') && COACH_AI_CONSENT.version === '2026-11-20');
+  check('⑦ 동의 글에 보내는 것이 적혀 있다(개인 비서 판)', ['3D 동작 분석의 판정', '암케어', '더 먹을 양', '투구 기록', '정한 목표', '찾아본 기간', '투구 계획', '오늘 운동'].every((w) => COACH_AI_CONSENT.items.includes(w)) && (COACH_VELOCITY || !COACH_AI_CONSENT.items.includes('구속')) && COACH_AI_CONSENT.purpose.includes('누를 때만') && COACH_AI_CONSENT.version === '2026-11-21');
 }
 
 /* ⑧ 검토 반영(2026-11-19) — 건강 동의가 없어진 뒤 보내는 것 · 지금 연습하는 요소 · 구속 종류별. 실제 AI 호출 없이 */
@@ -571,6 +573,106 @@ check('⑩ 답 글에 샌 칸 이름은 우리말로(조사도)', scrubCodes('�
       !['카드를 만들 수 없었어요.', '지우기 카드는 달력 일정 하나에만 쓸 수 있어요.', '체크인 화면을 열어 주세요.', '오늘은 쉬는 게 좋아요.'].some(claimsCard)
   );
   check('⑲ 고정 덩이에 두 투구 코칭 기관 이름 · 날짜가 없다', !/driveline|드라이브\s*라인|tread\s*athletics|트레드\s*애슬레틱/i.test(COACH_SYSTEM_BLOCK) && !/\d{4}-\d{2}-\d{2}/.test(COACH_SYSTEM_BLOCK));
+}
+
+/* ⑳ 진척(검토 1번, 2026-11-21) — 무게 흐름 · 만족도와 감각 칩 · 3D 다시 재기 · 잘 던진 날. 기록 값만 나란히, 몸 상태 칸은 건강 동의로 거름 */
+{
+  const lifts = liftTrendsOf([
+    { date: '2026-10-27', name: '백 스쿼트', weightKg: 50, reps: 8 },
+    { date: '2026-10-27', name: '백 스쿼트', weightKg: 60, reps: 5 },
+    { date: '2026-11-10', name: '백 스쿼트', weightKg: 62.5, reps: 5 },
+    { date: '2026-11-20', name: '백 스쿼트', weightKg: 65, reps: 5 },
+    { date: '2026-11-03', name: '루마니안 데드리프트', weightKg: 40, reps: 8 },
+    { date: '2026-11-17', name: '루마니안 데드리프트', weightKg: 45, reps: 6 },
+    { date: '2026-11-05', name: '덤벨 벤치 프레스', weightKg: 20, reps: 10 },
+    { date: '2026-11-19', name: '덤벨 벤치 프레스', weightKg: 22, reps: 10 },
+    { date: '2026-11-06', name: '케이블 로우', weightKg: 30, reps: 10 },
+    { date: '2026-11-18', name: '케이블 로우', weightKg: 30, reps: 12 },
+    { date: '2026-11-12', name: '고블릿 스쿼트', weightKg: 24, reps: 10 },
+    { date: '2026-11-12', name: '푸시업', weightKg: null, reps: 15 },
+    { date: '2026-11-14', name: '푸시업', weightKg: 0, reps: 15 },
+  ]);
+  check(
+    '⑳ 무게 흐름: 그날 가장 무거운 세트의 첫날 → 마지막 날 · 적은 날이 많은 순 · 한 번만 적은 운동 · 맨몸은 뺀다',
+    lifts.length === LIFTS_SHOWN &&
+      lifts[0].name === '백 스쿼트' &&
+      lifts[0].first === '2026-10-27 60kg×5' &&
+      lifts[0].last === '2026-11-20 65kg×5' &&
+      lifts[0].days === 3 &&
+      lifts[1].name === '루마니안 데드리프트' &&
+      !lifts.some((l) => ['고블릿 스쿼트', '푸시업'].includes(l.name)),
+    JSON.stringify(lifts)
+  );
+  const logs = [
+    { date: '2026-10-25', sessionType: '불펜', satisfaction: 2, cuesGood: [], cuesBad: ['몸이 일찍 열림', '팔 무거움'] },
+    { date: '2026-11-01', sessionType: '경기', satisfaction: 3, cuesGood: ['하체'], cuesBad: ['몸이 일찍 열림'] },
+    { date: '2026-11-08', sessionType: '불펜', satisfaction: 4, cuesGood: ['하체', '제구'], cuesBad: [] },
+    { date: '2026-11-15', sessionType: '라이브', satisfaction: 5, cuesGood: ['하체'], cuesBad: ['팔 무거움'] },
+    { date: '2026-11-16', sessionType: '캐치볼', satisfaction: 1, cuesGood: [], cuesBad: [] },
+    { date: '2026-11-18', sessionType: '불펜', satisfaction: null, cuesGood: [], cuesBad: [] },
+  ];
+  const feel = pitchFeelOf(logs, '2026-11-21', true);
+  const feelNo = pitchFeelOf(logs, '2026-11-21', false);
+  check(
+    '⑳ 만족도: 불펜 · 라이브 · 경기만 앞 2주 · 최근 2주 평균 · 감각 칩 횟수 · 팔 무거움은 건강 동의가 있을 때만',
+    feel.before?.avg === 2.5 && feel.before.n === 2 && feel.recent?.avg === 4.5 && feel.recent.n === 2 &&
+      feel.good[0][0] === '하체' && feel.good[0][1] === 3 &&
+      feel.bad.some(([c, n]) => c === '팔 무거움' && n === 2) && !feelNo.bad.some(([c]) => c === '팔 무거움') && feelNo.bad[0][0] === '몸이 일찍 열림',
+    JSON.stringify(feel)
+  );
+  const snap = (jobId: string, savedAt: string): AnalysisSnapshot => ({
+    source: 'verified', v: 1, reportId: `r-${jobId}`, jobId, savedAt, resultDigest: jobId, engine: 'e1', criteria: 'c', metricsVersion: 'm',
+    context: null, youth: false, hasRx: true, rows: [],
+  });
+  const review: MechanicsReview = {
+    v: 1, id: 'rv', baseline: snap('a', '2026-11-02T03:00:00Z'), origin: 'start', baselinePractice: 0,
+    followups: [{ snapshot: snap('b', '2026-11-18T03:00:00Z'), conditions: 'different', practice: 6, linkedAt: '2026-11-18T04:00:00Z' }],
+    decisions: [{ jobId: 'b', reportId: 'r-b', choice: 'practice', on: '2026-11-18T05:00:00Z' }],
+  };
+  const re = recheckOf(review);
+  const reSame = recheckOf({ ...review, followups: [{ ...review.followups[0], snapshot: snap('a', '2026-11-02T03:00:00Z') }], decisions: [] });
+  check(
+    '⑳ 3D 다시 재기: 기준 날 · 다시 잰 수 · 비교 화면과 같은 판정(조건이 다르면 보류 · 같은 영상이면 비교 안 함) · 선수가 고른 다음',
+    recheckOf(null) === 'none' && recheckOf(undefined) === 'none' &&
+      typeof re === 'object' && re !== null && re.base === '2026-11-02' && re.followups === 1 && re.last?.kind === 'held' && re.last.date === '2026-11-18' && re.choice === '현재 단계에서 다시 연습' &&
+      typeof reSame === 'object' && reSame !== null && reSame.last?.kind === 'recomputation' && reSame.choice === null,
+    JSON.stringify([re, reSame])
+  );
+  const gd = {
+    rated: 12, needed: 8, all: [],
+    patterns: [
+      { key: 'sleep', kind: 'before' as const, text: '잘 잔 다음 날 잘 던졌어요.' },
+      { key: 'rest', kind: 'before' as const, text: '이틀 넘게 쉰 날 잘 던졌어요.' },
+      { key: 'protein', kind: 'before' as const, text: '전날 단백질을 넉넉히 먹은 날 잘 던졌어요.' },
+      { key: 'bad:팔 무거움', kind: 'feel' as const, text: "'팔 무거움'을 아쉬웠던 것으로 고른 날 덜 만족했어요." },
+      { key: 'good:하체', kind: 'feel' as const, text: "'하체'를 좋았던 것으로 고른 날 잘 던졌어요." },
+    ],
+  };
+  const gdAll = goodDayLinesOf(gd, true, true);
+  const gdNo = goodDayLinesOf(gd, false, false);
+  const gdFew = goodDayLinesOf({ ...gd, rated: 3 }, true, true);
+  check(
+    '⑳ 잘 던진 날: 앱 글 그대로 · 잠 · 팔 무거움은 건강 동의가 있을 때만 · 끼니는 영양을 쓸 때만 · 모자라면 매긴 날 수',
+    Array.isArray(gdAll) && gdAll.length === 5 && Array.isArray(gdNo) && gdNo.length === 2 && gdNo.every((t) => !/잘 잔|팔 무거움|단백질/.test(t)) &&
+      !Array.isArray(gdFew) && gdFew?.rated === 3 && gdFew.needed === 8,
+    JSON.stringify(gdNo)
+  );
+  const lines = progressLines({ lifts, pitch: feelNo, recheck: re, goodDays: gdNo }).join('\n');
+  const none = progressLines({ lifts: [], pitch: { before: null, recent: null, good: [], bad: [] }, recheck: 'none', goodDays: gdFew }).join('\n');
+  check(
+    '⑳ 맥락 줄: 판정 아님 표시 · 무게 · 만족도 · 칩 · 3D · 잘 던진 날, 비면 없음, 옛 호출은 모름',
+    lines.includes('판정 아님') && lines.includes('백 스쿼트 | 2026-10-27 60kg×5 → 2026-11-20 65kg×5 | 3번 적음') && lines.includes('앞 2주 2.5(2번) → 최근 2주 4.5(2번)') &&
+      lines.includes('좋았던: 하체 3') && lines.includes('비교 보류') && lines.includes('선수가 고른 다음: 현재 단계에서 다시 연습') && lines.includes('이틀 넘게 쉰 날') &&
+      none.includes('두 날 넘게 무게를 적은 운동 없음') && none.includes('앞 2주 없음 → 최근 2주 없음') && none.includes('기준 3D 없음') && none.includes('8일부터 찾아요') &&
+      progressLines(undefined)[0] === '진척(최근 4주): 모름',
+    lines
+  );
+  check(
+    '⑳ 지시문: 진척은 기록 그대로 · 무게를 지어내지 않음 · 3D 비교로 단정하지 않음 · 잘 던진 날 글을 늘이지 않음, 동의 글에 감각 칩 · 잘 던진 날',
+    COACH_SYSTEM.includes('진척은 최근 4주 기록을 나란히 놓은 것') && COACH_SYSTEM.includes('다음에 들 무게는 앱이 정하니 지어내지 않는다') &&
+      COACH_SYSTEM.includes("'비교함'이어도 좋아졌다 · 나빠졌다 단정하지 않고") && COACH_SYSTEM.includes('늘이거나 까닭을 더하지 않는다') &&
+      COACH_AI_CONSENT.items.includes('감각 칩') && COACH_AI_CONSENT.items.includes('잘 던진 날 찾기 결과 글')
+  );
 }
 
 console.log(`coach-ai: ${pass}개 통과${fails.length ? `, ${fails.length}개 실패` : ''}`);

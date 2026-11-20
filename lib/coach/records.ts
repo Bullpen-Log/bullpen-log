@@ -12,7 +12,9 @@ import { countryOf, hasNutrition } from '@/lib/country';
 import type { DayDetailUser } from '@/lib/day-detail';
 import { veloRowsOf, type CoachAiRecords } from '@/lib/coach/ai-prompt';
 import { COACH_VELOCITY } from '@/lib/coach/act';
-import { dbDate } from '@/lib/nutrition/days';
+import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
+import { loadGoodDays } from '@/lib/report/good-days-load';
+import { PROGRESS_DAYS, goodDayLinesOf, liftTrendsOf, pitchFeelOf, recheckOf, type CoachAiProgress } from '@/lib/coach/progress';
 
 /**
  * 코치가 '다 안다'(자비스 1단계, 2026-11-19 김민: "모든 걸 다 떠먹여 줄 수 있는 자비스") — 일정 밖 기록을 AI 맥락용으로 모은다.
@@ -101,4 +103,39 @@ export async function coachRecordsOf(user: CoachRecordsUser, today: string, now:
     soft(foodOf(user, today, now)),
   ]);
   return { lab, mechFocus, velo, armcare, food };
+}
+
+/** 잘 던진 날은 180일을 읽고 순열을 돌려 늦을 수 있다 — 이만큼만 기다리고 '모름' */
+const GOOD_DAYS_WAIT_MS = 2000;
+
+/**
+ * 진척(lib/coach/progress.ts) — 최근 4주 운동 무게 · 투구 만족도와 감각 칩 · 3D 다시 재기 · 잘 던진 날. 칸마다 실패하면 그 칸만 빈다.
+ * 몸 상태가 섞인 것(감각 칩 '팔 무거움' · 잘 던진 날의 잠 · 컨디션 · 근육통 · 팔)은 건강 동의가 있을 때만.
+ */
+export async function coachProgressOf(user: CoachRecordsUser, today: string, health: Promise<boolean>): Promise<CoachAiProgress> {
+  const from = dbDate(shiftDateKey(today, -(PROGRESS_DAYS - 1)));
+  const where = { userId: user.id, date: { gte: from, lte: dbDate(today) } };
+  const lifted = { weightKg: { gt: 0 }, exercise: { category: { not: '암케어' } } };
+  const [logs, sets, pitches, recheck, good, h] = await Promise.all([
+    /* 무게는 두 곳에 남는다 — 운동 체크의 톱세트(UserExerciseLog)와 운동 중 세트(UserExerciseSet). 둘 다 읽고 그날 가장 무거운 것 */
+    soft(prisma.userExerciseLog.findMany({ where: { ...where, ...lifted, completed: true }, select: { date: true, weightKg: true, repsDone: true, exercise: { select: { title: true } } } })),
+    soft(prisma.userExerciseSet.findMany({ where: { ...where, ...lifted }, select: { date: true, weightKg: true, reps: true, exercise: { select: { title: true } } } })),
+    soft(prisma.pitchLog.findMany({ where, select: { date: true, sessionType: true, satisfaction: true, cuesGood: true, cuesBad: true } })),
+    soft(
+      prisma.mechanicsProgram
+        .findUnique({ where: { userId: user.id }, select: { progress: true } })
+        .then((r) => recheckOf(r ? readProgramState(r.progress).focus?.review : null))
+    ),
+    soft(loadGoodDays(user.id, today), GOOD_DAYS_WAIT_MS),
+    health.catch(() => false),
+  ]);
+  return {
+    lifts: liftTrendsOf([
+      ...(logs ?? []).map((l) => ({ date: keyOfDbDate(l.date), name: l.exercise.title, weightKg: l.weightKg, reps: l.repsDone })),
+      ...(sets ?? []).map((l) => ({ date: keyOfDbDate(l.date), name: l.exercise.title, weightKg: l.weightKg, reps: l.reps })),
+    ]),
+    pitch: pitchFeelOf((pitches ?? []).map((l) => ({ ...l, date: keyOfDbDate(l.date) })), today, h),
+    recheck,
+    goodDays: good ? goodDayLinesOf(good, h, hasNutrition(countryOf(user.country))) : null,
+  };
 }

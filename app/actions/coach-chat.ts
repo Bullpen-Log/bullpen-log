@@ -35,7 +35,7 @@ import { slotProgressOf, slotStateOf } from '@/lib/coach/status';
 import { followupReasonText } from '@/lib/coach/followup';
 import { coachWeekBase } from '@/lib/coach/today';
 import { withTodayCut } from '@/lib/coach/refresh';
-import { coachRecordsOf } from '@/lib/coach/records';
+import { coachProgressOf, coachRecordsOf } from '@/lib/coach/records';
 import {
   applyGoalAnswer,
   goalCardOf,
@@ -214,10 +214,11 @@ async function contextOf(
   const { today, slots, locked } = base;
   if (!slots) return null;
   const weekStart = slots[0].date;
-  const [done, profile, health, checkin, { facts, plan: pitch, state }, logs, setup, records, goalRow, todayScreen] = await Promise.all([
+  const healthP = healthConsentFor(user.id);
+  const [done, profile, health, checkin, { facts, plan: pitch, state }, logs, setup, records, goalRow, todayScreen, progress] = await Promise.all([
     loadTrainingDone(user.id, weekStart, shiftDateKey(weekStart, 6)),
     prisma.coachProfile.findUnique({ where: { userId: user.id }, select: { answers: true } }),
-    healthConsentFor(user.id),
+    healthP,
     prisma.dailyCheckin.findFirst({
       where: { userId: user.id, date: dbDate(today) },
       select: { condition: true, sleepQuality: true, shoulder: true, elbow: true, throwPlan: true },
@@ -233,6 +234,8 @@ async function contextOf(
     prisma.coachGoal.findUnique({ where: { userId: user.id } }),
     /* 오늘 운동 화면과 같은 목록(개인 비서 2단계) — 못 읽으면 그 줄만 빠진다 */
     loadTrainingToday(user, appNow()).catch(() => null),
+    /* 최근 4주 진척(검토 1번, 2026-11-21) — 몸 상태가 섞인 칸은 건강 동의로 거른다 */
+    coachProgressOf(user, today, healthP.then((h) => h.valid)),
   ]);
   const saved = savedOf(profile?.answers);
   const outing = slots.find((s) => s.date >= today && (s.items.some((x) => x.kind === 'fixed' && x.what === 'game') || s.reasons.some((r) => r === 'outing' || r === 'outing-soft')));
@@ -279,6 +282,7 @@ async function contextOf(
       locked: locked(s.date),
     })),
     records: health.valid || typeof records.food !== 'object' || records.food == null ? records : { ...records, food: { ...records.food, headline: null } },
+    progress,
     goal: goalLine(goalStateOf(goalRow), today),
     workout: workoutOf(todayScreen, health.valid),
     /* 투구 계획은 통증 · 재활 신호로 정해져 건강정보다 — 동의가 없으면 공 수를 말하지 않게 '모름' */

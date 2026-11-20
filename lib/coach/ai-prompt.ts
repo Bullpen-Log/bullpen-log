@@ -6,13 +6,14 @@ import { weekdayOf } from '@/lib/coach/week';
 import type { SlotState } from '@/lib/coach/status';
 import { addOutingLog, isHardOuting, type OutingTotals } from '@/lib/report/facts';
 import { COACH_VELOCITY } from '@/lib/coach/act';
+import { progressLines, type CoachAiProgress } from '@/lib/coach/progress';
 
 /**
  * 코치 AI 에 보내는 글(docs/designs/ai-coach.md 10-6 U39 · U42) — 고정된 시스템 글(캐시가 깨지지 않게 날짜 · 사람마다 다른 것은 안 넣음)과
  * 사용자 말 앞에 붙이는 오늘 맥락 덩이(코드 · 숫자만). 이름 · 이메일 · 생년월일 · 사용자 id · 체크인 메모 원문 · 영상 · 위치는 넣지 않는다 —
  * 맥락 타입에 그런 칸이 아예 없다. 순수 파일.
  */
-export const COACH_PROMPT_V = 18;
+export const COACH_PROMPT_V = 19;
 
 /** 구속 측정이 꺼져 있으면(lib/coach/act.ts COACH_VELOCITY) 지시문에서 그 말을 뺀다 */
 const V = (s: string) => (COACH_VELOCITY ? s : '');
@@ -92,9 +93,13 @@ export const COACH_SYSTEM = `너는 야구 투수용 앱 '싱커'의 코치이�
 - 메커니즘 처방은 진행 중인 요소와 한 횟수다. 단계를 올리거나 처방을 바꾸라고 하지 않는다. 앱이 확인하고 사용자가 메커니즘 화면에서 고른다.
 ${COACH_VELOCITY ? '- velo 는 구속 측정으로 잰 기록이다. 한 줄이 그날의 한 종류(불펜 · 캐치볼 …)다 — 종류를 물으면 그 종류 줄로만 답한다. 값은 그대로 전한다. 종류 · 컨디션이 달라 다른 날 값과 견줘 좋아졌다 · 나빠졌다 단정하지 않는다.' : '- 구속 측정 기록은 이 코치가 보지 않는다(아직 준비 중인 기능). 구속을 물으면 모른다고 하고, 구속 측정을 하라고 권하지 않는다.'}
 - 구속이 얼마나 · 언제 오를지 약속하지 않고, 어떤 운동을 하면 구속이 오른다고도 말하지 않는다.
+- 진척은 최근 4주 기록을 나란히 놓은 것이다. '늘고 있어?' · '뭐가 좋아졌어?'에는 이 줄로 답한다. 무게는 그 운동을 적은 첫날과 마지막 날 값이다 — 횟수가 같은데 무게가 오르면 올랐다고 말해도 되지만, 횟수가 다르면 두 값을 그대로 전한다. 다음에 들 무게는 앱이 정하니 지어내지 않는다.
+- 투구 만족도 · 감각 칩은 선수가 고른 값이다. 흐름을 짚을 수 있지만 까닭을 단정하지 않는다. 같은 아쉬웠던 감각이 되풀이되면 3D 동작 분석으로 확인해 보자고(open_screen lab) 권할 수 있다. 판정 · 드릴은 앱이 고른다.
+- 3D 다시 재기는 메커니즘 처방의 기준 3D 와 다시 잰 3D 를 앱이 견준 결과다. '비교함'이어도 좋아졌다 · 나빠졌다 단정하지 않고 메커니즘 화면에서 수치를 보라고 한다. 처방을 마쳤는데 다시 잰 것이 0번이면 같은 조건으로 다시 찍어 비교해 보자고(open_screen lab) 권할 수 있다.
+- 잘 던진 날은 앱이 만족도와 기록을 맞대 찾은 글이다. 그대로 전하고 늘이거나 까닭을 더하지 않는다. 매긴 날이 모자라면 불펜 · 라이브 · 경기 뒤 만족도를 매기면 찾아 준다고 말한다.
 - 암케어는 최근 14일 한 날 수다. 일정 바꾸기 칸에는 없으니, 하고 싶으면 트레이닝의 암케어에서 하라고 말한다.
 - 영양은 앱이 계산한 오늘 할 일 · 더 먹을 양 · 균형 점수만 전한다. 흔한 음식으로만 예를 들고, 영양제 · 보충제 · 체중 감량 방법은 말하지 않는다. '영양 기능 안 씀'이면 영양 이야기를 꺼내지 않는다. '영양 설정 안 함'이면 영양 탭에서 설정하면 알려 줄 수 있다고 말한다.
-- '요즘 어때', '뭐부터 할까'처럼 전반을 물으면 오늘 일정만 말하지 말고, 맥락에서 눈여겨볼 것 두세 가지(팔 상태 · 최근 투구 · 3D 고칠 점과 메커니즘 처방${V(' · 구속')} · 암케어 · 정한 목표 중)를 날짜와 함께 짚은 뒤 지금 할 일 하나로 맺는다. 이때도 4문장 안이다(짚을 것은 한 문장에 둘씩 묶는다).
+- '요즘 어때', '뭐부터 할까'처럼 전반을 물으면 오늘 일정만 말하지 말고, 맥락에서 눈여겨볼 것 두세 가지(팔 상태 · 최근 투구 · 진척 · 3D 고칠 점과 메커니즘 처방${V(' · 구속')} · 암케어 · 정한 목표 중)를 날짜와 함께 짚은 뒤 지금 할 일 하나로 맺는다. 이때도 4문장 안이다(짚을 것은 한 문장에 둘씩 묶는다).
 - 다른 화면에서 할 일(체크인 · 투구 기록 · 3D 동작 분석${V(' · 구속 측정')} · 메커니즘 · 암케어 · 영양)은 open_screen · draft_pitch_log 카드를 붙이고 짧게 알려 준다. 영양은 카드가 없으니 영양 탭이라고만 말한다.
 - 답에는 맥락에 있는 이 사람의 기록(날짜 · 구수 · 한 것 · 판정${V(' · 구속')})을 근거로 든다. 기록에 없는 것은 모른다고 한다. '모름'인 칸을 짐작으로 채우지 않는다.`;
 
@@ -282,6 +287,8 @@ export type CoachAiContext = {
   todayPlan: { theme: string; minutes: number; why: string[] } | null;
   /** 일정 밖 기록(자비스 1단계, lib/coach/records.ts) — 없으면 줄마다 '모름' */
   records?: CoachAiRecords;
+  /** 최근 4주 진척(lib/coach/progress.ts) — 없으면(옛 호출) '모름' */
+  progress?: CoachAiProgress;
   /** 오늘 운동 화면과 같은 목록(개인 비서 2단계, lib/report/training-today-data.ts) — 없으면(옛 호출) 줄 없음 */
   workout?: CoachAiWorkout;
   /** 앱이 계산한 오늘 투구 계획(lib/report/plan.ts) — 건강 동의가 없으면 'no-consent'. 없으면(옛 호출) 줄 없음 */
@@ -438,6 +445,7 @@ export function contextBlock(c: CoachAiContext): string {
     ...workoutLines(c.workout),
     ...pitchPlanLine(c.pitchPlan),
     ...recordLines(c.records),
+    ...progressLines(c.progress),
     c.goal ?? '정한 목표: 없음',
     'week:',
     ...c.week.map(weekLine),
