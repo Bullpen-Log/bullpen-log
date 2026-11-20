@@ -15,6 +15,7 @@ import {
   SUMMARY_BASIS,
   SUMMARY_BASIS_LABEL,
 } from '@/lib/review-evidence/model';
+import { registerResultOf } from '@/lib/review-evidence/view';
 import { FIELD, apiFailText, type ApiFailBody } from '../parts';
 
 /**
@@ -352,17 +353,20 @@ function Result({ status, onResend }: { status: Status; onResend: () => void }) 
   if (status.kind === 'idle' || status.kind === 'saving') return null;
   if (status.kind === 'saved') {
     const r = status.receipt;
+    /* 머리 글 · 색은 registerResultOf 가 정한다(셀프테스트가 같은 함수를 본다) */
+    const view = registerResultOf(r);
     const sourceId = r.placements[0]?.sourceId;
     return (
       <div role="status" className="rounded-2xl border border-line bg-surface p-(--block-pad) text-sm text-ink">
         <p className="flex items-start gap-2 font-semibold">
-          <CircleCheck aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-sky" />
-          {r.replayed ? '이미 저장된 같은 요청이에요.' : '저장했어요.'}
+          {view.tone === 'warn' ? (
+            <TriangleAlert aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-warn" />
+          ) : (
+            <CircleCheck aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-sky" />
+          )}
+          {view.headline}
         </p>
-        {!r.visible && <p className="mt-1 text-xs text-muted">저장은 됐지만 목록 확인 전이에요. 같은 요청으로 다시 보내 확인해 주세요.</p>}
-        {r.visible && r.useState === 'withdrawn' && (
-          <p className="mt-1 text-xs text-warn">이 쓰임에는 더 나중에 적힌 거두기가 있어 지금도 거둔 상태예요. 칸을 고쳐 새 요청으로 보내면 지금 시각으로 다시 등록해요.</p>
-        )}
+        {view.note && <p className={`mt-1 text-xs ${view.tone === 'warn' ? 'text-warn' : 'text-muted'}`}>{view.note}</p>}
         {status.local && <p className="mt-1 text-xs text-warn">내 컴퓨터 시험 폴더에 저장했어요.</p>}
         {sourceId && (
           <Link href={`/admin/review-evidence/${sourceId}`} className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-sky hover:underline desk:min-h-0">

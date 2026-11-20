@@ -53,7 +53,7 @@ import { localEvidenceStore } from '../lib/review-evidence/local-store.ts';
 import { handleImport, handleList, handleRegister, type ApiDeps, type ApiViewer } from '../lib/review-evidence/api.ts';
 import { isListV2Unsupported, LIST_V2_PREFIX, listOpsPageV2, type ListV2Client, type ListV2Options } from '../lib/review-evidence/bucket-list.ts';
 import { LIST_FAILURE_TEXT } from '../lib/review-evidence/http.ts';
-import { withdrawOutcomeOf } from '../lib/review-evidence/view.ts';
+import { REGISTER_WITHDRAWN_NOTE, WITHDRAW_TEXT, registerResultOf, withdrawOutcomeOf, withdrawStepOf } from '../lib/review-evidence/view.ts';
 
 let passed = 0;
 let failed = 0;
@@ -2273,8 +2273,45 @@ section('거두기 화면 판단(withdraw-form · withdrawOutcomeOf, R2 API-2)')
 
   /* 화면 파일이 이 판단을 쓰는가(정적 검사) — 받음표만 보고 '거뒀어요'를 보이지 않는다 */
   const wfSrc = readFileSync(path.join(path.resolve(path.dirname(new URL(import.meta.url).pathname), '..'), 'app', '(app)', 'admin', 'review-evidence', '[id]', 'withdraw-form.tsx'), 'utf8');
-  check('withdraw-form 은 withdrawOutcomeOf 로 판단 · 받음표만 보고 done 으로 가지 않음', wfSrc.includes('withdrawOutcomeOf(res.status, data)') && !/res\.ok && data\?\.receipt\)\s*\{\s*setState\(\{ kind: 'done' \}/.test(wfSrc));
-  check('withdraw-form: 이미 거둠 · 더 나중 등록 · 목록 실패 글이 따로 있음', wfSrc.includes('이미 거둔 상태예요') && wfSrc.includes('더 나중에 적힌 등록이 있어 거두지 않았어요') && wfSrc.includes('거두기는 저장하지 않았어요') && !wfSrc.includes('—'));
+  check('withdraw-form 은 withdrawStepOf(withdrawOutcomeOf(…)) 로만 상태를 정함', wfSrc.includes('withdrawStepOf(withdrawOutcomeOf(res.status, data))') && !/res\.ok && data\?\.receipt\)\s*\{\s*setState\(\{ kind: 'done' \}/.test(wfSrc));
+  /* 재검토(R2 뒤): 폼이 결과마다 상태를 따로 고르면(예: newer → done) 순수 판단 시험이 못 잡는다 — 폼은 step 을 그대로 쓰고 글도 표에서만 가져온다 */
+  check(
+    'withdraw-form 은 상태를 따로 고르지 않음(kind 는 idle · saving · shown 뿐 · 글자 그대로의 거뒀어요 없음)',
+    !/kind:\s*'(done|already|newer|unconfirmed|unsure|list-failed|error)'/.test(wfSrc.replace("withdrawStepOf({ kind: 'unsure' })", '')) && !wfSrc.includes('거뒀어요') && wfSrc.includes("setState({ kind: 'shown', step, message })") && !wfSrc.includes('—'),
+  );
+  /* 결과 → 할 일(순수) — '거뒀어요'와 단추 끄기는 done 에서만, 새 요청은 newer 에서만 */
+  const steps = (['done', 'already', 'newer', 'unconfirmed', 'unsure', 'error'] as const).map((k) => [k, withdrawStepOf({ kind: k })] as const);
+  const lf = withdrawStepOf({ kind: 'list-failed', message: LIST_FAILURE_TEXT.unavailable });
+  check(
+    "withdrawStepOf: '거뒀어요'는 done 뿐 · 단추 끔은 done · already 뿐 · 새 요청은 newer 뿐",
+    steps.every(([k, st]) => (st.message === WITHDRAW_TEXT.done) === (k === 'done') && st.view === k) &&
+      steps.every(([k, st]) => st.finished === (k === 'done' || k === 'already') && st.resetRequest === (k === 'newer')) &&
+      lf.view === 'list-failed' && !lf.finished && lf.resend && lf.message === `${LIST_FAILURE_TEXT.unavailable} ${WITHDRAW_TEXT.listFailedTail}`,
+    JSON.stringify(steps),
+  );
+  check(
+    'withdrawStepOf: 다시 보내기는 unconfirmed · unsure · list-failed 뿐 · 저장된 결과(done · already · newer)만 화면을 새로 읽음 · error 글은 부르는 쪽',
+    steps.every(([k, st]) => st.resend === (k === 'unconfirmed' || k === 'unsure') && st.refresh === (k === 'done' || k === 'already' || k === 'newer')) &&
+      steps.find(([k]) => k === 'error')![1].message === null && steps.find(([k]) => k === 'done')![1].tone === 'ok' && steps.filter(([, st]) => st.tone === 'ok').length === 1,
+  );
+  check("withdrawStepOf('newer') 글은 시계 차이와 다시 거둬도 같을 수 있음을 알림 · 줄표 없음", /시계/.test(WITHDRAW_TEXT.newer) && /다시 거둬도 같아요/.test(WITHDRAW_TEXT.newer) && !Object.values(WITHDRAW_TEXT).some((t) => t.includes('—')));
+  /* 등록 폼 머리 — 거둔 상태 그대로인 쓰임에 '저장했어요'로 시작하지 않음 */
+  const rw = registerResultOf({ replayed: false, visible: true, useState: 'withdrawn' });
+  const rwRe = registerResultOf({ replayed: true, visible: true, useState: 'withdrawn' });
+  const ra = registerResultOf({ replayed: false, visible: true, useState: 'active' });
+  const rOld = registerResultOf({ replayed: true, visible: true });
+  const rPend = registerResultOf({ replayed: false, visible: false, useState: 'unknown' });
+  check(
+    "registerResultOf: 거둔 상태 그대로면 warn · '저장했어요'로 시작하지 않음 · 시계 차이 안내",
+    rw.tone === 'warn' && rwRe.tone === 'warn' && !rw.headline.startsWith('저장했어요') && rw.note === REGISTER_WITHDRAWN_NOTE && /시계/.test(REGISTER_WITHDRAWN_NOTE),
+    JSON.stringify([rw, rwRe]),
+  );
+  check(
+    'registerResultOf: 살아 있음 · 옛 서버는 예전 글(저장했어요 · 이미 저장된 같은 요청) · 목록 확인 전은 pending',
+    ra.tone === 'ok' && ra.headline === '저장했어요.' && ra.note === null && rOld.tone === 'ok' && rOld.headline === '이미 저장된 같은 요청이에요.' && rPend.tone === 'pending' && rPend.note !== null,
+  );
+  const rfSrc = readFileSync(path.join(path.resolve(path.dirname(new URL(import.meta.url).pathname), '..'), 'app', '(app)', 'admin', 'review-evidence', 'new', 'register-form.tsx'), 'utf8');
+  check('register-form 은 registerResultOf 로 머리 글을 정함(머리 글을 따로 쓰지 않음)', rfSrc.includes('registerResultOf(r)') && rfSrc.includes('{view.headline}') && !rfSrc.includes("'저장했어요.'"));
 }
 
 /* ═══════════════ 7. 폴더 저장소(local-store) ═══════════════ */

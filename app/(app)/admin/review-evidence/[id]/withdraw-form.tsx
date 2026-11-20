@@ -3,26 +3,17 @@
 import { useRouter } from 'next/navigation';
 import { useRef, useState, type FormEvent } from 'react';
 import { Loader2, RotateCw } from '@/components/icon';
-import { withdrawOutcomeOf } from '@/lib/review-evidence/view';
+import { withdrawOutcomeOf, withdrawStepOf, type WithdrawStep } from '@/lib/review-evidence/view';
 import { FIELD, apiFailText, type ApiFailBody } from '../parts';
 
 /**
  * 잘못 등록한 내 쓰임 거두기(EX-REF04). 지우지 않고 '거둔 쓰임'으로 표시만 한다.
  * 같은 까닭으로 다시 보내면 같은 요청 번호 · 같은 적은 때를 써서 한 번만 저장된다. 까닭을 고치면 새 요청이다.
- * '거뒀어요'는 서버가 이 거두기가 지금 효과를 낸다고 답했을 때만 보인다(받음표 applied · 옛 서버면 visible).
+ * 완료 글은 서버가 이 거두기가 지금 효과를 낸다고 답했을 때만 보인다(받음표 applied · 옛 서버면 visible · withdrawStepOf).
  * 저장은 됐지만 효과가 없으면(다른 거두기가 먼저 · 더 나중에 적힌 등록) 그 까닭을 따로 알린다.
  */
 
-type State =
-  | { kind: 'idle' }
-  | { kind: 'saving' }
-  | { kind: 'done' }
-  | { kind: 'already' }
-  | { kind: 'newer' }
-  | { kind: 'unconfirmed' }
-  | { kind: 'list-failed'; message: string }
-  | { kind: 'error'; message: string }
-  | { kind: 'unsure' };
+type State = { kind: 'idle' } | { kind: 'saving' } | { kind: 'shown'; step: WithdrawStep; message: string };
 
 function newKey(): string {
   const c = globalThis.crypto;
@@ -59,7 +50,8 @@ export function WithdrawForm({ useId }: { useId: string }) {
         cache: 'no-store',
       });
     } catch {
-      setState({ kind: 'unsure' });
+      const step = withdrawStepOf({ kind: 'unsure' });
+      setState({ kind: 'shown', step, message: step.message ?? '' });
       return;
     }
     let data: unknown = null;
@@ -68,29 +60,13 @@ export function WithdrawForm({ useId }: { useId: string }) {
     } catch {
       data = null;
     }
-    const outcome = withdrawOutcomeOf(res.status, data);
-    switch (outcome.kind) {
-      case 'done':
-      case 'already':
-        setState({ kind: outcome.kind });
-        router.refresh();
-        return;
-      case 'newer':
-        /* 이 요청은 저장됐지만 효과가 없다. 다음에 보내면 새 요청 번호 · 지금 시각으로 다시 거둔다 */
-        req.current = null;
-        setState({ kind: 'newer' });
-        router.refresh();
-        return;
-      case 'unconfirmed':
-      case 'unsure':
-        setState({ kind: outcome.kind });
-        return;
-      case 'list-failed':
-        setState({ kind: 'list-failed', message: outcome.message });
-        return;
-      default:
-        setState({ kind: 'error', message: apiFailText(res.status, data as ApiFailBody, { forbidden: '대표관리자만 거둘 수 있어요.', byStatus: BY_STATUS, fallback: '거두지 못했어요.' }) });
-    }
+    /* 무엇을 보이고 무엇을 할지는 withdrawStepOf 가 정한다(셀프테스트가 같은 함수를 본다). 여기서 상태를 따로 고르지 않는다 */
+    const step = withdrawStepOf(withdrawOutcomeOf(res.status, data));
+    if (step.resetRequest) req.current = null;
+    const message =
+      step.message ?? apiFailText(res.status, data as ApiFailBody, { forbidden: '대표관리자만 거둘 수 있어요.', byStatus: BY_STATUS, fallback: '거두지 못했어요.' });
+    setState({ kind: 'shown', step, message });
+    if (step.refresh) router.refresh();
   }
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
@@ -102,8 +78,9 @@ export function WithdrawForm({ useId }: { useId: string }) {
   }
 
   const saving = state.kind === 'saving';
-  const finished = state.kind === 'done' || state.kind === 'already';
-  const resend = state.kind === 'unsure' || state.kind === 'unconfirmed' || state.kind === 'list-failed';
+  const shown = state.kind === 'shown' ? state.step : null;
+  const finished = !!shown?.finished;
+  const resend = !!shown?.resend;
   return (
     <details className="mt-3 border-t border-line pt-3">
       <summary className="inline-flex min-h-11 cursor-pointer list-none items-center text-xs font-semibold text-muted hover:text-danger desk:min-h-0">잘못 등록했으면 거두기</summary>
@@ -122,39 +99,9 @@ export function WithdrawForm({ useId }: { useId: string }) {
             className={`${FIELD} py-2`}
           />
         </label>
-        {state.kind === 'error' && (
-          <p role="alert" className="text-xs text-danger">
+        {state.kind === 'shown' && (
+          <p role={shown?.tone === 'ok' ? 'status' : 'alert'} className={`text-xs ${shown?.tone === 'ok' ? 'text-sky' : shown?.tone === 'error' ? 'text-danger' : 'text-ink'}`}>
             {state.message}
-          </p>
-        )}
-        {state.kind === 'list-failed' && (
-          <p role="alert" className="text-xs text-ink">
-            {state.message} 거두기는 저장하지 않았어요.
-          </p>
-        )}
-        {state.kind === 'unsure' && (
-          <p role="alert" className="text-xs text-ink">
-            거뒀는지 확인하지 못했어요. 같은 까닭으로 다시 보내면 겹치지 않아요.
-          </p>
-        )}
-        {state.kind === 'unconfirmed' && (
-          <p role="alert" className="text-xs text-ink">
-            저장은 됐지만 아직 거둔 상태로 보이지 않아요. 같은 까닭으로 다시 보내 확인해 주세요.
-          </p>
-        )}
-        {state.kind === 'newer' && (
-          <p role="alert" className="text-xs text-ink">
-            이 쓰임에 거두기보다 더 나중에 적힌 등록이 있어 거두지 않았어요. 새로 고친 화면에서 확인한 뒤 다시 거둘 수 있어요.
-          </p>
-        )}
-        {state.kind === 'already' && (
-          <p role="status" className="text-xs text-ink">
-            이미 거둔 상태예요. 다른 거두기가 효과를 내고 있어요.
-          </p>
-        )}
-        {state.kind === 'done' && (
-          <p role="status" className="text-xs text-sky">
-            거뒀어요.
           </p>
         )}
         <button

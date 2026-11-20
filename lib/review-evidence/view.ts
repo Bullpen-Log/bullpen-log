@@ -208,3 +208,67 @@ export function withdrawOutcomeOf(status: number, data: unknown): WithdrawOutcom
   if (status >= 500 || ok) return { kind: 'unsure' };
   return { kind: 'error' };
 }
+
+/** 거두기 화면에 보이는 글(폼은 이 글만 쓴다 — 셀프테스트가 같은 표를 본다) */
+export const WITHDRAW_TEXT = {
+  done: '거뒀어요.',
+  already: '이미 거둔 상태예요. 다른 거두기가 효과를 내고 있어요.',
+  newer:
+    '이 쓰임에 거두기보다 더 나중 시각으로 적힌 등록이 있어 거두지 않았어요. 등록한 기기의 시계가 이 기기보다 앞서 있었을 수 있어요. 그렇다면 그 시각이 지나기 전에는 여기서 다시 거둬도 같아요. 등록한 기기에서 거두거나, 새로 고친 화면에서 쓰임이 살아 있는지 확인한 뒤 나중에 다시 거둬 주세요.',
+  unconfirmed: '저장은 됐지만 아직 거둔 상태로 보이지 않아요. 같은 까닭으로 다시 보내 확인해 주세요.',
+  unsure: '거뒀는지 확인하지 못했어요. 같은 까닭으로 다시 보내면 겹치지 않아요.',
+  listFailedTail: '거두기는 저장하지 않았어요.',
+} as const;
+
+/**
+ * 거두기 결과 → 폼이 할 일(순수 · 폼은 이 결과대로만 상태를 바꾼다).
+ *  view: 보일 상태. done 만 '거뒀어요'. message: 보일 글(error 는 null — 폼이 apiFailText 로 만든다).
+ *  resetRequest: 다음에 보내면 새 요청 번호 · 지금 시각으로(newer 만). refresh: 화면을 새로 읽음(저장된 결과).
+ *  finished: 거두기 단추를 끈다(done · already). resend: '다시 보내기'로 보인다(같은 요청을 다시 보내면 되는 것).
+ */
+export type WithdrawStep = {
+  view: WithdrawOutcome['kind'];
+  message: string | null;
+  tone: 'ok' | 'info' | 'error';
+  resetRequest: boolean;
+  refresh: boolean;
+  finished: boolean;
+  resend: boolean;
+};
+
+export function withdrawStepOf(o: WithdrawOutcome): WithdrawStep {
+  const base = { resetRequest: false, refresh: false, finished: false, resend: false };
+  switch (o.kind) {
+    case 'done':
+      return { ...base, view: 'done', message: WITHDRAW_TEXT.done, tone: 'ok', refresh: true, finished: true };
+    case 'already':
+      return { ...base, view: 'already', message: WITHDRAW_TEXT.already, tone: 'info', refresh: true, finished: true };
+    case 'newer':
+      return { ...base, view: 'newer', message: WITHDRAW_TEXT.newer, tone: 'info', refresh: true, resetRequest: true };
+    case 'unconfirmed':
+      return { ...base, view: 'unconfirmed', message: WITHDRAW_TEXT.unconfirmed, tone: 'info', resend: true };
+    case 'unsure':
+      return { ...base, view: 'unsure', message: WITHDRAW_TEXT.unsure, tone: 'info', resend: true };
+    case 'list-failed':
+      return { ...base, view: 'list-failed', message: `${o.message} ${WITHDRAW_TEXT.listFailedTail}`, tone: 'info', resend: true };
+    default:
+      return { ...base, view: 'error', message: null, tone: 'error' };
+  }
+}
+
+/**
+ * 등록 받음표 → 등록 폼 머리 글(순수). 저장은 됐지만 쓰임이 거둔 상태 그대로면(useState 'withdrawn') '저장했어요'로 시작하지 않는다 —
+ * 등록 도구가 같은 경우를 superseded(2)로 내는 것과 같은 뜻. useState 가 없는 옛 서버는 예전처럼 visible 만 본다.
+ */
+export type RegisterResultView = { tone: 'ok' | 'warn' | 'pending'; headline: string; note: string | null };
+
+export const REGISTER_WITHDRAWN_NOTE =
+  '이 쓰임에는 이 등록보다 더 나중 시각으로 적힌 거두기가 있어 이 등록이 효과를 내지 못했어요. 거둔 기기의 시계가 이 기기보다 앞서 있었을 수 있어요. 그렇다면 그 시각이 지나기 전에는 여기서 다시 보내도 같아요. 거둔 기기에서 다시 등록하거나, 나중에 칸을 고쳐 새 요청으로 보내 주세요.';
+
+export function registerResultOf(r: { replayed: boolean; visible: boolean; useState?: string | null }): RegisterResultView {
+  if (r.visible && r.useState === 'withdrawn')
+    return { tone: 'warn', headline: '저장했지만 이 쓰임은 거둔 상태 그대로예요.', note: REGISTER_WITHDRAWN_NOTE };
+  const headline = r.replayed ? '이미 저장된 같은 요청이에요.' : '저장했어요.';
+  if (!r.visible) return { tone: 'pending', headline, note: '저장은 됐지만 목록 확인 전이에요. 같은 요청으로 다시 보내 확인해 주세요.' };
+  return { tone: 'ok', headline, note: null };
+}
