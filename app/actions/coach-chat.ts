@@ -1,6 +1,7 @@
 'use server';
 
 import { ASSIST_TOOLS, applyAssist } from '@/lib/coach/assist';
+import { cardDayOk } from '@/lib/coach/tool-defs';
 import { revalidatePath } from 'next/cache';
 import type { Prisma } from '@prisma/client';
 import { requireUser } from '@/lib/dal';
@@ -524,6 +525,7 @@ export async function applyCoachCard(messageId: unknown, cardId: unknown): Promi
   if (!m || !cards || !card) return { error: '이 카드를 찾지 못했어요.' };
   if (card.done) return { ok: true };
   if (card.open) return { error: '앱에서 여는 카드예요.' };
+  if (!cardDayOk(card.tool, toDateKey(m.createdAt), toDateKey(appNow()))) return { error: '지난 날 카드예요. 코치에게 다시 말해 주세요.' };
   const args = (card.args ?? {}) as Record<string, unknown>;
   const r =
     card.tool === 'change_week'
@@ -533,7 +535,7 @@ export async function applyCoachCard(messageId: unknown, cardId: unknown): Promi
         : card.tool === 'change_today'
           ? await applyTodayChange(user, args)
           : ASSIST_TOOLS.has(card.tool)
-            ? await applyAssist(user, card.tool, args, toDateKey(m.createdAt))
+            ? await applyAssist(user, card.tool, args)
             : { error: '이 카드는 실행할 수 없어요.' };
   if ('error' in r) return r;
   await prisma.coachMessage.update({ where: { id: messageId }, data: { act: cardsJson(cards.map((c) => (c.id === cardId ? { ...c, done: true } : c))) } });

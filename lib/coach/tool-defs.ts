@@ -11,6 +11,7 @@ import { GOAL_FOCUSES, TRAINING_LEVEL_NAMES } from '@/lib/report/personalize';
 import { ALWAYS_OWNED, SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
 import { cleanEvent, isOutingTitle } from '@/lib/calendar-event';
 import { POST_BODY_MAX, POST_CATEGORIES, POST_TITLE_MAX } from '@/lib/community';
+import type { Capability } from '@/lib/release-access';
 
 /**
  * 코치 도구 표(개인 비서 1단계, 2026-11-20 김민: "AI 코치가 싱커 안 개인 비서 — 모든 부분에서 액세스와 컨트롤") — 순수 파일.
@@ -188,6 +189,41 @@ export type ToolName = (typeof READ_DEFS)[number]['name'] | (typeof WRITE_DEFS)[
 export const READ_NAMES: ReadonlySet<string> = new Set(READ_DEFS.map((d) => d.name));
 export const WRITE_NAMES: ReadonlySet<string> = new Set(WRITE_DEFS.map((d) => d.name));
 const INPUT: Record<string, z.ZodType> = Object.fromEntries([...READ_DEFS, ...WRITE_DEFS].map((d) => [d.name, d.input]));
+
+/** 비서 쓰기 도구(4단계)가 쓰는 기능 — 앱과 같은 판정(decideAccess). 확인 · 실행은 서버(lib/coach/assist.ts) */
+export const ASSIST_CAP: Record<string, Capability | ((args: Record<string, unknown>) => Capability)> = {
+  calendar: 'calendar',
+  throw_plan: 'training',
+  favorite: (a) => (a.kind === '드릴' ? 'mechanics' : 'training'),
+  training_settings: 'training',
+  armcare_today: 'armcare',
+  program_day: 'training',
+  draft_post: 'dugout',
+};
+export const ASSIST_TOOLS: ReadonlySet<string> = new Set(Object.keys(ASSIST_CAP));
+export function assistCapOf(tool: string, args: Record<string, unknown>): Capability {
+  const c = ASSIST_CAP[tool];
+  return typeof c === 'function' ? c(args) : c;
+}
+/** 서버가 실행하는 카드 도구 — 나머지(투구 기록 초안 · 화면 열기 · 글 초안)는 앱이 화면을 여는 카드뿐 */
+export const APPLY_TOOLS: ReadonlySet<string> = new Set(['change_week', 'goal', 'change_today', ...ASSIST_TOOLS]);
+
+/** 그날에만 맞는 카드 — 다음 날 누르면 안 한다(어제의 '오늘 가볍게' · 어제 답 · 어제 세션이 오늘에 걸리지 않게, 6단계 시험에서 찾음) */
+export const DAY_BOUND_TOOLS: ReadonlySet<string> = new Set(['change_today', 'throw_plan', 'armcare_today', 'program_day']);
+export const cardDayOk = (tool: string, madeOn: string, today: string) => !DAY_BOUND_TOOLS.has(tool) || madeOn === today;
+
+/** 알림 줄 — 제목은 보내지 않는다(남의 별명 · 채팅 글 · 팀이 쓴 일정 이름이 들어 있다 — 6단계 시험에서 찾음) */
+const NOTICE_LABEL: Record<string, string> = {
+  chat: '채팅',
+  community: '덕아웃',
+  lesson: '레슨',
+  note: '레슨 일지',
+  team: '팀',
+  booking: '레슨 예약',
+  venue: '연습장 예약',
+  coach: '코치',
+};
+export const noticeLine = (n: { date: string; kind: string; read: boolean }) => `- ${n.date} | ${NOTICE_LABEL[n.kind] ?? '그 밖'} | ${n.read ? '읽음' : '안 읽음'}`;
 
 /** API 에 보내는 도구 목록 — 차례 · 글자가 늘 같다(캐시) */
 export const TOOL_DEFS = [...READ_DEFS, ...WRITE_DEFS].map((d) => {

@@ -1,7 +1,7 @@
 import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
-import { COACH_SYSTEM_BLOCK } from '@/lib/coach/ai-prompt';
-import { TOOL_DEFS } from '@/lib/coach/tool-defs';
+import { COACH_SYSTEM_BLOCK, claimsCard } from '@/lib/coach/ai-prompt';
+import { TOOL_DEFS, WRITE_NAMES } from '@/lib/coach/tool-defs';
 import type { AiUsage } from '@/lib/coach/ai-price';
 
 /**
@@ -76,6 +76,9 @@ export async function chatTurn(history: readonly ChatLine[], context: string, te
   let earlier = '';
   /* 글 없이 끝난 응답은 한 번만 다시 묻는다(같은 요청 — 실제 호출 11-20 에 생각만 하고 글 없이 끝난 일이 36상황 중 3) */
   let retried = false;
+  /* 이번 마디에 카드가 생겼나 — 카드 없이 '카드를 만들었어요'라고 쓰면 한 번 다시 묻는다(실제 호출 11-20 AP) */
+  let carded = false;
+  let nudged = false;
   const textOf = (content: readonly Anthropic.Beta.Messages.BetaContentBlock[]) =>
     content
       .flatMap((b) => (b.type === 'text' ? [b.text] : []))
@@ -110,6 +113,7 @@ export async function chatTurn(history: readonly ChatLine[], context: string, te
               console.error('[coach-ai] tool failed:', u.name, e instanceof Error ? e.message : String(e));
               return { text: '지금은 읽지 못했어요.', error: true };
             });
+            if (WRITE_NAMES.has(u.name) && !o.error) carded = true;
             return { type: 'tool_result' as const, tool_use_id: u.id, content: o.text, ...(o.error ? { is_error: true } : {}) };
           })
         );
@@ -121,6 +125,12 @@ export async function chatTurn(history: readonly ChatLine[], context: string, te
       if (!reply && !retried) {
         retried = true;
         round--;
+        continue;
+      }
+      if (reply && !carded && !nudged && !last && claimsCard(reply)) {
+        nudged = true;
+        messages.push({ role: 'assistant', content: r.content as Anthropic.Beta.Messages.BetaContentBlockParam[] });
+        messages.push({ role: 'user', content: '[앱] 카드는 바꾸기 도구를 불러야 생겨요. 방금 답은 도구를 부르지 않아 카드가 없어요. 필요하면 지금 도구를 부르고, 아니면 카드 말을 빼고 다시 답해 주세요.' });
         continue;
       }
       if (!reply) {

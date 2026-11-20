@@ -6,10 +6,12 @@ import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { visibleExercises, visibleGuides } from '@/lib/library-cache';
 import { activeProgram } from '@/lib/program/load';
 import { parseProgram } from '@/lib/program/program';
-import { decideAccess, type Capability } from '@/lib/release-access';
+import { decideAccess } from '@/lib/release-access';
 import { isFeatureLocked, releaseStage } from '@/lib/release-gate';
 import {
+  ASSIST_TOOLS,
   armcareCard,
+  assistCapOf,
   byName,
   calendarCard,
   favoriteCard,
@@ -38,26 +40,9 @@ import { skipProgramDay, stopProgram } from '@/app/actions/program';
 type Who = { id: string; role: string | null | undefined; pilot?: boolean };
 type Result = { ok: true } | { error: string };
 
-/** 도구마다 쓰는 기능 — 앱과 같은 판정(decideAccess) */
-const CAP: Record<string, Capability | ((args: Record<string, unknown>) => Capability)> = {
-  calendar: 'calendar',
-  throw_plan: 'training',
-  favorite: (a) => (a.kind === '드릴' ? 'mechanics' : 'training'),
-  training_settings: 'training',
-  armcare_today: 'armcare',
-  program_day: 'training',
-  draft_post: 'dugout',
-};
-/** 그날에만 맞는 카드 — 다음 날 누르면 안 한다(어제 답 · 어제 세션이 오늘에 걸리지 않게) */
-const DAY_BOUND = new Set(['throw_plan', 'armcare_today', 'program_day']);
+export { ASSIST_TOOLS };
 
-export const ASSIST_TOOLS: ReadonlySet<string> = new Set(Object.keys(CAP));
-
-const capOf = (tool: string, args: Record<string, unknown>) => {
-  const c = CAP[tool];
-  return typeof c === 'function' ? c(args) : c;
-};
-const allowed = (who: Who, tool: string, args: Record<string, unknown>) => decideAccess(who, capOf(tool, args), { stage: releaseStage() }).allowed;
+const allowed = (who: Who, tool: string, args: Record<string, unknown>) => decideAccess(who, assistCapOf(tool, args), { stage: releaseStage() }).allowed;
 
 const checkedInOn = async (userId: string, day: string) => !!(await prisma.dailyCheckin.findFirst({ where: { userId, date: dbDate(day) }, select: { id: true } }));
 
@@ -106,12 +91,11 @@ export async function proposeAssist(who: Who, today: string, tool: string, raw: 
   return { refuse: '모르는 도구예요.' };
 }
 
-/** 카드 실행 — 사용자가 누를 때. madeOn 은 카드를 만든 날(그날에만 맞는 카드를 가린다) */
-export async function applyAssist(who: Who, tool: string, args: Record<string, unknown>, madeOn: string): Promise<Result> {
+/** 카드 실행 — 사용자가 누를 때(그날에만 맞는 카드는 applyCoachCard 가 먼저 가린다) */
+export async function applyAssist(who: Who, tool: string, args: Record<string, unknown>): Promise<Result> {
   if (!ASSIST_TOOLS.has(tool)) return { error: '이 카드는 실행할 수 없어요.' };
   if (!allowed(who, tool, args)) return { error: '지금은 쓸 수 없는 기능이에요.' };
   const today = toDateKey(appNow());
-  if (DAY_BOUND.has(tool) && madeOn !== today) return { error: '지난 날 카드예요. 코치에게 다시 말해 주세요.' };
   try {
     return norm(await run(who.id, tool, args, today));
   } catch (e) {
