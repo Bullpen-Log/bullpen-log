@@ -1232,6 +1232,14 @@
     "audit_scope": "필요시 --review <실제 review_id>를 추가. audit은 검수 기록 checkout의 절대 경로로 실시하고 타인의 기록을 본인 것으로 감사하지 않는다. 김민 요약은 review_id 형식 확정 전 audit 미지원.",
     "success": "중앙 등록 확인은 본인 viewer, API v2, central/store central, visible true, useState active의 확인된 받음표가 있어야 한다. pending, fixture, superseded, withdrawn, rejected, unsupported 및 미확인 상태는 등록 완료로 기록하지 않는다.",
     "historical_ref107": "PMID 16326953은 로우 포고 홉 실제 초록 참고 기록 확인. 기존 EX-Y-P-LOWPOGO-258c0eee는 잘못된 ID이며 실제 EX-Y-P-POGO-258c0eee. 한 발 호핑의 간접 기전 근거이며 전문 열람·구속 개선 직접 증명은 미확인. 후보 정정만 확인했고 중앙 import는 하지 않음.",
-    "updated_at_utc": "2026-11-20T15:03:38.243416+00:00"
+    "updated_at_utc": "2026-11-20T15:03:38.243416+00:00",
+    "minimum_audit_source": {
+      "commit": "c5f17fdffdea3127fbba5df9847910a29d419caa",
+      "path": "scripts/review-evidence-registrar.mjs",
+      "sha256": "5ef9fbe8e613db53c5d30d54fc287159b8fee188f5b94fe32417ab7c0e0cbf46",
+      "rule": "초기 후보 CLI는 특정 구분자로 이어진 여러 인용 링크 중 첫 링크만 세고 완료로 오판할 수 있다. 맥북과 김민 각 기기에서 수정된 판 이상을 실제 수신하고 파일을 검증하기 전에는 audit 결과를 신뢰하지 않는다. 원격 반영만으로 기기 수신 완료가 아니다. 전체 총괄의 운영 API v2/list-v2 확인과 실제 사용 권한 조건도 유지한다. 테스트를 위한 로그인·티켓·등록·과거 가져오기는 금지한다.",
+      "device_receipt": "맥북 및 김민 기기 수신 미확인",
+      "updated_at_utc": "2026-11-20T15:13:35.251238+00:00"
+    }
   }
 }
