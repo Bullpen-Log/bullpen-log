@@ -1107,6 +1107,28 @@ try {
     const both = writeFix('joined-public/records.json', [{ review_id: 'EX-J-003', notes: `자료 ${p55},${p66}` }, { review_id: 'EX-J-003', sources: [`${p55};${p66}`] }]);
     const b = await run(['audit', '--records', both, '--domain', 'exercise', '--reviewer', 'yunho']);
     check('붙여 쓴 공개 링크 둘 → 인용 2 · 둘 다 등록돼 complete 0', b.code === 0 && b.json?.status === 'complete' && b.json?.cited === 2 && b.json?.registered === 2, b.out);
+    /* 재검토(R2 뒤): , ; ( ) 밖의 글자(| \\ ^ { ` 、 。 ）)로 붙여 쓴 둘째 링크도 버리지 않는다 — 앞 링크만 등록돼 있으면 빠짐 1 */
+    const p77 = 'https://pubmed.ncbi.nlm.nih.gov/77777701/';
+    for (const [name, sep] of [['세로줄', '|'], ['역빗금', '\\'], ['꺾쇠', '^'], ['중괄호', '{'], ['역따옴표', '`'], ['모점', '、'], ['고리점', '。'], ['전각괄호', '）']]) {
+      const f = writeFix(`joined-sep-${name}/records.json`, [{ review_id: 'EX-J-003', notes: `확인 ${p55}${sep}${p77} 끝` }]);
+      const a = await run(['audit', '--records', f, '--domain', 'exercise', '--reviewer', 'yunho']);
+      check(
+        `붙여 쓴 둘째 링크(${name}) → 인용 2 · 등록 안 된 둘째가 빠짐(1) · complete 아님`,
+        a.code === 1 && a.json?.status === 'missing' && a.json?.cited === 2 && (a.json?.missing ?? []).length === 1 && a.json?.missing?.[0]?.url === p77,
+        a.out,
+      );
+      const fp = writeFix(`joined-sep-private-${name}/records.json`, [{ review_id: 'EX-J-003', notes: `확인 ${p55}${sep}${SECRET_URL3} 끝` }]);
+      const ap = await run(['audit', '--records', fp, '--domain', 'exercise', '--reviewer', 'yunho']);
+      check(
+        `붙여 쓴 둘째 비공개 링크(${name}) → 건너뜀 · incomplete · 값 없음`,
+        ap.code === 1 && ap.json?.status === 'incomplete' && ap.json?.skippedCount === 1 && ap.json?.skipped?.[0]?.code === 'private_file_host' && !hasMark(ap.out + ap.err),
+        ap.out,
+      );
+    }
+    /* | 뒤에 https:// 없이 적은 학술 링크도 따로 센다 */
+    const fs1 = writeFix('joined-sep-schemeless/records.json', [{ review_id: 'EX-J-003', notes: `확인 ${p55}|pubmed.ncbi.nlm.nih.gov/77777701/ 끝` }]);
+    const as1 = await run(['audit', '--records', fs1, '--domain', 'exercise', '--reviewer', 'yunho']);
+    check('| 뒤의 https:// 없는 학술 링크도 인용 · 빠짐 1', as1.code === 1 && as1.json?.cited === 2 && as1.json?.missing?.[0]?.url === p77, as1.out);
     const postsBefore = S.posts.length;
     const pendingBefore = pendingFiles().length;
     const ru = await run(reg(joined, 'EX-J-004'));
@@ -1158,6 +1180,8 @@ try {
     );
     const pd = await run(['pending']);
     check('되돌린 글자가 출력 · rejected · pending 에 없음', !hasMark(e.out + e.err) && !hasMark(pd.out + pd.err) && !hasMark(stateText()) && rejectedFiles().length === rejectedBefore + 1);
+    const pdIss = (pd.json?.rejected ?? []).flatMap((x) => x.issues ?? []).map((i) => i.field);
+    check('pending 의 칸 이름이 register 때와 같다(지문을 다시 지문으로 바꾸지 않음)', pdIss.includes(iss[0]?.field) && pdIss.includes('use.applicationKo'), JSON.stringify(pdIss));
     S.echoIssues = null;
     S.mode = 'ok';
   }

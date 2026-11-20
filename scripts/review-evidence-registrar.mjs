@@ -804,12 +804,14 @@ const serverText = (m) => (typeof m === 'string' && m.trim() && !/:\/\//.test(m)
 
 /** 서버가 짚은 칸 자리 — 이름 모양인 조각까지만 그대로, 그 뒤(모르는 키 이름에 값 · 링크가 섞였을 수 있음)는 지문으로 */
 const FIELD_SEGMENT = /^[A-Za-z_][A-Za-z0-9_-]{0,63}(\[\d{1,4}\])*$/;
+/** 이미 지문으로 바꾼 마지막 조각 — 다시 가리지 않는다(pending 이 저장된 칸 이름을 한 번 더 거쳐도 register 때와 같은 이름) */
+const FIELD_FINGERPRINT = /^\[키:[0-9a-f]{8}\]$/;
 function safeField(field) {
   if (typeof field !== 'string' || !field) return '';
   const segs = field.split('.');
   const kept = [];
   for (let i = 0; i < segs.length; i++) {
-    if (FIELD_SEGMENT.test(segs[i])) {
+    if (FIELD_SEGMENT.test(segs[i]) || (i === segs.length - 1 && FIELD_FINGERPRINT.test(segs[i]))) {
       kept.push(segs[i]);
       continue;
     }
@@ -1981,20 +1983,46 @@ function trimTail(text) {
   }
 }
 
-/** 조각 하나 → { url } · { ambiguous: true } · null(링크 아님) */
+/**
+ * 조각 하나 → { url, end } · { ambiguous: true, end } · { end }(링크 아님). end 는 조각 앞에서 읽은 ASCII 주소 글자 수 —
+ * 그 뒤에 남은 글자는 readAll 이 다시 훑는다(거기서 또 http(s):// 가 나오면 따로 읽는다).
+ */
 function readPiece(piece) {
   const run = ASCII_URL_RUN.exec(piece)?.[0] ?? '';
-  if (!run) return null;
+  const end = Math.max(run.length, 1);
+  if (!run) return { end };
   const url = trimTail(run);
   const rest = piece.slice(run.length);
   const hasHost = /^https?:\/\/[^/?#]/i.test(url);
-  if (!rest) return hasHost ? { url } : null;
+  if (!rest) return hasHost ? { url, end } : { end };
   /* ASCII 글자(| { } ^ ` \ 등)에서 끊긴 것은 예전처럼 거기까지를 링크로 */
-  if (/^[\x00-\x7f]/.test(rest)) return hasHost ? { url } : null;
+  if (/^[\x00-\x7f]/.test(rest)) return hasHost ? { url, end } : { end };
   /* 사이트 이름이 끝나기 전에 ASCII 가 아닌 글자 — 한글 사이트 이름이거나 이름 바로 뒤에 붙은 말 */
-  if (!/^https?:\/\/[^/?#]+[/?#]/i.test(run)) return { ambiguous: true };
-  if (CJK_CLOSE.test(rest) || url.length < run.length) return hasHost ? { url } : null;
-  return { ambiguous: true };
+  if (!/^https?:\/\/[^/?#]+[/?#]/i.test(run)) return { ambiguous: true, end };
+  if (CJK_CLOSE.test(rest) || url.length < run.length) return hasHost ? { url, end } : { end };
+  return { ambiguous: true, end };
+}
+
+/**
+ * 조각 하나를 끝까지 읽는다. 앞 링크를 읽은 뒤 남은 글자에 http(s):// 가 또 있으면(| \ ^ { ` 、 。 ） 한글 등으로 붙여 쓴 링크)
+ * 거기서부터 다시 읽는다 — 앞 링크에서 멈추고 뒤 링크를 버리면 감사가 '빠짐 없음'으로 끝나 버린다(R2 빠뜨리지 않기).
+ * spans 에는 실제로 읽은 주소 글자의 자리만 넣는다(그 밖의 https:// 없는 학술 출처는 linksIn 이 따로 찾는다).
+ */
+function readAll(piece, at, whole, out, spans) {
+  let p = piece;
+  let pos = at;
+  for (;;) {
+    const r = readPiece(p);
+    const rest = p.slice(r.end);
+    const k = rest.search(/https?:\/\//i);
+    if (r.url || r.ambiguous) {
+      spans.push([pos, pos + r.end]);
+      out.push(r.ambiguous ? { raw: k < 0 ? p : p.slice(0, r.end + k), ambiguous: true, whole } : { raw: r.url, whole });
+    }
+    if (k < 0) return;
+    pos += r.end + k;
+    p = rest.slice(k);
+  }
 }
 
 /**
@@ -2006,12 +2034,12 @@ function linksIn(text) {
   const t = text.trim();
   const spans = [];
   for (const m of text.matchAll(LINK_CANDIDATE)) {
-    spans.push([m.index, m.index + m[0].length]);
     const whole = m[0] === t;
+    let from = 0;
     for (const piece of splitJoined(m[0])) {
-      const r = readPiece(piece);
-      if (!r) continue;
-      out.push(r.ambiguous ? { raw: piece, ambiguous: true, whole } : { raw: r.url, whole });
+      const at = Math.max(m[0].indexOf(piece, from), from);
+      from = at + piece.length;
+      readAll(piece, m.index + at, whole, out, spans);
     }
   }
   for (const m of text.matchAll(SCHEMELESS_SCHOLARLY)) {
@@ -2019,7 +2047,7 @@ function linksIn(text) {
     const token = /^[^\s"'<>]*/u.exec(text.slice(m.index))?.[0] ?? '';
     const piece = splitJoined(`https://${token}`)[0];
     const r = readPiece(piece);
-    if (!r) continue;
+    if (!r.url && !r.ambiguous) continue;
     const whole = token === t;
     out.push(r.ambiguous ? { raw: piece.slice('https://'.length), ambiguous: true, whole } : { raw: r.url, schemeless: true, whole });
   }
