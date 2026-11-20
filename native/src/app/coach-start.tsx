@@ -8,7 +8,7 @@ import { COACH_POINTS } from '@/lib/coach-intro';
 import {
   COACH_LIMITS,
   COACH_MINUTES,
-  COACH_PRIORITIES,
+  COACH_PRIORITY_CHOICES,
   COACH_ROLES,
   REASON_TEXT,
   WEEKDAY_LABELS,
@@ -179,7 +179,7 @@ export default function CoachStartScreen() {
       );
     case 'goal':
       return frame('가장 먼저 좋아지고 싶은 것은?', undefined, { label: '다음', onPress: () => void save('goal', { priority: a.priority }), disabled: !a.priority }, (
-        <ChoiceChips c={c} options={[...COACH_PRIORITIES]} value={a.priority ?? null} onChange={(v) => setA({ ...a, priority: v as CoachSaved['priority'] })} />
+        <ChoiceChips c={c} options={COACH_PRIORITY_CHOICES} value={a.priority ?? null} onChange={(v) => setA({ ...a, priority: v as CoachSaved['priority'] })} />
       ));
     case 'outing': {
       const starter = a.role === 'starter' || a.role === 'both';

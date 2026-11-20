@@ -32,6 +32,11 @@ export const COACH_PRIORITIES = [
   { value: 'stamina', label: '체력' },
   { value: 'health', label: '부상 예방' },
 ] as const;
+/**
+ * 코치 시작 질문에 보이는 선택지 — '제구'는 숨긴다(2026-11-21 김민: 싱커에 제구를 키우는 드릴도, 제구를 재는 기능도 없어 고르게 하면 빈 약속).
+ * 서버는 옛 앱 · 저장된 답 때문에 'control' 을 계속 받는다. 제구 드릴 · ABS(구속 측정 안)가 생기면 이 거름을 지운다.
+ */
+export const COACH_PRIORITY_CHOICES = COACH_PRIORITIES.filter((p) => p.value !== 'control');
 export const COACH_ROLES = [
   { value: 'starter', label: '선발' },
   { value: 'reliever', label: '불펜' },

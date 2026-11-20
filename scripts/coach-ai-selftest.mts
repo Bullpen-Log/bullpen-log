@@ -18,7 +18,7 @@ import { TOOL_DEFS, WRITE_NAMES, ASSIST_TOOLS, APPLY_TOOLS, DAY_BOUND_TOOLS, ass
 import { CARDS_MAX, readCards, shownCard, type CoachCard } from '@/lib/coach/card';
 import { COACH_AI_CONSENT } from '@/lib/coach/ai-consent';
 import { HEALTH_CONSENT, healthCutoffOf, historyFloorOf } from '@/lib/health-consent';
-import { reasonTextsFor } from '@/lib/coach/answers';
+import { COACH_PRIORITY_CHOICES, mergeStep, reasonTextsFor } from '@/lib/coach/answers';
 import { applyGoalAnswer, dayWord, goalCardOf, goalFromProposal, goalLine, hasHealthWords, readGoalAnswer, sanitizeGoal } from '@/lib/coach/goal';
 import { activeRx, focusView, mechFocusFrom } from '@/lib/mechanics/program';
 import { newProgression } from '@/lib/mechanics/progression';
@@ -674,6 +674,12 @@ check('⑩ 답 글에 샌 칸 이름은 우리말로(조사도)', scrubCodes('�
       COACH_AI_CONSENT.items.includes('감각 칩') && COACH_AI_CONSENT.items.includes('잘 던진 날 찾기 결과 글')
   );
 }
+
+/* ㉑ '제구' 숨김(2026-11-21) — 시작 질문에 안 보이지만 옛 앱 · 저장된 답의 'control' 은 그대로 받는다 */
+check(
+  "㉑ 시작 질문 선택지에 '제구' 없음 · 서버는 옛 답 'control' 을 받음",
+  !COACH_PRIORITY_CHOICES.some((p) => p.value === 'control') && COACH_PRIORITY_CHOICES.length === 3 && mergeStep({}, 'goal', { priority: 'control' }, true)?.priority === 'control'
+);
 
 console.log(`coach-ai: ${pass}개 통과${fails.length ? `, ${fails.length}개 실패` : ''}`);
 for (const f of fails) console.log(`  - ${f}`);
