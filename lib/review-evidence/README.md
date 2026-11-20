@@ -55,6 +55,7 @@
 - `applied`: 늘 `visible` 과 같다. 등록은 이 인용이 목록에 들어감, 거두기는 이 거두기가 지금 효력을 냄.
 - `supersededBy`: 효력을 못 낸 까닭. 거두기가 적용되지 않았는데 그 쓰임이 다른 거두기(같거나 늦은 쓴 시각)로 거둔 상태면 `withdraw`, 그 쓰임이 이 거두기와 같거나 늦은 등록으로 살아 있으면 `register`. 등록인데 그 쓰임이 지금 거둔 상태면 `withdraw`(이때 `visible` · `applied` 는 `true` 그대로). 그 밖 · 가져오기 · 목록을 다시 모으지 못함 · 거둘 권한이 없는 쓰임은 `null`.
 - 적용되지 않은 거두기는 `placements` 가 빈 목록이다. 대상 쓰임 번호는 보낸 쪽이 자기 요청에서 안다.
+- 관리 화면도 같은 칸으로 판단한다(`view.ts` 의 `withdrawStepOf` · `registerResultOf`, 셀프테스트가 같은 함수를 본다). 거두기 폼은 `applied` 일 때만 완료 글을 보이고, `supersededBy: 'register'` 면 등록한 기기의 시계가 앞서 있었을 수 있다고 알린다(그 시각이 지나기 전에는 다시 거둬도 같다). 등록 폼은 `useState: 'withdrawn'` 이면 '저장했어요'로 시작하지 않고 거둔 상태 그대로라고 경고한다.
 - 칸이 없는 옛 서버의 받음표를 받으면 도구는 앞 판처럼 `visible` 만 본다.
 
 오류 `{ ok: false, error, message, issues? }` — 400 `invalid`/`bad_json` · 401 · 403 · 409 `conflict` · 413 · 415 · 503 `pending`(`reason: 'save' | 'readback'`)/`unavailable`.
@@ -151,7 +152,7 @@ node "$R" audit --records "$TOP/docs/reviews/handoff/mechanics/yunho/video-recor
 - 기록 오류(3): 읽을 수 없거나 JSON 이 아님(`invalid`, 상대 경로는 지금 폴더 기준이라 하위 폴더에서 쓰면 여기에 든다), 목록도 `{ records: [...] }` 도 아니거나 `review_id` 가 있는 줄이 하나도 없음(`unsupported`, 확인하지 않음), `--review` 번호가 파일에 없음(`review-not-found`).
 - 모으는 것: 기록 줄 어디에 있든 링크 글자를 칸 전체가 링크인 값과 글 안에 끼운 링크(R2 원장 · 메모에만 적은 출처를 빠뜨리지 않기)에 **같은 규칙 하나**로 찾는다. 등록(`register`)의 글 칸 · 칸 이름 링크 검사도 같은 규칙이다.
   1. 후보: `http(s)://` 부터 빈칸 · 따옴표 · 꺾쇠 앞까지(한글에서 끊지 않는다, 아래 4).
-  2. 붙여 쓴 링크: 후보 안에서 `,` `;` `(` `)` 바로 뒤에 다시 `http(s)://` 가 오면 거기서 떼어 따로 본다(`/` 뒤의 링크, 예: `web.archive.org/web/<때>/https://…` 는 떼지 않는다).
+  2. 붙여 쓴 링크: 후보 안에서 `,` `;` `(` `)` 바로 뒤에 다시 `http(s)://` 가 오면 거기서 떼어 따로 본다(`/` 뒤의 링크, 예: `web.archive.org/web/<때>/https://…` 는 떼지 않는다). 주소 글자 구간이 끝난 뒤 남은 글자도 다시 훑어 `|` · 역슬래시 · 꺾인 기호 · CJK 구두점 뒤의 다음 링크를 빠뜨리지 않는다.
   3. 링크는 주소에 쓰는 ASCII 글자까지. 끝의 문장 부호(`. , ; : ! ?`)와 짝 없는 닫는 괄호 · 대괄호는 뗀다.
   4. ASCII 글자 바로 뒤에 한글 같은 ASCII 가 아닌 글자가 이어지면(한글 경로 · 붙은 조사 · 한글 쿼리 · 악센트 경로 · 한글 사이트 이름 · 사이트 이름 바로 뒤 한글) 어디까지가 링크인지 알 수 없어, 잘린 링크를 빠짐으로 내지 않고 `skipped[]` 에 `code: 'ambiguous_in_text'`(지문만, 퍼센트 인코딩을 권하는 글)로 둔다. 단 그 사이에 3 의 문장 부호가 있었거나 한중일 닫는 부호(`。、，．：；！？）」』】〕〉》”’…`)가 오면 거기가 끝이다.
   5. `https://` 없이 적은 학술 링크(`pubmed.ncbi.nlm.nih.gov/…` · `pmc.ncbi.nlm.nih.gov/articles/…` · `www.ncbi.nlm.nih.gov/pmc/…` · `doi.org/10…` · `dx.doi.org/10…` · `europepmc.org/…`, 앞에 주소 글자가 붙지 않은 것)는 `https://` 를 붙여 인용으로 센다(`schemeless: true`).
@@ -188,7 +189,7 @@ node "$R" audit --records "$TOP/docs/reviews/handoff/mechanics/yunho/video-recor
 
 ### 쓸 수 있는 때
 
-- 실제 등록은 **EX-REF04 R2 서버 코드가 배포된 운영 `https` 주소**로만 한다(목록 `apiVersion` 2, 운영 저장소 목록 v2). 2026-11-20 현재 배포 전이라 운영 주소로 하는 등록은 대기(끝 번호 4)로만 남는다. 출시 확인 항목은 `docs/reviews/review-evidence-registrar.md` 2절.
+- 실제 등록은 **EX-REF04 R2 서버 코드가 배포된 운영 `https` 주소**로만 한다(목록 `apiVersion` 2, 운영 저장소 목록 v2). 2026-11-21 최종 코드 `e307855d5a438c464c2e71af16dfb79caca6a34c`까지 웹 배포와 비로그인 401 차단은 확인했다. 인증된 중앙 요약 읽기 · 첫 실제 등록 · 맥북 실사용은 아직 확인 전이다. CLI는 출처 누락을 보완한 `c5f17fdffdea3127fbba5df9847910a29d419caa` 또는 검수한 후속판이 필요하다. 원격 코드 존재를 맥북/김민 맥 수신으로 추정하지 않는다. 운영 사용 준비 항목은 `docs/reviews/review-evidence-registrar.md` 2절.
 - `http` 는 `localhost` · `127.0.0.1` · `[::1]` 과 포트가 있을 때만 받는다. 내 컴퓨터 주소는 시험용이다. 중앙 저장소를 쓰는 미리보기로 실제 등록하지 않는다(출시 전 코드로 중앙에 쓰게 된다).
 - 다른 컴퓨터(맥북)는 도구가 그 맥 저장소에 들어오고 서버가 배포된 뒤 운영 주소로만 쓴다. 그 전에 그 컴퓨터에서 등록했다고 하지 않는다.
 - 미리보기 서버가 `REVIEW_EVIDENCE_LOCAL_DIR` 로 떠 있으면 등록은 그 시험 폴더로 간다(`store: local-fixture`). **도구는 그것을 등록으로 치지 않는다** — register · withdraw · retry 는 `fixture-only` · 끝 번호 4 로 대기를 남기고(`--fixture-ok` 면 `fixture-saved` · 끝 번호 5 로 `fixture-receipts/` 에), import 는 그 묶음을 기록하지 않으며, audit 은 `fixture-only` · 끝 번호 4(`--fixture-ok` 면 `fixture-audited` · 끝 번호 5)로 등록 수를 0 으로 둔다. `login` · `status` 도 중앙이 아니면 알린다.

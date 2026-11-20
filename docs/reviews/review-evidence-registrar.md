@@ -1,6 +1,6 @@
 # 검수 근거 등록 운영 안내(EX-REF04 등록 도구)
 
-2026-11-20 · EX-REF04 R2 납품 후보. 03 운동영상 · 04 메커니즘 영상 검수에서 **실제로 쓴 출처**를 쓰는 그 순간 중앙 근거 목록(대표관리자 전용 `/admin/review-evidence`)에 남기는 절차다. 도구는 `scripts/review-evidence-registrar.mjs`, 기술 설명은 `lib/review-evidence/README.md`. 이 문서는 운영 절차이며 앱 배포 · DB 구조 변경 · 과거 기록 가져오기(import) · 검수 기록 형식 변경의 승인이 아니다. 각 파트의 체크포인트 반영은 03 · 04 담당이 정한다.
+2026-11-21 · EX-REF04 R2 코드 배포 뒤 운영 준비 안내. 03 운동영상 · 04 메커니즘 영상 검수에서 **실제로 쓴 출처**를 쓰는 그 순간 중앙 근거 목록(대표관리자 전용 `/admin/review-evidence`)에 남기는 절차다. 도구는 `scripts/review-evidence-registrar.mjs`, 기술 설명은 `lib/review-evidence/README.md`. 이 문서는 운영 절차이며 앱 배포 · DB 구조 변경 · 과거 기록 가져오기(import) · 검수 기록 형식 변경의 승인이 아니다. 각 파트의 체크포인트 반영은 03 · 04 담당이 정한다.
 
 ## 1. 무엇을 하나 · 검수 기록 공유와 다른 점
 
@@ -17,21 +17,25 @@
 
 ## 2. 출시 조건과 지금 상태
 
-**지금(2026-11-20)은 출시 전이다.** EX-REF04 R2 서버 코드(목록 GET 응답의 `apiVersion: 2`, 받음표의 `useState` · `applied` · `supersededBy`)는 운영에 배포되지 않았고 도구도 main 에 들어가지 않았다. 이 상태에서 운영 주소로 하는 등록은 이 맥의 대기열에만 남는다(`status: "pending"`, 끝 번호 4). 대기를 중앙 등록으로 적지 않는다.
+**2026-11-21 코드 배포는 완료됐다.** 최종 화면 개선 `e307855d5a438c464c2e71af16dfb79caca6a34c`까지 운영 웹 배포 성공, 비로그인 API 401 차단을 확인했다. 앱 업데이트 작업도 성공했다. 다만 대표관리자 로그인 뒤 중앙 목록 v2 읽기, 첫 실제 근거 등록과 맥북 실사용은 아직 확인하지 못했다. 코드 배포를 실제 중앙 자료 확인으로 바꾸어 적지 않는다. 로그인 전 로컬 대기(`pending`, 끝 번호 4)는 여전히 등록이 아니다.
 
-출시 확인 항목(모두 아직 확인 전, 출시 담당인 전체 총괄이 확인해 알린다):
+운영 준비 확인 항목(코드 배포와 비로그인 차단만 완료, 나머지는 아직 확인 전이다. 전체 총괄이 실제 확인 범위를 알린다):
 
-1. EX-REF04 R2 코드가 운영에 배포됨: 목록 · 요약 응답에 `apiVersion: 2` 가 있고, 등록 받음표에 `useState` · `applied` · `supersededBy` 가 있다.
+1. **코드 배포 완료.** 검수한 코드에는 목록 · 요약 `apiVersion: 2`, 받음표 `useState` · `applied` · `supersededBy` 가 있다. 인증된 운영 응답에서 이 칸을 실제 확인하는 일은 아래 읽기 · 첫 실제 사용 확인과 구분한다.
 2. 운영 저장소(Supabase)가 목록 v2(list-v2)를 지원함: 요약이 503 `reason: "unsupported"` 로 멈추지 않는다.
 3. 읽기만 하는 요약 확인: 대표관리자로 `GET https://dugout-baseball.com/api/admin/review-evidence?view=summary` 를 열어 `apiVersion` 2, R1 가져오기 3건이 보임(`counts.ops` 3, 그 사이 다른 실제 등록이 있었다면 그만큼 더), `skippedOps` 0, `foreignObjects` 0(아니면 까닭 설명).
 4. 첫 실제 등록 다시 읽기: 출시 뒤 실제로 쓴 출처 하나를 등록해 `registered` · `central` · `visible: true` · `useState: "active"` 를 받고, 관리자 화면이나 `audit` 으로 다시 보인다.
 5. 두 번째 맥(맥북)에서 실제 사용: 그 맥에서 도구를 받고 `login` · `register` · `audit` 을 해 본다. 한 컴퓨터 안의 두 상태 폴더 시험은 두 번째 맥 확인이 아니다.
 
-출시 알림 전에는:
+운영 사용 준비가 확인됐다는 알림 전에는:
 
 - `login` 하지 않는다. 운영 서버에 로그인 코드가 만들어질 수 있고, 근거 목록 확인 단계에서 실패해 세션을 저장하지 않는다.
 - 이 맥에 R2 도구가 있으면 `register --base https://dugout-baseball.com` 로 쓰는 순간 등록해 대기(`pending`, `error: "no-session"`)로 두고 `requestKey` 를 검수 기록에 적는다(5절 모양). 도구가 없는 맥은 인용 링크를 기록의 링크 칸에 그대로 남기고 쓴 곳 · 운동/드릴 번호도 적어 둔 뒤 출시 뒤 그 맥에서 `register` 한다.
 - 내 컴퓨터 미리보기 주소(`http://localhost:포트`)로 로그인해 실제 등록하지 않는다. 미리보기가 중앙 저장소를 쓰면 출시 전 코드로 중앙에 쓰게 되고, 시험 저장소를 쓰면 등록이 아니다.
+
+**도구 최소 수정판:** `c5f17fdffdea3127fbba5df9847910a29d419caa`의 출처 누락 보완 또는 그 뒤 검수를 통과한 판을 쓴다. 이 판의 `scripts/review-evidence-registrar.mjs` SHA256은 `5ef9fbe8e613db53c5d30d54fc287159b8fee188f5b94fe32417ab7c0e0cbf46`이다. 앞 판은 `|` · 역슬래시 · 꺾인 기호 · CJK 구두점 뒤 두 번째 출처를 빠뜨려 audit을 완료로 낼 수 있다. 맥북 · 김민 맥에서 실제로 이 수정판을 받은 뒤에만 audit 결과를 믿는다. 원격 main에 있는 것만으로 그 맥 수신 완료라 하지 않는다.
+
+운영 준비 확인에는 새 로그인 티켓이나 가짜 근거 등록을 만들지 않는다. 이미 승인된 관리자 로그인으로 기존 자료 요약을 읽는 범위만 확인하고, 첫 실제 등록은 정상 검수에서 실제로 쓴 출처를 기존 허가 범위 안에서 등록할 때 확인한다.
 
 도구 판 확인: `node "$R" --help`(끝 번호 64 로 쓰는 법을 보인다)의 끝 번호 줄에 `2 충돌 또는 더 새 상태에 밀림(superseded)` 와 `5 시험 저장소에만(--fixture-ok)` 가 둘 다 있으면 이 문서가 다루는 R2 판이다. `밀림` 이 없으면 더 새 상태(다른 맥의 거두기 · 되살리기)를 가리지 못하는 앞 판이니 저장소를 받은 뒤 쓴다. `audit` 에는 `--reviewer` 가 꼭 필요하다.
 
@@ -49,7 +53,7 @@ node "$R" status                                                      # 세션�
 - `status` · `login` · `register` · `withdraw` · `retry` · `pending` · `discard` · `check-url` 은 저장소 어느 폴더에서 실행해도 된다(상태 폴더는 도구가 든 저장소로 정해진다). **`audit` 의 `--records` 만은 지금 폴더 기준으로 읽는다.** 그래서 `receive` · `publish` 를 하는 그 checkout 안의 기록을 절대 경로로 준다(8절).
 - 상태 폴더(세션 · 대기열 · 받음표)는 도구가 든 저장소의 git 공통 폴더 안 `review-evidence-registrar-v1` 이다(같은 맥의 작업트리끼리 같이 쓴다). 같은 맥에서는 늘 같은 저장소의 도구를 쓴다. 다른 복제본의 도구를 쓰면 대기열이 갈린다. `REVIEW_EVIDENCE_STATE_DIR` 는 시험 전용이다.
 
-로그인(출시 알림 뒤, 맥마다 · 계정마다 한 번, 세션이 풀리면 다시):
+로그인(운영 사용 준비 알림 뒤, 맥마다 · 계정마다 한 번, 세션이 풀리면 다시):
 
 ```sh
 node "$R" login --base "$BASE"
@@ -58,7 +62,7 @@ node "$R" login --base "$BASE"
 - 표준 오류에 `주소: <BASE>/link/<코드>` 와 `코드` 가 나온다. **그 검수자 본인의 대표관리자 계정**으로 로그인한 브라우저에서 검수자 본인이 그 주소를 열고 2분 안에 승인한다(지나면 `login-timeout`, 끝 번호 4). 다른 사람 계정의 브라우저로 승인하면 그 사람 계정으로 등록된다.
 - 기기 승인을 쓸 수 없고 세션 값이 이미 보호된 파일(권한 600, 저장소 · 공유 폴더 밖)에 있을 때만: `node "$R" login --base "$BASE" --session-stdin < <그 파일>`. 세션 값을 채팅 · 명령 인자 · 화면 · 문서 · 검수 기록에 붙여 넣지 않는다.
 - 로그인 뒤 `node "$R" status` 로 끝 번호 0, `viewerLabel` 이 내 이름인지, `central` 이 `true`, `apiVersion` 이 2, `auditSupported` 가 `true` 인지 본다. 하나라도 아니면 등록 · audit 을 시작하지 않는다.
-- 저장한 세션 파일이 깨졌거나 바로가기면 모든 명령이 `session-unreadable`(끝 번호 4)로 멈추고 아무것도 보내거나 대기열에 넣지 않는다. `logout` 뒤 `login` 을 다시 한다(바로가기면 상태 폴더의 `session.json` 을 지운 뒤 `login`). 세션 값을 손으로 고치지 않는다.
+- 저장한 세션 파일이 깨졌거나 바로가기면 세션을 읽는 명령(`register` · `withdraw` · `retry` · `status` · `audit` · `import`)이 `session-unreadable`(끝 번호 4)로 멈추고 아무것도 보내거나 대기열에 넣지 않는다. 세션을 읽지 않는 `pending` · `discard` · `check-url` · `logout` 은 그대로 돈다. `logout` 뒤 `login` 을 다시 한다(바로가기면 상태 폴더의 `session.json` 을 지운 뒤 `login`). 세션 값을 손으로 고치지 않는다.
 
 ## 4. 쓰는 순간 등록하기
 
@@ -94,7 +98,7 @@ node "$R" register --base "$BASE" --url '<https 링크>' --domain mechanics --re
   --item <drill_id> --purpose cue --consulted today --application '큐 문장을 이 자료의 순서 설명에 맞췄어요.'
 ```
 
-출력은 표준 출력 JSON 한 줄이다(아래는 보기 좋게 나눔). **출시 전 · 로그인 전**에 위 운동 예를 지어낸 값으로 실행한 실제 출력(서버에 닿지 않음):
+출력은 표준 출력 JSON 한 줄이다(아래는 보기 좋게 나눔). **코드 배포 전(2026-11-20) · 로그인 전**에 위 운동 예를 지어낸 값으로 실행한 실제 출력(서버에 닿지 않음):
 
 ```json
 {
@@ -220,7 +224,8 @@ node "$R" retry --max 20
   - `superseded`: 같은 쓰임의 더 새 대기가 있다. 그 줄의 `supersededBy`(새 요청 번호)의 결과를 기록에 적는다.
   - `superseded-central`(시험이면 `superseded-fixture`): 중앙의 더 새 상태에 밀렸다(`serverSupersededBy`, 11절).
   - `conflict` · `invalid`: 값을 고쳐 다시 `register`.
-  - `rejected[]` 에도 없으면 같은 값으로 `register` 를 한 번 더 한다. 이 맥에서 이미 들어간 요청이면 `already-registered` 와 받음표가 나온다.
+  - `rejected[]` 에도 없으면 먼저 `node "$R" audit --records <그 기록 파일> --domain <분야> --reviewer <검수자> --review <review_id>`(8절)로 그 링크가 중앙에 있는지 본다. **그 링크가 출력의 `missing[]` 에 있을 때만**(상태가 `missing` 이든 `incomplete` 이든) 기록에 적힌 같은 값으로 `register` 를 한 번 더 한다. `missing[]` 에 없고 상태가 `incomplete` 면 먼저 `skipped` · `ignored` 를 풀고(8절) audit 을 다시 한다. 이미 등록돼 있으면 다시 보내지 않고 기록만 받음표 대로 고친다.
+  - 그 사이 이 맥에서 같은 쓰임을 고쳤거나(적용 · 한계 등) 거뒀다면 옛 값으로 다시 `register` 하지 않는다. 도구가 새 쓴 시각으로 보내므로 옛 값이 가장 새 고침이 되어 뒤의 고침을 되돌리거나 거둔 쓰임을 되살린다.
   - 어느 쪽이든 인계 전 audit(8절)으로 다시 확인한다.
 - `no-session` 이거나 결과에 `unauthenticated`(401)가 있으면 `login` 을 다시 하고 `retry` 를 한 번 더 한다. 대기는 지워지지 않는다.
 - 출시 전 · 로그인 전에는 `status` 가 끝 번호 4 · `ok: false` 로, `retry` 는 대기가 있으면 `no-session`(4), 없으면 `empty`(0)로 끝나는 것이 정상이다.
@@ -272,7 +277,7 @@ node "$R" audit --records "$TOP/docs/reviews/handoff/mechanics/yunho/video-recor
 - 다른 맥에서: `receive` 로 기록을 받고 그 맥에서 `login`(이미 했으면 `status`)한 뒤, 기록에 적힌 같은 값으로 다시 `register` 한다: 같은 계정 · 분야 · `review_id` · `item_id`(`null` 이면 `--item` 을 뺀다) · `purpose` · 링크. 서버가 같은 쓰임으로 묶어 쓰임이 둘로 늘지 않는다(기록이 하나 더 쌓일 수는 있다). 적용 · 한계 · 읽은 범위 · 확인일은 그 맥에서 실제로 아는 만큼 적는다(같은 쓰임의 고침으로 겹친다, 11절). 받음표로 기록을 고친다.
 - **기록에 `purpose` 나 `item_id` 가 없으면 짐작해 등록하지 않는다.** 쓴 곳 · 번호가 다르면 다른 쓰임이 되어 같은 검수자의 쓰임이 둘로 는다. 처음 맥에서 `retry` 하거나, 처음 맥에서 그 값을 기록에 적어 `publish` 한 뒤에 한다.
 - 처음 맥으로 돌아오면 `pending` 으로 남은 대기를 보고 `retry` 하거나, 다른 맥에서 이미 등록했으면 `discard` 한다(그 줄은 다른 맥의 받음표로 `registered` 로 고친다). `retry` 해도 같은 쓰임으로 겹치고, 늦게 보낸 옛 내용이 더 새 내용을 덮지 않는다.
-- 그 사이 다른 맥에서 그 쓰임을 거뒀다면: 처음 맥의 옛 대기는 `retry` 때 `superseded` 로 `rejected/` 에 옮겨진다(끝 번호 0, 7절). 처음 맥에서 같은 내용을 직접 다시 `register` 하면 도구가 새 쓴 시각으로 한 번 다시 보내 되살린다(`refreshed: true`). 거둔 것이 맞으면 되살리지 않는다.
+- 그 사이 다른 맥에서 그 쓰임을 거뒀다면: 처음 맥의 옛 대기는 `retry` 때 `superseded` 로 `rejected/` 에 옮겨진다(끝 번호 0, 7절). 처음 맥에서 같은 내용을 직접 다시 `register` 하면 도구가 새 쓴 시각으로 보내 되살린다(옛 요청이 아직 대기열에 남아 있었으면 `refreshed: true`, 이미 `retry` 로 `rejected/` 에 옮겨졌으면 처음부터 새 시각이라 `refreshed: false`). 거둔 것이 맞으면 되살리지 않는다.
 - 받음표에 `useState` · `applied` · `supersededBy` 가 없는 옛 서버에서는 다른 맥의 거두기 · 되살리기를 가리지 못한다(같은 맥 안의 거두기 뒤 다시 등록은 가린다). 출시 확인 1번이 이것을 본다.
 - 실제 두 번째 맥에서 이 순서를 해 본 적은 아직 없다(2절 5번).
 
@@ -311,7 +316,7 @@ node "$R" audit --records "$TOP/docs/reviews/handoff/mechanics/yunho/video-recor
 
 | 나타나는 것 | 뜻 | 할 일 |
 | --- | --- | --- |
-| audit `server-too-old`(4) | 서버 목록 판이 2 밑. R2 서버 코드가 아직 운영에 없음 | 출시를 기다린다. 빠진 등록으로 보지 않는다 |
+| audit `server-too-old`(4) | 서버 목록 판이 2 밑. R2 서버 코드가 아직 운영에 없음 | 접속 주소와 배포 판을 전체 총괄에 확인한다. 빠진 등록으로 보지 않는다 |
 | audit `invalid`(3) '--records 파일을 읽지 못했거나 …' | 경로가 지금 폴더 기준으로 틀렸거나 JSON 이 아님 | 8절처럼 그 checkout 의 기록 절대 경로로 다시 |
 | 메시지 '서버 저장소가 목록 v2(list-v2)를 지원하지 않아 …' | 운영 저장소 준비 조건 미충족. 다시 해도 풀리지 않음 | 대기로 두고 출시 담당에게 알린다 |
 | `unavailable` · `error` 가 `unavailable` · `http_5xx` · `pending` | 저장소에 잠시 닿지 못했거나 목록이 중간에 어긋남 | 대기로 두고 조금 뒤 `retry` 한 번 |
