@@ -60,6 +60,8 @@ export const COACH_LIMITS = [
  * 예전엔 30분도 있었는데 엔진이 45분으로 올려 만들어 코치 화면('운동 30분')과 실제 운동이 어긋났다(2026-11-03 검토).
  */
 export const COACH_MINUTES = [45, 60, 75, 90] as const;
+/** 컨디셔닝 날의 가장 긴 시간 — 엔진 컨디셔닝 선택지의 위 끝(theme.ts CONDITIONING_MINUTES, coach:test 가 견줌). 칸 글이 실제로 짤 시간을 보이게 */
+export const COACH_CONDITIONING_MAX = 75;
 
 /** 옛 답 · 옛 칸의 시간(20 · 30분 등)을 지금 선택지로 — 가장 가까운 값, 짧은 쪽은 올린다(theme.ts nearestMinutesChoice 와 같은 뜻) */
 export function coachMinutes(m: number): number {
@@ -143,6 +145,7 @@ export const REASON_TEXT: Record<ReasonCode, string> = {
   moved: '옮긴 날',
   busy: '바쁜 주라 줄임',
   limit: '피할 동작',
+  stamina: '체력 날',
 };
 
 /** 건강정보인 까닭(팔 통증 · 피할 동작) — 건강 동의가 없으면 AI 에 안 보낸다. 지난 날 칸은 동의가 있던 때 짠 까닭을 그대로 들고 있다(2026-11-19 검토) */
@@ -160,9 +163,9 @@ function itemText(x: SlotItem, cut = false): string {
        * 엔진이 그날 시간을 줄이는 칸(slot.cut — 오늘 칸만, lib/coach/refresh.ts withTodayCut)은 '60분 → 45분'으로 실제 시간을 보인다(2026-11-16).
        * 저장값(fence.minutes)은 줄이기 전 시간 그대로다(바꾸면 두 번 줄어든다 · 시간 바꾸기 단추가 그 값을 고른다).
        */
-      const m = coachMinutes(x.fence.minutes);
+      const m = x.fence.conditioning ? Math.min(coachMinutes(x.fence.minutes), COACH_CONDITIONING_MAX) : coachMinutes(x.fence.minutes);
       const shown = cut && shortenedMinutes(m) < m ? `${m}분 → ${shortenedMinutes(m)}분` : `${m}분`;
-      return `운동 ${shown}${x.fence.light ? ' · 가볍게' : x.fence.heavyLower ? ' · 하체 무겁게' : ''}`;
+      return `${x.fence.conditioning ? '컨디셔닝' : '운동'} ${shown}${x.fence.light ? ' · 가볍게' : x.fence.heavyLower ? ' · 하체 무겁게' : ''}`;
     }
     case 'program':
       return x.heavyLower ? '프로그램 · 하체 무겁게' : '프로그램';

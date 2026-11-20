@@ -12,8 +12,8 @@ import { slotStateOf, startsOf } from '@/lib/coach/status';
 import { applyAdjust, readAdjust, ADJUST_MINUTES } from '@/lib/coach/adjust';
 import { limitedBy } from '@/lib/coach/limits';
 import { FOLLOWUP_NEXT, followupAskOf, followupLine, followupReasonText, readFollowupWhy } from '@/lib/coach/followup';
-import { COACH_MINUTES, coachMinutes } from '@/lib/coach/answers';
-import { minutesChoicesFor } from '@/lib/report/theme';
+import { COACH_CONDITIONING_MAX, COACH_MINUTES, coachMinutes } from '@/lib/coach/answers';
+import { CONDITIONING_GOAL, minutesChoicesFor } from '@/lib/report/theme';
 import { buildReview, reviewWeekOf } from '@/lib/coach/review';
 import { dayRuleOf, planWeek, suggestProgram, weekdayOf, type CoachAnswers, type DaySlot, type WeekInput, type Weekday } from '@/lib/coach/week';
 import { applyWeekAsk, askWeekStart, mergePicks, prefillPicks, readWeekPicks, weekAskFor, weekAskOutings, withWeekAsk, WEEK_ASK_OUTING_TITLE, type WeekAsk } from '@/lib/coach/week-ask';
@@ -564,6 +564,21 @@ check('⑤ 쉬는 날 · 팀 훈련 → 시작 없음', startsOf(slotOf(T, [{ ki
     const r = applyAdjust(wk, { kind: 'move', from: mechDay.date, to: eveDay.date }, () => false);
     check('⑨ 등판 전날로도 메커니즘을 옮기지 않는다', 'error' in r || !r.week[0].items.some((i) => i.kind === 'mechanics'), JSON.stringify(r));
   }
+}
+
+/* ─────────── ⑩ 체력 우선순위 — 운동 날 하나를 컨디셔닝 날로(2026-11-21) ─────────── */
+{
+  const cond = (w: DaySlot[]) => w.filter((s) => s.items.some((x) => x.kind === 'train' && x.fence.conditioning));
+  const w = planWeek(input({ priority: 'stamina', answers: answers({ minutes: 90 }) }));
+  const c = cond(w);
+  check('⑩ 체력이면 운동 날 둘 넘는 주에 컨디셔닝 날 하나 · 까닭 체력 날 · 큰 하체 없음', workouts(w).length >= 2 && c.length === 1 && c[0].reasons.includes('stamina') && !heavy(c[0]), JSON.stringify(w.map((s) => [s.date, kinds(s), s.reasons])));
+  check('⑩ 컨디셔닝 칸 글은 실제로 짤 시간(엔진 컨디셔닝 위 끝)', !!c[0] && slotLine(c[0]).startsWith(`컨디셔닝 ${COACH_CONDITIONING_MAX}분`) && COACH_CONDITIONING_MAX === Math.max(...minutesChoicesFor(CONDITIONING_GOAL)), c[0] ? slotLine(c[0]) : '');
+  const others = (['velocity', 'control', 'health', null] as const).every((p) => cond(planWeek(input({ priority: p }))).length === 0);
+  check('⑩ 다른 우선순위 · 없음은 계획이 그대로(컨디셔닝 날 없음)', others && JSON.stringify(planWeek(input({ priority: 'health' }))) === JSON.stringify(planWeek(input())));
+  check('⑩ 프로그램 주 · 운동 날이 하나뿐인 주에는 안 바꾼다', cond(planWeek(input({ priority: 'stamina', program: { perWeek: 3 } }))).length === 0 && cond(planWeek(input({ priority: 'stamina', answers: answers({ days: [2] }) }))).length === 0);
+  const later = shiftDateKey(MON, 3);
+  const again = planWeek(input({ priority: 'stamina', today: later, prev: w }));
+  check('⑩ 다시 맞춰도 한 주에 하나(지난 날에 이미 있으면 더 안 만든다)', cond(again).length === 1, JSON.stringify(cond(again).map((s) => s.date)));
 }
 
 console.log(`coach: ${pass}개 통과${fails.length ? `, ${fails.length}개 실패` : ''} (불변 입력 ${n}가지)`);

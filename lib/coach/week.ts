@@ -2,7 +2,7 @@ import { STRENGTH_PER_WEEK } from '@/lib/armcare/routine';
 import { DAY_RULE_RANK, FAR_OUTING_MIN_DAYS, type DayRank, type DayRule } from '@/lib/engine/microcycle';
 import { shiftDateKey } from '@/lib/pitch-stats';
 import { HEAVY_LOWER_BLOCK_WITHIN_DAYS } from '@/lib/report/prescription';
-import type { CoachLimit } from '@/lib/coach/answers';
+import type { CoachLimit, CoachPriority } from '@/lib/coach/answers';
 import type { FollowupAnswer } from '@/lib/coach/followup';
 import {
   BASICS_REQUIRED_EQUIPMENT,
@@ -54,6 +54,8 @@ export type TrainFence = {
   heavyLower: boolean;
   /** 등판 전날 · 짐작한 등판 무렵 — 무게 없이 보조로(엔진 rank 'light') */
   light: boolean;
+  /** 체력 우선순위의 컨디셔닝 날 — 그날 운동 만들기가 목표를 컨디셔닝으로 짠다(무게 · 파워 없이 가동성 · 코어 · 보강 · 유산소). 옛 칸에는 없다 */
+  conditioning?: true;
 };
 
 export type SlotItem =
@@ -78,6 +80,8 @@ export type ReasonCode =
   | 'game'
   | 'team-practice'
   | 'lesson'
+  /* 체력 우선순위의 컨디셔닝 날(2026-11-21) */
+  | 'stamina'
   | 'not-available'
   | 'rest'
   | 'lower-yesterday'
@@ -143,6 +147,8 @@ export type WeekInput = {
   limits?: readonly CoachLimit[];
   /** 진행 중 메커니즘 프로그램의 주당 세션 */
   mechanics: { perWeek: number } | null;
+  /** 코치 질문의 우선순위(U30) — 'stamina' 면 운동 날 하나를 컨디셔닝 날로. 그 밖은 계획이 같다(구속은 프로그램 제안 차례만, suggestProgram) */
+  priority?: CoachPriority | null;
   /** 다시 맞출 때 지난 계획 — 오늘 앞 날 · 사용자가 가져간 날 · 조정한 날 · 시작한 오늘은 그대로(U24 · U35 · U38) */
   prev?: readonly DaySlot[] | null;
   /** 오늘 엔진 판정(lib/coach/refresh.ts weekInputOf) — 있으면 오늘 칸을 그것과 맞춘다(withEngineToday). 날마다 바뀌어 지문에는 안 넣는다 */
@@ -173,9 +179,9 @@ export function withEngineToday(p: DayVerdict, e: EngineToday): DayVerdict {
 /**
  * 계획기 규칙의 판 — 규칙을 바꾸면 올린다. 지문(lib/coach/refresh.ts weekKey)에 들어가 저장된 주 틀을 한 번 다시 짠다(지난 날 · 사용자 칸 ·
  * 조정 칸은 prev 로 그대로). 예전에는 입력이 같으면 옛 규칙이 지은 칸(예: 11-16 전의 등판 다음 날 '쉬기')이 남았다(2026-11-17 검토 [19]).
- * 2 — 등판 다음 날은 운동 날(2026-11-16) · 오늘 칸 = 엔진 판정(2026-11-17).
+ * 2 — 등판 다음 날은 운동 날(2026-11-16) · 오늘 칸 = 엔진 판정(2026-11-17). 3 — 체력 우선순위의 컨디셔닝 날(2026-11-21).
  */
-export const PLAN_VERSION = 2;
+export const PLAN_VERSION = 3;
 
 /** 경력별 기본 주당 운동 횟수(평소 횟수를 모를 때) */
 const LEVEL_FREQ: Record<string, number> = { 입문: 2, 초급: 3, 중급: 3, 상급: 4 };
@@ -357,6 +363,24 @@ export function planWeek(input: WeekInput): DaySlot[] {
     if (cur.kind === 'train') cur.fence.heavyLower = false;
     else if (cur.kind === 'program') cur.heavyLower = false;
     if (i > 0 && heavyOfSlot(slots[i - 1])) slots[i].reasons.push('lower-yesterday');
+  }
+
+  /*
+   * 체력 우선순위(2026-11-21 김민) — 운동 날이 둘 넘는 주에 하루를 컨디셔닝 날로. 엔진에 원래 있는 운동 목표라 더 가벼운 쪽으로만 바뀐다(무게 · 파워를
+   * 빼고 가동성 · 코어 · 보강 · 유산소). 보조 날(등판 무렵) → 큰 하체 없는 날 → 큰 하체 날, 같으면 늦은 날. 그대로 둔 칸에 이미 있으면 더 안 만든다.
+   * 프로그램 날은 프로그램이 정해서 건드리지 않는다.
+   */
+  if (input.priority === 'stamina' && !input.program) {
+    const trains = slots.filter((s) => s.items.some((x) => x.kind === 'train'));
+    const isCond = (s: DaySlot) => s.items.some((x) => x.kind === 'train' && x.fence.conditioning);
+    const open = trains.filter((s) => !kept.has(dates.indexOf(s.date)));
+    const rankOf = (s: DaySlot) => (s.rank === 'light' ? 0 : heavyOfSlot(s) ? 2 : 1);
+    const pick = [...open].sort((a, b) => rankOf(a) - rankOf(b) || (a.date < b.date ? 1 : -1))[0];
+    if (pick && trains.length >= 2 && !trains.some(isCond)) {
+      const t = pick.items.find((x) => x.kind === 'train');
+      if (t?.kind === 'train') t.fence = { ...t.fence, heavyLower: false, conditioning: true };
+      pick.reasons.push('stamina');
+    }
   }
 
   /* 암케어 제안(U23) — 던져서 쉬는 날(등판 날 · 오늘 세게 던짐 · 힘듦 급증) · 다음 날은 회복, 강화는 주 STRENGTH_PER_WEEK 번 · 이어서 안 함 · 통증이면 빼고. '제안'이라 안 해도 못 함이 아니다 */

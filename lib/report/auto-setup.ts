@@ -199,6 +199,7 @@ export function decideAutoFence({
   lastLowerKey,
   lastUpperKey,
   weeklyCap = null,
+  coachConditioning = false,
 }: {
   facts: ReportFacts;
   plan: PitchPlan;
@@ -212,6 +213,11 @@ export function decideAutoFence({
    * 기본 시간이 이보다 길면 이 밑으로 누른다(2판 P5-f). 없으면(null · 안 줌) 누르지 않는다 — 지난주 일정이 없는 사람 · 옛 시험.
    */
   weeklyCap?: number | null;
+  /**
+   * 코치의 체력 날(체력 우선순위, lib/coach/week.ts) — 몸 상태 · 체크인에서 고른 운동이 목표를 정하지 않은 근력 날이면 컨디셔닝으로(무게 · 파워를 빼는
+   * 더 가벼운 쪽이라 안전 판정은 그대로). 안 주면 예전과 같다.
+   */
+  coachConditioning?: boolean;
 }): AutoFence {
   /* 목표마다 오늘 시간의 바탕 — 아래의 '실제로 줄어드는가' 검사와 시간 목록이 같은 값을 본다(위 끝으로 누른 뒤의 값) */
   const baseOf = (goal: string) => baseMinutesFor(goal, defaultMinutes, weeklyCap);
@@ -327,6 +333,11 @@ export function decideAutoFence({
      */
     fixedGoal = preferred === '파워' ? POWER_GOAL : STRENGTH_GOAL;
     rules.push(`체크인에서 ${preferred} 운동을 고르셔서 → ${fixedGoal}`);
+  }
+
+  if (coachConditioning && fixedGoal == null) {
+    fixedGoal = CONDITIONING_GOAL;
+    rules.push(`코치 계획의 체력 날 → 목표는 ${CONDITIONING_GOAL}`);
   }
 
   if (engineShort) {

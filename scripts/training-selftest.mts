@@ -4072,6 +4072,18 @@ console.log('\n[자동 맞춤] 규칙이 울타리를 치고 초안을 내는가
   );
   check('신호가 없으면 초안은 기본 목표(근력 향상)', plain.draft.goal === DEFAULT_GOAL);
 
+  /* 코치의 체력 날(2026-11-21) — 목표를 안 정한 근력 날만 컨디셔닝, 체크인에서 고른 운동이 이긴다 */
+  const coachFence = (facts: ReturnType<typeof buildFacts>) =>
+    decideAutoFence({ facts, plan: buildPitchPlan(facts), workout: signals(), defaultMinutes: 90, lastLowerKey: null, lastUpperKey: null, coachConditioning: true });
+  const coachPlain = coachFence(factsWith({}));
+  check(
+    '코치 체력 날 → 컨디셔닝(시간은 컨디셔닝 위 끝 안)',
+    coachPlain.fixedGoal === CONDITIONING_GOAL && coachPlain.draft.goal === CONDITIONING_GOAL && coachPlain.draft.minutes <= Math.max(...minutesChoicesFor(CONDITIONING_GOAL)) && coachPlain.rules.some((r) => r.includes('체력 날')),
+    JSON.stringify(coachPlain.draft)
+  );
+  const coachWants = coachFence(factsWith({ wants: '웨이트' }));
+  check('코치 체력 날이어도 체크인에서 웨이트를 고르면 그 뜻대로', coachWants.draft.goal !== CONDITIONING_GOAL, JSON.stringify(coachWants.draft));
+
   /*
    * 등판 다음 날(2026-11-16 검토) — 어제 38구 × 90%(3,420)는 세게 던진 날. 화면은 자동 맞춤 이유를 일정 까닭보다 먼저 보여서, 이 글이 등판 다음
    * 날과 실제 시간(일정 만들기가 ×0.75 로 줄인 45분)을 말해야 한다. 예전: '특별히 바꿀 신호가 없어 … 시간은 60분이에요.'
@@ -24054,8 +24066,8 @@ console.log(
     );
     check(
       'P5 주당 (마) 위 끝은 자동 맞춤에만 — 일정 만들기는 2주 기록을 통째로 decideAutoSetup 에 넘기고, 그 안의 decideAutoFence 만 weeklyCap 을 받는다(직접 고르기의 buildDailyPlan 은 안 받음)',
-      /* 코치 진행 중이면 그날 칸의 분을 기본 시간으로 넘긴다(2026-11-01 유료 코치 C4 — 2주 기록을 통째로 넘기는 짝은 그대로) */
-      /decideAutoSetup\(\{ user, facts, plan, today, strengthDates(, coachMinutes: coachMinutesOf\(coachSlot\))? \}\)/.test(setup) &&
+      /* 코치 진행 중이면 그날 칸의 분을 기본 시간으로 넘긴다(2026-11-01 유료 코치 C4 — 2주 기록을 통째로 넘기는 짝은 그대로) · 체력 날(2026-11-21) */
+      /decideAutoSetup\(\{ user, facts, plan, today, strengthDates(, coachMinutes: coachMinutesOf\(coachSlot\)(, coachConditioning: coachConditioningOf\(coachSlot\))?)? \}\)/.test(setup) &&
         /strengthDates: StrengthHistory;/.test(setup) &&
         /weeklyCap: strengthDates\.weeklyMinutesCap,/.test(setup) &&
         setup.split('weeklyMinutesCap').length - 1 === 1 &&

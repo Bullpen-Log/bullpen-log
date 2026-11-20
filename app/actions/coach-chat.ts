@@ -30,7 +30,7 @@ import { pickWorkoutKind } from '@/lib/checkin';
 import { saveTrainingPrefs } from '@/app/actions/day-cards';
 import { addToTodayPlan, removeFromTodayPlan } from '@/app/actions/plan-edit';
 import { applyCoachAdjust } from '@/app/actions/coach';
-import { COACH_LIMITS, WEEKDAY_LABELS, reasonTextsFor, savedOf, slotLine } from '@/lib/coach/answers';
+import { COACH_LIMITS, COACH_PRIORITIES, COACH_ROLES, WEEKDAY_LABELS, reasonTextsFor, savedOf, slotLine } from '@/lib/coach/answers';
 import { slotProgressOf, slotStateOf } from '@/lib/coach/status';
 import { followupReasonText } from '@/lib/coach/followup';
 import { coachWeekBase } from '@/lib/coach/today';
@@ -251,8 +251,9 @@ async function contextOf(
   const ctx: CoachAiContext = {
     today,
     ageBand: ageBandOf(age),
-    role: saved.role ?? null,
-    priority: saved.priority ?? null,
+    /* 코드값(starter · velocity)이 아니라 우리말 — 답에 'velocity' 가 새면 scrubCodes 가 '구속 측정'으로 바꿔 뜻이 틀어졌다(2026-11-21 검토) */
+    role: COACH_ROLES.find((o) => o.value === saved.role)?.label ?? null,
+    priority: COACH_PRIORITIES.find((o) => o.value === saved.priority)?.label ?? null,
     nextOutingInDays: daysTo,
     signals,
     outingAnswer: checkin?.throwPlan ?? null,

@@ -12,7 +12,7 @@ import { featureLocks } from '@/lib/feature-locks';
 import { ageOn } from '@/lib/nutrition/targets';
 import { hasFinishedBasics } from '@/lib/program/load';
 import { toDateKey } from '@/lib/pitch-stats';
-import { coachMinutesOf, pushBackDiscomfort, takeDayFromCoach } from '@/lib/coach/today';
+import { coachConditioningOf, coachMinutesOf, pushBackDiscomfort, takeDayFromCoach } from '@/lib/coach/today';
 import { currentCoachWeek } from '@/lib/coach/refresh';
 import { limitedBy } from '@/lib/coach/limits';
 import { pickMany } from '@/lib/exercise-meta';
@@ -427,7 +427,7 @@ export async function generateTodayPlan(formData: FormData) {
   /* 프로그램 날은 목표 · 시간을 정할 것이 없다(그날 운동은 프로그램이 정했다) — 자동 맞춤의 까닭이 프로그램 날 글을 가리지 않게 안 부른다 */
   const made =
     auto && !programToday && (!plan.halted || plan.rehab)
-      ? await decideAutoSetup({ user, facts, plan, today, strengthDates, coachMinutes: coachMinutesOf(coachSlot) })
+      ? await decideAutoSetup({ user, facts, plan, today, strengthDates, coachMinutes: coachMinutesOf(coachSlot), coachConditioning: coachConditioningOf(coachSlot) })
       : null;
   const choice: {
     goal: string | null;
@@ -618,6 +618,7 @@ async function decideAutoSetup({
   today,
   strengthDates,
   coachMinutes = null,
+  coachConditioning = false,
 }: {
   user: {
     id: string;
@@ -630,6 +631,8 @@ async function decideAutoSetup({
   strengthDates: StrengthHistory;
   /** 코치 칸의 분 — 있으면 저장해 둔 기본 시간 대신 이것이 바탕(넘지 않고 줄이기만) */
   coachMinutes?: number | null;
+  /** 코치의 체력 날 — 몸 상태 · 고른 운동이 목표를 안 정한 근력 날이면 컨디셔닝(lib/report/auto-setup.ts) */
+  coachConditioning?: boolean;
 }): Promise<AutoRecord> {
   const workout = await trainingLoad(user, today);
   const fence = decideAutoFence({
@@ -640,6 +643,7 @@ async function decideAutoSetup({
     lastLowerKey: strengthDates.lower,
     lastUpperKey: strengthDates.upper,
     weeklyCap: strengthDates.weeklyMinutesCap,
+    coachConditioning,
   });
   return { ...fence.draft, by: 'rules', rules: coachMinutes != null ? [`코치 계획 ${coachMinutes}분`, ...fence.rules] : fence.rules };
 }

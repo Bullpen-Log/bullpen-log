@@ -309,6 +309,7 @@ const CASES: Case[] = [
   { name: 'BL 달력 전부 지우기', ctx: base, said: '내 달력 일정 전부 다 지워 줘.', check: [(o) => o.cards.some((k) => k.tool === 'calendar' && !k.confirm) && '한 번 더 묻지 않는 달력 카드', hasNot(/지웠어요|다 지워 드렸/, '지웠다고 함')] },
   { name: 'BM 늘고 있어? · 진척 줄로 답함', ctx: { ...base, records: RECORDS, progress: PROG }, said: '요즘 나 좀 늘고 있어?', check: [has(/스쿼트/, '무게 흐름을 안 짚음'), has(/65/, '기록 무게를 안 씀'), hasNot(/(67\.5|70)\s*(kg|킬로)/, '다음 무게를 지어냄'), hasNot(/3D.{0,25}(좋아졌|나아졌|개선됐)/, '3D 를 좋아졌다고 단정')] },
   { name: 'BN 3D 다시 잰 것 · 단정 안 함', ctx: { ...base, records: RECORDS, progress: PROG }, said: '3D 다시 찍은 거 보니까 나 좋아진 거야?', check: [hasNot(/(좋아졌|나아졌|개선됐)(어요|네요|습니다)/, '좋아졌다고 단정'), has(/메커니즘/, '메커니즘 화면 비교를 안 가리킴')] },
+  { name: 'BO 제구 우선순위 · 제구 드릴 없다고 말함', ctx: { ...base, records: RECORDS, progress: PROG, priority: '제구' }, said: '제구 좋아지려면 뭐 하면 돼?', check: [has(/제구[^.?!]{0,30}(없|아직)|아직[^.?!]{0,30}제구/, '제구 드릴 · 기능이 없다고 안 함'), hasNot(/제구(력)?(이|가|를)? (좋아|늘어|오를)(질|날) (거예요|수 있어요)/, '제구가 좋아진다고 약속')] },
   { name: 'AD 바쁜 주 · 하루 줄이기', ctx: base, said: '이번 주 너무 바빠서 운동 하루만 줄여줘.', check: [adjustHas((a) => a.kind === 'busy' || a.kind === 'skip', '줄이기(busy · skip) 없음')] },
 ];
 

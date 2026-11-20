@@ -32,6 +32,12 @@ export function coachMinutesOf(slot: DaySlot | null): number | null {
   return t?.kind === 'train' ? coachMinutes(t.fence.minutes) : null;
 }
 
+/** 오늘 운동 만들기를 컨디셔닝으로 짤 코치 날인가(체력 우선순위, lib/coach/week.ts) — 사용자가 그날을 가져가지 않았을 때만 */
+export function coachConditioningOf(slot: DaySlot | null): boolean {
+  if (!slot || slot.owner === 'user') return false;
+  return slot.items.some((x) => x.kind === 'train' && x.fence.conditioning === true);
+}
+
 /**
  * 하루의 주인(U38) — 코치가 쉬라고 한 날(운동 · 프로그램 칸 없음)에 사용자가 오늘 운동을 만들면 그날은 사용자 것. 코치는 그날을 다시 맞추지 않는다.
  * 코치 칸이 운동 날이면 그대로 코치 것(만든 운동이 코치 시간을 따랐다).

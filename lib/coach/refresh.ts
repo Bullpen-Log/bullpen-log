@@ -71,6 +71,7 @@ export async function weekInputOf(user: CoachUser, saved: CoachSaved, healthOk: 
     program: program ? { perWeek: parseProgram(program.programKey)?.perWeek ?? 3 } : null,
     /* ponytail: 메커니즘 프로그램엔 주당 횟수 칸이 없다 — 주 2번으로 둔다(12세션 순서는 날짜 의무가 아님), 칸이 생기면 그것으로 */
     mechanics: mechanics ? { perWeek: 2 } : null,
+    priority: saved.priority ?? null,
     todayKind: { rule: dk.rule, afterOuting: dk.afterOuting, heavyLower: dk.heavyLowerAllowed },
   };
 }

@@ -678,7 +678,7 @@ check('⑩ 답 글에 샌 칸 이름은 우리말로(조사도)', scrubCodes('�
 /* ㉑ '제구' 숨김(2026-11-21) — 시작 질문에 안 보이지만 옛 앱 · 저장된 답의 'control' 은 그대로 받는다 */
 check(
   "㉑ 시작 질문 선택지에 '제구' 없음 · 서버는 옛 답 'control' 을 받음",
-  !COACH_PRIORITY_CHOICES.some((p) => p.value === 'control') && COACH_PRIORITY_CHOICES.length === 3 && mergeStep({}, 'goal', { priority: 'control' }, true)?.priority === 'control'
+  !COACH_PRIORITY_CHOICES.some((p) => (p.value as string) === 'control') && COACH_PRIORITY_CHOICES.length === 3 && mergeStep({}, 'goal', { priority: 'control' }, true)?.priority === 'control'
 );
 
 console.log(`coach-ai: ${pass}개 통과${fails.length ? `, ${fails.length}개 실패` : ''}`);
