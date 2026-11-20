@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "work_order": "REVIEW-SYNC-20261111",
-  "exported_at_utc": "2026-11-13T05:49:18.948143+00:00",
+  "exported_at_utc": "2026-11-20T12:39:42.335305+00:00",
   "original_json_last_modified_utc": "2026-11-09T17:21:25.150484+00:00",
   "timestamp_caution": "파일 mtime는 운영체제 메타데이터 원문. 대화의 클라이언트 날짜와 불일치하므로 실제 검수일로 환산/추정하지 않음. 마지막 사람 판정은 아래 대화 순서로 식별.",
   "original_sha256": "75ab50c05de1c93042903a0c5b5c7a055650efdc6849e23d1276635f31a27743",
@@ -761,10 +761,7 @@
   "all_future_review_standards": "docs/reviews/handoff/exercise/yunho/MACBOOK-REVIEW-STANDARDS-2026-11-14.md: 사용자 확정, 기존 지시와 함께 매 영상 동일 적용. 현재 P022 유지.",
   "reporting_preference": "Show before and after of each change and distinguish previous sessions from current edits.",
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
-  "latest_resume": {
-    "current": "EX-Y-P-PINSPLIT-6e4874d3",
-    "status": "사용자 확인: 반복마다 바벨을 안전바에 내려놓고 멈춘 뒤 강하고 빠르게 일어남. 설명에 반영 저장, 사용자 확인 대기."
-  },
+  "latest_resume": "핀 스플릿 스쿼트: 매 반복 강하고 빠르게 일어나는 목적, 속도 저하 시 중단, 적절한 무게 안내를 저장하고 상세 화면 확인. 사용자 확인 대기. 다음 영상은 사용자 지시 후.",
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
     "guide": "docs/reviews/handoff/exercise/yunho/MACBOOK-GUIDE.md",
