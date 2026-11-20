@@ -2,7 +2,7 @@ import { headers } from 'next/headers';
 import { expoLevel } from '@/lib/app-env';
 import { OpenNative } from '@/app/(session)/velocity/open-native';
 import Link from 'next/link';
-import { BookOpen, ChevronRight, Clapperboard, Film, Gauge, ScrollText } from '@/components/icon';
+import { BookOpen, ChevronRight, ClipboardCheck, Clapperboard, Film, Gauge, ScrollText } from '@/components/icon';
 import { RoundBatter, RoundLesson } from '@/components/round-icon';
 import { prisma } from '@/lib/prisma';
 import { requirePermission } from '@/lib/dal';
@@ -241,6 +241,23 @@ export default async function AdminPage() {
           <span className="block text-sm font-bold text-ink">참고자료</span>
           <span className="mt-0.5 block text-xs leading-relaxed text-muted">
             비공개 훈련 자료와 확인한 범위, 최신 근거로 다시 본 판단을 봅니다.
+          </span>
+        </span>
+        <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
+      </Link>
+
+      {/* 검수 근거자료(EX-REF04) — 대표관리자만. 운동 · 메커니즘 검수에서 실제로 쓴 출처와 쓰임. 참고자료(학습용)와 별개 */}
+      <Link
+        href="/admin/review-evidence"
+        className="flex items-center gap-4 rounded-2xl border border-line bg-surface p-(--block-pad) transition-colors duration-75 hover:border-sky-soft hover:bg-surface-2"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line-strong text-muted">
+          <ClipboardCheck aria-hidden className="h-4 w-4" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-bold text-ink">검수 근거자료</span>
+          <span className="mt-0.5 block text-xs leading-relaxed text-muted">
+            운동 · 메커니즘 검수에서 실제로 쓴 출처와 어디에 썼는지를 봅니다.
           </span>
         </span>
         <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
