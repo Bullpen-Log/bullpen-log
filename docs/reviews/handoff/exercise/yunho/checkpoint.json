@@ -1220,5 +1220,18 @@
       ],
       "other": "두 관리자 예외를 직접 저장 후 수정 화면 재진입으로 확인. 기존 이력이나 실제 사용자 세트는 수정·생성하지 않았고 실기기 저장 왕복 미확인."
     }
+  },
+  "reference_registration_ex_ref04_r2": {
+    "status": "확정 소스 후보만 독립 검수됨; 운영 배포 및 API v2/list-v2 준비 확인 대기. 출시 알림 전 login·티켓 생성·register·retry·audit·import 및 중앙 실행 금지. 현재 핀 스플릿 스쿼트 사용자 확인 대기 유지.",
+    "candidate": "EX-REF04-R2-GPT-CUT-20261121",
+    "candidate_archive_sha256": "6e3dbddd481f15241e647e264ef59d70e7007acabea760c7083279045a45c0b1",
+    "candidate_guide": "docs/reviews/review-evidence-registrar.md (확정 소스 후보 기준, 운영에 적용된 것으로 간주하지 않음)",
+    "recording_rule": "실제 판단·설명·안전·수행 설정 등에 사용한 출처만 기록하고 정확한 review_id, 알려진 경우에만 library_database_id, 목적(purpose), 실제 적용 내용과 한계, 확인일과 확인 범위를 기록. 검색했거나 열람만 한 자료를 실제 사용으로 표시하지 않는다. 검수 기록 공유와 중앙 근거 등록은 별개다.",
+    "after_release": "전체 총괄의 운영 API v2 및 저장소 list-v2 준비 확인 이후, 각 맥에서 본인 대표관리자 계정과 viewerLabel 확인; status의 central, apiVersion 2, auditSupported 확인 후 사용. 해당 맥의 비공개 상태·대기열과 계정은 서로 공유하지 않는다. 실제 사용한 출처를 사용 시 등록하고, 재개 전 대기 건 제한적으로 재시도, 인계 전 본인 기록 audit.",
+    "audit_command": "TOP=\"$(git rev-parse --show-toplevel)\"; R=\"$TOP/scripts/review-evidence-registrar.mjs\"; node \"$R\" audit --records \"$TOP/docs/reviews/handoff/exercise/yunho/video-records.json\" --domain exercise --reviewer yunho",
+    "audit_scope": "필요시 --review <실제 review_id>를 추가. audit은 검수 기록 checkout의 절대 경로로 실시하고 타인의 기록을 본인 것으로 감사하지 않는다. 김민 요약은 review_id 형식 확정 전 audit 미지원.",
+    "success": "중앙 등록 확인은 본인 viewer, API v2, central/store central, visible true, useState active의 확인된 받음표가 있어야 한다. pending, fixture, superseded, withdrawn, rejected, unsupported 및 미확인 상태는 등록 완료로 기록하지 않는다.",
+    "historical_ref107": "PMID 16326953은 로우 포고 홉 실제 초록 참고 기록 확인. 기존 EX-Y-P-LOWPOGO-258c0eee는 잘못된 ID이며 실제 EX-Y-P-POGO-258c0eee. 한 발 호핑의 간접 기전 근거이며 전문 열람·구속 개선 직접 증명은 미확인. 후보 정정만 확인했고 중앙 import는 하지 않음.",
+    "updated_at_utc": "2026-11-20T15:03:38.243416+00:00"
   }
 }
