@@ -1,0 +1,2263 @@
+{
+  "reviewer": "yunho",
+  "part": "mechanics",
+  "machine": "맥북",
+  "timestamp_kst": "2026-11-21T20:59:48+09:00",
+  "scope": "릴 13편·게시물 1편 · 영상 17개 · 동작 41개 구간",
+  "user_instruction": "운동 제목은 한글. 설명과 해외 근거를 추가하고 녹화 편집본, 라이브러리와 촬영 목록을 준비한다. 같은 동작은 제외하고 변형은 등록한다. 11/22 실내 무투구는 PVC·워터백·볼 우선, 공을 실제로 놓는 드릴은 야외.",
+  "filming_blocks": [
+    [
+      "10:00",
+      "10:08",
+      "준비"
+    ],
+    [
+      "10:08",
+      "10:20:30",
+      "피브이씨 골반 회전 → 플립업 → 터널과 찹"
+    ],
+    [
+      "10:20:30",
+      "10:37:18",
+      "워터백 한 발 균형 → 엉덩이 접기 → 앞발 지지와 찹"
+    ],
+    [
+      "10:37:18",
+      "10:51:36",
+      "워터볼 레그 리프트 → 착지 → 퀵픽과 전체 모션"
+    ],
+    [
+      "10:51:36",
+      "10:57:12",
+      "기존 밴드·맨몸"
+    ],
+    [
+      "10:57:12",
+      "11:00",
+      "파일 확인 및 웨이트 자리 인계"
+    ]
+  ],
+  "checks": "기존 검수 큐와 사용자 판정 위치를 이동하지 않았다. 신규 37개 중 12개는 11/22 실내, 24개는 추가 실내, 1개는 야외. 기존 12개는 번호를 유지하고 순서를 맞췄다. 웨이트는 김민 편성대로 11시 시작이다.",
+  "records": [
+    {
+      "review_id": "mv-ig-DVwwahTEYEj-01a",
+      "drill_id": "53fa4f5a-1a71-5b9f-8e11-4eefe2d8f77d",
+      "title": "피브이씨 골반 회전",
+      "source_name": "PVC Rotation (No Flip)",
+      "gear": "막대",
+      "focus_points": [
+        "상하체 분리"
+      ],
+      "stage": "연결",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 4,
+        "no": "4-14",
+        "station": "넓은 바닥(이동)",
+        "minutes": 1.9,
+        "cue": "실내 무투구 · 피브이씨 막대 · 상하체 분리 · 뒤 45도 · 막대 전체와 양발",
+        "at": 11.7
+      },
+      "reference_capture": {
+        "source_section": "01",
+        "source_panel": null,
+        "in_seconds": 0.208,
+        "out_seconds": 3.25,
+        "duration_seconds": 3.033,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "정면에서 허리띠와 막대를 함께 봅니다. 막대가 골반과 동시에 휙 따라가는 경우 보폭과 속도를 줄입니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DVwwahTEYEj/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "53fa4f5a-1a71-5b9f-8e11-4eefe2d8f77d",
+          "request_key": "rk-cli-bd81953329321460c4cb49efc581bf08c0da82cf811026ea",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35836313/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "53fa4f5a-1a71-5b9f-8e11-4eefe2d8f77d",
+          "request_key": "rk-cli-9ab89a0ca6e55619bf3b78da2369b32d68ded571acc69eb1",
+          "machine": "맥북",
+          "application_ko": "고교·대학 투수 29명의 직구에서 앞발 착지 뒤 골반의 최대 회전 속도가 몸통보다 먼저 나타났습니다.",
+          "limits_ko": "실제 투구를 측정한 관찰 연구입니다. 여기서는 골반·몸통의 움직임 순서를 살피는 데 참고합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-DVwwahTEYEj-01b",
+      "drill_id": "db821f81-a5a6-5f56-a1d4-9202ac371cec",
+      "title": "피브이씨 골반 회전과 플립업",
+      "source_name": "PVC Rotation (Add Flip)",
+      "gear": "막대",
+      "focus_points": [
+        "상하체 분리",
+        "몸통 회전"
+      ],
+      "stage": "연결",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 4,
+        "no": "4-15",
+        "station": "넓은 바닥(이동)",
+        "minutes": 1.9,
+        "cue": "실내 무투구 · 피브이씨 막대 · 상하체 분리 · 옆 전신 · 착지와 막대 높이",
+        "at": 13.7
+      },
+      "reference_capture": {
+        "source_section": "01",
+        "source_panel": null,
+        "in_seconds": 3.48,
+        "out_seconds": 6.87,
+        "duration_seconds": 3.367,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "앞발이 닿을 무렵 막대가 귀 옆에 도착하는지 봅니다. 어깨를 뒤로 억지로 접거나 머리가 옆으로 피하면 높이를 낮춥니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DVwwahTEYEj/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "db821f81-a5a6-5f56-a1d4-9202ac371cec",
+          "request_key": "rk-cli-4e1add0b97ff3027471edb00c591acc186a941c842b19862",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35836313/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "db821f81-a5a6-5f56-a1d4-9202ac371cec",
+          "request_key": "rk-cli-90826fa03fd6ceafd60183b4585f628e198f4d464cfb47c7",
+          "machine": "맥북",
+          "application_ko": "고교·대학 투수 29명의 직구에서 앞발 착지 뒤 골반의 최대 회전 속도가 몸통보다 먼저 나타났습니다.",
+          "limits_ko": "실제 투구를 측정한 관찰 연구입니다. 여기서는 골반·몸통의 움직임 순서를 살피는 데 참고합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-DVwwahTEYEj-01c",
+      "drill_id": "2eeb87d1-cf52-5d5a-b835-09c1c65793df",
+      "title": "피브이씨 투구 동작과 찹",
+      "source_name": "PVC Pitch w/ Chop",
+      "gear": "막대",
+      "focus_points": [
+        "몸통 회전",
+        "브레이크"
+      ],
+      "stage": "통합",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 4,
+        "no": "4-17",
+        "station": "넓은 바닥(이동)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 피브이씨 막대 · 몸통 회전 · 옆 45도 · 막대 끝과 뒷발",
+        "at": 18.1
+      },
+      "reference_capture": {
+        "source_section": "01",
+        "source_panel": null,
+        "in_seconds": 7.02,
+        "out_seconds": 9.87,
+        "duration_seconds": 2.833,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "앞발 착지, 막대가 내려오는 경로, 뒷다리가 따라오는 순서를 한 화면에 담습니다. 막대 끝으로 바닥을 치지 않게 합니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DVwwahTEYEj/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "2eeb87d1-cf52-5d5a-b835-09c1c65793df",
+          "request_key": "rk-cli-0b3ee3337a48b84236c197f52dc14819f61219e187c62aba",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35836313/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "2eeb87d1-cf52-5d5a-b835-09c1c65793df",
+          "request_key": "rk-cli-60b8dc017cc9528370bd9d2c8e4fab59e69b09328d7a4a2e",
+          "machine": "맥북",
+          "application_ko": "고교·대학 투수 29명의 직구에서 앞발 착지 뒤 골반의 최대 회전 속도가 몸통보다 먼저 나타났습니다.",
+          "limits_ko": "실제 투구를 측정한 관찰 연구입니다. 여기서는 골반·몸통의 움직임 순서를 살피는 데 참고합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-DdbjNqBRSFT-02a",
+      "drill_id": "87d89010-79e0-5317-bde1-905fde59df60",
+      "title": "피브이씨 스플릿 스탠스 골반 회전",
+      "source_name": "Hip Fire (upper half stays closed)",
+      "gear": "막대",
+      "focus_points": [
+        "상하체 분리"
+      ],
+      "stage": "기초",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 4,
+        "no": "4-13",
+        "station": "넓은 바닥(이동)",
+        "minutes": 1.9,
+        "cue": "실내 무투구 · 피브이씨 막대 · 상하체 분리 · 정면 · 허리띠와 막대 수평",
+        "at": 9.7
+      },
+      "reference_capture": {
+        "source_section": "02",
+        "source_panel": null,
+        "in_seconds": 3.55,
+        "out_seconds": 6.98,
+        "duration_seconds": 3.4,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "막대 끝과 허리띠가 같은 속도로 이동하는지 확인합니다. 발이 새로 내디뎌지거나 상체가 기울면 회전 범위를 줄입니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DdbjNqBRSFT/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "87d89010-79e0-5317-bde1-905fde59df60",
+          "request_key": "rk-cli-7efb67984d646f076686c9727af912be69cab7d0650007b6",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35836313/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "87d89010-79e0-5317-bde1-905fde59df60",
+          "request_key": "rk-cli-e9dd43f04b53ff65b65edd56020ddaeffae8c4a0184a13c1",
+          "machine": "맥북",
+          "application_ko": "고교·대학 투수 29명의 직구에서 앞발 착지 뒤 골반의 최대 회전 속도가 몸통보다 먼저 나타났습니다.",
+          "limits_ko": "실제 투구를 측정한 관찰 연구입니다. 여기서는 골반·몸통의 움직임 순서를 살피는 데 참고합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-DdbjNqBRSFT-02b",
+      "drill_id": "81ffee06-67d7-57a0-a6d7-fdf543a4ea6b",
+      "title": "피브이씨 터널 앞발 축 회전",
+      "source_name": "PVC Tunnel",
+      "gear": "막대",
+      "focus_points": [
+        "브레이크",
+        "몸통 회전"
+      ],
+      "stage": "연결",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 4,
+        "no": "4-16",
+        "station": "넓은 바닥(이동)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 피브이씨 막대 · 브레이크 · 뒤 45도 · 머리와 앞발",
+        "at": 15.7
+      },
+      "reference_capture": {
+        "source_section": "02",
+        "source_panel": null,
+        "in_seconds": 7.15,
+        "out_seconds": 13.79,
+        "duration_seconds": 6.633,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "홈 쪽으로 몸이 이어지고 머리가 옆으로 먼저 튀지 않는지, 앞발이 돌아 밀리지 않는지 뒤에서 확인합니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DdbjNqBRSFT/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "81ffee06-67d7-57a0-a6d7-fdf543a4ea6b",
+          "request_key": "rk-cli-b85eedc8168c8b7001bbc96be3bea585fb0fe0ffeb8cb40e",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/9474404/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "81ffee06-67d7-57a0-a6d7-fdf543a4ea6b",
+          "request_key": "rk-cli-45d5cdfbe4b620b078846d098df167d1b07d51bd3df79334",
+          "machine": "맥북",
+          "application_ko": "대학·고교 투수 7명의 실제 투구에서 뒷발은 홈 방향으로 추진했고, 앞발은 착지 후 전방 움직임에 저항했습니다.",
+          "limits_ko": "실제 투구의 지면반력 자료이며, 이 드릴에서 같은 힘을 내는 것을 목표로 삼지 않습니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-DdbjNqBRSFT-02c",
+      "drill_id": "523e87ae-e5a9-5ea6-bdc1-b3d4ee839ea5",
+      "title": "피브이씨 스플릿 스탠스 골반 회전 찹",
+      "source_name": "Hip Fire with Chop",
+      "gear": "막대",
+      "focus_points": [
+        "상하체 분리",
+        "몸통 회전"
+      ],
+      "stage": "연결",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 5,
+        "no": "5-10",
+        "station": "넓은 바닥(이동)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 피브이씨 막대 · 상하체 분리 · 정면 45도 · 고정 보폭과 찹",
+        "at": 8
+      },
+      "reference_capture": {
+        "source_section": "02",
+        "source_panel": null,
+        "in_seconds": 14.06,
+        "out_seconds": 22.65,
+        "duration_seconds": 8.567,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "시작과 피니시에서 발 간격이 같은지 확인합니다. 팔만 먼저 막대를 내리면 찹 전에 골반이 도는 장면을 느리게 다시 맞춥니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DdbjNqBRSFT/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "523e87ae-e5a9-5ea6-bdc1-b3d4ee839ea5",
+          "request_key": "rk-cli-08c6ed88ac2561170bc712c9a1b7bfe3b9beaac6d8f41226",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35836313/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "523e87ae-e5a9-5ea6-bdc1-b3d4ee839ea5",
+          "request_key": "rk-cli-5fbf6a5f80afdd701f45fd0a061c7d5529005a39a7b0a984",
+          "machine": "맥북",
+          "application_ko": "고교·대학 투수 29명의 직구에서 앞발 착지 뒤 골반의 최대 회전 속도가 몸통보다 먼저 나타났습니다.",
+          "limits_ko": "실제 투구를 측정한 관찰 연구입니다. 여기서는 골반·몸통의 움직임 순서를 살피는 데 참고합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-DdbjNqBRSFT-02d",
+      "drill_id": "b65143ca-dcfd-5efc-96de-c89645a3c4c8",
+      "title": "피브이씨 와이드 그립 전체 투구 모션",
+      "source_name": "Full Delivery",
+      "gear": "막대",
+      "focus_points": [
+        "드리프트",
+        "몸통 회전"
+      ],
+      "stage": "통합",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 5,
+        "no": "5-14",
+        "station": "넓은 바닥(이동)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 피브이씨 막대 · 드리프트 · 옆 전신 · 레그 리프트와 끝",
+        "at": 16.8
+      },
+      "reference_capture": {
+        "source_section": "02",
+        "source_panel": null,
+        "in_seconds": 23.12,
+        "out_seconds": 26.3,
+        "duration_seconds": 3.167,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "양손 간격이 끝까지 넓게 유지되는지, 정지 없이 레그 리프트부터 피니시가 이어지는지 옆에서 봅니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DdbjNqBRSFT/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "b65143ca-dcfd-5efc-96de-c89645a3c4c8",
+          "request_key": "rk-cli-bd683b708d598b30f921ebfa09e693ac5e3fc67605fe4bbf",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35836313/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "b65143ca-dcfd-5efc-96de-c89645a3c4c8",
+          "request_key": "rk-cli-01465c87e01d23b125b5c0c43189e482bf20cfa9a69cd023",
+          "machine": "맥북",
+          "application_ko": "고교·대학 투수 29명의 직구에서 앞발 착지 뒤 골반의 최대 회전 속도가 몸통보다 먼저 나타났습니다.",
+          "limits_ko": "실제 투구를 측정한 관찰 연구입니다. 여기서는 골반·몸통의 움직임 순서를 살피는 데 참고합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-DePhjltRSHz-03a",
+      "drill_id": "2aedcb97-6a60-537d-891a-26682cc84ebf",
+      "title": "45도 워터볼 퀵픽",
+      "source_name": "45° Quick Pick · Water Ball",
+      "gear": "워터볼",
+      "focus_points": [
+        "드리프트",
+        "몸통 회전"
+      ],
+      "stage": "통합",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 4,
+        "no": "4-24",
+        "station": "넓은 바닥(이동)",
+        "minutes": 2,
+        "cue": "실내 무투구 · 워터볼 · 드리프트 · 옆 45도 · 발 순서와 공",
+        "at": 47.6
+      },
+      "reference_capture": {
+        "source_section": "03",
+        "source_panel": null,
+        "in_seconds": 0.191,
+        "out_seconds": 3.34,
+        "duration_seconds": 3.133,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "준비 때 두 발의 대각선, 짧은 스텝 뒤 앞무릎 들기, 공이 끝까지 손에 남는지 측면에서 확인합니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DePhjltRSHz/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "2aedcb97-6a60-537d-891a-26682cc84ebf",
+          "request_key": "rk-cli-a19a8353c24e5e13c55f81993e5c7b0ec4e30bc1c7c6e348",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/9474404/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "2aedcb97-6a60-537d-891a-26682cc84ebf",
+          "request_key": "rk-cli-bfd3abd657a9054579e5ca6f28b0c5d2355d95e9bfd603da",
+          "machine": "맥북",
+          "application_ko": "대학·고교 투수 7명의 실제 투구에서 뒷발은 홈 방향으로 추진했고, 앞발은 착지 후 전방 움직임에 저항했습니다.",
+          "limits_ko": "실제 투구의 지면반력 자료이며, 이 드릴에서 같은 힘을 내는 것을 목표로 삼지 않습니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-DePhjltRSHz-03b",
+      "drill_id": "db27522d-b4bb-56a3-80f2-3834537ca693",
+      "title": "45도 야구공 퀵픽 스로우",
+      "source_name": "45° Quick Pick · Baseball",
+      "gear": "야구공",
+      "focus_points": [
+        "스로잉",
+        "드리프트"
+      ],
+      "stage": "통합",
+      "classification": "야외 실제 릴리스",
+      "filming_slot": {
+        "week": 1,
+        "no": "1-105",
+        "station": "투구 그물",
+        "minutes": 2.6,
+        "cue": "야외 릴리스 · 야구공 · 스로잉 · 야외 뒤 45도 · 준비 걸음부터 릴리스"
+      },
+      "reference_capture": {
+        "source_section": "03",
+        "source_panel": null,
+        "in_seconds": 3.5,
+        "out_seconds": 8.4,
+        "duration_seconds": 4.9,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "출발 각도와 짧은 발 전환, 글러브에서 손이 갈라지는 순간, 실제 릴리스를 한 화면에서 확인합니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DePhjltRSHz/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "db27522d-b4bb-56a3-80f2-3834537ca693",
+          "request_key": "rk-cli-88cec7f336b38029742114c2d7a01d50956a7efed349e01c",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://drivelinebaseball.com/blogs/blog/how-different-drills-and-ball-weights-affect-an-athletes-workload",
+          "status": "pending",
+          "purpose": "prescription",
+          "item_id": "db27522d-b4bb-56a3-80f2-3834537ca693",
+          "request_key": "rk-cli-a9b31b6458ff743782215a3c0fa850b5e57e8c6bebb1251d",
+          "machine": "맥북",
+          "application_ko": "드릴 종류와 공 무게에 따라 던지기 한 번의 부하가 달랐습니다.",
+          "limits_ko": "훈련소 자체 계측 자료입니다. 이 릴의 45도 퀵픽에 특정 중량·강도·횟수를 정하는 근거로 쓰지 않습니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-C9xd7ZhuA0E-04a",
+      "drill_id": "46e023f6-9767-5d6f-bd4c-66a9c70d554a",
+      "title": "워터백 셔플 턴",
+      "source_name": "Shuffle Turns",
+      "gear": "워터백",
+      "focus_points": [
+        "드리프트",
+        "몸통 회전"
+      ],
+      "stage": "연결",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 5,
+        "no": "5-32",
+        "station": "공 · 워터백(벽 앞)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 워터백 · 드리프트 · 정면 전신 · 셔플 거리와 끝 균형",
+        "at": 81.6
+      },
+      "reference_capture": {
+        "source_section": "04",
+        "source_panel": null,
+        "in_seconds": 0.22,
+        "out_seconds": 3.3,
+        "duration_seconds": 3.067,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "셔플에서 발이 서로 걸리지 않는지, 백이 떨어지지 않은 상태로 방향을 바꾸는지 확인합니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/C9xd7ZhuA0E/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "46e023f6-9767-5d6f-bd4c-66a9c70d554a",
+          "request_key": "rk-cli-d4067e632915dba320a3841bcc45044125cb8b0ec247547d",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/9474404/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "46e023f6-9767-5d6f-bd4c-66a9c70d554a",
+          "request_key": "rk-cli-a3b80561db3909884f702298a60b3fd169f9ed7b890a8db6",
+          "machine": "맥북",
+          "application_ko": "대학·고교 투수 7명의 실제 투구에서 뒷발은 홈 방향으로 추진했고, 앞발은 착지 후 전방 움직임에 저항했습니다.",
+          "limits_ko": "실제 투구의 지면반력 자료이며, 이 드릴에서 같은 힘을 내는 것을 목표로 삼지 않습니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-C9xd7ZhuA0E-04b",
+      "drill_id": "c38c86c1-4e01-564f-8442-924be59a100a",
+      "title": "워터백 신호 반응 되감기 회전",
+      "source_name": "Peel Backs on Go",
+      "gear": "워터백",
+      "focus_points": [
+        "상하체 분리",
+        "몸통 회전"
+      ],
+      "stage": "연결",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 5,
+        "no": "5-30",
+        "station": "공 · 워터백(벽 앞)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 워터백 · 상하체 분리 · 옆 45도 · 음성 신호 구간 별도 촬영",
+        "at": 77.2
+      },
+      "reference_capture": {
+        "source_section": "04",
+        "source_panel": null,
+        "in_seconds": 3.48,
+        "out_seconds": 7.42,
+        "duration_seconds": 3.933,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "신호 전에 미리 몸을 돌리지 않는지, 신호 뒤 골반과 가슴이 어떻게 이어지는지 봅니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/C9xd7ZhuA0E/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "c38c86c1-4e01-564f-8442-924be59a100a",
+          "request_key": "rk-cli-e7eef3758c869fa325ba222181a7819a9fee5287d3e343cf",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35836313/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "c38c86c1-4e01-564f-8442-924be59a100a",
+          "request_key": "rk-cli-de1cb7326595385c406e9a69f5625b1de77c8c4c6f3be3d8",
+          "machine": "맥북",
+          "application_ko": "고교·대학 투수 29명의 직구에서 앞발 착지 뒤 골반의 최대 회전 속도가 몸통보다 먼저 나타났습니다.",
+          "limits_ko": "실제 투구를 측정한 관찰 연구입니다. 여기서는 골반·몸통의 움직임 순서를 살피는 데 참고합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-C9xd7ZhuA0E-04c",
+      "drill_id": "8fe2d96d-60c3-5ec9-8e1f-0a56bd831866",
+      "title": "워터백 바운스 후 신호 회전",
+      "source_name": "Bouncing Reactionary on Go",
+      "gear": "워터백",
+      "focus_points": [
+        "몸통 회전",
+        "브레이크"
+      ],
+      "stage": "통합",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 5,
+        "no": "5-31",
+        "station": "공 · 워터백(벽 앞)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 워터백 · 몸통 회전 · 정면 45도 · 발 바운스와 회전",
+        "at": 79.4
+      },
+      "reference_capture": {
+        "source_section": "04",
+        "source_panel": null,
+        "in_seconds": 7.54,
+        "out_seconds": 11.42,
+        "duration_seconds": 3.867,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "바운스에서 착지 후 회전으로 바뀌는 순간을 확인합니다. 신호 전에 한쪽으로 무게가 몰리면 바운스를 더 낮게 합니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/C9xd7ZhuA0E/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "8fe2d96d-60c3-5ec9-8e1f-0a56bd831866",
+          "request_key": "rk-cli-a6a551b334b4919847bc4ee1a5aa11e367cecccb1d9a06ef",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35836313/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "8fe2d96d-60c3-5ec9-8e1f-0a56bd831866",
+          "request_key": "rk-cli-7feb88036a3e349c8b79a9b27536a988512b26a6f4e27f54",
+          "machine": "맥북",
+          "application_ko": "고교·대학 투수 29명의 직구에서 앞발 착지 뒤 골반의 최대 회전 속도가 몸통보다 먼저 나타났습니다.",
+          "limits_ko": "실제 투구를 측정한 관찰 연구입니다. 여기서는 골반·몸통의 움직임 순서를 살피는 데 참고합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-C9xd7ZhuA0E-04d",
+      "drill_id": "24894efa-703a-5abe-8dab-2c8c54696c55",
+      "title": "워터백 프런트랙 연속 턴",
+      "source_name": "Front Rack Continuous Turns",
+      "gear": "워터백",
+      "focus_points": [
+        "몸통 회전"
+      ],
+      "stage": "기초",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 5,
+        "no": "5-20",
+        "station": "공 · 워터백(벽 앞)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 워터백 · 몸통 회전 · 정면 · 손잡이와 흉곽 가까이",
+        "at": 46.5
+      },
+      "reference_capture": {
+        "source_section": "04",
+        "source_panel": null,
+        "in_seconds": 11.54,
+        "out_seconds": 12.98,
+        "duration_seconds": 1.433,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "짧은 구간에서도 연속 방향 전환과 안정된 발 위치가 보이도록 정면에서 확인합니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/C9xd7ZhuA0E/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "24894efa-703a-5abe-8dab-2c8c54696c55",
+          "request_key": "rk-cli-63075c188f7a6e3764c6fee570f9045ec65affe569342a3a",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35108673/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "24894efa-703a-5abe-8dab-2c8c54696c55",
+          "request_key": "rk-cli-a707577f51218e22076c89588753f06a8aba5f90f5a56432",
+          "machine": "맥북",
+          "application_ko": "스쿼트·런지·스텝업에서 아쿠아백 조건의 일부 몸통·하체 근활성이 막대 조건보다 높았습니다.",
+          "limits_ko": "도구 무게와 운동이 서로 다른 급성 비교입니다. 영상의 드릴에는 물이 움직일 때 자세를 제어하는 관찰을 적용합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-C9xd7ZhuA0E-04e",
+      "drill_id": "eee708ea-8985-5a24-968a-0852034e9175",
+      "title": "워터백 레그 리프트 플로우",
+      "source_name": "Skenes Flows",
+      "gear": "워터백",
+      "focus_points": [
+        "드리프트",
+        "몸통 회전"
+      ],
+      "stage": "통합",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 5,
+        "no": "5-33",
+        "station": "공 · 워터백(벽 앞)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 워터백 · 드리프트 · 넓은 옆 전신 · 앞걸음과 회전",
+        "at": 83.8
+      },
+      "reference_capture": {
+        "source_section": "04",
+        "source_panel": null,
+        "in_seconds": 13.08,
+        "out_seconds": 15.42,
+        "duration_seconds": 2.333,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "무릎 들기부터 회전 이후까지 백이 어깨에 남고 발이 화면에서 잘리지 않는지 봅니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/C9xd7ZhuA0E/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "eee708ea-8985-5a24-968a-0852034e9175",
+          "request_key": "rk-cli-4d4d9a303bc08f37ead65a2f7004c547cdf61140a83fc3dd",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/9474404/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "eee708ea-8985-5a24-968a-0852034e9175",
+          "request_key": "rk-cli-eaa83e8f18e9bcb6fc6037972f7f466235aa2e52b074679a",
+          "machine": "맥북",
+          "application_ko": "대학·고교 투수 7명의 실제 투구에서 뒷발은 홈 방향으로 추진했고, 앞발은 착지 후 전방 움직임에 저항했습니다.",
+          "limits_ko": "실제 투구의 지면반력 자료이며, 이 드릴에서 같은 힘을 내는 것을 목표로 삼지 않습니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-C_y98Igv2bL-05a",
+      "drill_id": "587ecb17-64c2-585b-b6d0-3942d7ad5e19",
+      "title": "아쿠아백 스텝 프런트랙 회전",
+      "source_name": "3 Rotational Exercises · Front rack",
+      "gear": "워터백",
+      "focus_points": [
+        "몸통 회전"
+      ],
+      "stage": "연결",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 5,
+        "no": "5-21",
+        "station": "공 · 워터백(벽 앞)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 워터백 · 몸통 회전 · 정면 45도 · 발 피벗 포함",
+        "at": 48.7
+      },
+      "reference_capture": {
+        "source_section": "05",
+        "source_panel": null,
+        "in_seconds": 0.227,
+        "out_seconds": 3.78,
+        "duration_seconds": 3.533,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "가슴 앞 부하가 몸에서 멀어지지 않는지, 옮겨 디디며 방향이 바뀌는 발이 보이는지 확인합니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/C_y98Igv2bL/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "587ecb17-64c2-585b-b6d0-3942d7ad5e19",
+          "request_key": "rk-cli-319c3cbc41147420d7f7d56a0bbc19bc323b98f843ad64ea",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35108673/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "587ecb17-64c2-585b-b6d0-3942d7ad5e19",
+          "request_key": "rk-cli-cfc1aa0e828705984c3c52243c437d36b2f2046c35c523ef",
+          "machine": "맥북",
+          "application_ko": "스쿼트·런지·스텝업에서 아쿠아백 조건의 일부 몸통·하체 근활성이 막대 조건보다 높았습니다.",
+          "limits_ko": "도구 무게와 운동이 서로 다른 급성 비교입니다. 영상의 드릴에는 물이 움직일 때 자세를 제어하는 관찰을 적용합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-C_y98Igv2bL-05b",
+      "drill_id": "b206f9b5-d7dc-5285-9a68-58c83fd3ac2f",
+      "title": "아쿠아백 대각선 머리 위 리프트",
+      "source_name": "3 Rotational Exercises · Overhead diagonal",
+      "gear": "워터백",
+      "focus_points": [
+        "몸통 회전"
+      ],
+      "stage": "연결",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 5,
+        "no": "5-29",
+        "station": "공 · 워터백(벽 앞)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 워터백 · 몸통 회전 · 정면 · 대각선 경로 전체",
+        "at": 70.2
+      },
+      "reference_capture": {
+        "source_section": "05",
+        "source_panel": null,
+        "in_seconds": 4.0,
+        "out_seconds": 5.86,
+        "duration_seconds": 1.833,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "올리고 내리는 경로가 사선인지, 머리 위에서 허리를 지나치게 젖히지 않는지 봅니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/C_y98Igv2bL/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "b206f9b5-d7dc-5285-9a68-58c83fd3ac2f",
+          "request_key": "rk-cli-8ea73c642cb2bd8012c79c1815de2e5de95654cc380bbb81",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35108673/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "b206f9b5-d7dc-5285-9a68-58c83fd3ac2f",
+          "request_key": "rk-cli-ef78b83b31ee45768ef11861106b8117f3606451bf45704b",
+          "machine": "맥북",
+          "application_ko": "스쿼트·런지·스텝업에서 아쿠아백 조건의 일부 몸통·하체 근활성이 막대 조건보다 높았습니다.",
+          "limits_ko": "도구 무게와 운동이 서로 다른 급성 비교입니다. 영상의 드릴에는 물이 움직일 때 자세를 제어하는 관찰을 적용합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-C_y98Igv2bL-05c",
+      "drill_id": "e0bf4359-88e6-52ec-a6f6-b6fcc27e3cb8",
+      "title": "아쿠아백 허리 높이 좌우 방향 전환",
+      "source_name": "3 Rotational Exercises · Low oscillation",
+      "gear": "워터백",
+      "focus_points": [
+        "몸통 회전"
+      ],
+      "stage": "기초",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 5,
+        "no": "5-19",
+        "station": "공 · 워터백(벽 앞)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 워터백 · 몸통 회전 · 정면 · 허리 높이와 양발",
+        "at": 41.9
+      },
+      "reference_capture": {
+        "source_section": "05",
+        "source_panel": null,
+        "in_seconds": 6.06,
+        "out_seconds": 8.62,
+        "duration_seconds": 2.533,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "발과 골반 이동이 작고 허리 높이에서 백의 방향만 빠르게 바뀌는지 정면에서 봅니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/C_y98Igv2bL/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "e0bf4359-88e6-52ec-a6f6-b6fcc27e3cb8",
+          "request_key": "rk-cli-7590d2d040fc10f08b62b7d73a49e296814a24ef6418da6a",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35108673/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "e0bf4359-88e6-52ec-a6f6-b6fcc27e3cb8",
+          "request_key": "rk-cli-6f899c539ce77c6edc99a41ca66ecb7c0fe9f624df3d0cbe",
+          "machine": "맥북",
+          "application_ko": "스쿼트·런지·스텝업에서 아쿠아백 조건의 일부 몸통·하체 근활성이 막대 조건보다 높았습니다.",
+          "limits_ko": "도구 무게와 운동이 서로 다른 급성 비교입니다. 영상의 드릴에는 물이 움직일 때 자세를 제어하는 관찰을 적용합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-Dcwp1emODfU-06a",
+      "drill_id": "8ae8e495-3978-570f-802f-98ca9c350bb0",
+      "title": "워터백 신호 반응 교차 찹",
+      "source_name": "Waterbag reactive chop",
+      "gear": "워터백",
+      "focus_points": [
+        "몸통 회전",
+        "브레이크"
+      ],
+      "stage": "연결",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 4,
+        "no": "4-23",
+        "station": "넓은 바닥(이동)",
+        "minutes": 2.5,
+        "cue": "실내 무투구 · 워터백 · 몸통 회전 · 옆 45도 · 파트너 신호 뒤 찹",
+        "at": 34.7
+      },
+      "reference_capture": {
+        "source_section": "06",
+        "source_panel": null,
+        "in_seconds": 0.205,
+        "out_seconds": 5.53,
+        "duration_seconds": 5.3,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "높은 준비 → 낮은 교차 찹 → 높은 복귀가 모두 보이게 합니다. 고정 스플릿 찹과 달리 신호와 재설정도 촬영합니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/Dcwp1emODfU/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "8ae8e495-3978-570f-802f-98ca9c350bb0",
+          "request_key": "rk-cli-87f548433e90ab23d9e7844f36a350a7e788283aa56e42b2",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35108673/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "8ae8e495-3978-570f-802f-98ca9c350bb0",
+          "request_key": "rk-cli-9766612489b08efc766c6b2c03eae207e7f82ff560dfbb96",
+          "machine": "맥북",
+          "application_ko": "스쿼트·런지·스텝업에서 아쿠아백 조건의 일부 몸통·하체 근활성이 막대 조건보다 높았습니다.",
+          "limits_ko": "도구 무게와 운동이 서로 다른 급성 비교입니다. 영상의 드릴에는 물이 움직일 때 자세를 제어하는 관찰을 적용합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-DdwxgeUoGu2-07a",
+      "drill_id": "b9685652-4982-57c1-bc56-d67cd1177507",
+      "title": "워터백 어깨 걸치고 스플릿 분리 회전",
+      "source_name": "Segmenting Work · Shoulder rack",
+      "gear": "워터백",
+      "focus_points": [
+        "상하체 분리",
+        "몸통 회전"
+      ],
+      "stage": "연결",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 5,
+        "no": "5-23",
+        "station": "공 · 워터백(벽 앞)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 워터백 · 상하체 분리 · 정면 45도 · 골반과 백 방향",
+        "at": 53.1
+      },
+      "reference_capture": {
+        "source_section": "07",
+        "source_panel": null,
+        "in_seconds": 0.18,
+        "out_seconds": 4.34,
+        "duration_seconds": 4.133,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "두 발의 시작점, 허리띠와 백이 돌기 시작하는 순서, 완료 위치를 함께 봅니다. 꼬임 각도를 만들려고 과하게 뒤로 틀지 않습니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DdwxgeUoGu2/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "b9685652-4982-57c1-bc56-d67cd1177507",
+          "request_key": "rk-cli-fe0302a20c9e6af7face02676d72b52a56e3482b5f7ef714",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35836313/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "b9685652-4982-57c1-bc56-d67cd1177507",
+          "request_key": "rk-cli-63797826b96b67f0a9a9cd657229091c98a8f14738de5699",
+          "machine": "맥북",
+          "application_ko": "고교·대학 투수 29명의 직구에서 앞발 착지 뒤 골반의 최대 회전 속도가 몸통보다 먼저 나타났습니다.",
+          "limits_ko": "실제 투구를 측정한 관찰 연구입니다. 여기서는 골반·몸통의 움직임 순서를 살피는 데 참고합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-DdwxgeUoGu2-07b",
+      "drill_id": "cbcd1ee9-19b3-5705-b01b-0a160da38180",
+      "title": "워터백 세워 지지하며 빈손 투구 모션",
+      "source_name": "Segmenting Work · Upright tank cue",
+      "gear": "워터백",
+      "focus_points": [
+        "몸통 회전",
+        "브레이크"
+      ],
+      "stage": "연결",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 5,
+        "no": "5-24",
+        "station": "공 · 워터백(벽 앞)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 워터백 · 몸통 회전 · 옆 전신 · 바닥 백과 빈손",
+        "at": 55.3
+      },
+      "reference_capture": {
+        "source_section": "07",
+        "source_panel": null,
+        "in_seconds": 4.62,
+        "out_seconds": 10.73,
+        "duration_seconds": 6.1,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "던지는 손이 빈손으로 끝까지 보이는지, 바닥의 백을 강하게 밀거나 몸을 지탱하려 기대지 않는지 확인합니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DdwxgeUoGu2/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "cbcd1ee9-19b3-5705-b01b-0a160da38180",
+          "request_key": "rk-cli-e7c42bfe8677531b05b0bb4e28762ce7acac02cfd1b7d5c4",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35836313/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "cbcd1ee9-19b3-5705-b01b-0a160da38180",
+          "request_key": "rk-cli-fdf3ceaffc921a2644d6f5edcd48a7ec87ffb9fba4083224",
+          "machine": "맥북",
+          "application_ko": "고교·대학 투수 29명의 직구에서 앞발 착지 뒤 골반의 최대 회전 속도가 몸통보다 먼저 나타났습니다.",
+          "limits_ko": "실제 투구를 측정한 관찰 연구입니다. 여기서는 골반·몸통의 움직임 순서를 살피는 데 참고합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-DeuMEx6SS0a-08a",
+      "drill_id": "8f201f41-70a8-5618-ae65-1debfca5f4c4",
+      "title": "워터백 하이 쓰리쿼터 회전",
+      "source_name": "High 3/4 Plane of Rotation",
+      "gear": "워터백",
+      "focus_points": [
+        "몸통 회전"
+      ],
+      "stage": "연결",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 5,
+        "no": "5-25",
+        "station": "공 · 워터백(벽 앞)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 워터백 · 몸통 회전 · 정면 전신 · 높은 회전면",
+        "at": 57.5
+      },
+      "reference_capture": {
+        "source_section": "08",
+        "source_panel": 1,
+        "in_seconds": 0.157,
+        "out_seconds": 7.16,
+        "duration_seconds": 7.0,
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "정면에서 높게 기울어진 어깨선과 앞발 위치를 담습니다. 어깨 높이를 만들려고 허리만 꺾이지 않게 합니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DeuMEx6SS0a/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "8f201f41-70a8-5618-ae65-1debfca5f4c4",
+          "request_key": "rk-cli-db80b78238edebc33ac3f722528f2bee31dc137270bd703b",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35836313/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "8f201f41-70a8-5618-ae65-1debfca5f4c4",
+          "request_key": "rk-cli-1ffa7411fdf43c3a3401c2a760ed60fa9607304caf61907e",
+          "machine": "맥북",
+          "application_ko": "고교·대학 투수 29명의 직구에서 앞발 착지 뒤 골반의 최대 회전 속도가 몸통보다 먼저 나타났습니다.",
+          "limits_ko": "실제 투구를 측정한 관찰 연구입니다. 여기서는 골반·몸통의 움직임 순서를 살피는 데 참고합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-DeuMEx6SS0a-08b",
+      "drill_id": "c505227c-834e-5747-92b1-f63ad204d5d8",
+      "title": "워터백 쓰리쿼터 회전",
+      "source_name": "Normal 3/4 Plane of Rotation",
+      "gear": "워터백",
+      "focus_points": [
+        "몸통 회전"
+      ],
+      "stage": "연결",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 5,
+        "no": "5-26",
+        "station": "공 · 워터백(벽 앞)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 워터백 · 몸통 회전 · 정면 전신 · 중간 회전면",
+        "at": 59.7
+      },
+      "reference_capture": {
+        "source_section": "08",
+        "source_panel": 2,
+        "in_seconds": 0.157,
+        "out_seconds": 7.16,
+        "duration_seconds": 7.0,
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "위·아래 경로가 함께 보이는 정면에서 하이 쓰리쿼터와 기울기 차이가 보이도록 촬영합니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DeuMEx6SS0a/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "c505227c-834e-5747-92b1-f63ad204d5d8",
+          "request_key": "rk-cli-b7ca97a4bb44465b9ba81d7e4ff3a6289622bc4821e6eb73",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35836313/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "c505227c-834e-5747-92b1-f63ad204d5d8",
+          "request_key": "rk-cli-e8c2cc9b3168a2a15b281105f8785515dec183296d2deffe",
+          "machine": "맥북",
+          "application_ko": "고교·대학 투수 29명의 직구에서 앞발 착지 뒤 골반의 최대 회전 속도가 몸통보다 먼저 나타났습니다.",
+          "limits_ko": "실제 투구를 측정한 관찰 연구입니다. 여기서는 골반·몸통의 움직임 순서를 살피는 데 참고합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-DeuMEx6SS0a-08c",
+      "drill_id": "ab89d951-65ea-581c-af3a-91a028497ef6",
+      "title": "워터백 낮은 쓰리쿼터·사이드암 회전",
+      "source_name": "Side Arm or Low 3/4 Plane of Rotation",
+      "gear": "워터백",
+      "focus_points": [
+        "몸통 회전"
+      ],
+      "stage": "연결",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 5,
+        "no": "5-27",
+        "station": "공 · 워터백(벽 앞)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 워터백 · 몸통 회전 · 정면 전신 · 수평에 가까운 어깨선",
+        "at": 61.9
+      },
+      "reference_capture": {
+        "source_section": "08",
+        "source_panel": 3,
+        "in_seconds": 0.157,
+        "out_seconds": 7.16,
+        "duration_seconds": 7.0,
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "옆으로 낮게 돈다고 해서 앞무릎을 안쪽으로 접거나 머리가 먼저 옆으로 빠지지 않는지 확인합니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DeuMEx6SS0a/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "ab89d951-65ea-581c-af3a-91a028497ef6",
+          "request_key": "rk-cli-bb9532ca82d9c9dbfb865101612e261a624df1b6cd6fe541",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35836313/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "ab89d951-65ea-581c-af3a-91a028497ef6",
+          "request_key": "rk-cli-3b298235dfc24fea212d3e61570200259ed53a7a199189e8",
+          "machine": "맥북",
+          "application_ko": "고교·대학 투수 29명의 직구에서 앞발 착지 뒤 골반의 최대 회전 속도가 몸통보다 먼저 나타났습니다.",
+          "limits_ko": "실제 투구를 측정한 관찰 연구입니다. 여기서는 골반·몸통의 움직임 순서를 살피는 데 참고합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-DeuMEx6SS0a-08d",
+      "drill_id": "a6b7506c-68a9-5a14-ab1c-aea49bdeef8a",
+      "title": "워터백 불가리안 스윙·언더핸드 회전",
+      "source_name": "Bulgarian Swing · Submarine Plane",
+      "gear": "워터백",
+      "focus_points": [
+        "몸통 회전",
+        "브레이크"
+      ],
+      "stage": "연결",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 5,
+        "no": "5-28",
+        "station": "공 · 워터백(벽 앞)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 워터백 · 몸통 회전 · 정면 전신 · 아래에서 위로",
+        "at": 64.1
+      },
+      "reference_capture": {
+        "source_section": "08",
+        "source_panel": 4,
+        "in_seconds": 0.157,
+        "out_seconds": 7.16,
+        "duration_seconds": 7.0,
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "낮은 시작과 위로 이어지는 어깨 경로가 보이게 촬영합니다. 허리로만 기울기를 만들지 않도록 작게 시작합니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DeuMEx6SS0a/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "a6b7506c-68a9-5a14-ab1c-aea49bdeef8a",
+          "request_key": "rk-cli-faa5a5acb246746407331508d7267fe6e1c55fc0c6df02dd",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35836313/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "a6b7506c-68a9-5a14-ab1c-aea49bdeef8a",
+          "request_key": "rk-cli-da3f4f3b088d2753682d1c4ebe703ffcd622b51cd50c5afb",
+          "machine": "맥북",
+          "application_ko": "고교·대학 투수 29명의 직구에서 앞발 착지 뒤 골반의 최대 회전 속도가 몸통보다 먼저 나타났습니다.",
+          "limits_ko": "실제 투구를 측정한 관찰 연구입니다. 여기서는 골반·몸통의 움직임 순서를 살피는 데 참고합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-DfYl5FqBsdL-09a",
+      "drill_id": "d0a0fd51-1f05-5aed-8559-b3fcb8f2269e",
+      "title": "벽 지지 워터백 앞발 브레이크 회전",
+      "source_name": "Lead Leg Block · wall-supported waterbag",
+      "gear": "워터백",
+      "focus_points": [
+        "브레이크",
+        "몸통 회전"
+      ],
+      "stage": "연결",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 4,
+        "no": "4-22",
+        "station": "넓은 바닥(이동)",
+        "minutes": 2.5,
+        "cue": "실내 무투구 · 워터백 · 브레이크 · 옆 45도 · 발 두 곳과 벽",
+        "at": 31.7
+      },
+      "reference_capture": {
+        "source_section": "09",
+        "source_panel": null,
+        "in_seconds": 0.214,
+        "out_seconds": 3.98,
+        "duration_seconds": 3.733,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "벽을 고정점으로 쓸 때 신발이 미끄러지거나 바닥 쪽 발이 돌아 밀리지 않는지 봅니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DfYl5FqBsdL/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "d0a0fd51-1f05-5aed-8559-b3fcb8f2269e",
+          "request_key": "rk-cli-51e920bb01b4c5eb417d668200177f97f0d25929e3aca59d",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/9474404/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "d0a0fd51-1f05-5aed-8559-b3fcb8f2269e",
+          "request_key": "rk-cli-92be1db5f41876db29b562085b42cc78cca82065be048551",
+          "machine": "맥북",
+          "application_ko": "대학·고교 투수 7명의 실제 투구에서 뒷발은 홈 방향으로 추진했고, 앞발은 착지 후 전방 움직임에 저항했습니다.",
+          "limits_ko": "실제 투구의 지면반력 자료이며, 이 드릴에서 같은 힘을 내는 것을 목표로 삼지 않습니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-C7oeI8YoiUJ-10a",
+      "drill_id": "2de6d82d-aec9-5d3e-a975-0dc101b5cb67",
+      "title": "워터백 가슴 받치고 레그 리프트 턴",
+      "source_name": "Water Bag Warmup · Hayden Minton",
+      "gear": "워터백",
+      "focus_points": [
+        "몸통 회전",
+        "드리프트"
+      ],
+      "stage": "연결",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 5,
+        "no": "5-22",
+        "station": "공 · 워터백(벽 앞)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 워터백 · 몸통 회전 · 옆 45도 · 가슴 높이 유지",
+        "at": 50.9
+      },
+      "reference_capture": {
+        "source_section": "10",
+        "source_panel": null,
+        "in_seconds": 4.1,
+        "out_seconds": 8.91,
+        "duration_seconds": 4.8,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "백이 몸에서 멀어지거나 사선 아래로 내려치는 구간이 생기지 않는지, 준비 발과 착지가 보이는지 확인합니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/C7oeI8YoiUJ/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "2de6d82d-aec9-5d3e-a975-0dc101b5cb67",
+          "request_key": "rk-cli-9d22acacdb40815be5a1ab3075f4b47a560c4f3caf0a5ad1",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35108673/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "2de6d82d-aec9-5d3e-a975-0dc101b5cb67",
+          "request_key": "rk-cli-85735d65fccc099c3973328dc7235d0b377fc917c9c2e204",
+          "machine": "맥북",
+          "application_ko": "스쿼트·런지·스텝업에서 아쿠아백 조건의 일부 몸통·하체 근활성이 막대 조건보다 높았습니다.",
+          "limits_ko": "도구 무게와 운동이 서로 다른 급성 비교입니다. 영상의 드릴에는 물이 움직일 때 자세를 제어하는 관찰을 적용합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-DdldxP2sn6e-11b",
+      "drill_id": "77737210-282f-5d00-b1e8-aeaa9d57deb7",
+      "title": "피브이씨 스플릿 골반 회전과 턴",
+      "source_name": "Hip rotation + turn",
+      "gear": "막대",
+      "focus_points": [
+        "몸통 회전",
+        "상하체 분리"
+      ],
+      "stage": "연결",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 5,
+        "no": "5-11",
+        "station": "넓은 바닥(이동)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 피브이씨 막대 · 몸통 회전 · 정면 45도 · 막대 기울기",
+        "at": 10.2
+      },
+      "reference_capture": {
+        "source_section": "11",
+        "source_panel": null,
+        "in_seconds": 8.08,
+        "out_seconds": 15.2,
+        "duration_seconds": 7.1,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "앞쪽으로 길게 뻗는 PVC 터널과 달리, 골반 회전 뒤 막대가 기울어지는 장면을 놓치지 않습니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DdldxP2sn6e/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "77737210-282f-5d00-b1e8-aeaa9d57deb7",
+          "request_key": "rk-cli-f117e456ccc76317ce61f4cc05bbc84d6a8f9a6ecb619f98",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35836313/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "77737210-282f-5d00-b1e8-aeaa9d57deb7",
+          "request_key": "rk-cli-e3a86796dd30243a8715350feec4172ba66bbca9b15fd1ae",
+          "machine": "맥북",
+          "application_ko": "고교·대학 투수 29명의 직구에서 앞발 착지 뒤 골반의 최대 회전 속도가 몸통보다 먼저 나타났습니다.",
+          "limits_ko": "실제 투구를 측정한 관찰 연구입니다. 여기서는 골반·몸통의 움직임 순서를 살피는 데 참고합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-DdldxP2sn6e-11c",
+      "drill_id": "c870b192-af0a-5044-88dc-17fed652d280",
+      "title": "피브이씨 상하체 분리 구간 분할",
+      "source_name": "Hip-Shoulder Separation V1 (Partial action)",
+      "gear": "막대",
+      "focus_points": [
+        "상하체 분리",
+        "몸통 회전"
+      ],
+      "stage": "통합",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 5,
+        "no": "5-12",
+        "station": "넓은 바닥(이동)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 피브이씨 막대 · 상하체 분리 · 정면 45도 · 구간별 정지 장면",
+        "at": 12.4
+      },
+      "reference_capture": {
+        "source_section": "11",
+        "source_panel": null,
+        "in_seconds": 15.5,
+        "out_seconds": 25.86,
+        "duration_seconds": 10.333,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "착지 근처의 중간 장면과 막대 상단으로 이동하는 지점을 각각 촬영합니다. 구간을 나눠도 발 지지가 흔들리지 않는지 봅니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DdldxP2sn6e/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "c870b192-af0a-5044-88dc-17fed652d280",
+          "request_key": "rk-cli-a2bc29c638cf49ce0895a27f6c6094f64ac8e6c4b3ad1349",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35836313/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "c870b192-af0a-5044-88dc-17fed652d280",
+          "request_key": "rk-cli-7d1c105bf15212870b5b59a0a0ccc8f1c6e1489fc3b89a74",
+          "machine": "맥북",
+          "application_ko": "고교·대학 투수 29명의 직구에서 앞발 착지 뒤 골반의 최대 회전 속도가 몸통보다 먼저 나타났습니다.",
+          "limits_ko": "실제 투구를 측정한 관찰 연구입니다. 여기서는 골반·몸통의 움직임 순서를 살피는 데 참고합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-DdldxP2sn6e-11d",
+      "drill_id": "ca0e843a-be21-59bd-92a5-01690f2c2d14",
+      "title": "피브이씨 상하체 분리 착지 정지 후 연결",
+      "source_name": "Hip-Shoulder Separation V2 (Stop & go)",
+      "gear": "막대",
+      "focus_points": [
+        "상하체 분리",
+        "브레이크"
+      ],
+      "stage": "통합",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 5,
+        "no": "5-13",
+        "station": "넓은 바닥(이동)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 피브이씨 막대 · 상하체 분리 · 옆에서 멈춤 위치와 재출발",
+        "at": 14.6
+      },
+      "reference_capture": {
+        "source_section": "11",
+        "source_panel": null,
+        "in_seconds": 26.0,
+        "out_seconds": 34.82,
+        "duration_seconds": 8.8,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "앞발이 닿는 순간과 실제 정지, 다시 시작하는 순간이 각각 보이게 찍습니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DdldxP2sn6e/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "ca0e843a-be21-59bd-92a5-01690f2c2d14",
+          "request_key": "rk-cli-9f81127c1245f91e63573b49b0401ea27ef43393a0a1ed78",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35836313/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "ca0e843a-be21-59bd-92a5-01690f2c2d14",
+          "request_key": "rk-cli-68f507ef33759e1f2ab166645a442c4d8108cae499d97645",
+          "machine": "맥북",
+          "application_ko": "고교·대학 투수 29명의 직구에서 앞발 착지 뒤 골반의 최대 회전 속도가 몸통보다 먼저 나타났습니다.",
+          "limits_ko": "실제 투구를 측정한 관찰 연구입니다. 여기서는 골반·몸통의 움직임 순서를 살피는 데 참고합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-DYjRAu8SDxb-13a",
+      "drill_id": "684a2e0a-6370-584f-acc3-f9b64de215dd",
+      "title": "바이퍼 레그 리프트와 드라이브",
+      "source_name": "ViPR Lift and Drive",
+      "gear": "바이퍼",
+      "focus_points": [
+        "드리프트"
+      ],
+      "stage": "연결",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 5,
+        "no": "5-17",
+        "station": "넓은 바닥(이동)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 바이퍼 · 드리프트 · 옆 전신 · 지지발과 사선 리프트",
+        "at": 24.9
+      },
+      "reference_capture": {
+        "source_section": "13",
+        "source_panel": null,
+        "in_seconds": 0.239,
+        "out_seconds": 4.21,
+        "duration_seconds": 3.967,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "바이퍼와 무릎이 함께 올라오는지, 몸이 뒤로 젖혀지지 않는지 봅니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DYjRAu8SDxb/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "684a2e0a-6370-584f-acc3-f9b64de215dd",
+          "request_key": "rk-cli-367867f8d5b8e1e27de2aadac552a7b55c8820656d8483e3",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/9474404/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "684a2e0a-6370-584f-acc3-f9b64de215dd",
+          "request_key": "rk-cli-a47fb0de5969e1951f694f6c1f79a2356546a88c528020ee",
+          "machine": "맥북",
+          "application_ko": "대학·고교 투수 7명의 실제 투구에서 뒷발은 홈 방향으로 추진했고, 앞발은 착지 후 전방 움직임에 저항했습니다.",
+          "limits_ko": "실제 투구의 지면반력 자료이며, 이 드릴에서 같은 힘을 내는 것을 목표로 삼지 않습니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-DYjRAu8SDxb-13b",
+      "drill_id": "b43528c2-f197-5108-8ed5-c8656d5c0ec3",
+      "title": "바이퍼 한 발 골반·몸통 안정",
+      "source_name": "ViPR Hip and Trunk Stability",
+      "gear": "바이퍼",
+      "focus_points": [],
+      "stage": "기초",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 5,
+        "no": "5-15",
+        "station": "넓은 바닥(이동)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 바이퍼 · 균형·안정 · 정면 · 지지발과 도구 수평",
+        "at": 20.5
+      },
+      "reference_capture": {
+        "source_section": "13",
+        "source_panel": null,
+        "in_seconds": 4.43,
+        "out_seconds": 7.9,
+        "duration_seconds": 3.467,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "지지발이 끌려가거나 어깨가 좌우로 과도하게 기울지 않는지 정면에서 확인합니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DYjRAu8SDxb/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "b43528c2-f197-5108-8ed5-c8656d5c0ec3",
+          "request_key": "rk-cli-7d5cab9a662b39b34d5836c682eac579b370cb9723b2d682",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/37593805/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "b43528c2-f197-5108-8ed5-c8656d5c0ec3",
+          "request_key": "rk-cli-542fc78ceeae718e6fd7bf75cee4e5d7b8a7792bf9b70c3b",
+          "machine": "맥북",
+          "application_ko": "선수의 한 발 서기 및 한 발 데드리프트에서 워터탱크와 샌드백의 일부 엉덩이·허벅지 근활성이 달랐습니다.",
+          "limits_ko": "정해진 자세에서의 근활성 연구입니다. 여기서는 지지발과 골반의 자세를 점검하는 데 참고합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-DYjRAu8SDxb-13c",
+      "drill_id": "dfdb1e0f-0c72-55cf-817b-d78a1e5aebef",
+      "title": "바이퍼 체중 이동 제어",
+      "source_name": "ViPR Weight Shift Drill",
+      "gear": "바이퍼",
+      "focus_points": [
+        "드리프트",
+        "드롭"
+      ],
+      "stage": "연결",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 5,
+        "no": "5-16",
+        "station": "넓은 바닥(이동)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 바이퍼 · 드리프트 · 옆 전신 · 골반 이동과 도구",
+        "at": 22.7
+      },
+      "reference_capture": {
+        "source_section": "13",
+        "source_panel": null,
+        "in_seconds": 8.12,
+        "out_seconds": 10.88,
+        "duration_seconds": 2.733,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "앞발만 뻗고 골반이 뒤에 남는지, 도구의 한쪽 끝이 무게 때문에 급히 떨어지는지 봅니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DYjRAu8SDxb/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "dfdb1e0f-0c72-55cf-817b-d78a1e5aebef",
+          "request_key": "rk-cli-7ac90945866653356ac18d7113d149214acc9a7ebdd4b318",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/9474404/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "dfdb1e0f-0c72-55cf-817b-d78a1e5aebef",
+          "request_key": "rk-cli-6415ea9b0007fb851823bd3576bd9d9c7e66a12fac47fc5e",
+          "machine": "맥북",
+          "application_ko": "대학·고교 투수 7명의 실제 투구에서 뒷발은 홈 방향으로 추진했고, 앞발은 착지 후 전방 움직임에 저항했습니다.",
+          "limits_ko": "실제 투구의 지면반력 자료이며, 이 드릴에서 같은 힘을 내는 것을 목표로 삼지 않습니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-DYjRAu8SDxb-13d",
+      "drill_id": "68141282-3406-55a4-a7a9-39e2f7d13c4b",
+      "title": "바이퍼 회전 스윙",
+      "source_name": "ViPR Rotational Swing",
+      "gear": "바이퍼",
+      "focus_points": [
+        "몸통 회전",
+        "브레이크"
+      ],
+      "stage": "연결",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 5,
+        "no": "5-18",
+        "station": "넓은 바닥(이동)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 바이퍼 · 몸통 회전 · 뒤 45도 · 바이퍼 끝 경로",
+        "at": 27.1
+      },
+      "reference_capture": {
+        "source_section": "13",
+        "source_panel": null,
+        "in_seconds": 11.04,
+        "out_seconds": 13.91,
+        "duration_seconds": 2.867,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "팔의 스윙과 몸통 회전이 함께 이어지는지, 앞발을 밀어 균형을 잃지 않는지 확인합니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DYjRAu8SDxb/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "68141282-3406-55a4-a7a9-39e2f7d13c4b",
+          "request_key": "rk-cli-f5a5c0da4a8daf7ca3cfd631cfe42679f26deb2b0b1fcc96",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35836313/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "68141282-3406-55a4-a7a9-39e2f7d13c4b",
+          "request_key": "rk-cli-02e6526f00a2ff6267c686553ab980334c91d84f9eb08ff2",
+          "machine": "맥북",
+          "application_ko": "고교·대학 투수 29명의 직구에서 앞발 착지 뒤 골반의 최대 회전 속도가 몸통보다 먼저 나타났습니다.",
+          "limits_ko": "실제 투구를 측정한 관찰 연구입니다. 여기서는 골반·몸통의 움직임 순서를 살피는 데 참고합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-DQ7P_YTkZul-14a",
+      "drill_id": "311f4d22-b778-56bf-93eb-b295eb735f23",
+      "title": "워터백 한 발 네 방향 버티기",
+      "source_name": "4 Direction Waterbag Hold",
+      "gear": "워터백",
+      "focus_points": [],
+      "stage": "기초",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 4,
+        "no": "4-18",
+        "station": "넓은 바닥(이동)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 워터백 · 균형·안정 · 정면 · 네 방향과 지지발",
+        "at": 22
+      },
+      "reference_capture": {
+        "source_section": "14a",
+        "source_panel": null,
+        "in_seconds": 0.21,
+        "out_seconds": 15.26,
+        "duration_seconds": 15.033,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "정면에서 네 방향이 보이게 하고, 네 동작 중 발이 새로 닿는 순간이나 무릎이 갑자기 떨어지는지 봅니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/p/DQ7P_YTkZul/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "311f4d22-b778-56bf-93eb-b295eb735f23",
+          "request_key": "rk-cli-74650d061d5c2261211d08e280da9e449518c5f8d2807ecd",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/37593805/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "311f4d22-b778-56bf-93eb-b295eb735f23",
+          "request_key": "rk-cli-cc03a5046f9d99faa9ad0e2c7e49018414d8f07f71360c90",
+          "machine": "맥북",
+          "application_ko": "선수의 한 발 서기 및 한 발 데드리프트에서 워터탱크와 샌드백의 일부 엉덩이·허벅지 근활성이 달랐습니다.",
+          "limits_ko": "정해진 자세에서의 근활성 연구입니다. 여기서는 지지발과 골반의 자세를 점검하는 데 참고합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-DQ7P_YTkZul-14b",
+      "drill_id": "6710d9f8-29ed-52af-a187-b99fe07bca57",
+      "title": "워터백 한 발 머리 위 글러브쪽 반대 회전",
+      "source_name": "Glove side / Counter Rotation Arms extended Waterbag Hold",
+      "gear": "워터백",
+      "focus_points": [
+        "상하체 분리"
+      ],
+      "stage": "기초",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 4,
+        "no": "4-19",
+        "station": "넓은 바닥(이동)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 워터백 · 상하체 분리 · 정면 45도 · 백과 골반의 상대 방향",
+        "at": 24.4
+      },
+      "reference_capture": {
+        "source_section": "14b",
+        "source_panel": null,
+        "in_seconds": 0.288,
+        "out_seconds": 7.19,
+        "duration_seconds": 6.9,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "백의 좌우 방향은 달라지되 골반이 같은 크기로 따라가지 않는지, 옆 기울기가 회전을 대신하지 않는지 봅니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/p/DQ7P_YTkZul/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "6710d9f8-29ed-52af-a187-b99fe07bca57",
+          "request_key": "rk-cli-24c56eeb6f432b5d763b9607665b6ed4c58676d393ff7153",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35836313/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "6710d9f8-29ed-52af-a187-b99fe07bca57",
+          "request_key": "rk-cli-fbf6b27eaaa7a703aab7b9a8e36841e344503f513d38c497",
+          "machine": "맥북",
+          "application_ko": "고교·대학 투수 29명의 직구에서 앞발 착지 뒤 골반의 최대 회전 속도가 몸통보다 먼저 나타났습니다.",
+          "limits_ko": "실제 투구를 측정한 관찰 연구입니다. 여기서는 골반·몸통의 움직임 순서를 살피는 데 참고합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-DQ7P_YTkZul-14c",
+      "drill_id": "0b273756-9760-552b-a294-0c81c2f337a1",
+      "title": "워터백 한 발 머리 위 옆 기울기",
+      "source_name": "Lateral Tilt Arm Extended Waterbag Hold",
+      "gear": "워터백",
+      "focus_points": [],
+      "stage": "기초",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 4,
+        "no": "4-20",
+        "station": "넓은 바닥(이동)",
+        "minutes": 2.2,
+        "cue": "실내 무투구 · 워터백 · 균형·안정 · 정면 · 옆 기울기와 지지발",
+        "at": 26.8
+      },
+      "reference_capture": {
+        "source_section": "14c",
+        "source_panel": null,
+        "in_seconds": 0.225,
+        "out_seconds": 9.23,
+        "duration_seconds": 9.0,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "정면에서 옆 기울기와 좌우 회전을 구분해 보며, 골반이 발 바깥으로 크게 밀리지 않는지 봅니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/p/DQ7P_YTkZul/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "0b273756-9760-552b-a294-0c81c2f337a1",
+          "request_key": "rk-cli-06fa4541439c6107cdc0b03b6e63a71aec5ed6fc6a3927e9",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/37593805/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "0b273756-9760-552b-a294-0c81c2f337a1",
+          "request_key": "rk-cli-f16dfc1970d2f99db40e5f59bee13a891f385e62339e491c",
+          "machine": "맥북",
+          "application_ko": "선수의 한 발 서기 및 한 발 데드리프트에서 워터탱크와 샌드백의 일부 엉덩이·허벅지 근활성이 달랐습니다.",
+          "limits_ko": "정해진 자세에서의 근활성 연구입니다. 여기서는 지지발과 골반의 자세를 점검하는 데 참고합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-DQ7P_YTkZul-14d",
+      "drill_id": "59ad4781-6e56-52b8-b54c-cfea2dcf0e87",
+      "title": "워터백 한 발 힙힌지에서 머리 위 버티기",
+      "source_name": "RDL to OH Waterbag Hold",
+      "gear": "워터백",
+      "focus_points": [
+        "드롭"
+      ],
+      "stage": "기초",
+      "classification": "실내 무투구",
+      "filming_slot": {
+        "week": 4,
+        "no": "4-21",
+        "station": "넓은 바닥(이동)",
+        "minutes": 2.3,
+        "cue": "실내 무투구 · 워터백 · 드롭 · 옆 전신 · 힙힌지와 오버헤드",
+        "at": 29.2
+      },
+      "reference_capture": {
+        "source_section": "14d",
+        "source_panel": null,
+        "in_seconds": 0.221,
+        "out_seconds": 14.12,
+        "duration_seconds": 13.867,
+        "width": 720,
+        "height": 1280,
+        "fps": 30,
+        "audio": false
+      },
+      "observation": "옆에서 허리보다 고관절이 먼저 접히는지, 힙힌지와 머리 위 버티기 사이에서 지지발이 유지되는지 봅니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/p/DQ7P_YTkZul/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": "59ad4781-6e56-52b8-b54c-cfea2dcf0e87",
+          "request_key": "rk-cli-7e2cb67feccc8b2b005354905c2b00368af80689ce2d3bae",
+          "machine": "맥북",
+          "application_ko": "원본 표기, 동작별 구간, 발 지지와 도구 경로, 손에서 공이 떨어지는지를 확인했다.",
+          "limits_ko": "원본 게시물의 구속·부상에 대한 효능 주장은 적용하지 않았다.",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/37593805/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "59ad4781-6e56-52b8-b54c-cfea2dcf0e87",
+          "request_key": "rk-cli-a69f14816ca640ef3129c76bb76f1447521cc135c09e979d",
+          "machine": "맥북",
+          "application_ko": "선수의 한 발 서기 및 한 발 데드리프트에서 워터탱크와 샌드백의 일부 엉덩이·허벅지 근활성이 달랐습니다.",
+          "limits_ko": "정해진 자세에서의 근활성 연구입니다. 여기서는 지지발과 골반의 자세를 점검하는 데 참고합니다.",
+          "error": "no-session"
+        }
+      ],
+      "decision": "신규 등록 · 사람 검수 전"
+    },
+    {
+      "review_id": "mv-ig-DdldxP2sn6e-11a",
+      "drill_id": null,
+      "title": "Hip Rotation",
+      "decision": "중복 제외",
+      "matched_drill_id": "87d89010-79e0-5317-bde1-905fde59df60",
+      "matched_title": "피브이씨 스플릿 스탠스 골반 회전",
+      "observation": "앞뒤로 벌린 두 발을 유지하고 막대를 가슴 높이에서 고정한 채 골반을 돌린다. 막대 플립·새 스트라이드·찹이 없어 피브이씨 스플릿 스탠스 골반 회전과 같은 동작이다.",
+      "in_seconds": 3.55,
+      "out_seconds": 8.03,
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DdldxP2sn6e/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": null,
+          "request_key": "rk-cli-6b2cc62d74afcbd1668c9e107d73818e6c5377e62076ccf2",
+          "machine": "맥북",
+          "application_ko": "앞뒤로 벌린 두 발을 유지하고 막대를 가슴 높이에서 고정한 채 골반을 돌린다. 막대 플립·새 스트라이드·찹이 없어 피브이씨 스플릿 스탠스 골반 회전과 같은 동작이다.",
+          "limits_ko": "해당 동작 추가와 촬영 순서 등록은 제외했다.",
+          "error": "no-session"
+        }
+      ]
+    },
+    {
+      "review_id": "mv-ig-DbfIDfPSZoh-12a",
+      "drill_id": null,
+      "title": "시퀀싱 1단계 · 하체 회전",
+      "decision": "중복 제외",
+      "matched_drill_id": "53fa4f5a-1a71-5b9f-8e11-4eefe2d8f77d",
+      "matched_title": "피브이씨 골반 회전",
+      "observation": "짧은 레그 리프트와 스트라이드에서 막대 높이를 유지하고 골반만 먼저 돌아가는 구조가 같다.",
+      "in_seconds": 0.08,
+      "out_seconds": 6.54,
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DbfIDfPSZoh/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": null,
+          "request_key": "rk-cli-966e890443b7b23b1f7cb718b0a858b084d907b8f605b73f",
+          "machine": "맥북",
+          "application_ko": "짧은 레그 리프트와 스트라이드에서 막대 높이를 유지하고 골반만 먼저 돌아가는 구조가 같다.",
+          "limits_ko": "해당 동작 추가와 촬영 순서 등록은 제외했다.",
+          "error": "no-session"
+        }
+      ]
+    },
+    {
+      "review_id": "mv-ig-DbfIDfPSZoh-12b",
+      "drill_id": null,
+      "title": "시퀀싱 2단계 · 레이백",
+      "decision": "중복 제외",
+      "matched_drill_id": "db821f81-a5a6-5f56-a1d4-9202ac371cec",
+      "matched_title": "피브이씨 골반 회전과 플립업",
+      "observation": "같은 출발에서 앞발을 내딛으며 막대를 던지는 어깨 옆으로 올리고, 대각선 찹 전까지 수행한다.",
+      "in_seconds": 6.55,
+      "out_seconds": 14.33,
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DbfIDfPSZoh/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": null,
+          "request_key": "rk-cli-732a58f4f34d25ecb75bf4fe829ef6370420137f4f1f8773",
+          "machine": "맥북",
+          "application_ko": "같은 출발에서 앞발을 내딛으며 막대를 던지는 어깨 옆으로 올리고, 대각선 찹 전까지 수행한다.",
+          "limits_ko": "해당 동작 추가와 촬영 순서 등록은 제외했다.",
+          "error": "no-session"
+        }
+      ]
+    },
+    {
+      "review_id": "mv-ig-DbfIDfPSZoh-12c",
+      "drill_id": null,
+      "title": "시퀀싱 3단계 · 회전 피니시",
+      "decision": "중복 제외",
+      "matched_drill_id": "2eeb87d1-cf52-5d5a-b835-09c1c65793df",
+      "matched_title": "피브이씨 투구 동작과 찹",
+      "observation": "레그 리프트와 착지에 막대 플립 및 사선 찹을 붙여 같은 한 발 피니시까지 이어 간다.",
+      "in_seconds": 14.36,
+      "out_seconds": 18.69,
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DbfIDfPSZoh/",
+          "status": "pending",
+          "purpose": "video-check",
+          "item_id": null,
+          "request_key": "rk-cli-b8d268dea84d5c02e7cb8df7b4aaf55799e67dac1dba2029",
+          "machine": "맥북",
+          "application_ko": "레그 리프트와 착지에 막대 플립 및 사선 찹을 붙여 같은 한 발 피니시까지 이어 간다.",
+          "limits_ko": "해당 동작 추가와 촬영 순서 등록은 제외했다.",
+          "error": "no-session"
+        }
+      ]
+    }
+  ]
+}
