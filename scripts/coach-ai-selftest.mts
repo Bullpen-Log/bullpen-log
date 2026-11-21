@@ -11,7 +11,7 @@ import { LOWER_RATIO, RAISE_BIG_LOWER, STREAK_MAX_GAP_DAYS } from '@/lib/workout
 import { aiGate, capUsdOf, AI_DAILY_CHATS, AI_BLOCK_TEXT, type AiGateInput } from '@/lib/coach/ai-gate';
 import { costMicroOf } from '@/lib/coach/ai-price';
 import { COACH_SYSTEM, COACH_SYSTEM_BLOCK, contextBlock, guardPitchReply, type CoachAiPitchPlan, ageBandOf, scrubNames, throwsOf, type CoachAiContext, type CoachAiRecords, veloRowsOf, dateTable, pastDateTable, scrubCodes, claimsCard } from '@/lib/coach/ai-prompt';
-import { NUDGE_DAILY_CAP, goalDayNudge, goalLogNudge, nudgeAllowed, painNudge } from '@/lib/coach/nudge';
+import { NUDGE_DAILY_CAP, RECHECK_PUSH, goalDayNudge, goalLogNudge, nudgeAllowed, painNudge, recheckNudge, type RecheckInput } from '@/lib/coach/nudge';
 import { COACH_VELOCITY, readAct, sanitizeAct, saidNumber } from '@/lib/coach/act';
 import { applyVolume, coachVolumeDecision, holdsWeight, readPlanVolume, VOLUME_MAX_SETS } from '@/lib/report/volume';
 import { TOOL_DEFS, WRITE_NAMES, ASSIST_TOOLS, APPLY_TOOLS, DAY_BOUND_TOOLS, assistCapOf, cardDayOk, noticeLine, addCard, propose, parseToolInput, dayText, proposeToday, calendarCard, throwPlanCard, favoriteCard, settingsCard, nextEquipment, armcareCard, programCard, postCard, type TodayWork } from '@/lib/coach/tool-defs';
@@ -403,6 +403,17 @@ check('⑩ 답 글에 샌 칸 이름은 우리말로(조사도)', scrubCodes('�
   /* 통증 말은 목표 알림 둘이 먼저 나간 날에도 간다 — 목표 알림은 상한에 막힌다(전체 검토 11-19) */
   check('⑫ 통증 말은 하루 상한 밖', nudgeAllowed(['a', 'b'], pain!) && !nudgeAllowed(['a', 'b'], { push: 'c', link: '/coach' }) && !nudgeAllowed(['a', pain!.push], pain!));
   check('⑫ 정해진 글은 해요체 · 줄표 없음', [before!.push, after!.push, pain!.push, pain!.chat!.text].every((t) => !t.includes('—') && /요[.?!]$/.test(t)));
+
+  /* 3D 다시 재기(검토 3번) — 처방을 마쳤는데 안 쟀거나 마지막 3D 가 4주 넘었을 때만 · 4주에 한 번 · 팔 통증이면 안 보냄 */
+  const rx: RecheckInput = { startedOn: '2026-10-01', finished: false, baselineOn: '2026-10-01', followupOns: [], lastSessionOn: '2026-11-18' };
+  const late = recheckNudge(rx, '2026-11-21', null, false);
+  check('⑫ 다시 재기: 4주 넘으면 몇 주 전 · 3D 단추 · 재측정 결과 연결', !!late?.chat && late.chat.text.includes('7주 전') && late.chat.text.includes('재측정 결과 연결') && late.chat.act?.kind === 'open' && late.chat.act.screen === 'lab' && late.push === RECHECK_PUSH && !late.health && !late.safety);
+  check('⑫ 다시 재기: 4주 안 · 마지막 재기가 가까우면 없음', recheckNudge({ ...rx, startedOn: '2026-11-01', baselineOn: '2026-11-01' }, '2026-11-21', null, false) === null && recheckNudge({ ...rx, followupOns: ['2026-11-10'] }, '2026-11-21', null, false) === null);
+  const done = recheckNudge({ ...rx, startedOn: '2026-11-10', baselineOn: '2026-11-10', finished: true }, '2026-11-21', null, false);
+  check('⑫ 다시 재기: 처방을 마쳤는데 안 쟀으면 4주 안이어도 · 한 번 쟀으면 없음', !!done?.chat?.text.includes('다 마쳤어요') && recheckNudge({ ...rx, startedOn: '2026-11-10', baselineOn: '2026-11-10', finished: true, followupOns: ['2026-11-15'] }, '2026-11-21', null, false) === null);
+  check('⑫ 다시 재기: 4주 안에 보냈으면 · 팔 통증 · 드릴 4주 쉼 · 처방 없음이면 없음', recheckNudge(rx, '2026-11-21', '2026-11-01', false) === null && recheckNudge(rx, '2026-11-21', '2026-10-20', false) !== null && recheckNudge(rx, '2026-11-21', null, true) === null && recheckNudge({ ...rx, lastSessionOn: '2026-10-20' }, '2026-11-21', null, false) === null && recheckNudge({ ...rx, lastSessionOn: null }, '2026-11-21', null, false) === null && recheckNudge(null, '2026-11-21', null, false) === null);
+  check('⑫ 다시 재기 글: 좋아졌다 · 나빠졌다 없음 · 해요체 · 잠금 화면에 몸 상태 없음', [late!.chat!.text, done!.chat!.text, RECHECK_PUSH].every((t) => !t.includes('—') && /요[.?!]$/.test(t) && !/좋아|나빠|늘었|줄었/.test(t)) && !hasHealthWords(RECHECK_PUSH));
+  check('⑫ 통증 말만 건강 동의를 요구', pain!.health === true);
 }
 
 /* ⑬ 도구 · 카드(개인 비서 1단계) — 바꾸기 도구는 확인을 통과한 것만 카드, 안 되면 까닭. 실행은 선수가 누를 때. 실제 AI 호출 없이 */
