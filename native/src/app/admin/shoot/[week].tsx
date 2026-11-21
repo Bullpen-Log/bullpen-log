@@ -2,7 +2,6 @@ import { Icon } from '~/shell/icon';
 import * as Haptics from 'expo-haptics';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, KeyboardAvoidingView, Modal, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,6 +17,7 @@ import { rpc } from '~/lib/rpc';
 import { leaveTo } from '~/shell/web-nav';
 import { STATE_LABEL, StackBar, StatePill, stampText, statePill } from '~/shoot/parts';
 import { usePalette, type Palette } from '~/lib/ui';
+import { ExerciseVideo } from '~/workout/parts';
 import { READABLE } from '~/lib/layout';
 
 /**
@@ -573,13 +573,8 @@ function DetailSheet({
           ))}
         </View>
         {info?.youtube ? (
-          <Pressable
-            accessibilityRole="link"
-            onPress={() => void WebBrowser.openBrowserAsync(`https://www.youtube.com/watch?v=${info.youtube!.id}`)}
-            style={({ pressed }) => [{ minHeight: 48, borderRadius: 14, paddingHorizontal: 14, justifyContent: 'center', backgroundColor: pressed ? c.line : c.card }]}
-          >
-            <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>참고 영상 보기 ›</Text>
-          </Pressable>
+          /* 참고 영상은 펼쳐 둔다(2026-11-21 김민) — 예전엔 '참고 영상 보기 ›' 단추로 브라우저를 열었다 */
+          <ExerciseVideo path={null} referenceVideoId={info.youtube.id} aspectRatio={info.youtube.aspectRatio} />
         ) : null}
         {info?.description ? (
           <View style={{ gap: 6 }}>
