@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchShootChecks, setShootStatus } from '@/app/actions/shoot';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
-import type { ShootCheckView, ShootStatus } from '@/lib/shoot/progress';
+import { isRescheduled, type ShootCheckView, type ShootStatus } from '@/lib/shoot/progress';
 
 /** 다른 사람의 체크를 받아 오는 간격 — 둘이 폰 두 대로 찍을 때 15초 안에 맞춰진다 */
 const POLL_MS = 15_000;
@@ -49,14 +49,15 @@ export function useShootChecks(
     async (
       exerciseId: string,
       status: ShootStatus | null,
-      opts: { note?: string | null; label?: string; undoable?: boolean } = {}
+      opts: { note?: string | null; label?: string; undoable?: boolean; rescheduledAt?: string } = {}
     ) => {
       const prev = latest.current.find((c) => c.exerciseId === exerciseId) ?? null;
+      const reopened = isRescheduled(opts, prev);
       const next: ShootCheckView | null = status
         ? {
             exerciseId,
             status,
-            at: prev && prev.status === status ? prev.at : new Date().toISOString(),
+            at: prev && prev.status === status && !reopened ? prev.at : new Date().toISOString(),
             by: me,
             note:
               opts.note !== undefined
@@ -80,7 +81,7 @@ export function useShootChecks(
           setToast((t) => ({
             seq: (t?.seq ?? 0) + 1,
             text: opts.label!,
-            revert: { exerciseId, status: prev?.status ?? null },
+            revert: { exerciseId, status: reopened ? 'redo' : (prev?.status ?? null) },
           }));
         }
         return true;

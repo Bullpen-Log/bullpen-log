@@ -10,10 +10,11 @@ import { deleteVideos, isLibraryPath } from '@/lib/storage';
 import { EXERCISE_EQUIPMENT } from '@/lib/exercise-meta';
 import { LATER_CATEGORY } from '@/lib/categories';
 import laterDrills from '@/lib/shoot/later-drills.json';
-import { PLAN_EXERCISE_IDS } from '@/lib/shoot/plan';
+import { PLAN_EXERCISE_IDS, itemOf } from '@/lib/shoot/plan';
 import { isWarmupId, warmupOf, warmupRowId } from '@/lib/shoot/warmups';
 import {
   isShootStatus,
+  isRescheduled,
   type ShootCheckView,
   type ShootStatus,
 } from '@/lib/shoot/progress';
@@ -75,7 +76,12 @@ export async function setShootStatus(
   } else {
     const prev = await prisma.shootCheck.findUnique({ where: { exerciseId } });
     /* 메모만 고친 것이면 시각은 그대로 — 날별 속도 · 계획 대비가 흔들리지 않게 */
-    const sameStatus = prev?.status === status;
+    const item = status === 'later' ? itemOf(exerciseId)?.item : undefined;
+    const reopened = item && prev && isRescheduled(item, {
+      status: 'later',
+      at: prev.checkedAt.toISOString(),
+    });
+    const sameStatus = prev?.status === status && !reopened;
     await prisma.shootCheck.upsert({
       where: { exerciseId },
       update: {

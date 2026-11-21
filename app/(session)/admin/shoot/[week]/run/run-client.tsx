@@ -166,7 +166,7 @@ export function RunClient({
     if (!current) return;
     haptic('success');
     setPickId(nextPick(current.exerciseId));
-    void set(current.exerciseId, 'done', { label: `${current.no} 찍음` });
+    void set(current.exerciseId, 'done', { label: `${current.no} 찍음`, rescheduledAt: current.rescheduledAt });
   }
   function postpone() {
     if (!current) return;
@@ -174,6 +174,7 @@ export function RunClient({
     setPickId(nextPick(current.exerciseId));
     void set(current.exerciseId, 'later', {
       label: `${current.no} 미룸 · 목록 끝 '미룬 것'에서 다시`,
+      rescheduledAt: current.rescheduledAt,
     });
   }
 

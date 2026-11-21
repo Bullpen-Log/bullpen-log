@@ -278,6 +278,12 @@ export async function loadShootWeek(n: number): Promise<ShootWeekData | null> {
     ...carried.map((c) => c.item.exerciseId),
   ];
   const infos = await loadShootExercises(ids);
+  if (week.session) {
+    for (const item of weekItems(week)) {
+      const info = infos.get(item.exerciseId);
+      if (info) infos.set(item.exerciseId, { ...info, equipment: item.equipment });
+    }
+  }
   return {
     week,
     carried,

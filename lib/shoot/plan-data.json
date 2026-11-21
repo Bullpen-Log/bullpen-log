@@ -1,6 +1,6 @@
 {
- "version": 10,
- "createdOn": "2026-11-16",
+ "version": 11,
+ "createdOn": "2026-11-21",
  "options": {
   "sessions": 4,
   "stationPenalty": 1.6,
@@ -8,6 +8,173 @@
   "pace": 1.07
  },
  "weeks": [
+  {
+   "week": 4,
+   "end": 120,
+   "stations": [
+    {
+     "station": "넓은 바닥(이동)",
+     "start": 8,
+     "end": 45,
+     "items": [
+      {
+       "exerciseId": "5f60c966-ef53-4bb1-9c58-f05b87fe1695",
+       "no": "4-01",
+       "title": "다이내믹 고관절 신전 + 워터백",
+       "station": "넓은 바닥(이동)",
+       "bucket": "무브먼트 패턴 드릴",
+       "equipment": [
+        "워터백"
+       ],
+       "at": 8,
+       "minutes": 2,
+       "load": 0.5,
+       "cue": "3회 · 천천히",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "기초",
+       "rescheduledAt": "2026-11-21T17:40:00+09:00"
+      },
+      {
+       "exerciseId": "21b42b35-4574-40b2-88b9-4fecb47512bd",
+       "no": "4-02",
+       "title": "리드암 외전 + 워터볼",
+       "station": "넓은 바닥(이동)",
+       "bucket": "무브먼트 패턴 드릴",
+       "equipment": [
+        "워터볼"
+       ],
+       "at": 15,
+       "minutes": 2,
+       "load": 0.5,
+       "cue": "3회 · 천천히",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "기초",
+       "rescheduledAt": "2026-11-21T17:40:00+09:00"
+      },
+      {
+       "exerciseId": "019f2867-7701-4a54-9270-0f9cd49dd7f4",
+       "no": "4-03",
+       "title": "밴드 보조 레터럴 드라이브 + 워터볼",
+       "station": "넓은 바닥(이동)",
+       "bucket": "무브먼트 패턴 드릴",
+       "equipment": [
+        "밴드",
+        "워터볼"
+       ],
+       "at": 21,
+       "minutes": 2.2,
+       "load": 0.5,
+       "cue": "3회 · 천천히",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "기초",
+       "rescheduledAt": "2026-11-21T17:40:00+09:00"
+      },
+      {
+       "exerciseId": "a6827145-44c3-4e39-88c2-93bc4a834709",
+       "no": "4-04",
+       "title": "밴드 저항 레터럴 푸시 투 베이스",
+       "station": "넓은 바닥(이동)",
+       "bucket": "무브먼트 패턴 드릴",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 28,
+       "minutes": 1.8,
+       "load": 1,
+       "cue": "3회 · 천천히",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "연결",
+       "rescheduledAt": "2026-11-21T17:40:00+09:00"
+      },
+      {
+       "exerciseId": "6d466ef3-e4c6-4004-aace-842079e6de43",
+       "no": "4-05",
+       "title": "P4 막대 스플릿 스탠스 분리 회전",
+       "station": "넓은 바닥(이동)",
+       "bucket": "무브먼트 패턴 드릴",
+       "equipment": [
+        "막대"
+       ],
+       "at": 34,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 천천히",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "기초",
+       "rescheduledAt": "2026-11-21T17:40:00+09:00"
+      },
+      {
+       "exerciseId": "9d27c469-3aad-4f9a-95a1-f4f48ed2eafd",
+       "no": "4-06",
+       "title": "P1 레그 리프트 모멘텀 슬라이드",
+       "station": "넓은 바닥(이동)",
+       "bucket": "무브먼트 패턴 드릴",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 40,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 천천히",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "연결",
+       "rescheduledAt": "2026-11-21T17:40:00+09:00"
+      }
+     ]
+    }
+   ],
+   "load": {
+    "무브먼트 패턴 드릴": 4.0
+   },
+   "session": {
+    "label": "11/22 실내",
+    "startMinute": 600,
+    "agenda": [
+     {
+      "start": 0,
+      "end": 8,
+      "title": "몸풀기 · 카메라와 기구 준비"
+     },
+     {
+      "start": 8,
+      "end": 28,
+      "title": "메커니즘 · 워터백·워터볼 3개"
+     },
+     {
+      "start": 28,
+      "end": 45,
+      "title": "메커니즘 · 밴드·막대·맨몸 3개"
+     },
+     {
+      "start": 45,
+      "end": 53,
+      "title": "추가 무투구 드릴 또는 재촬영 여유"
+     },
+     {
+      "start": 53,
+      "end": 60,
+      "title": "파일 확인 · 웨이트 자리 인계"
+     },
+     {
+      "start": 60,
+      "end": 120,
+      "title": "김민 웨이트 촬영"
+     }
+    ]
+   }
+  },
   {
    "week": 1,
    "end": 243.4,
@@ -50,24 +217,6 @@
        "breakAfter": false
       },
       {
-       "exerciseId": "5f60c966-ef53-4bb1-9c58-f05b87fe1695",
-       "no": "1-03",
-       "title": "다이내믹 고관절 신전 + 워터백",
-       "station": "잔디 · 밴드 기둥",
-       "bucket": "무브먼트 패턴 드릴",
-       "equipment": [
-        "워터백"
-       ],
-       "at": 19.4,
-       "minutes": 2,
-       "load": 0.5,
-       "cue": "3회 · 천천히",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "기초"
-      },
-      {
        "exerciseId": "10ec81d8-0a64-4c41-b446-7a328d188d46",
        "no": "1-04",
        "title": "P3 레그 리프트 드리프트 → 힌지 → 내회전",
@@ -78,42 +227,6 @@
        ],
        "at": 22.4,
        "minutes": 2,
-       "load": 1,
-       "cue": "3회 · 천천히",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "연결"
-      },
-      {
-       "exerciseId": "9d27c469-3aad-4f9a-95a1-f4f48ed2eafd",
-       "no": "1-05",
-       "title": "P1 레그 리프트 모멘텀 슬라이드",
-       "station": "잔디 · 밴드 기둥",
-       "bucket": "무브먼트 패턴 드릴",
-       "equipment": [
-        "맨몸"
-       ],
-       "at": 24.4,
-       "minutes": 1.6,
-       "load": 1,
-       "cue": "3회 · 천천히",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "연결"
-      },
-      {
-       "exerciseId": "a6827145-44c3-4e39-88c2-93bc4a834709",
-       "no": "1-06",
-       "title": "밴드 저항 레터럴 푸시 투 베이스",
-       "station": "잔디 · 밴드 기둥",
-       "bucket": "무브먼트 패턴 드릴",
-       "equipment": [
-        "밴드"
-       ],
-       "at": 27,
-       "minutes": 1.8,
        "load": 1,
        "cue": "3회 · 천천히",
        "perSide": false,
@@ -1699,7 +1812,7 @@
    ],
    "load": {
     "코어": 2,
-    "무브먼트 패턴 드릴": 6.5,
+    "무브먼트 패턴 드릴": 4.0,
     "메디신볼 드릴": 49,
     "스로잉 드릴": 55
    },
@@ -3022,24 +3135,6 @@
        "group": "연결"
       },
       {
-       "exerciseId": "6d466ef3-e4c6-4004-aace-842079e6de43",
-       "no": "3-20",
-       "title": "P4 막대 스플릿 스탠스 분리 회전",
-       "station": "잔디 · 밴드 기둥",
-       "bucket": "무브먼트 패턴 드릴",
-       "equipment": [
-        "맨몸"
-       ],
-       "at": 79.5,
-       "minutes": 1.6,
-       "load": 0.5,
-       "cue": "3회 · 천천히",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "기초"
-      },
-      {
        "exerciseId": "7f6fe5ab-efc9-4a76-97a6-49e8d5cf5352",
        "no": "3-21",
        "title": "P4 밴드 가슴 분리",
@@ -3182,42 +3277,6 @@
        "breakAfter": false,
        "kind": "drill",
        "group": "연결"
-      },
-      {
-       "exerciseId": "019f2867-7701-4a54-9270-0f9cd49dd7f4",
-       "no": "3-29",
-       "title": "밴드 보조 레터럴 드라이브 + 워터볼",
-       "station": "잔디 · 밴드 기둥",
-       "bucket": "무브먼트 패턴 드릴",
-       "equipment": [
-        "밴드"
-       ],
-       "at": 97.7,
-       "minutes": 2.2,
-       "load": 0.5,
-       "cue": "3회 · 천천히",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "기초"
-      },
-      {
-       "exerciseId": "21b42b35-4574-40b2-88b9-4fecb47512bd",
-       "no": "3-30",
-       "title": "리드암 외전 + 워터볼",
-       "station": "잔디 · 밴드 기둥",
-       "bucket": "무브먼트 패턴 드릴",
-       "equipment": [
-        "워터볼"
-       ],
-       "at": 100.9,
-       "minutes": 2,
-       "load": 0.5,
-       "cue": "3회 · 천천히",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "기초"
       },
       {
        "exerciseId": "63b1fff9-be10-4f0a-99ad-8275b41e2038",

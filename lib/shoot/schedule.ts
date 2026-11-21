@@ -302,6 +302,8 @@ export type PlanItem = {
    * 라이브러리 영상이 이것과 다르면 이번 촬영에서 올린 것(lib/shoot/load.ts uploaded).
    */
   oldVideo?: string;
+  /** 이 시각보다 오래된 미룸은 새 일정에 다시 넣는다. */
+  rescheduledAt?: string;
 };
 
 export type PlanStation = {
@@ -333,11 +335,16 @@ export type PlanWeek = {
    * 다른 주(실내 · 야외)에서 미룸으로 체크한 것도 여기 끝에 이어 붙는다(lib/shoot/progress.ts carriedOver).
    */
   deferred?: boolean;
+  session?: {
+    label: string;
+    startMinute: number;
+    agenda: { start: number; end: number; title: string }[];
+  };
 };
 
 /** 주차 이름 — 미룬 영상 칸은 '미룬 영상' */
-export function weekLabel(w: { week: number; deferred?: boolean }): string {
-  return w.deferred ? '미룬 영상' : `${w.week}주차`;
+export function weekLabel(w: Pick<PlanWeek, 'week' | 'deferred' | 'session'>): string {
+  return w.session?.label ?? (w.deferred ? '미룬 영상' : `${w.week}주차`);
 }
 
 export type ShootPlan = {
