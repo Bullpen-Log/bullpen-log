@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { fetchShootChecks } from '@/app/actions/shoot';
 import { ChevronLeft, ChevronRight } from '@/components/icon';
 import { Modal, useModalState } from '@/components/modal';
@@ -9,10 +9,12 @@ import { ShootExerciseDetail } from '@/components/shoot/exercise-detail';
 import { STATE_LABEL } from '@/components/shoot/status';
 import { ButtonLink } from '@/components/ui';
 import { useWakeLock } from '@/components/use-wake-lock';
-import { guideStart } from '@/lib/shoot/guide';
+import { guideStart, shootRunHref } from '@/lib/shoot/guide';
 import type { ShootWeekData } from '@/lib/shoot/load';
 import { stateOf, weekItems } from '@/lib/shoot/progress';
 import { weekLabel } from '@/lib/shoot/schedule';
+
+const noSubscribe = () => () => {};
 
 export function ShootGuideMode({ data, crew, startAt }: {
   data: ShootWeekData;
@@ -20,6 +22,7 @@ export function ShootGuideMode({ data, crew, startAt }: {
   startAt: string | null;
 }) {
   const { week, carried, infos } = data;
+  const ready = useSyncExternalStore(noSubscribe, () => true, () => false);
   const [queue] = useState(() => [...weekItems(week), ...carried.map(({ item }) => item)]);
   const [checks, setChecks] = useState(data.checks);
   const map = useMemo(() => new Map(checks.map((check) => [check.exerciseId, check])), [checks]);
@@ -66,9 +69,16 @@ export function ShootGuideMode({ data, crew, startAt }: {
   }, []);
 
   function move(to: number) {
-    if (to === index || !queue[to]) return;
+    const item = queue[to];
+    if (!ready || to === index || !item) return;
     focusOnMove.current = true;
     setIndex(to);
+    // Keep this phone's position if the page is restored or refreshed.
+    try {
+      window.history.replaceState(null, '', shootRunHref(week.week, crew, item.no, 'guide'));
+    } catch {
+      // The local cursor still works in a browser that rejects a history update.
+    }
   }
 
   return (
@@ -79,7 +89,7 @@ export function ShootGuideMode({ data, crew, startAt }: {
           <p className="font-bold">지도 모드</p>
           <p className="text-xs text-muted">{weekLabel(week)}{crew ? ` · ${crew}조` : ''}</p>
         </div>
-        <button type="button" onClick={(event) => list.show(true, event)} disabled={!current} className="min-h-11 rounded-xl px-2 text-sm font-semibold disabled:opacity-40">목록</button>
+        <button type="button" onClick={(event) => list.show(true, event)} disabled={!ready || !current} className="min-h-11 rounded-xl px-2 text-sm font-semibold disabled:opacity-40">목록</button>
       </header>
       {current ? (
         <>
@@ -93,9 +103,9 @@ export function ShootGuideMode({ data, crew, startAt }: {
           <footer className="shrink-0 space-y-2 border-t border-line bg-page px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             <p className="text-sm break-keep text-muted">{next ? `다음 · ${next.no} ${next.title}` : '마지막 운동이에요'}</p>
             <div className="flex gap-2">
-              <button type="button" onClick={() => move(index - 1)} disabled={index === 0} className="min-h-13 rounded-2xl bg-ink/6 px-5 font-semibold disabled:opacity-40">이전</button>
+              <button type="button" onClick={() => move(index - 1)} disabled={!ready || index === 0} className="min-h-13 rounded-2xl bg-ink/6 px-5 font-semibold disabled:opacity-40">이전</button>
               {next ? (
-                <button type="button" onClick={() => move(index + 1)} className="flex min-h-13 flex-1 items-center justify-center gap-2 rounded-2xl bg-sky px-4 font-bold text-white">다음 <ChevronRight aria-hidden className="h-5 w-5" /></button>
+                <button type="button" onClick={() => move(index + 1)} disabled={!ready} className="flex min-h-13 flex-1 items-center justify-center gap-2 rounded-2xl bg-sky px-4 font-bold text-white disabled:opacity-50">다음 <ChevronRight aria-hidden className="h-5 w-5" /></button>
               ) : <ButtonLink href={backHref} className="min-h-13 flex-1">지도 끝내기</ButtonLink>}
             </div>
             <p className="text-xs text-muted">지도 순서만 바뀌어요. 촬영 상태는 그대로예요.</p>
