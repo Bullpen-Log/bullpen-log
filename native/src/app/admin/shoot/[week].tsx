@@ -1,8 +1,8 @@
 import { Icon } from '~/shell/icon';
 import * as Haptics from 'expo-haptics';
-import { type Href, router, useLocalSearchParams } from 'expo-router';
+import { type Href, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, KeyboardAvoidingView, Modal, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppShootWeek } from '@/app/actions/app-shoot';
@@ -12,12 +12,14 @@ import { BUCKET_LABEL, clockText, countOf, cursorOfList, isRescheduled, stateOf,
 import { crewsOf } from '@/lib/shoot/crews';
 import { SHOOT_NOTE_MAX, shootRunHref } from '@/lib/shoot/guide';
 import { hasFixedShootTime, weekLabel, type PlanItem } from '@/lib/shoot/schedule';
+import { shootReferenceOf, type ShootReference } from '@/lib/shoot/reference';
+import { splitInstagramReference } from '@/lib/mechanics/reference-draft';
+import { ShootReferencePlayer } from '~/shoot/reference-player';
 import { Bar, Chip, LoadState, s, useLoad } from '~/community/parts';
 import { rpc } from '~/lib/rpc';
 import { leaveTo } from '~/shell/web-nav';
 import { STATE_LABEL, StackBar, StatePill, stampText, statePill } from '~/shoot/parts';
 import { usePalette, type Palette } from '~/lib/ui';
-import { ExerciseVideo } from '~/workout/parts';
 import { READABLE } from '~/lib/layout';
 
 /**
@@ -57,6 +59,8 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
   const setChecks = (list: ShootCheckView[]) => setLocal({ from: data.checks, list });
   const map = useMemo(() => new Map(checks.map((x) => [x.exerciseId, x])), [checks]);
   const [filter, setFilter] = useState<Filter>('all');
+  const [referenceId, setReferenceId] = useState<string | null>(null);
+  useFocusEffect(useCallback(() => () => setReferenceId(null), []));
   const [error, setError] = useState<string | null>(null);
 
   const items = useMemo(() => weekItems(week), [week]);
@@ -72,6 +76,11 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
 
   /* 첫 화면 목록에서 ?at= 로 오면 그 운동 창을 연 채 시작한다 */
   const [openId, setOpenId] = useState<string | null>(() => (at ? (queue.find((it) => it.no === at)?.exerciseId ?? null) : null));
+
+  function openDetail(exerciseId: string) {
+    setReferenceId(null);
+    setOpenId(exerciseId);
+  }
 
   /* 방금 바꾼 것 되돌리기 알림 — 웹 ShootUndoToast 와 같이 6초 */
   const [toast, setToast] = useState<{ seq: number; text: string; it: PlanItem; status: ShootStatus | null; note: string | null } | null>(null);
@@ -192,8 +201,8 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
           <StackBar done={count.done} redo={count.redo} later={count.later} total={count.total} height={10} c={c} />
           {current ? (
             <View style={{ gap: 8 }}>
-              <NowCard tag="지금" it={current} fromWeek={carriedWeek.get(current.exerciseId)} plannedAt={plannedTime(current)} onPress={() => setOpenId(current.exerciseId)} strong c={c} />
-              {next ? <NowCard tag="다음" it={next} fromWeek={carriedWeek.get(next.exerciseId)} plannedAt={plannedTime(next)} onPress={() => setOpenId(next.exerciseId)} c={c} /> : null}
+              <NowCard tag="지금" it={current} fromWeek={carriedWeek.get(current.exerciseId)} plannedAt={plannedTime(current)} onPress={() => openDetail(current.exerciseId)} strong c={c} />
+              {next ? <NowCard tag="다음" it={next} fromWeek={carriedWeek.get(next.exerciseId)} plannedAt={plannedTime(next)} onPress={() => openDetail(next.exerciseId)} c={c} /> : null}
             </View>
           ) : (
             <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>
@@ -237,7 +246,7 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
 
         <View accessibilityRole="radiogroup" style={s.chips}>
           {(['all', 'open', 'done'] as const).map((f) => (
-            <Chip key={f} label={f === 'all' ? '전체' : f === 'open' ? '남음' : '찍음'} on={filter === f} onPress={() => setFilter(f)} c={c} />
+            <Chip key={f} label={f === 'all' ? '전체' : f === 'open' ? '남음' : '찍음'} on={filter === f} onPress={() => { setReferenceId(null); setFilter(f); }} c={c} />
           ))}
         </View>
 
@@ -258,7 +267,20 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
                 </Text>
               </View>
               {list.map((it) => (
-                <ItemRow key={it.exerciseId} it={it} state={stateOf(it, map)} check={map.get(it.exerciseId)} uploaded={!!infos[it.exerciseId]?.uploaded} mark={mark(it)} onToggle={() => toggle(it)} onOpen={() => setOpenId(it.exerciseId)} c={c} />
+                <ItemRow
+                  key={it.exerciseId}
+                  it={it}
+                  state={stateOf(it, map)}
+                  check={map.get(it.exerciseId)}
+                  uploaded={!!infos[it.exerciseId]?.uploaded}
+                  mark={mark(it)}
+                  onToggle={() => toggle(it)}
+                  onOpen={() => openDetail(it.exerciseId)}
+                  reference={shootReferenceOf(infos[it.exerciseId])}
+                  referenceOpen={referenceId === it.exerciseId && !openId}
+                  onReference={() => setReferenceId((id) => id === it.exerciseId ? null : it.exerciseId)}
+                  c={c}
+                />
               ))}
             </View>
           );
@@ -278,7 +300,21 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
               .map((x) => x.item)
               .filter(show)
               .map((it) => (
-                <ItemRow key={it.exerciseId} it={it} state={stateOf(it, map)} check={map.get(it.exerciseId)} uploaded={!!infos[it.exerciseId]?.uploaded} mark={mark(it)} carried onToggle={() => toggle(it)} onOpen={() => setOpenId(it.exerciseId)} c={c} />
+                <ItemRow
+                  key={it.exerciseId}
+                  it={it}
+                  state={stateOf(it, map)}
+                  check={map.get(it.exerciseId)}
+                  uploaded={!!infos[it.exerciseId]?.uploaded}
+                  mark={mark(it)}
+                  carried
+                  onToggle={() => toggle(it)}
+                  onOpen={() => openDetail(it.exerciseId)}
+                  reference={shootReferenceOf(infos[it.exerciseId])}
+                  referenceOpen={referenceId === it.exerciseId && !openId}
+                  onReference={() => setReferenceId((id) => id === it.exerciseId ? null : it.exerciseId)}
+                  c={c}
+                />
               ))}
           </View>
         ) : null}
@@ -364,6 +400,9 @@ function ItemRow({
   carried = false,
   onToggle,
   onOpen,
+  reference,
+  referenceOpen,
+  onReference,
   c,
 }: {
   it: PlanItem;
@@ -374,6 +413,9 @@ function ItemRow({
   carried?: boolean;
   onToggle: () => void;
   onOpen: () => void;
+  reference: ShootReference | null;
+  referenceOpen: boolean;
+  onReference: () => void;
   c: Palette;
 }) {
   const pill = statePill(state, c);
@@ -414,7 +456,23 @@ function ItemRow({
             <StatePill state={state} c={c} />
           ) : null}
         </Pressable>
+        {reference && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: referenceOpen }}
+            accessibilityLabel={`${it.no} ${it.title} 참고 영상 ${referenceOpen ? '접기' : '재생'}`}
+            onPress={onReference}
+            style={{ width: 44, minHeight: 48, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Icon name={referenceOpen ? 'x' : 'play'} size={19} color={c.link} />
+          </Pressable>
+        )}
       </View>
+      {reference && referenceOpen && (
+        <View style={{ paddingHorizontal: 12, paddingBottom: 12 }}>
+          <ShootReferencePlayer key={it.exerciseId} reference={reference} title={it.title} c={c} />
+        </View>
+      )}
       {it.breakAfter && !carried ? (
         <Text style={{ color: c.link, fontSize: 13, fontWeight: '600', paddingHorizontal: 16, paddingVertical: 8, borderTopWidth: 0.5, borderTopColor: c.line }}>
           쉬기 5분 · 모델은 물 마시고 다음 운동 영상 보기
@@ -471,6 +529,9 @@ function DetailSheet({
     }
   }
   const [how, setHow] = useState(true);
+  const reference = shootReferenceOf(info);
+  const [referenceOpen, setReferenceOpen] = useState(reference?.kind === 'youtube');
+  const description = splitInstagramReference(info?.description ?? '').text;
   const equipment = info?.equipment.length ? info.equipment : it.equipment;
   const facts: [string, string][] = [
     ['시범', it.cue],
@@ -573,11 +634,20 @@ function DetailSheet({
             </View>
           ))}
         </View>
-        {info?.youtube ? (
-          /* 참고 영상은 펼쳐 둔다(2026-11-21 김민) — 예전엔 '참고 영상 보기 ›' 단추로 브라우저를 열었다 */
-          <ExerciseVideo path={null} referenceVideoId={info.youtube.id} aspectRatio={info.youtube.aspectRatio} />
-        ) : null}
-        {info?.description ? (
+        {reference && (
+          <View style={{ gap: 8 }}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded: referenceOpen }}
+              onPress={() => setReferenceOpen((open) => !open)}
+              style={[s.pill, { minHeight: 48, backgroundColor: c.chip }]}
+            >
+              <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>{referenceOpen ? '참고 영상 접기' : '참고 영상 재생'}</Text>
+            </Pressable>
+            {referenceOpen && <ShootReferencePlayer reference={reference} title={it.title} c={c} />}
+          </View>
+        )}
+        {description ? (
           <View style={{ gap: 6 }}>
             <Pressable accessibilityRole="button" accessibilityState={{ expanded: how }} onPress={() => setHow((v) => !v)} style={{ minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>진행 방법</Text>
@@ -585,7 +655,7 @@ function DetailSheet({
             </Pressable>
             {how ? (
               <Text selectable style={{ color: c.ink, fontSize: 15, lineHeight: 23 }}>
-                {info.description}
+                {description}
               </Text>
             ) : null}
           </View>

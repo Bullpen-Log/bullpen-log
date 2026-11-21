@@ -2,13 +2,15 @@
 
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, Clapperboard, Clock3, Coffee, RotateCcw, Wrench } from '@/components/icon';
+import { Check, Clapperboard, Clock3, Coffee, Play, RotateCcw, Wrench, X } from '@/components/icon';
 import { ButtonLink, PageHeading } from '@/components/ui';
 import { PostponeDialog } from '@/components/shoot/postpone-dialog';
 import { shootRunHref, SHOOT_NOTE_MAX } from '@/lib/shoot/guide';
 import { Modal, useModalState } from '@/components/modal';
 import { Segmented } from '@/components/segmented';
 import { StackBar } from '@/components/shoot/gauge';
+import { ShootReferencePlayer } from '@/components/shoot/reference-player';
+import { shootReferenceOf, type ShootReference } from '@/lib/shoot/reference';
 import { ShootExerciseDetail } from '@/components/shoot/exercise-detail';
 import { STATE_LABEL, STATE_PILL, stampText } from '@/components/shoot/status';
 import { ShootUndoToast } from '@/components/shoot/undo-toast';
@@ -47,6 +49,7 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
   );
   const clips = useClipFlow({ adopt });
   const [filter, setFilter] = useState<Filter>('all');
+  const [referenceId, setReferenceId] = useState<string | null>(null);
   const detail = useModalState<string>();
 
   const items = useMemo(() => weekItems(week), [week]);
@@ -157,7 +160,7 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
         label="주차"
         role="navigation"
         value={String(week.week)}
-        onChange={(v) => router.push(`/admin/shoot/${v}`)}
+        onChange={(v) => { setReferenceId(null); router.push(`/admin/shoot/${v}`); }}
         options={weeks.map((w) => ({
           value: String(w.week),
           label: w.label,
@@ -198,7 +201,7 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
               it={current}
               fromWeek={carriedWeek.get(current.exerciseId)}
               plannedAt={hasFixedShootTime(week, current.at) ? startMinute + current.at : undefined}
-              onOpen={(e) => detail.show(current.exerciseId, e)}
+              onOpen={(e) => { setReferenceId(null); detail.show(current.exerciseId, e); }}
               strong
             />
             {next && (
@@ -207,7 +210,7 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
                 it={next}
                 fromWeek={carriedWeek.get(next.exerciseId)}
                 plannedAt={hasFixedShootTime(week, next.at) ? startMinute + next.at : undefined}
-                onOpen={(e) => detail.show(next.exerciseId, e)}
+                onOpen={(e) => { setReferenceId(null); detail.show(next.exerciseId, e); }}
               />
             )}
           </div>
@@ -273,7 +276,7 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
       <Segmented
         label="보기"
         value={filter}
-        onChange={setFilter}
+        onChange={(value) => { setReferenceId(null); setFilter(value); }}
         options={[
           { value: 'all', label: '전체' },
           { value: 'open', label: '남음' },
@@ -326,7 +329,10 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
                     uploaded={!!infos[it.exerciseId]?.uploaded}
                     mark={it === current ? '지금' : it === next ? '다음' : null}
                     onToggle={() => toggle(it)}
-                    onOpen={(e) => detail.show(it.exerciseId, e)}
+                    reference={shootReferenceOf(infos[it.exerciseId])}
+                    referenceOpen={referenceId === it.exerciseId && !detail.open}
+                    onReference={() => setReferenceId((id) => id === it.exerciseId ? null : it.exerciseId)}
+                    onOpen={(e) => { setReferenceId(null); detail.show(it.exerciseId, e); }}
                   />
                 ))}
               </ol>
@@ -361,7 +367,10 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
                     mark={it === current ? '지금' : it === next ? '다음' : null}
                     carried
                     onToggle={() => toggle(it)}
-                    onOpen={(e) => detail.show(it.exerciseId, e)}
+                    reference={shootReferenceOf(infos[it.exerciseId])}
+                    referenceOpen={referenceId === it.exerciseId && !detail.open}
+                    onReference={() => setReferenceId((id) => id === it.exerciseId ? null : it.exerciseId)}
+                    onOpen={(e) => { setReferenceId(null); detail.show(it.exerciseId, e); }}
                   />
                 ))}
             </ol>
@@ -467,6 +476,9 @@ function Row({
   plannedAt,
   onToggle,
   onOpen,
+  reference,
+  referenceOpen,
+  onReference,
 }: {
   it: PlanItem;
   index: number;
@@ -477,6 +489,9 @@ function Row({
   /** 앞 주에서 넘어온 줄 — 그 주 시각 · 쉬기 대신 자리를 보인다 */
   carried?: boolean;
   plannedAt?: number;
+  reference: ShootReference | null;
+  referenceOpen: boolean;
+  onReference: () => void;
   onToggle: () => void;
   onOpen: (e: MouseEvent<HTMLButtonElement>) => void;
 }) {
@@ -563,7 +578,24 @@ function Row({
             )
           )}
         </button>
+        {reference && (
+          <button
+            type="button"
+            onClick={onReference}
+            aria-expanded={referenceOpen}
+            aria-label={`${it.no} ${it.title} 참고 영상 ${referenceOpen ? '접기' : '재생'}`}
+            className="flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1 rounded-xl text-sky-strong hover:bg-sky/8 desk:px-2"
+          >
+            {referenceOpen ? <X aria-hidden className="size-4" /> : <Play aria-hidden className="size-4" />}
+            <span className="hidden text-xs font-semibold desk:inline">{referenceOpen ? '접기' : '참고 영상'}</span>
+          </button>
+        )}
       </div>
+      {reference && referenceOpen && (
+        <div className="border-t border-line px-4 py-3">
+          <div className="mx-auto max-w-lg"><ShootReferencePlayer key={it.exerciseId} exerciseId={it.exerciseId} reference={reference} title={it.title} /></div>
+        </div>
+      )}
       {it.breakAfter && !carried && (
         <p className="flex items-center gap-2 border-t border-line bg-sky/6 px-4 py-2 text-xs font-semibold text-sky-strong">
           <Coffee aria-hidden className="h-3.5 w-3.5" />

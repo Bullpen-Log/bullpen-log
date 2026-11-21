@@ -2,6 +2,8 @@
 
 import { useState, type ReactNode } from 'react';
 import { ChevronDown, Wrench } from '@/components/icon';
+import { ShootReferencePlayer } from '@/components/shoot/reference-player';
+import { instagramShootReference } from '@/lib/shoot/reference';
 import { LibraryVideo } from '@/components/library-video';
 import { MechanicsReferenceVideo } from '@/components/mechanics-reference-video';
 import { referenceThumbUrl } from '@/lib/reference-video';
@@ -31,7 +33,9 @@ export function ShootExerciseDetail({
   const [showHow, setShowHow] = useState(!compact);
   const [showOwn, setShowOwn] = useState(!compact && !info?.youtube);
   const equipment = info?.equipment.length ? info.equipment : item.equipment;
+  const [showInstagram, setShowInstagram] = useState(false);
   const reference = splitInstagramReference(info?.description ?? '');
+  const instagram = instagramShootReference(reference.url);
   return (
     <div className="space-y-4">
       {!compact && (
@@ -74,7 +78,7 @@ export function ShootExerciseDetail({
       )}
 
       {info?.youtube && (
-        <Fold label="참고 영상" open={showVideo} onToggle={() => setShowVideo((v) => !v)}>
+        <Fold label="참고 영상" open={showVideo} onToggle={() => { setShowInstagram(false); setShowVideo((open) => !open); }}>
           <LibraryVideo
             key={`yt-${info.youtube.id}`}
             path={null}
@@ -87,15 +91,17 @@ export function ShootExerciseDetail({
         </Fold>
       )}
 
-      {reference.url && (
+      {reference.url && reference.segment?.recorded ? (
         <div className="space-y-2">
-          {reference.segment?.recorded && (
-            <MechanicsReferenceVideo id={item.exerciseId} title={item.title} panel={reference.segment.panel} />
-          )}
+          <MechanicsReferenceVideo id={item.exerciseId} title={item.title} panel={reference.segment.panel} />
           <a href={reference.url} target="_blank" rel="noopener noreferrer" className="inline-flex rounded-xl border border-line px-4 py-2.5 text-sm font-semibold text-sky-strong hover:underline">
             {instagramReferenceLabel(reference.segment)}
           </a>
         </div>
+      ) : instagram && (
+        <Fold label="Instagram 참고 영상" open={showInstagram} onToggle={() => { setShowVideo(false); setShowInstagram((open) => !open); }}>
+          <ShootReferencePlayer exerciseId={item.exerciseId} reference={instagram} title={item.title} />
+        </Fold>
       )}
 
       {info?.own && (
