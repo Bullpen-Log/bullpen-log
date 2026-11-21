@@ -54,7 +54,7 @@ import { SHOOT_WARMUPS, warmupRowId } from '../lib/shoot/warmups.ts';
 import { CREW_SPACES, crewWeek, crewsOf } from '../lib/shoot/crews.ts';
 
 import { guideStart, readShootNote, shootRunHref } from '../lib/shoot/guide.ts';
-import { itemOf, weekOf } from '../lib/shoot/plan.ts';
+import { SHOOT_PLAN, itemOf, weekOf } from '../lib/shoot/plan.ts';
 
 let pass = 0;
 let fail = 0;
@@ -272,6 +272,13 @@ const deferredWeeks = plan.weeks.filter((w) => w.deferred);
     checks.get(first.exerciseId)?.note === '기존 메모');
   checks.set(first.exerciseId, { ...old, status: 'done' });
   check('11/22 — 완료된 드릴을 다시 대기로 열지 않는다', cursorOf(session, checks).current === second);
+  /* 번호판 번호가 영상 파일 이름을 대신한다 — 한 주에 같은 번호가 둘이면 다른 카메라로 찍은 영상을 맞출 수 없고 ?at= · #번호가 엉뚱한 운동을 연다
+     (2026-11-21 연결 드릴 4-13~4-24 가 트레이닝 번호와 겹쳤다) — 연결 드릴을 합친 실제 주로 본다 */
+  const dupNos = SHOOT_PLAN.weeks.flatMap((w) => {
+    const nos = weekItems(weekOf(w.week)!).map((it) => it.no);
+    return nos.filter((no, i) => nos.indexOf(no) !== i);
+  });
+  check('모든 주 — 번호판 번호가 겹치지 않는다(연결 드릴 포함)', dupNos.length === 0, dupNos.join(' '));
   const liveWeek = weekOf(4)!;
   const liveItems = weekItems(liveWeek);
   check('실제 11/22 화면 데이터 — 메커니즘 24개 시각 유지, 웨이트 49개 현장 순서',
@@ -695,6 +702,9 @@ console.log('\n■ 진행(지금 · 다음 · 미룬 것)');
   );
   const lq = cursorOfList(items, mk([[0, 'done', 0]]), items[0].exerciseId);
   check('이미 찍은 것을 고르면 무시하고 순서대로', lq.current === items[1]);
+  /* 중간(5번째)을 찍던 중 다른 폰이 그것을 찍음 — 목록 처음(1번째, 건너뛴 것)이 아니라 그 바로 뒤(6번째)로 */
+  const remote = cursorOfList(items, mk([[4, 'done', 0]]), items[4].exerciseId);
+  check('고른 운동을 다른 폰이 찍으면 그 바로 다음으로(처음으로 튀지 않음)', remote.current === items[5]);
   const count = countOf(
     items,
     mk([

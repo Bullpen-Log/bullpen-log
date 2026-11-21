@@ -15,9 +15,14 @@ import { sendClip } from '@/lib/clip/send';
 import {
   AppCameraError,
   appCameraAvailable,
+  appCameraLeftovers,
   appCameraMissingText,
+  discardAppCameraFiles,
+  readAppCameraFile,
   recordWithAppCamera,
+  type AppTakeLeftover,
 } from '@/lib/shoot-camera';
+import { reassertWakeLock } from '@/components/use-wake-lock';
 import type { ShootCheckView } from '@/lib/shoot/progress';
 
 /** 영상을 붙일 운동 — 촬영 계획의 한 줄 */
@@ -38,6 +43,8 @@ type Editing = {
   seq: number;
   /** 넘겨받는 진행(0~1) — file 이 null 일 때 */
   progress?: number;
+  /** 앱에 남아 있는 원본(앱 카메라) — 폰 저장소에 맡기면 지운다. 그 전에 화면이 죽으면 다음에 '이어서 편집' */
+  path?: string | null;
 };
 
 const noSubscribe = () => () => {};
@@ -88,6 +95,26 @@ export function useClipFlow({
   const retrying = useRef(false);
   /** 편집 창에서 만든 촬영본의 폰 기록 — 같은 영상으로 [다시 올리기]면 이것을 이어 쓴다(이미 올린 경로까지) */
   const lastRecord = useRef<{ file: File; record: PendingClip } | null>(null);
+  /** 카메라가 열려 있거나 넘겨받는 중 — 두 번 눌러 두 번째가 'busy' 로 첫 편집 창을 닫아 찍은 영상을 잃었다(2026-11-21 검토) */
+  const cameraBusy = useRef(false);
+  /** 편집하다 화면이 죽어 앱에 남은 촬영본(lib/shoot-camera.ts appCameraLeftovers) — 지금 편집 창에 열린 것은 뺀다 */
+  const [leftovers, setLeftovers] = useState<AppTakeLeftover[]>([]);
+  const openPath = useRef<string | null>(null);
+  /** 이 화면이 지운 원본 — 지우기 대답보다 목록이 먼저 와도 다시 보이지 않게 */
+  const dropped = useRef(new Set<string>());
+  const discard = (paths: (string | null | undefined)[]) => {
+    for (const p of paths) if (p) dropped.current.add(p);
+    return discardAppCameraFiles(paths);
+  };
+  useEffect(() => {
+    openPath.current = editing?.path ?? null;
+  }, [editing?.path]);
+  async function refreshLeftovers() {
+    const list = await appCameraLeftovers();
+    setLeftovers(
+      list.filter((t) => t.meta && t.path !== openPath.current && !dropped.current.has(t.path))
+    );
+  }
 
   /*
    * 찍기 · 편집 동안 '뒤로'를 막는다 — 앱은 화면 왼쪽 끝을 밀면 앞 화면으로 간다(웹뷰 allowsBackForwardNavigationGestures).
@@ -106,19 +133,25 @@ export function useClipFlow({
     return () => window.removeEventListener('popstate', guard);
   }, [open]);
 
-  /* 지난번에 올리지 못하고 맡겨 둔 것 */
+  /* 지난번에 올리지 못하고 맡겨 둔 것 · 편집하다 남은 촬영본 */
   useEffect(() => {
     let alive = true;
     void pendingClips().then((list) => {
       if (alive) setPending(list);
+    });
+    void appCameraLeftovers().then((list) => {
+      if (alive) setLeftovers(list.filter((t) => t.meta && !dropped.current.has(t.path)));
     });
     return () => {
       alive = false;
     };
   }, []);
 
-  /** 앱 카메라로 찍기 — 창을 먼저 열어(카메라 뒤에서 '가져오는 중'), 찍고 나면 파일을 넘겨받아 편집으로 */
-  async function startCamera(target: ClipTarget) {
+  /**
+   * 앱 카메라로 찍기 — 창을 먼저 열어(카메라 뒤에서 '가져오는 중'), 찍고 나면 파일을 넘겨받아 편집으로.
+   * prev: [다시 찍기]로 왔으면 앞 촬영본 — 카메라를 취소하거나 실패하면 그것으로 돌아간다(예전엔 창이 닫혀 앞 영상까지 잃었다).
+   */
+  async function startCamera(target: ClipTarget, prev: Editing | null = null) {
     targetRef.current = target;
     setCameraNotice(null);
     if (!appCameraAvailable()) {
@@ -126,26 +159,83 @@ export function useClipFlow({
       haptic('warning');
       return;
     }
+    if (cameraBusy.current) {
+      // 창이 닫혔는데 카메라가 아직 대답을 안 했다 — 앱 카메라가 멈춘 것(앱을 다시 켜야 풀린다)
+      if (!open) setCameraNotice('카메라가 대답하지 않아요. 앱을 완전히 껐다 다시 켜 주세요.');
+      return;
+    }
+    cameraBusy.current = true;
     haptic('light');
     const seq = ++seqRef.current;
     setEditing({ target, file: null, from: 'native', seq, progress: 0 });
     setOpen(true);
+    const back = () => {
+      if (seqRef.current !== seq) return;
+      if (prev?.file) setEditing({ ...prev, seq });
+      else closeSeq(seq);
+    };
     try {
-      const file = await recordWithAppCamera((progress) =>
-        setEditing((cur) => (cur && cur.seq === seq ? { ...cur, progress } : cur))
+      const take = await recordWithAppCamera(
+        (progress) => setEditing((cur) => (cur && cur.seq === seq ? { ...cur, progress } : cur)),
+        { exerciseId: target.exerciseId, no: target.no, title: target.title, cue: target.cue }
       );
-      if (!file) {
-        closeSeq(seq);
+      if (!take) {
+        back();
         return;
       }
-      setEditing((cur) => (cur && cur.seq === seq ? { ...cur, file } : cur));
+      if (seqRef.current !== seq) {
+        // 그사이 창이 바뀌었다 — 원본은 앱에 남겨 '이어서 편집'으로
+        void refreshLeftovers();
+        return;
+      }
+      setEditing((cur) => (cur && cur.seq === seq ? { ...cur, file: take.file, path: take.path } : cur));
+      // 새로 찍었으니 앞 촬영본(다시 찍기 전)의 원본은 버린다
+      if (prev?.path && prev.path !== take.path) void discard([prev.path]);
     } catch (err) {
-      closeSeq(seq);
+      back();
       setCameraNotice(
         err instanceof AppCameraError ? err.message : '카메라를 열지 못했어요. 다시 해 주세요.'
       );
       haptic('error');
+      void refreshLeftovers();
+    } finally {
+      cameraBusy.current = false;
+      reassertWakeLock();
     }
+  }
+
+  /** 남은 촬영본 이어서 편집 — 앱에서 다시 넘겨받는다. 못 읽으면(지워짐) 목록에서 뺀다 */
+  async function resumeLeftover(take: AppTakeLeftover) {
+    if (!take.meta || cameraBusy.current) return;
+    cameraBusy.current = true;
+    const target = take.meta;
+    targetRef.current = target;
+    setCameraNotice(null);
+    setLeftovers((list) => list.filter((t) => t.path !== take.path));
+    const seq = ++seqRef.current;
+    setEditing({ target, file: null, from: 'native', seq, progress: 0, path: take.path });
+    setOpen(true);
+    try {
+      const file = await readAppCameraFile(take.path, (progress) =>
+        setEditing((cur) => (cur && cur.seq === seq ? { ...cur, progress } : cur))
+      );
+      setEditing((cur) => (cur && cur.seq === seq ? { ...cur, file } : cur));
+    } catch {
+      closeSeq(seq);
+      await discard([take.path]);
+      setCameraNotice(`${target.no} 영상을 앱에서 찾지 못했어요. 다시 찍어 주세요.`);
+      haptic('error');
+      void refreshLeftovers();
+    } finally {
+      cameraBusy.current = false;
+    }
+  }
+
+  /** 남은 촬영본 버리기 */
+  async function dropLeftover(take: AppTakeLeftover) {
+    setLeftovers((list) => list.filter((t) => t.path !== take.path));
+    await discard([take.path]);
+    void refreshLeftovers();
   }
 
   function startAlbum(target: ClipTarget) {
@@ -176,13 +266,22 @@ export function useClipFlow({
     setEditing(null);
   }
 
+  /**
+   * 창 닫기 — 앱 카메라 원본은 지우지 않는다: 잘못 눌러 닫아도 위에 '편집 못 한 촬영 · 이어서 편집'으로 남는다(버리기는 거기서).
+   */
   function close() {
     setOpen(false);
     const seq = editing?.seq;
-    window.setTimeout(
-      () => setEditing((cur) => (cur && cur.seq === seq ? null : cur)),
-      RELEASE_MS
-    );
+    // 넘겨받는 중에 닫았으면 그 카메라 대답은 이 창에 붙이지 않는다(원본은 앱에 남아 '이어서 편집'으로)
+    seqRef.current++;
+    const keep = editing?.path;
+    window.setTimeout(() => {
+      setEditing((cur) => (cur && cur.seq === seq ? null : cur));
+      if (keep) {
+        openPath.current = null;
+        void refreshLeftovers();
+      }
+    }, RELEASE_MS);
   }
 
   function attached(target: ClipTarget, checks: ShootCheckView[]) {
@@ -196,6 +295,13 @@ export function useClipFlow({
   const submit: ClipSubmit = async (clip, thumb, report) => {
     const target = editing?.target;
     if (!target) return { ok: false, error: '운동을 다시 골라 주세요.' };
+    /* 앱의 원본 — 폰 저장소에 맡겼거나 올렸으면 지운다(그 전엔 화면이 죽어도 이어서 편집할 수 있게 남긴다) */
+    const raw = editing?.path ?? null;
+    const dropRaw = () => {
+      if (!raw) return;
+      void discard([raw]);
+      setEditing((cur) => (cur && cur.path === raw ? { ...cur, path: null } : cur));
+    };
     const prev = lastRecord.current;
     let record: PendingClip;
     let kept: boolean;
@@ -216,13 +322,16 @@ export function useClipFlow({
       kept = await keepClip(record);
       lastRecord.current = { file: clip.file, record };
     }
+    if (kept) dropRaw();
     const res = await sendClip(record, report);
+    reassertWakeLock();
     if (!res.ok) {
       haptic('error');
       setPending(await pendingClips());
       return { ok: false, error: res.error, kept };
     }
     lastRecord.current = null;
+    dropRaw();
     setPending(await pendingClips());
     close();
     attached(target, res.checks);
@@ -282,7 +391,7 @@ export function useClipFlow({
         onRetake={
           editing?.from === 'album'
             ? () => albumRef.current?.click()
-            : () => editing && void startCamera(editing.target)
+            : () => editing && void startCamera(editing.target, editing)
         }
         onSubmit={submit}
       >
@@ -310,6 +419,10 @@ export function useClipFlow({
     edit,
     pending,
     retryPending,
+    /** 편집하다 화면이 죽어(또는 닫아) 앱에 남은 촬영본 — 이어서 편집 · 버리기 */
+    leftovers,
+    resumeLeftover,
+    dropLeftover,
     retry,
     retryError,
     clearRetryError: () => setRetryError(null),

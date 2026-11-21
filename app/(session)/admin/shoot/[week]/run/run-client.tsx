@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   ArrowRight,
   Camera,
@@ -37,6 +37,9 @@ import {
 } from '@/lib/shoot/progress';
 import { toDateKey } from '@/lib/pitch-stats';
 import { hasFixedShootTime, weekLabel, type PlanItem } from '@/lib/shoot/schedule';
+import { shootRunHref } from '@/lib/shoot/guide';
+
+const noSubscribe = () => () => {};
 
 /**
  * 촬영 모드 — 찍는 동안 휴대폰 한 손으로.
@@ -65,7 +68,7 @@ export function RunClient({
   crew?: string | null;
 }) {
   const { week, carried, infos } = data;
-  const { map, set, adopt, toast, undo, closeToast, error, clearError, saving } = useShootChecks(
+  const { map, set, adopt, toast, undo, closeToast, error, clearError } = useShootChecks(
     data.checks,
     { me }
   );
@@ -108,8 +111,10 @@ export function RunClient({
     return () => window.clearInterval(id);
   }, []);
   const fixed = !!current && hasFixedShootTime(week, current.at);
+  /* 계획 대비는 붙은 뒤에만 — 서버와 폰이 '지금'을 따로 재 분이 갈리면 그림이 맞지 않는다(hydration) */
+  const mounted = useSyncExternalStore(noSubscribe, () => true, () => false);
   const pace =
-    current && fixed && !fromWeek.has(current.exerciseId)
+    mounted && current && fixed && !fromWeek.has(current.exerciseId)
       ? paceMinutes(week, map, current, new Date(now), toDateKey)
       : null;
 
@@ -118,6 +123,22 @@ export function RunClient({
   /* 앞 주에서 넘어온 운동은 그 주 시각 · 쉬는 때가 맞지 않는다 */
   const carriedNow = current ? fromWeek.has(current.exerciseId) : false;
   const rest = current ? current.breakAfter && !carriedNow : false;
+
+  /*
+   * 지금 운동을 주소(?at=)에 적어 둔다 — 웹뷰가 다시 불러와지면(앱 메모리 · 새로고침) 처음 연 운동으로 돌아갔다(2026-11-21 검토).
+   * 다른 칸은 그대로(history.state — 편집 창의 뒤로 막기 칸을 지우지 않게)
+   */
+  const currentNo = current?.no ?? null;
+  useEffect(() => {
+    if (!currentNo) return;
+    const href = shootRunHref(week.week, crew, currentNo);
+    if (`${window.location.pathname}${window.location.search}` === href) return;
+    try {
+      window.history.replaceState(window.history.state, '', href);
+    } catch {
+      // 주소를 못 바꾸는 브라우저 — 화면의 차례는 그대로 돈다
+    }
+  }, [currentNo, week.week, crew]);
 
   /* 운동이 바뀌면 본문을 맨 위로 — 아래 단추로 넘겨도 번호 · 이름부터 보이게 */
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -169,12 +190,24 @@ export function RunClient({
 
   function shoot() {
     if (!current) return;
+    const item = current;
     haptic('success');
-    setPickId(nextPick(current.exerciseId));
-    void set(current.exerciseId, 'done', { label: `${current.no} 찍음`, rescheduledAt: current.rescheduledAt });
+    setPickId(nextPick(item.exerciseId));
+    /* 저장이 안 됐으면 그 운동으로 돌아온다 — 예전엔 다음 운동에 머문 채 조용히 대기로 돌아가 목록 끝에서야 다시 나왔다 */
+    void set(item.exerciseId, 'done', { label: `${item.no} 찍음`, rescheduledAt: item.rescheduledAt }).then(
+      (ok) => {
+        if (!ok) setPickId(item.exerciseId);
+      }
+    );
+  }
+  /* 되돌리면 그 운동으로 — 잘못 누른 것을 되돌린 뒤 목록에서 찾지 않게 */
+  function undoHere() {
+    const id = toast?.revert?.exerciseId;
+    undo();
+    if (id) setPickId(id);
   }
   function postpone() {
-    if (!current || saving) return;
+    if (!current) return;
     haptic('light');
     setPostponing({ item: current, note: map.get(current.exerciseId)?.note ?? '' });
   }
@@ -467,7 +500,6 @@ export function RunClient({
             <button
               type="button"
               onClick={postpone}
-              disabled={saving}
               className="flex h-[72px] w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-2xl bg-ink/6 text-xs font-semibold text-ink motion-safe:active:scale-95 pad:h-20 pad:w-24 pad:text-sm"
             >
               <PauseCircle aria-hidden className="h-5 w-5" />
@@ -520,7 +552,7 @@ export function RunClient({
 
       <ShootUndoToast
         toast={toast}
-        onUndo={undo}
+        onUndo={undoHere}
         onClose={closeToast}
         /* 아래 막대가 있으면 그 위 8px, 다 찍어 막대가 없으면 홈 막대 위 */
         className="bottom-[max(1rem,env(safe-area-inset-bottom))]"

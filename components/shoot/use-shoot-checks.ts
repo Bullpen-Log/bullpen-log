@@ -68,7 +68,15 @@ export function useShootChecks(
         : null;
       // Keep the current exercise and its reason editor in place until the server accepts a postponement.
       const optimistic = status !== 'later';
-      if (!optimistic && inflight.current > 0) return false;
+      /*
+       * 미룸은 앞 저장이 끝난 뒤에 보낸다 — 겹치면 대답의 체크를 못 받아(inflight) 미룸이 화면에 안 붙었다. 예전엔 그냥 false 를 돌려줘
+       * [미루기] · 미룸으로 되돌리기가 아무 말 없이 안 먹었다(2026-11-21 검토). 15초 넘게 안 끝나면 그대로 보낸다.
+       */
+      if (!optimistic) {
+        for (let waited = 0; inflight.current > 0 && waited < 15_000; waited += 100) {
+          await new Promise((r) => window.setTimeout(r, 100));
+        }
+      }
       if (optimistic) setChecks((cs) => apply(cs, exerciseId, next));
       readVersion.current++;
       setError(null);
@@ -86,13 +94,18 @@ export function useShootChecks(
           setToast((t) => ({
             seq: (t?.seq ?? 0) + 1,
             text: opts.label!,
-            revert: { exerciseId, status: reopened ? 'redo' : (prev?.status ?? null), note: prev?.note ?? null },
+            /* 다시 연 운동(미룬 날 뒤에 다시 짠 것)은 화면에 대기였다 — 되돌리면 대기로(예전엔 '다시 찍기 · 옛 미룸 사유'가 됐다) */
+            revert: reopened
+              ? { exerciseId, status: null, note: null }
+              : { exerciseId, status: prev?.status ?? null, note: prev?.note ?? null },
           }));
         }
         return true;
       }
       if (optimistic) setChecks((cs) => apply(cs, exerciseId, prev));
-      setError(res.error);
+      /* 어느 운동이 안 됐는지 — 촬영 모드는 저장을 기다리지 않고 다음으로 넘어가서, 번호가 없으면 무엇이 빠졌는지 몰랐다 */
+      const no = opts.label?.split(' ')[0];
+      setError(no && /^\d+-\d+$/.test(no) ? `${no} 저장 못 했어요 · ${res.error}` : res.error);
       return false;
     },
     [me]
@@ -109,6 +122,8 @@ export function useShootChecks(
       if (alive && res?.ok && version === readVersion.current && inflight.current === 0) setChecks(res.checks);
     };
     const id = window.setInterval(tick, POLL_MS);
+    /* 열자마자 한 번 — 앞 화면 캐시(30초) · 앱의 뒤로 가기로 되살린 화면은 옛 체크라 다른 사람이 찍은 것을 15초 넘게 몰랐다 */
+    void tick();
     const onShow = () => {
       if (!document.hidden) void tick();
     };

@@ -93,8 +93,14 @@ export function cursorOfList(
   };
   const open = items.filter(isOpen);
   const picked = pickId ? items.find((it) => it.exerciseId === pickId) : undefined;
-  const current =
-    picked && stateOf(picked, checks) !== 'done' ? picked : (open[0] ?? null);
+  /*
+   * 고른 운동이 찍힘(다른 폰 · 영상 붙음)이면 그 바로 뒤의 차례로 — 예전엔 목록 처음의 안 찍은 것으로 튀어 중간부터 찍던 사람이 다시 찾아야 했다
+   */
+  const current = !picked
+    ? (open[0] ?? null)
+    : stateOf(picked, checks) !== 'done'
+      ? picked
+      : (openAfter(items, checks, picked.exerciseId, laterIsOpen)[0] ?? open[0] ?? null);
   /* 다음은 지금 운동 바로 뒤의 차례(중간부터 찍어도 이어서) — 뒤에 없으면 앞에서 */
   const next = current ? (openAfter(items, checks, current.exerciseId, laterIsOpen)[0] ?? null) : null;
   return { current, next, index: current ? items.indexOf(current) : items.length };

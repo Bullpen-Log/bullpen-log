@@ -31,9 +31,14 @@ export type PendingClip = {
 };
 
 let opening: Promise<IDBDatabase | null> | null = null;
+/**
+ * 열린 연결 하나를 같이 쓴다. 못 열었으면(null) 기억하지 않고 다음에 다시 연다. 연결이 끊기면(WebKit 'Connection to Indexed Database server lost' —
+ * 폰이 잠겼다 풀리면 생긴다) 버리고 다시 연다 — 예전엔 끊긴 연결을 끝까지 붙들어, 그 뒤로는 폰에 맡기기 · 맡긴 목록 · 지우기가 아무 말 없이 다
+ * 안 됐다(2026-11-21 검토).
+ */
 function db(): Promise<IDBDatabase | null> {
   if (opening) return opening;
-  opening = new Promise((resolve) => {
+  const p = new Promise<IDBDatabase | null>((resolve) => {
     try {
       const r = indexedDB.open(DB_NAME, DB_VERSION);
       r.onupgradeneeded = () => {
@@ -42,27 +47,53 @@ function db(): Promise<IDBDatabase | null> {
           d.createObjectStore(STORE, { keyPath: 'exerciseId' });
         }
       };
-      r.onsuccess = () => resolve(r.result);
+      r.onsuccess = () => {
+        const d = r.result;
+        d.onclose = () => forget(p);
+        d.onversionchange = () => {
+          d.close();
+          forget(p);
+        };
+        resolve(d);
+      };
       r.onerror = () => resolve(null);
       r.onblocked = () => resolve(null);
     } catch {
       resolve(null);
     }
   });
-  return opening;
+  opening = p;
+  void p.then((d) => {
+    if (!d) forget(p);
+  });
+  return p;
+}
+
+function forget(p: Promise<IDBDatabase | null>) {
+  if (opening === p) opening = null;
 }
 
 function run<T>(
   mode: IDBTransactionMode,
   fn: (s: IDBObjectStore) => IDBRequest | void,
-  fallback: T
+  fallback: T,
+  retried = false
 ): Promise<T> {
-  return db().then(
+  const p = db();
+  return p.then(
     (d) =>
       new Promise<T>((resolve) => {
         if (!d) return resolve(fallback);
+        let tx: IDBTransaction;
         try {
-          const tx = d.transaction(STORE, mode);
+          tx = d.transaction(STORE, mode);
+        } catch {
+          // 끊긴 연결(InvalidStateError) — 버리고 한 번만 다시 연다
+          forget(p);
+          if (retried) return resolve(fallback);
+          return resolve(run(mode, fn, fallback, true));
+        }
+        try {
           const req = fn(tx.objectStore(STORE));
           tx.oncomplete = () => resolve(req ? (req.result as T) : fallback);
           tx.onerror = () => resolve(fallback);

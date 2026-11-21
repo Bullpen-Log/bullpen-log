@@ -32,7 +32,9 @@ import { exportMutedClip, probeClip } from '../lib/clip/edit.ts';
 import {
   AppCameraError,
   appCameraAvailable,
+  appCameraLeftovers,
   decodeBase64,
+  discardAppCameraFiles,
   recordWithAppCamera,
 } from '../lib/shoot-camera.ts';
 
@@ -128,6 +130,7 @@ console.log('③ 앱 카메라 다리 — 가짜 앱 부품');
   const g = globalThis as unknown as { window?: unknown };
   const calls: { method: string; options: unknown }[] = [];
   let mode: 'ok' | 'cancel' | 'denied' = 'ok';
+  let leftovers: unknown = undefined;
   const source = Buffer.alloc(5 * 1024 * 1024 + 123);
   for (let i = 0; i < source.length; i++) source[i] = (i * 31 + 7) % 251;
   const fake = {
@@ -156,6 +159,8 @@ console.log('③ 앱 카메라 다리 — 가짜 앱 부품');
         };
       }
       if (method === 'discard') return {};
+      /* 옛 앱(남은 촬영본 목록 없음)은 'ShootCamera.leftovers 은 이 앱에 없어요'로 던진다 */
+      if (method === 'leftovers' && leftovers !== undefined) return leftovers;
       throw new Error('method');
     },
   };
@@ -191,13 +196,26 @@ console.log('③ 앱 카메라 다리 — 가짜 앱 부품');
   mode = 'ok';
   calls.length = 0;
   const seen: number[] = [];
-  const file = await recordWithAppCamera((pr) => seen.push(pr));
+  const meta = { exerciseId: 'e1', no: '4-25', title: '내전근 록백', cue: '옆에서' };
+  const take = await recordWithAppCamera((pr) => seen.push(pr), meta);
+  const file = take?.file ?? null;
   const got = file ? Buffer.from(await file.arrayBuffer()) : Buffer.alloc(0);
   const reads = calls.filter((c) => c.method === 'read').length;
   check('조각으로 넘겨받아 원래 바이트 그대로', !!file && got.equals(source), `${got.length} / ${source.length}`);
   /* 2026-10-18 부터 4MB 씩(앱 상한 그대로) — 5MB 는 두 번 */
   check('4MB 씩 두 번 읽음', reads === 2, `읽기 ${reads}번`);
-  check('다 받으면 앱의 임시 파일을 지움', calls.at(-1)?.method === 'discard');
+  /* 2026-11-21 — 넘겨받아도 앱의 원본은 남긴다(편집하다 웹 화면이 죽어도 이어서) · 폰 저장소에 맡긴 뒤 화면이 지운다 */
+  check('넘겨받아도 앱 원본은 지우지 않음 · 경로를 돌려줌',
+    !calls.some((c) => c.method === 'discard') && take?.path === '/tmp/bullpen-shoot/a.mov');
+  check('찍을 때 어느 운동인지 앱에 넘김', (calls[0]?.options as { meta?: unknown })?.meta === meta);
+  calls.length = 0;
+  await discardAppCameraFiles([take?.path, null, '']);
+  check('지우기는 빈 경로를 빼고 한 번에', calls.length === 1 && calls[0].method === 'discard' &&
+    JSON.stringify((calls[0].options as { paths?: unknown }).paths) === JSON.stringify(['/tmp/bullpen-shoot/a.mov']));
+  check('옛 앱(남은 목록 없음)은 빈 목록', (await appCameraLeftovers()).length === 0);
+  leftovers = { takes: [{ path: '/tmp/bullpen-shoot/b.mov', meta, at: 1 }, { nope: 1 }, null] };
+  const left = await appCameraLeftovers();
+  check('남은 촬영본 — 모양이 맞는 것만', left.length === 1 && left[0].path === '/tmp/bullpen-shoot/b.mov' && left[0].meta?.no === '4-25');
   check('파일 이름 · 종류(mov)', file?.name === 'app-camera.mov' && file?.type === 'video/quicktime');
   check(
     '진행률 0 → 1',

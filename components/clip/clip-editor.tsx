@@ -146,6 +146,14 @@ export function ClipEditor({
             {loading > 0 ? `영상을 가져오는 중 ${Math.round(loading * 100)}%` : '카메라에서 찍는 중'}
           </p>
           <p className="text-xs text-muted">{title}</p>
+          {/* 카메라가 대답하지 않을 때 갇히지 않게 — 닫아도 찍은 원본은 앱에 남아 '이어서 편집'으로 돌아온다 */}
+          <button
+            type="button"
+            onClick={onClose}
+            className="mt-2 min-h-11 rounded-full bg-white/10 px-5 text-sm font-semibold text-ink"
+          >
+            닫기
+          </button>
         </div>
       )}
       {file && (

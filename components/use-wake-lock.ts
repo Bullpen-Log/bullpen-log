@@ -35,6 +35,15 @@ import { hasNativeBridge, nativeKeepAwake } from '@/lib/native-bridge';
  */
 let nativeHolders = 0;
 
+/**
+ * 잡은 화면 켜 두기를 앱에 한 번 더 알린다 — 촬영 모드 앱 카메라 화면이 닫히며 아이폰의 화면 켜 두기를 꺼 버린다
+ * (ShootRecorderViewController viewWillDisappear). 그 뒤 넘겨받기 · 자르기 · 올리기 동안 폰이 잠겨 올리기가 끊겼다(2026-11-21 검토).
+ * 잡은 화면이 없으면 아무것도 안 한다.
+ */
+export function reassertWakeLock(): void {
+  if (nativeHolders > 0) nativeKeepAwake(true);
+}
+
 export function useWakeLock(active = true): boolean {
   const [held, setHeld] = useState(false);
   /* 여러 번 잡지 않게 들고 있는 것을 기억한다 */

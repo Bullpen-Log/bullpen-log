@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { hideSplashUnlessIntro } from '~/shell/intro';
 import * as Haptics from 'expo-haptics';
 import { setStatusBarStyle } from 'expo-status-bar';
@@ -33,7 +34,8 @@ export const CAP_SHIM = `(function () {
   /* 한 화면에서만 있는 부품 — 폰 영상(LocalVideo)은 웹 구속 화면이 옛 앱 세션을 마무리할 때만(SCOPED 설명) */
   var scoped = ${JSON.stringify(SCOPED)};
   var can = function (name) { return !!have[name] || (!!scoped[name] && location.pathname.indexOf(scoped[name]) === 0); };
-  var seq = 0, wait = {};
+  /* 답 번호 앞에 이 쪽의 표 — 쪽이 다시 불리면 seq 가 1 부터라 옛 쪽 대답이 새 쪽의 엉뚱한 부름에 붙을 수 있었다 */
+  var page = Math.random().toString(36).slice(2, 10), seq = 0, wait = {};
   var post = function (m) { window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify(m)); };
   window.__bpCapReply = function (id, ok, value, code) {
     var w = wait[id];
@@ -49,7 +51,7 @@ export const CAP_SHIM = `(function () {
     nativePromise: function (plugin, method, options) {
       if (!can(plugin)) return Promise.reject(new Error('unavailable'));
       return new Promise(function (resolve, reject) {
-        var id = ++seq;
+        var id = page + ':' + (++seq);
         wait[id] = [resolve, reject];
         post({ t: 'cap', id: id, plugin: plugin, method: method, options: options || {} });
       });
@@ -77,7 +79,34 @@ export const CAP_SHIM = `(function () {
   true;
 })();`;
 
-type CapMessage = { t: 'cap'; id: number; plugin: string; method: string; options: Record<string, unknown> };
+type CapMessage = { t: 'cap'; id: number | string; plugin: string; method: string; options: Record<string, unknown> };
+
+/*
+ * 촬영본 목록 — 앱 카메라로 찍은 원본을 웹 화면이 지울 때까지 적어 둔다(어느 운동인지 meta 와 함께). 웹 화면이 편집하다 죽으면
+ * (앱 메모리 · 잠김 — onContentProcessDidTerminate) 그 화면의 대답 · 파일이 사라져 찍은 영상을 잃었다(2026-11-21 검토). 새 화면이
+ * ShootCamera.leftovers 로 물어 '이어서 편집'한다. 앱이 꺼져도 남게 AsyncStorage 에. 원본은 하루 지나면 앱이 지운다(ShootCameraModule) — 그 전에 뺀다.
+ */
+type Take = { path: string; meta: unknown; at: number };
+const TAKES_KEY = 'bp-shoot-takes';
+const TAKE_TTL_MS = 20 * 60 * 60 * 1000;
+let takes: Take[] | null = null;
+async function loadTakes(): Promise<Take[]> {
+  if (!takes) {
+    try {
+      const raw = await AsyncStorage.getItem(TAKES_KEY);
+      const list: unknown = raw ? JSON.parse(raw) : [];
+      takes = Array.isArray(list) ? list.filter((t): t is Take => !!t && typeof t.path === 'string' && typeof t.at === 'number') : [];
+    } catch {
+      takes = [];
+    }
+  }
+  const now = Date.now();
+  takes = takes.filter((t) => now - t.at < TAKE_TTL_MS);
+  return takes;
+}
+function saveTakes() {
+  void AsyncStorage.setItem(TAKES_KEY, JSON.stringify(takes ?? [])).catch(() => undefined);
+}
 
 const IMPACT: Record<string, Haptics.ImpactFeedbackStyle> = {
   LIGHT: Haptics.ImpactFeedbackStyle.Light,
@@ -117,10 +146,26 @@ async function run({ plugin, method, options: o }: CapMessage): Promise<unknown>
   if (plugin === 'SplashScreen' && method === 'hide') return hideSplashUnlessIntro();
   if (plugin === 'ShootCamera') {
     if (method === 'status') return ShootCamera.status();
-    if (method === 'record') return ShootCamera.record({ maxSeconds: Number(o.maxSeconds) || 180 });
+    if (method === 'record') {
+      const res = await ShootCamera.record({ maxSeconds: Number(o.maxSeconds) || 180 });
+      if (res && typeof res.path === 'string') {
+        const path = res.path;
+        const list = await loadTakes();
+        takes = [...list.filter((t) => t.path !== path), { path, meta: o.meta ?? null, at: Date.now() }];
+        saveTakes();
+      }
+      return res;
+    }
+    if (method === 'leftovers') return { takes: await loadTakes() };
     if (method === 'read')
       return ShootCamera.read({ path: String(o.path), offset: Number(o.offset) || 0, length: Number(o.length) || undefined });
-    if (method === 'discard') return ShootCamera.discard({ paths: Array.isArray(o.paths) ? o.paths.map(String) : [] });
+    if (method === 'discard') {
+      const paths = strings(o.paths);
+      /* 목록에서 먼저 뺀다 — 지우는 사이 들어온 leftovers 물음에 이미 맡긴 것이 다시 나오지 않게 */
+      takes = (await loadTakes()).filter((t) => !paths.includes(t.path));
+      saveTakes();
+      return ShootCamera.discard({ paths });
+    }
   }
   if (plugin === 'LocalVideo' && LOCAL_VIDEO_METHODS.has(method)) {
     if (method === 'status') return LocalVideo.status();
@@ -150,8 +195,8 @@ export function handleCapMessage(
     setStatusBarStyle(m.dark ? 'light' : 'dark');
     return true;
   }
-  if (m?.t !== 'cap' || typeof m.id !== 'number') return false;
-  const id = m.id;
+  if (m?.t !== 'cap' || (typeof m.id !== 'number' && typeof m.id !== 'string')) return false;
+  const id = JSON.stringify(m.id);
   run(m as CapMessage).then(
     (value) => reply(`window.__bpCapReply(${id}, true, ${JSON.stringify(value ?? null)});true;`),
     (e: unknown) => {

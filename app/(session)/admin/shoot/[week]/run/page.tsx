@@ -30,6 +30,8 @@ export default async function ShootRunPage({
   }
   return (
     <RunClient
+      /* ?at= 만 바뀌어도 새로 — Next 는 같은 쪽을 다시 쓰고 고른 운동(state)이 남아 앱의 '이 운동부터'가 안 먹었다 */
+      key={`${n}:${mine}:${startAt}`}
       data={scoped}
       crew={mine}
       me={me.nickname}

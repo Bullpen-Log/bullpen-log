@@ -93,40 +93,84 @@ export function decodeBase64(data: string): Uint8Array<ArrayBuffer> {
   return out;
 }
 
+/** 찍은 운동 — 앱이 촬영본 옆에 적어 둔다(웹 화면이 죽어도 어느 운동 것인지 안다) */
+export type TakeMeta = { exerciseId: string; no: string; title: string; cue: string };
+
+/** 앱 카메라 촬영본 — 넘겨받은 파일과 앱에 남아 있는 원본 경로(다 맡긴 뒤 discardAppCameraFiles 로 지운다) */
+export type AppTake = { file: File; path: string };
+
 /**
  * 앱 카메라로 찍는다 — 아이폰 기본 카메라 화면이 뜨고, 다 찍어 [비디오 사용]을 누르면 파일을 넘겨받아 돌려준다.
- * 취소하면 null. 넘겨받는 동안 onProgress(0~1). 다 받으면 앱의 임시 파일을 지운다.
+ * 취소하면 null. 넘겨받는 동안 onProgress(0~1).
+ *
+ * 앱의 원본은 지우지 않는다 — 넘겨받은 파일은 이 화면의 메모리에만 있어, 편집하다 웹 화면이 죽으면(앱 메모리 · 화면 잠김) 영상이
+ * 통째로 사라졌다(2026-11-21 검토). 폰 저장소(lib/clip/outbox.ts)에 맡긴 뒤 discardAppCameraFiles 로 지운다. 그 전에 화면이 죽으면
+ * 다음에 appCameraLeftovers 로 찾아 이어서 편집한다. 앱은 하루 지난 원본을 스스로 지운다(ShootCameraModule OnCreate).
  */
 export async function recordWithAppCamera(
-  onProgress: (p: number) => void = () => {}
-): Promise<File | null> {
+  onProgress: (p: number) => void = () => {},
+  meta?: TakeMeta
+): Promise<AppTake | null> {
   const res = await call<{ cancelled?: boolean; path?: string; size?: number }>('record', {
     maxSeconds: MAX_RECORD_SECONDS,
+    meta,
   });
   if (res?.cancelled || !res?.path) return null;
-  const path = res.path;
+  const file = await readAppCameraFile(res.path, onProgress, res.size ?? 0);
+  return { file, path: res.path };
+}
+
+/** 앱에 있는 촬영본을 넘겨받는다 — 4MB 씩. 못 읽으면 던진다(원본은 그대로) */
+export async function readAppCameraFile(
+  path: string,
+  onProgress: (p: number) => void = () => {},
+  knownSize = 0
+): Promise<File> {
   const parts: Uint8Array<ArrayBuffer>[] = [];
   let offset = 0;
-  let size = res.size ?? 0;
-  try {
-    for (;;) {
-      const chunk = await call<{ data: string; size: number; eof: boolean }>('read', {
-        path,
-        offset,
-        length: CHUNK,
-      });
-      const bytes = decodeBase64(chunk.data);
-      parts.push(bytes);
-      offset += bytes.length;
-      size = chunk.size || size;
-      onProgress(size > 0 ? Math.min(1, offset / size) : 0);
-      if (chunk.eof || bytes.length === 0) break;
-    }
-  } finally {
-    await call('discard', { paths: [path] }).catch(() => undefined);
+  let size = knownSize;
+  for (;;) {
+    const chunk = await call<{ data: string; size: number; eof: boolean }>('read', {
+      path,
+      offset,
+      length: CHUNK,
+    });
+    const bytes = decodeBase64(chunk.data);
+    parts.push(bytes);
+    offset += bytes.length;
+    size = chunk.size || size;
+    onProgress(size > 0 ? Math.min(1, offset / size) : 0);
+    if (chunk.eof || bytes.length === 0) break;
   }
   const ext = path.toLowerCase().endsWith('.mp4') ? 'mp4' : 'mov';
   return new File(parts, `app-camera.${ext}`, {
     type: ext === 'mp4' ? 'video/mp4' : 'video/quicktime',
   });
+}
+
+/** 앱의 촬영본 지우기 — 폰 저장소에 맡겼거나 올렸거나 버리기로 한 것 */
+export async function discardAppCameraFiles(paths: (string | null | undefined)[]): Promise<void> {
+  const list = paths.filter((p): p is string => typeof p === 'string' && p.length > 0);
+  if (!list.length || !appCameraAvailable()) return;
+  await call('discard', { paths: list }).catch(() => undefined);
+}
+
+/** 넘겨받다 · 편집하다 화면이 죽어 남은 촬영본 */
+export type AppTakeLeftover = { path: string; meta: TakeMeta | null; at: number };
+
+/**
+ * 남은 촬영본 — 앱(native/src/lib/cap-bridge.ts)이 찍을 때마다 적어 두고 discard 하면 지운다. 이 목록을 모르는 옛 앱은 빈 목록.
+ */
+export async function appCameraLeftovers(): Promise<AppTakeLeftover[]> {
+  if (!appCameraAvailable()) return [];
+  try {
+    const res = await call<{ takes?: unknown }>('leftovers');
+    if (!Array.isArray(res?.takes)) return [];
+    return res.takes.filter(
+      (t): t is AppTakeLeftover =>
+        !!t && typeof (t as AppTakeLeftover).path === 'string' && typeof (t as AppTakeLeftover).at === 'number'
+    );
+  } catch {
+    return [];
+  }
 }

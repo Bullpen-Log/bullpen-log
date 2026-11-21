@@ -115,6 +115,9 @@ export async function putToSignedUrl(signedUrl: string, file: Blob, onProgress: 
 /** 신호가 끊겨 대답을 못 받은 실패 — 이것만 다시 해 본다(서버가 거절한 것은 다시 해도 같다) */
 class NetworkError extends Error {}
 
+/** 이만큼 한 바이트도 안 나가면 끊는다 */
+const STALL_MS = 60_000;
+
 function putFile(
   url: string,
   file: Blob,
@@ -126,9 +129,24 @@ function putFile(
     xhr.open('PUT', url);
     xhr.setRequestHeader('Content-Type', file.type);
 
+    /*
+     * 멈춤 감시 — 한동안 한 바이트도 안 나가면 끊고 끊김으로 본다(한 번 더 해 본다). 예전엔 신호만 붙고 인터넷이 안 되는 와이파이에서
+     * 끝없이 '올리는 중'에 멈춰 앱을 꺼야 했다(2026-11-21 검토). 바이트가 나가는 동안은 몇 분이 걸려도 끊지 않는다.
+     */
+    let stall = 0;
+    const watch = () => {
+      window.clearTimeout(stall);
+      stall = window.setTimeout(() => xhr.abort(), STALL_MS);
+    };
+    const offline = () =>
+      new NetworkError('신호가 끊겨 업로드에 실패했어요. 연결을 확인하고 다시 골라 주세요.');
+
     xhr.upload.onprogress = (e) => {
+      watch();
       if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
     };
+    xhr.onloadend = () => window.clearTimeout(stall);
+    xhr.onabort = () => reject(offline());
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) return resolve();
       /* 다시 보낸 것인데 '이미 있어요' — 앞의 것이 다 올라갔다(위 설명) */
@@ -137,12 +155,8 @@ function putFile(
       if (retry && duplicate) return resolve();
       reject(new Error('업로드에 실패했어요.'));
     };
-    xhr.onerror = () =>
-      reject(
-        new NetworkError(
-          '신호가 끊겨 업로드에 실패했어요. 연결을 확인하고 다시 골라 주세요.'
-        )
-      );
+    xhr.onerror = () => reject(offline());
+    watch();
     xhr.send(file);
   });
 }

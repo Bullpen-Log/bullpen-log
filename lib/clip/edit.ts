@@ -213,12 +213,20 @@ export async function exportMutedClip(
     onProgress: report ? (p) => report(p, 'first') : undefined,
   });
   if (first.file.size <= budget) return first;
-  if (first.path === 'copy' || first.bitrate === null) throw new Error('TOO_BIG');
-  // 실제로 쓴 비트레이트를 넘은 비율만큼 낮춘다(예산만 줄이면 상한 비트레이트가 그대로일 수 있다)
+  if (options.forceCopy) throw new Error('TOO_BIG');
+  /*
+   * 잘라 붙인 것이 넘었으면(앞 키프레임까지 늘어난 몫 — canKeepAsIs 의 어림 밖) 다시 만들어 본다. 예전엔 바로 '50MB 넘음'으로 막혀
+   * 다시 만들면 들어가는 49~50초 영상도 못 올렸다(2026-11-21 검토). 다시 만든 것이 넘었으면 쓴 비트레이트를 넘은 비율만큼 낮춘다
+   * (예산만 줄이면 상한 비트레이트가 그대로일 수 있다).
+   */
+  const maxBitrate =
+    first.path === 'copy' || first.bitrate === null
+      ? Math.floor(((budget - 64 * 1024) * 8 * 0.9) / Math.max(0.1, first.duration))
+      : Math.floor(first.bitrate * (budget / first.file.size) * 0.9);
   const second = await exportOnce(file, range, {
     ...options,
     budgetBytes: budget,
-    maxBitrate: Math.floor(first.bitrate * (budget / first.file.size) * 0.9),
+    maxBitrate,
     onProgress: report ? (p) => report(p, 'shrink') : undefined,
   });
   if (second.file.size > budget) throw new Error('TOO_BIG');
