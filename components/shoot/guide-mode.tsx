@@ -9,6 +9,7 @@ import { ShootExerciseDetail } from '@/components/shoot/exercise-detail';
 import { STATE_LABEL } from '@/components/shoot/status';
 import { ButtonLink } from '@/components/ui';
 import { useWakeLock } from '@/components/use-wake-lock';
+import { splitInstagramReference } from '@/lib/mechanics/reference-draft';
 import { guideStart, shootRunHref } from '@/lib/shoot/guide';
 import type { ShootWeekData } from '@/lib/shoot/load';
 import { stateOf, weekItems } from '@/lib/shoot/progress';
@@ -30,6 +31,7 @@ export function ShootGuideMode({ data, crew, startAt }: {
   const current = queue[index];
   const next = queue[index + 1];
   const info = current && infos[current.exerciseId];
+  const hasVideo = info?.youtube || info?.own || splitInstagramReference(info?.description ?? '').url;
   const check = current && map.get(current.exerciseId);
   const list = useModalState<boolean>();
   const heading = useRef<HTMLHeadingElement>(null);
@@ -97,7 +99,7 @@ export function ShootGuideMode({ data, crew, startAt }: {
             <p className="text-sm text-muted">지도 순서 {index + 1} / {queue.length} · {current.no} · {STATE_LABEL[stateOf(current, map)]}</p>
             <h1 ref={heading} tabIndex={-1} className="scroll-mt-3 text-2xl font-bold break-keep focus:outline-none">{current.title}</h1>
             {check?.status === 'later' && check.note && <p className="whitespace-pre-wrap break-words text-sm text-muted">미룸 사유 · {check.note}</p>}
-            {!info?.youtube && !info?.own && <p className="rounded-xl bg-surface-2 p-4 text-sm text-muted">등록된 시범 영상이 없어요. 아래 시범 방법을 확인해 주세요.</p>}
+            {!hasVideo && <p className="rounded-xl bg-surface-2 p-4 text-sm text-muted">등록된 시범 영상이 없어요. 아래 시범 방법을 확인해 주세요.</p>}
             <ShootExerciseDetail key={current.exerciseId} item={current} info={info} />
           </div>
           <footer className="shrink-0 space-y-2 border-t border-line bg-page px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
