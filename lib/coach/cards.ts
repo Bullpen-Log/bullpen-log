@@ -5,7 +5,7 @@
  * 약속(자체 시험 coach:ai-test 가 지킨다)
  *   - 숫자 처방이 없다 — 투구 수 · 휴식일 · 세트 · 무게 · 시간은 앱 엔진만 말한다(D1).
  *   - 두 종류(D3): 안전 카드('이건 하지 않는다 · 이럴 땐 전문가로 · 지어내지 않는다')는 초안이어도 싣는다. 코칭 카드('이럴 땐 이렇게 권한다')는
- *     검토자가 적힌 것만 싣는다(shippedCards) — 지금 여섯 장은 검토 전이라 안 실린다.
+ *     검토자가 적힌 것만 싣는다(shippedCards) — 다섯 장 모두 2026-11-21 김민 검토(SK20 은 규칙 글과 같아 뺐다).
  *   - 코치가 할 수 있는 일로만 쓴다(D4): 일정 바꾸기 넷(시간 · 쉬기 · 옮기기 · 바쁜 주) · 설명 · 되묻기 · 다른 화면으로 보내기(체크인 · 투구 기록 ·
  *     암케어 · 전문가).
  *   - 출처는 내부 추적용 번호만(CARD_SOURCES) — 화면 · AI 답에는 기관 이름을 쓰지 않는다(2026-10-09 규칙). 카드 글에도 이름이 없다.
@@ -70,6 +70,8 @@ export const CARD_SOURCES = {
 export type CardSourceId = keyof typeof CARD_SOURCES;
 
 const DRAFT = { by: null, at: null } as const;
+/** 코칭 카드 검토(D3) — 2026-11-21 김민이 다섯 장을 읽고 그대로 실었다 */
+const REVIEWED_1121 = { by: '김민', at: '2026-11-21' } as const;
 
 export const COACH_CARDS: readonly CoachCard[] = [
   /* ── 안전 카드(초안이어도 싣는다) ── */
@@ -283,7 +285,7 @@ export const COACH_CARDS: readonly CoachCard[] = [
     review: DRAFT,
   },
 
-  /* ── 코칭 카드(검토자가 적혀야 실린다 — D3) ── */
+  /* ── 코칭 카드(검토자가 적혀야 실린다 — D3). 2026-11-21 김민 검토 다섯 장 · SK20(팀 훈련과 겹칠 때)은 규칙 글과 같은 말이라 뺐다 ── */
   {
     id: 'K12',
     kind: 'coaching',
@@ -291,7 +293,7 @@ export const COACH_CARDS: readonly CoachCard[] = [
     do: '할 수 있는 날과 시간에 맞춰 시간 줄이기 · 바쁜 주를 제안하고, 짧게라도 꾸준히 하는 쪽을 권한다',
     dont: '다 못 하면 소용없다고 말하지 않는다',
     sources: ['AC01', 'AC02', 'AC03'],
-    review: DRAFT,
+    review: REVIEWED_1121,
   },
   {
     id: 'SK07',
@@ -300,7 +302,7 @@ export const COACH_CARDS: readonly CoachCard[] = [
     do: '바꾸는 까닭을 묻고, 바꾼 뒤 무엇으로 확인할지 · 언제 다시 볼지를 같이 정한다',
     dont: '아프거나 이상한 반응이 있는데 원래 계획을 고집하지 않는다',
     sources: ['TA03', 'TA04'],
-    review: DRAFT,
+    review: REVIEWED_1121,
   },
   {
     id: 'SK17',
@@ -309,16 +311,7 @@ export const COACH_CARDS: readonly CoachCard[] = [
     do: '실제로 한 양을 기록하게 하고, 남은 날을 그에 맞춰 쉬기 · 옮기기로 다시 보자고 한다',
     dont: '계획한 양만 보고 운동을 더 얹지 않는다',
     sources: ['DL13', 'DL17', 'PDF02', 'RS03', 'TA03'],
-    review: DRAFT,
-  },
-  {
-    id: 'SK20',
-    kind: 'coaching',
-    when: '팀 훈련과 앱 일정이 겹칠 때',
-    do: '둘을 합쳐 보고 겹친 날은 쉬기나 옮기기를 제안하며, 달력에 팀 일정을 적어 두라고 한다',
-    dont: '팀 훈련을 모른 척하고 운동을 더하지 않는다',
-    sources: ['TA01', 'TA10'],
-    review: DRAFT,
+    review: REVIEWED_1121,
   },
   {
     id: 'SK26',
@@ -327,7 +320,7 @@ export const COACH_CARDS: readonly CoachCard[] = [
     do: '오늘 판단을 바꿀 질문 한두 개만 먼저 묻는다',
     dont: '이미 맥락에 있는 것을 다시 묻지 않는다',
     sources: [],
-    review: DRAFT,
+    review: REVIEWED_1121,
   },
   {
     id: 'SK27',
@@ -336,7 +329,7 @@ export const COACH_CARDS: readonly CoachCard[] = [
     do: '다음에 무엇을 확인할지 한 줄로 말한다(다음 체크인의 팔 상태 등)',
     dont: '앱이 보내지 않는 알림을 보냈다거나 나중에 먼저 연락하겠다고 말하지 않는다',
     sources: [],
-    review: DRAFT,
+    review: REVIEWED_1121,
   },
 ];
 

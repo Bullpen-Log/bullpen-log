@@ -13,7 +13,7 @@ import { progressLines, type CoachAiProgress } from '@/lib/coach/progress';
  * 사용자 말 앞에 붙이는 오늘 맥락 덩이(코드 · 숫자만). 이름 · 이메일 · 생년월일 · 사용자 id · 체크인 메모 원문 · 영상 · 위치는 넣지 않는다 —
  * 맥락 타입에 그런 칸이 아예 없다. 순수 파일.
  */
-export const COACH_PROMPT_V = 20;
+export const COACH_PROMPT_V = 21;
 
 /** 구속 측정이 꺼져 있으면(lib/coach/act.ts COACH_VELOCITY) 지시문에서 그 말을 뺀다 */
 const V = (s: string) => (COACH_VELOCITY ? s : '');

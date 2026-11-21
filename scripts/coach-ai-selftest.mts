@@ -200,22 +200,23 @@ check('⑤ 시스템 글은 이름을 안 쓰고 말하지 말라고 한다', sc
   const text = (c: (typeof COACH_CARDS)[number]) => `${c.when} ${c.do} ${c.dont}`;
   const safety = COACH_CARDS.filter((c) => c.kind === 'safety');
   const coaching = COACH_CARDS.filter((c) => c.kind === 'coaching');
-  check('⑥ 카드 29장(안전 23 · 코칭 6) · 번호가 겹치지 않는다', COACH_CARDS.length === 29 && safety.length === 23 && coaching.length === 6 && new Set(COACH_CARDS.map((c) => c.id)).size === 29);
+  check('⑥ 카드 28장(안전 23 · 코칭 5) · 번호가 겹치지 않는다', COACH_CARDS.length === 28 && safety.length === 23 && coaching.length === 5 && new Set(COACH_CARDS.map((c) => c.id)).size === 28);
   check('⑥ 숫자 처방 없음 — 카드 글에 숫자가 없다(투구 수 · 휴식일 · 세트 · 무게 · 시간은 앱 엔진만, D1)', COACH_CARDS.every((c) => !/\d/.test(text(c))), COACH_CARDS.filter((c) => /\d/.test(text(c))).map((c) => c.id).join());
   check('⑥ 출처 번호가 출처 표에 있다', COACH_CARDS.every((c) => c.sources.every((id) => id in CARD_SOURCES)));
   check('⑥ 카드 글에 기관 이름이 없다', COACH_CARDS.every((c) => scrubNames(text(c)) === text(c)));
   check(
     '⑥ 실리는 카드 — 안전 카드는 늘, 코칭 카드는 검토자가 적힌 것만(D3)',
-    shippedCards().length === 23 &&
-      shippedCards().every((c) => c.kind === 'safety') &&
-      shippedCards([...COACH_CARDS.slice(0, 1), { ...coaching[0], review: { by: '시험', at: '2026-11-17' } }]).length === 2
+    shippedCards().length === 28 &&
+      coaching.every((c) => c.review.by != null && c.review.at != null) &&
+      shippedCards([...COACH_CARDS.slice(0, 1), { ...coaching[0], review: { by: null, at: null } }]).length === 1
   );
-  check('⑥ 카드 29장을 다 실어도 4,000자 안(D2 — 글자 수로 어림)', cardsBlock(COACH_CARDS).length <= 4000, String(cardsBlock(COACH_CARDS).length));
+  check('⑥ 카드 28장을 다 실어도 4,000자 안(D2 — 글자 수로 어림)', cardsBlock(COACH_CARDS).length <= 4000, String(cardsBlock(COACH_CARDS).length));
   check(
-    '⑥ AI 고정 덩이 = 규칙 글 + 실린 카드(검토 전 코칭 카드는 없다) · 날짜 없음(캐시)',
+    '⑥ AI 고정 덩이 = 규칙 글 + 실린 카드(검토한 코칭 카드 포함) · 날짜 · 검토자 이름 없음(캐시)',
     COACH_SYSTEM_BLOCK.startsWith(COACH_SYSTEM) &&
       safety.every((c) => COACH_SYSTEM_BLOCK.includes(c.when)) &&
-      coaching.every((c) => !COACH_SYSTEM_BLOCK.includes(c.when)) &&
+      coaching.every((c) => COACH_SYSTEM_BLOCK.includes(c.when)) &&
+      !COACH_SYSTEM_BLOCK.includes('김민') &&
       !/\d{4}-\d{2}-\d{2}/.test(COACH_SYSTEM_BLOCK) &&
       !COACH_CARDS.some((c) => COACH_SYSTEM_BLOCK.includes(c.id))
   );
