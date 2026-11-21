@@ -5,6 +5,7 @@ import { ActionSheetIOS, FlatList, Pressable, RefreshControl, StyleSheet, Text, 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MECHANICS_CATEGORY_NAMES } from '@/lib/categories';
 import { DRILL_EQUIPMENT, DRILL_STAGES, DRILL_STAGE_NAMES, FOCUS_POINTS, FOCUS_POINT_DESC } from '@/lib/exercise-meta';
+import { splitInstagramReference } from '@/lib/mechanics/reference-draft';
 import { Bar, leave } from '~/community/parts';
 import { useMenu } from '~/shell/menu-store';
 import { DRILL_LIST, ELEMENT_ICON, EmptyAction, FilterSheet, LibrarySkeleton, SearchField, remember, type Drill } from '~/library/parts';
@@ -43,7 +44,7 @@ import { Press } from '~/shell/press';
  */
 type Pick = 'focusPoints' | 'stage';
 
-const hasVideo = (g: Drill) => Boolean(g.videoPath || g.referenceVideoId);
+const hasVideo = (g: Drill) => Boolean(g.videoPath || g.referenceVideoId || splitInstagramReference(g.description).url);
 
 export default function DrillLibraryScreen() {
   const c = usePalette();

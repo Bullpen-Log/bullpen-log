@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, StyleSheet, Text, View } from 'react-native';
 import { DRILL_STAGES, FOCUS_POINT_DESC } from '@/lib/exercise-meta';
 import { mechanicsElement } from '@/lib/mechanics/elements';
+import { splitInstagramReference } from '@/lib/mechanics/reference-draft';
 import type { Palette } from '~/lib/ui';
 import { InstructionText } from '~/shell/instruction-text';
 import { Icon } from '~/shell/icon';
@@ -28,7 +29,9 @@ export function DrillDetail({ item, entry, onReturn, c }: { item: Drill; entry: 
   const [main, ...more] = item.focusPoints;
   /* 3D 분석이 넘긴 요소가 이 드릴의 보조 요소면 그 관계를 보인다(주 요소는 바꾸지 않는다) */
   const linkedAlong = entry.from === 'analysis' && entry.el && entry.el !== main && more.includes(entry.el) ? entry.el : null;
-  const source = item.videoPath ? '직접 촬영한 영상' : item.referenceVideoId ? '참고 영상' : '영상 준비 중';
+  const reference = splitInstagramReference(item.description);
+  const instagram = item.videoPath || item.referenceVideoId ? null : reference.url;
+  const source = item.videoPath ? '직접 촬영한 영상' : (item.referenceVideoId || instagram) ? '참고 영상' : '영상 준비 중';
   return (
     <View style={{ gap: 16 }}>
       <View style={{ gap: 8 }}>
@@ -72,7 +75,13 @@ export function DrillDetail({ item, entry, onReturn, c }: { item: Drill; entry: 
       ) : null}
 
       {/* 영상 — 이 드릴(id)마다 새 자리. 별 · 설명 · 시트가 바뀌어도 재생기는 그대로 */}
-      <DetailMedia key={item.id} item={item} c={c} />
+      {instagram ? (
+        <Press accessibilityRole="link" style={[s.card, { backgroundColor: c.card }]} onPress={() => {
+          void Linking.openURL(instagram).catch(() => Alert.alert('참고 영상을 열 수 없어요'));
+        }}>
+          <Text style={[s.bodyBold, { color: c.link }]}>Instagram 참고 영상 보기</Text>
+        </Press>
+      ) : <DetailMedia key={item.id} item={item} c={c} />}
 
       {main ? (
         <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
@@ -134,7 +143,7 @@ export function DrillDetail({ item, entry, onReturn, c }: { item: Drill; entry: 
           드릴 방법
         </Text>
         <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
-          {item.description.trim() ? <InstructionText text={item.description} c={c} /> : <Text style={[s.small, { color: c.muted }]}>등록된 설명이 없어요.</Text>}
+          {reference.text.trim() ? <InstructionText text={reference.text} c={c} /> : <Text style={[s.small, { color: c.muted }]}>등록된 설명이 없어요.</Text>}
         </View>
       </View>
 

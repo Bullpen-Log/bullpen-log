@@ -1,4 +1,5 @@
-import data from '@/lib/shoot/plan-data.json';
+import data from '@/lib/shoot/plan-data.json' with { type: 'json' };
+import linkedDrills from '@/lib/shoot/linked-drills.json' with { type: 'json' };
 import type { PlanItem, PlanWeek, ShootPlan } from '@/lib/shoot/schedule';
 
 /**
@@ -6,7 +7,48 @@ import type { PlanItem, PlanWeek, ShootPlan } from '@/lib/shoot/schedule';
  *
  * 서버 쪽에서만 읽는다 — 136KB 라 화면 묶음에 통째로 싣지 않고, 화면에는 그 주 몫만 넘긴다.
  */
-export const SHOOT_PLAN = data as ShootPlan;
+const base = data as ShootPlan;
+const existingIds = new Set(base.weeks.flatMap((week) => week.stations.flatMap((station) => station.items.map((item) => item.exerciseId))));
+
+/** 인스타 참고 드릴은 야외 던지는 자리 끝에 붙인다. 이미 찍은 번호와 시간은 그대로 둔다. */
+export const SHOOT_PLAN: ShootPlan = {
+  ...base,
+  weeks: base.weeks.map((week) => {
+    if (!week.outdoor) return week;
+    let end = week.end;
+    let addedLoad = 0;
+    const stations = week.stations.map((station) => {
+      const drafts = linkedDrills.filter((drill) =>
+        !existingIds.has(drill.id) && drill.outdoor.week === week.week && drill.outdoor.station === station.station);
+      if (!drafts.length) return station;
+      let at = station.end;
+      const items: PlanItem[] = drafts.map((drill) => {
+        const item: PlanItem = {
+          exerciseId: drill.id,
+          no: drill.outdoor.no,
+          title: drill.title,
+          equipment: drill.equipment,
+          station: station.station,
+          at,
+          minutes: drill.outdoor.minutes,
+          cue: drill.outdoor.cue,
+          kind: 'drill',
+          bucket: '스로잉 드릴',
+          group: drill.stage,
+          load: 1,
+          perSide: false,
+          breakAfter: false,
+        };
+        at = Math.round((at + item.minutes) * 10) / 10;
+        addedLoad += item.load;
+        return item;
+      });
+      end = Math.max(end, at);
+      return { ...station, end: at, items: [...station.items, ...items] };
+    });
+    return addedLoad ? { ...week, stations, end, load: { ...week.load, '스로잉 드릴': (week.load['스로잉 드릴'] ?? 0) + addedLoad } } : week;
+  }),
+};
 
 export function weekOf(n: number): PlanWeek | null {
   return SHOOT_PLAN.weeks.find((w) => w.week === n) ?? null;

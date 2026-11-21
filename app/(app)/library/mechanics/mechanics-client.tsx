@@ -1,6 +1,7 @@
 'use client';
 
 import { focusPriority } from '@/lib/mechanics/focus-priority';
+import { splitInstagramReference } from '@/lib/mechanics/reference-draft';
 
 import { useMemo, useState } from 'react';
 import { Pencil, Star, Trash2, X } from '@/components/icon';
@@ -106,6 +107,7 @@ function GuideDetail({
   onClose: () => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const reference = splitInstagramReference(item.description);
 
   if (editing) {
     const draft: GuideDraft = {
@@ -146,14 +148,18 @@ function GuideDetail({
         item.favorite ? 'border-warn-line' : 'border-sky-soft/40'
       }`}
     >
-      <LibraryVideo
+      {reference.url && !item.videoPath && !item.referenceVideoId ? (
+        <a href={reference.url} target="_blank" rel="noopener noreferrer" className="self-start rounded-xl border border-line bg-surface-2 p-4 text-sm font-semibold text-sky-strong hover:underline">
+          Instagram 참고 영상 보기
+        </a>
+      ) : <LibraryVideo
         path={item.videoPath}
         referenceVideoId={item.referenceVideoId}
         title={item.title}
         thumbUrl={item.thumbUrl}
         aspectRatio={item.aspectRatio}
         isAdmin={isAdmin}
-      />
+      />}
 
       <div className="flex flex-col">
         <div className="flex items-start justify-between gap-3">
@@ -223,7 +229,7 @@ function GuideDetail({
         </div>
 
         <div className="mt-4 flex-1 text-sm leading-relaxed text-muted">
-          <GuideDescription text={item.description} />
+          <GuideDescription text={reference.text} />
         </div>
 
         {isAdmin && !item.thumbUrl && item.videoPath && (

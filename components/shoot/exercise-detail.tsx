@@ -4,6 +4,7 @@ import { useState, type ReactNode } from 'react';
 import { ChevronDown, Wrench } from '@/components/icon';
 import { LibraryVideo } from '@/components/library-video';
 import { referenceThumbUrl } from '@/lib/reference-video';
+import { splitInstagramReference } from '@/lib/mechanics/reference-draft';
 import type { ShootExerciseInfo } from '@/lib/shoot/load';
 import type { PlanItem } from '@/lib/shoot/schedule';
 
@@ -29,6 +30,7 @@ export function ShootExerciseDetail({
   const [showHow, setShowHow] = useState(!compact);
   const [showOwn, setShowOwn] = useState(!compact && !info?.youtube);
   const equipment = info?.equipment.length ? info.equipment : item.equipment;
+  const reference = splitInstagramReference(info?.description ?? '');
   return (
     <div className="space-y-4">
       {!compact && (
@@ -84,6 +86,12 @@ export function ShootExerciseDetail({
         </Fold>
       )}
 
+      {reference.url && (
+        <a href={reference.url} target="_blank" rel="noopener noreferrer" className="inline-flex rounded-xl border border-line px-4 py-2.5 text-sm font-semibold text-sky-strong hover:underline">
+          Instagram 참고 영상 보기
+        </a>
+      )}
+
       {info?.own && (
         <Fold
           label={info.uploaded ? '올린 우리 영상' : '예전에 찍은 우리 영상'}
@@ -103,7 +111,7 @@ export function ShootExerciseDetail({
         </Fold>
       )}
 
-      {info?.description && (
+      {reference.text && (
         <section>
           <button
             type="button"
@@ -119,7 +127,7 @@ export function ShootExerciseDetail({
           </button>
           {showHow && (
             <p className="motion-safe:animate-fade-in selectable mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink/85">
-              {info.description}
+              {reference.text}
             </p>
           )}
         </section>
