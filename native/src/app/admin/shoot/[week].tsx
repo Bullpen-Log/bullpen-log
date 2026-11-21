@@ -149,6 +149,7 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
   const mark = (it: PlanItem) => (it === current ? '지금' : it === next ? '다음' : null);
   const session = week.session;
   const startMinute = session?.startMinute ?? 0;
+  const drillCount = items.filter((item) => item.kind === 'drill').length;
 
   return (
     <>
@@ -163,7 +164,7 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
         </ScrollView>
         <Text style={{ color: c.muted, fontSize: 15, lineHeight: 20, paddingHorizontal: 4 }}>
           {session
-            ? `${clockText(startMinute)}–${clockText(startMinute + week.end)} · 메커니즘 ${items.length}개`
+            ? `${clockText(startMinute)}–${clockText(startMinute + week.end)} · 메커니즘 ${drillCount}개 · 트레이닝 ${items.length - drillCount}개`
             : week.deferred
             ? `미룬 운동을 모아 둔 곳이에요 · ${items.length + carried.length}개`
             : `${items.length}개 · 계획 0:15~${clockText(week.end)} · ${crews.length ? `${crews.join(' · ')} 두 사람이 공간을 나눠 동시에` : `자리 ${week.stations.length}곳`}${carried.length ? ` · 앞 주에서 넘어온 것 ${carried.length}개` : ''}`}

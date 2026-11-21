@@ -94,6 +94,7 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
   const label = weekLabel(week);
   const session = week.session;
   const startMinute = session?.startMinute ?? 0;
+  const drillCount = items.filter((item) => item.kind === 'drill').length;
 
   const show = (it: PlanItem) => {
     const st = stateOf(it, map);
@@ -123,7 +124,7 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
         title={week.deferred ? label : `${label} 촬영${week.outdoor ? ' · 야외' : ''}`}
         description={
           session
-            ? `${clockText(startMinute)}–${clockText(startMinute + week.end)} · 메커니즘 ${items.length}개`
+            ? `${clockText(startMinute)}–${clockText(startMinute + week.end)} · 메커니즘 ${drillCount}개 · 트레이닝 ${items.length - drillCount}개`
             : week.deferred
             ? `미룬 운동을 모아 둔 곳이에요 · ${items.length + carried.length}개`
             : `${items.length}개 · 계획 0:15~${clockText(week.end)} · ${crews.length ? `${crews.join(' · ')} 두 사람이 공간을 나눠 동시에` : `자리 ${week.stations.length}곳`}${carried.length ? ` · 앞 주에서 넘어온 것 ${carried.length}개` : ''}`
