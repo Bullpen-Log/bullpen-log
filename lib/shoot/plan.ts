@@ -48,6 +48,25 @@ export function linkedYouTubeReference(id: string): { yt: string; ar?: number } 
   return drill?.youtubeId ? { yt: drill.youtubeId, ar: drill.aspectRatio } : undefined;
 }
 
+/**
+ * 연결 드릴의 분류 — '나중에 촬영'으로 등록해 둔 것(scripts/add-linked-mechanics-drill.mts)을 우리 영상을 올리면 이 분류로 옮긴다
+ * (app/actions/shoot.ts attachShootClip). 안 옮기면 영상을 올려도 드릴 목록에 '나중에 촬영'으로 남아 안 찍은 것처럼 보였다(2026-11-21 김민:
+ * "영상 올리면 찍음으로 표시되게"). 라이브러리의 장비 관례대로 — 야구공 · 플라이오볼 스로잉, 메디신볼, 밴드 · 워터백 · 워터볼 · 바이퍼 ·
+ * 불가리안 백(장비 칸 없음)은 버티는 힘(근력 · 안정 — lib/categories.ts 정의에 워터백/워터볼이 든다), 막대 · 맨몸은 동작 익히기(무브먼트 패턴).
+ * 지금은 날을 정한 실내 촬영(11/22 — session 이 있는 주)의 연결 드릴만 옮긴다(2026-11-21 김민: "우선 내일 목록에 있는거만").
+ * 그 밖의 연결 드릴이면 undefined(올려도 '나중에 촬영' 그대로).
+ */
+const sessionWeeks = new Set(base.weeks.filter((week) => week.session).map((week) => week.week));
+export function linkedDrillCategory(id: string): string | undefined {
+  const drill = referenceById.get(id);
+  if (!drill || !drill.indoor || !sessionWeeks.has(drill.indoor.week)) return undefined;
+  const eq = drill.equipment ?? [];
+  if (eq.some((e) => e === '야구공' || e === '플라이오볼')) return '스로잉 드릴';
+  if (eq.includes('메디신볼')) return '메디신볼 드릴';
+  if (eq.length === 0 || eq.some((e) => ['밴드', '워터백', '워터볼', '바이퍼'].includes(e))) return '근력 · 안정 드릴';
+  return '무브먼트 패턴 드릴';
+}
+
 /** 링크 추가 드릴은 지정한 실내 시간 또는 실외 촬영 자리 끝에 배정한다. */
 export const SHOOT_PLAN: ShootPlan = {
   ...base,

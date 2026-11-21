@@ -54,7 +54,7 @@ import { SHOOT_WARMUPS, warmupRowId } from '../lib/shoot/warmups.ts';
 import { CREW_SPACES, crewWeek, crewsOf } from '../lib/shoot/crews.ts';
 
 import { guideStart, readShootNote, shootRunHref } from '../lib/shoot/guide.ts';
-import { SHOOT_PLAN, itemOf, weekOf } from '../lib/shoot/plan.ts';
+import { SHOOT_PLAN, itemOf, linkedDrillCategory, weekOf } from '../lib/shoot/plan.ts';
 
 let pass = 0;
 let fail = 0;
@@ -279,6 +279,21 @@ const deferredWeeks = plan.weeks.filter((w) => w.deferred);
     return nos.filter((no, i) => nos.indexOf(no) !== i);
   });
   check('모든 주 — 번호판 번호가 겹치지 않는다(연결 드릴 포함)', dupNos.length === 0, dupNos.join(' '));
+  /* 연결 드릴은 영상을 올리면 '나중에 촬영'에서 진짜 분류로 — 지금은 11/22(4주차) 것만(2026-11-21 김민: "우선 내일 목록에 있는거만") */
+  {
+    const linked = JSON.parse(readFileSync(new URL('../lib/shoot/linked-drills.json', import.meta.url), 'utf8')) as
+      { id: string; title: string; indoor?: { week: number } }[];
+    const drillCats = new Set(['스로잉 드릴', '메디신볼 드릴', '무브먼트 패턴 드릴', '근력 · 안정 드릴']);
+    const tomorrow = linked.filter((d) => d.indoor?.week === 4);
+    const bad = tomorrow.filter((d) => !drillCats.has(linkedDrillCategory(d.id) ?? ''));
+    check('11/22 연결 드릴 — 영상을 올리면 옮길 분류가 다 있다', tomorrow.length === 18 && bad.length === 0, bad.map((d) => d.title).join(', '));
+    check('11/22 연결 드릴 분류 — PVC · Hip Fire 는 무브먼트, 워터백은 근력 · 안정',
+      tomorrow.filter((d) => /PVC|Hip Fire/.test(d.title)).every((d) => linkedDrillCategory(d.id) === '무브먼트 패턴 드릴') &&
+      tomorrow.filter((d) => /워터백/.test(d.title)).every((d) => linkedDrillCategory(d.id) === '근력 · 안정 드릴'));
+    check('11/22 밖의 연결 드릴 · 연결 드릴이 아닌 것은 분류를 안 바꾼다',
+      linked.filter((d) => d.indoor?.week !== 4).every((d) => linkedDrillCategory(d.id) === undefined) &&
+      linkedDrillCategory('00000000-0000-0000-0000-000000000000') === undefined);
+  }
   const liveWeek = weekOf(4)!;
   const liveItems = weekItems(liveWeek);
   check('실제 11/22 화면 데이터 — 메커니즘 24개 시각 유지, 웨이트 49개 현장 순서',

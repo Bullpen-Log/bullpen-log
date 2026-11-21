@@ -12,7 +12,7 @@ import { deleteVideos, isLibraryPath } from '@/lib/storage';
 import { EXERCISE_EQUIPMENT } from '@/lib/exercise-meta';
 import { LATER_CATEGORY } from '@/lib/categories';
 import laterDrills from '@/lib/shoot/later-drills.json';
-import { PLAN_EXERCISE_IDS, itemOf } from '@/lib/shoot/plan';
+import { PLAN_EXERCISE_IDS, itemOf, linkedDrillCategory } from '@/lib/shoot/plan';
 import { isWarmupId, warmupOf, warmupRowId } from '@/lib/shoot/warmups';
 import {
   isShootStatus,
@@ -205,7 +205,8 @@ export async function attachShootClip(
       // '나중에 촬영'으로 미뤄 둔 드릴(2026-10-14)은 영상을 올리면 원래 분류로 — 그래야 트레이닝 · 드릴 목록에 나온다(2026-11-14)
       const back =
         guide?.category === LATER_CATEGORY
-          ? (laterDrills as Record<string, { category: string }>)[exerciseId]?.category
+          ? ((laterDrills as Record<string, { category: string }>)[exerciseId]?.category ??
+            linkedDrillCategory(exerciseId))
           : undefined;
       await prisma.mechanicsGuide.update({ where: { id: exerciseId }, data: back ? { ...data, category: back } : data });
       // 파워에 복사해 둔 같은 드릴(scripts/library-power-plyo-2026-10-15.mjs — 같은 참고 영상, 다시 찍으면 같은 영상 경로)도 같은 영상으로
