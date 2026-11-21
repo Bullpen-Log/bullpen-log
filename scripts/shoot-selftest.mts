@@ -121,7 +121,8 @@ function invariants(p: ShootPlan, label: string) {
     .every((w) => weekItems(w).filter((it) => it.breakAfter).length <= 2);
   check(`${label} — 쉬기는 한 회(두 사람이면 사람마다) 두 번까지`, breaksOk);
   /* 회 처음의 몸풀기 칸(warmup)은 자리 차례 밖 — 그 뒤 자리들이 한 번씩, 정한 순서대로 */
-  const stationOrderOk = p.weeks.flatMap(perCrew).every((w) => {
+  /* 11/22 처럼 날을 정해 손으로 짠 회(session)는 그 자리 차례가 동선이다(2026-11-21 김민 승인) — 차례 검사 밖 */
+  const stationOrderOk = p.weeks.filter((w) => !w.session).flatMap(perCrew).every((w) => {
     const sts = w.stations.filter((s) => !s.warmup);
     const order: readonly string[] = sts.some((s) => s.crew) ? CREW_ORDER : ALL_STATIONS;
     return sts.every(
@@ -251,12 +252,15 @@ const deferredWeeks = plan.weeks.filter((w) => w.deferred);
     by: null, note: '기존 메모',
   }]));
   const [first, second] = items;
-  check('11/22 — 10:00–12:00, 11시부터 웨이트, 신규 드릴용 여유',
-    session.session.startMinute === 600 && session.end === 120 && agenda.at(-1)?.start === 60 &&
-    agenda.at(-1)?.end === 120 && agenda.at(-1)?.title.includes('김민 웨이트') === true &&
+  /* 2026-11-21 김민: 11시부터 트레이닝 50개(매트 → … → 머신)를 이어 찍는다 — 12:42 끝 */
+  check('11/22 — 10:00 시작, 11시부터 웨이트(12:42 끝), 신규 드릴용 여유',
+    session.session.startMinute === 600 && session.end === 162.2 && agenda.at(-1)?.start === 60 &&
+    agenda.at(-1)?.end === 162.2 && agenda.at(-1)?.title.includes('김민 웨이트') === true &&
     agenda.some((slot) => slot.start === 45 && slot.end === 53));
-  check('11/22 — 무투구 드릴 6개, 장비 대조, 이전 미룸을 촬영 모드에서 순서대로 연다',
-    items.length === 6 && items.every((item) => item.kind === 'drill' && !/스로우|슬램|토스/.test(item.title)) &&
+  const drills = items.filter((item) => item.kind === 'drill');
+  check('11/22 — 무투구 드릴 6개(맨 앞) + 트레이닝 50개, 장비 대조, 이전 미룸을 촬영 모드에서 순서대로 연다',
+    drills.length === 6 && items.slice(0, 6).every((item) => item.kind === 'drill' && !/스로우|슬램|토스/.test(item.title)) &&
+    items.length - drills.length === 50 &&
     items[2].equipment.includes('워터볼') && items[4].equipment.includes('막대') &&
     cursorOf(session, checks).current === first && cursorOf(session, checks).next === second &&
     carriedOver(plan, session.week, checks).length === 0);
@@ -276,9 +280,10 @@ const deferredWeeks = plan.weeks.filter((w) => w.deferred);
    * 미룬 것은 미룬 영상 칸(3). 2주차는 19개, 미룬 영상 34개.
    */
   check(
-    '실내 — 11/22 메커니즘 6개 · 2주차 53개 · 미룬 영상 29개',
-    indoorPlan.weeks.map((w) => w.week).join() === '4,2' &&
-      weekItems(indoorPlan.weeks[0]).length === 6 && weekItems(indoorPlan.weeks[1]).length === 53 && items.length === 88,
+    /* version 12(2026-11-21 김민): 2주차 · 미룬 영상에서 11/22 에 찍을 것을 옮기고 2주차를 비웠다(야외에서 할 몸풀기 9개는 야외 1주차로) */
+    '실내 — 11/22 메커니즘 6개 + 트레이닝 50개 · 미룬 영상 21개',
+    indoorPlan.weeks.map((w) => w.week).join() === '4' &&
+      weekItems(indoorPlan.weeks[0]).length === 56 && items.length === 77,
     `${indoorPlan.weeks.map((w) => w.week).join(',')}주 · ${items.length}개`
   );
   invariants(indoorPlan, '고정 계획');
@@ -291,7 +296,7 @@ console.log('\n■ 미룬 영상 칸(version 4)');
   const its = d ? weekItems(d) : [];
   check(
     '미룬 영상 칸 하나 — 기존 주소(3), 옮긴 번호 비움, 야외 아님',
-    deferredWeeks.length === 1 && !d.outdoor && d.week === 3 && its.length === 29 &&
+    deferredWeeks.length === 1 && !d.outdoor && d.week === 3 && its.length === 21 &&
       its.every((it, i) => it.no.startsWith('3-') && (i === 0 || it.no > its[i - 1].no)),
     its.map((it) => it.no).join(' · ')
   );
@@ -304,10 +309,10 @@ console.log('\n■ 고정 계획 — 야외 8~10주(투구 드릴만 — 워밍�
   const drills = items.filter((i) => i.kind === 'drill');
   const warms = items.filter((i) => i.kind === 'warmup');
   check(
-    '야외 1주(1주차) — 드릴 87 · 운동 2 · 워밍업 없음',
+    '야외 1주(1주차) — 드릴 87 · 운동 11(몸풀기 9개는 2026-11-21 2주차에서) · 워밍업 없음',
     out.map((w) => w.week).join() === '1' &&
       drills.length === 87 &&
-      items.filter((i) => !i.kind).length === 2 &&
+      items.filter((i) => !i.kind).length === 11 &&
       warms.length === 0,
     `${out.map((w) => w.week).join(',')} · 드릴 ${drills.length} · 운동 ${items.filter((i) => !i.kind).length} · 워밍업 ${warms.length}`
   );
@@ -327,10 +332,12 @@ console.log('\n■ 고정 계획 — 야외 8~10주(투구 드릴만 — 워밍�
     `${all.length}개`
   );
   check(
-    '야외 번호 보존 — 실내로 옮긴 03, 05, 06 자리만 비움',
+    '야외 번호 보존 — 실내로 옮긴 03, 05, 06 자리만 비움, 맨 앞 몸풀기는 뒤 번호(96~104)',
     out.every((w) =>
-      weekItems(w).map((it) => it.no).join() === Array.from({ length: 92 }, (_, i) => i + 1)
-        .filter((n) => ![3, 5, 6].includes(n)).map((n) => `1-${String(n).padStart(2, '0')}`).join()
+      weekItems(w).map((it) => it.no).join() === [
+        ...Array.from({ length: 9 }, (_, i) => 96 + i),
+        ...Array.from({ length: 92 }, (_, i) => i + 1).filter((n) => ![3, 5, 6].includes(n)),
+      ].map((n) => `1-${String(n).padStart(2, '0')}`).join()
     )
   );
   check(
