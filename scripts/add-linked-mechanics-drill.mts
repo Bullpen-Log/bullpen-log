@@ -1,7 +1,8 @@
-/** 검수용 메커니즘 드릴 등록. 기본은 조회만, 실제 등록은 ID와 --apply를 함께 준다. */
+/** 검수용 참고 드릴 등록. ID를 하나 이상 지정하며 기본은 조회만 한다. */
 import { readFileSync } from 'node:fs';
 import { LATER_CATEGORY } from '@/lib/categories';
 import { DRILL_EQUIPMENT, DRILL_STAGE_NAMES, FOCUS_POINTS } from '@/lib/exercise-meta';
+import { YT_ID } from '@/lib/exercise-video-state';
 import { canonicalInstagramLink, descriptionWithInstagram, splitInstagramReference } from '@/lib/mechanics/reference-draft';
 import { prisma } from '@/lib/prisma';
 import { itemOf } from '@/lib/shoot/plan';
@@ -9,63 +10,84 @@ import { itemOf } from '@/lib/shoot/plan';
 type Candidate = {
   id: string;
   title: string;
-  url: string;
+  url?: string;
+  youtubeId?: string;
+  aspectRatio?: number;
   description: string;
   focusPoints: (typeof FOCUS_POINTS)[number][];
   equipment: (typeof DRILL_EQUIPMENT)[number][];
   stage: (typeof DRILL_STAGE_NAMES)[number];
 };
 
+function prepare(draft: Candidate) {
+  const instagram = draft.url ? canonicalInstagramLink(draft.url) : null;
+  const youtube = draft.youtubeId && YT_ID.test(draft.youtubeId) ? draft.youtubeId : null;
+  const planned = itemOf(draft.id);
+  if ((!instagram && !youtube) || (instagram && youtube) || !planned || planned.item.kind !== 'drill' ||
+      !draft.title.trim() || !draft.description.trim() || !draft.focusPoints.length ||
+      draft.focusPoints.some((focus) => !FOCUS_POINTS.includes(focus)) ||
+      draft.equipment.some((name) => !DRILL_EQUIPMENT.includes(name)) || !DRILL_STAGE_NAMES.includes(draft.stage)) {
+    throw new Error(`참고 링크, 설명, 분류 또는 촬영 계획을 확인해 주세요: ${draft.title}`);
+  }
+  return { draft, instagram, youtube, planned };
+}
+
 async function main() {
   const args = process.argv.slice(2);
-  const drafts = JSON.parse(readFileSync(new URL('../lib/shoot/linked-drills.json', import.meta.url), 'utf8')) as Candidate[];
-  const draft = drafts.find((entry) => entry.id === args[0]);
-  if (!draft || args.length > 2 || (args.length === 2 && args[1] !== '--apply')) {
-    throw new Error('등록할 드릴 ID와 필요할 때 --apply를 지정하세요.');
-  }
-  const url = canonicalInstagramLink(draft.url);
-  const planned = itemOf(draft.id);
-  if (!url || !planned || planned.item.kind !== 'drill' || !draft.title.trim() || !draft.description.trim() ||
-      !draft.focusPoints.length || draft.focusPoints.some((focus) => !FOCUS_POINTS.includes(focus)) ||
-      draft.equipment.some((name) => !DRILL_EQUIPMENT.includes(name)) || !DRILL_STAGE_NAMES.includes(draft.stage)) {
-    throw new Error('참고 링크, 설명, 분류 또는 촬영 계획을 확인해 주세요.');
-  }
+  const apply = args.at(-1) === '--apply';
+  const ids = apply ? args.slice(0, -1) : args;
+  const catalog = JSON.parse(readFileSync(new URL('../lib/shoot/linked-drills.json', import.meta.url), 'utf8')) as Candidate[];
+  const drafts = catalog.filter((entry) => ids.includes(entry.id));
+  if (!drafts.length || drafts.length !== ids.length) throw new Error('드릴 ID를 하나 이상 지정하고 적용할 때는 마지막에 --apply를 쓰세요.');
+  const candidates = drafts.map(prepare);
 
-  const result = await prisma.$transaction(async (tx) => {
-    const matches = await tx.mechanicsGuide.findMany({
-      where: { OR: [{ id: draft.id }, { title: { equals: draft.title, mode: 'insensitive' } }, { description: { contains: url } }] },
-      select: { id: true, title: true, description: true, hiddenAt: true },
-    });
-    if (matches.some((row) => row.id !== draft.id)) {
-      throw new Error(`같은 제목 또는 원본이 이미 있습니다: ${matches.map((row) => row.title).join(', ')}`);
-    }
-    const existing = matches[0];
-    if (existing) {
-      if (existing.hiddenAt || splitInstagramReference(existing.description).url !== url) {
-        throw new Error('지정한 ID의 기존 드릴이 숨겨졌거나 다른 원본을 가리킵니다.');
+  const results = await prisma.$transaction(async (tx) => {
+    const output = [];
+    for (const { draft, instagram, youtube, planned } of candidates) {
+      const title = { equals: draft.title, mode: 'insensitive' as const };
+      const reference = youtube ? { referenceVideoId: youtube } : { description: { contains: instagram! } };
+      const [drills, exercise] = await Promise.all([
+        tx.mechanicsGuide.findMany({
+          where: { OR: [{ id: draft.id }, { title }, reference] },
+          select: { id: true, title: true, description: true, referenceVideoId: true, videoPath: true, source: true, hiddenAt: true },
+        }),
+        tx.exerciseVideo.findFirst({ where: { OR: [{ title }, reference] }, select: { title: true } }),
+      ]);
+      const duplicates = drills.filter((row) => row.id !== draft.id).map((row) => row.title);
+      if (exercise) duplicates.push(exercise.title);
+      if (duplicates.length) throw new Error(`같은 제목 또는 원본이 이미 있습니다: ${duplicates.join(', ')}`);
+
+      const existing = drills[0];
+      let result = 'ready';
+      if (existing) {
+        const sameSource = youtube
+          ? existing.referenceVideoId === youtube
+          : splitInstagramReference(existing.description).url === instagram;
+        if (existing.hiddenAt || (!sameSource && !(existing.source === 'OWN' && existing.videoPath && existing.title === draft.title))) {
+          throw new Error(`지정한 ID의 기존 드릴이 숨겨졌거나 다른 원본을 가리킵니다: ${draft.title}`);
+        }
+        result = 'already-added';
+      } else if (apply) {
+        await tx.mechanicsGuide.create({ data: {
+          id: draft.id,
+          title: draft.title,
+          category: LATER_CATEGORY,
+          description: instagram ? descriptionWithInstagram(draft.description, instagram) : draft.description,
+          source: 'REFERENCE',
+          referenceVideoId: youtube,
+          aspectRatio: draft.aspectRatio,
+          equipment: draft.equipment,
+          focusPoints: draft.focusPoints,
+          stage: draft.stage,
+        } });
+        result = 'created';
       }
-      return 'already-added';
+      output.push({ result, id: draft.id, title: draft.title, week: planned.week, no: planned.item.no });
     }
-    if (args[1] !== '--apply') return 'ready';
-    await tx.mechanicsGuide.create({ data: {
-      id: draft.id,
-      title: draft.title,
-      category: LATER_CATEGORY,
-      description: descriptionWithInstagram(draft.description, url),
-      source: 'REFERENCE',
-      equipment: draft.equipment,
-      focusPoints: draft.focusPoints,
-      stage: draft.stage,
-    } });
-    return 'created';
-  }, { isolationLevel: 'Serializable' });
+    return output;
+  }, { isolationLevel: 'Serializable', timeout: 20_000 });
 
-  const row = result === 'ready' ? null : await prisma.mechanicsGuide.findUniqueOrThrow({
-    where: { id: draft.id },
-    select: { id: true, title: true, description: true, category: true, source: true, stage: true, focusPoints: true, videoPath: true },
-  });
-  if (row && splitInstagramReference(row.description).url !== url) throw new Error('등록한 원본 링크가 일치하지 않습니다.');
-  console.log(JSON.stringify({ result, id: draft.id, title: draft.title, week: planned.week, no: planned.item.no, category: row?.category, source: row?.source }));
+  console.log(JSON.stringify(results));
 }
 
 try {

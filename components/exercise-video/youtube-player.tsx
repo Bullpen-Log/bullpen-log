@@ -156,7 +156,7 @@ function YouTubeInner({ videoId, title, frame, onRetry }: { videoId: string; tit
   const [duration, setDuration] = useState<number | null>(null);
   const [rates, setRates] = useState<number[]>([]);
   const [rate, setRate] = useState(1);
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useState(true);
   const [error, setError] = useState<{ text: string; code: number | null } | null>(null);
   const [blocked, setBlocked] = useState(false);
 
@@ -235,13 +235,15 @@ function YouTubeInner({ videoId, title, frame, onRetry }: { videoId: string; tit
               window.clearTimeout(readyTimer);
               if (disposed || failed.current) return; // 시간 넘김 뒤 늦게 온 준비는 무시(다시 불러오기로만 회복)
               const p = e.target;
+              p.mute();
+              mutePinnedUntil.current = Date.now() + MUTE_PIN_MS;
               p.setLoop(loopRef.current);
               setReady(true);
               const d = p.getDuration();
               setDuration(Number.isFinite(d) && d > 0 ? d : null);
               setRates(supportedRates(p.getAvailablePlaybackRates()));
               setRate(p.getPlaybackRate());
-              setMuted(p.isMuted());
+              setMuted(true);
               tryPlay(true); // 첫 활성화(누른 뒤) — 그새 화면을 떠났으면 의도가 이미 멈춤이다
             },
             onStateChange: (e) => {

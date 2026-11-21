@@ -88,7 +88,7 @@ function YouTubeInner({ videoId, aspectRatio, height, gen, onRetry }: { videoId:
   const [duration, setDuration] = useState<number | null>(null);
   const [rates, setRates] = useState<number[]>([]);
   const [rate, setRate] = useState(1);
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useState(true);
   const [error, setError] = useState<{ text: string; code: number | null } | null>(null);
   const [blocked, setBlocked] = useState(false);
   const syncWant = () => setWant(intent.current.desired);
@@ -198,6 +198,7 @@ function YouTubeInner({ videoId, aspectRatio, height, gen, onRetry }: { videoId:
         setReady(true);
         setDuration(m.duration > 0 ? m.duration : null);
         setRates(EXERCISE_VIDEO_RATES.filter((r) => m.rates.includes(r)));
+        if (m.muted) mutePinnedUntil.current = Date.now() + MUTE_PIN_MS;
         setMuted(m.muted);
         // 첫 활성화(누른 뒤)지만 준비는 몇 초 뒤일 수 있다 — 그새 굴려 절반 이하로 보이면 스크립트로 틀지 않는다.
         tryPlay(false);
@@ -431,7 +432,7 @@ else if(c.cmd==='loop'&&typeof c.value==='boolean')P.setLoop(c.value);
 else if(c.cmd==='rate'&&typeof c.value==='number'&&isFinite(c.value)&&c.value>0&&c.value<=4)P.setPlaybackRate(c.value);
 else if(c.cmd==='mute'||c.cmd==='unmute'){if(c.cmd==='mute')P.mute();else P.unMute();setTimeout(tick,${MUTE_PIN_MS + 300});}};
 window.onYouTubeIframeAPIReady=function(){P=new YT.Player('p',{host:'https://www.youtube-nocookie.com',videoId:M.videoId,width:'100%',height:'100%',playerVars:V,events:{
-onReady:function(e){post({t:'ready',duration:num(P.getDuration()),rates:(P.getAvailablePlaybackRates()||[]).filter(function(r){return typeof r==='number'&&isFinite(r);}),muted:!!P.isMuted()});},
+onReady:function(e){P.mute();post({t:'ready',duration:num(P.getDuration()),rates:(P.getAvailablePlaybackRates()||[]).filter(function(r){return typeof r==='number'&&isFinite(r);}),muted:true});},
 onStateChange:function(e){post({t:'state',state:e.data,time:num(P.getCurrentTime()),duration:num(P.getDuration())});
 if(e.data===1){if(!T)T=setInterval(tick,500);}else if(T){clearInterval(T);T=null;}},
 onPlaybackRateChange:function(e){post({t:'rate',rate:num(e.data)});},

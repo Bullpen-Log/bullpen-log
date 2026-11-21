@@ -10,7 +10,7 @@ import {
   weekItems,
   type ShootCheckView,
 } from '@/lib/shoot/progress';
-import { SHOOT_PLAN, itemOf, weekOf } from '@/lib/shoot/plan';
+import { SHOOT_PLAN, itemOf, linkedYouTubeReference, weekOf } from '@/lib/shoot/plan';
 import { weekLabel } from '@/lib/shoot/schedule';
 import refsData from '@/lib/shoot/refs.json';
 import { WARMUP_ROUTINE_LABEL, isWarmupId, warmupOf, warmupRowId } from '@/lib/shoot/warmups';
@@ -103,7 +103,7 @@ function toInfo(
   r: MediaRow,
   thumbs: Record<string, string>
 ): ShootExerciseInfo {
-  const ref = REFS[refKey];
+  const ref = linkedYouTubeReference(refKey) ?? REFS[refKey];
   return {
     id,
     title: r.title,

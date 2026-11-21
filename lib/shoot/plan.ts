@@ -1,6 +1,6 @@
 import data from '@/lib/shoot/plan-data.json' with { type: 'json' };
 import linkedDrills from '@/lib/shoot/linked-drills.json' with { type: 'json' };
-import type { PlanItem, PlanWeek, ShootPlan } from '@/lib/shoot/schedule';
+import type { PlanItem, PlanWeek, ShootPlan, Station } from '@/lib/shoot/schedule';
 
 /**
  * 고정해 둔 촬영 계획(scripts/shoot-plan.mts 가 뽑은 lib/shoot/plan-data.json).
@@ -10,43 +10,75 @@ import type { PlanItem, PlanWeek, ShootPlan } from '@/lib/shoot/schedule';
 const base = data as ShootPlan;
 const existingIds = new Set(base.weeks.flatMap((week) => week.stations.flatMap((station) => station.items.map((item) => item.exerciseId))));
 
-/** 인스타 참고 드릴은 야외 던지는 자리 끝에 붙인다. 이미 찍은 번호와 시간은 그대로 둔다. */
+type Placement = { week: number; no: string; station: Station; minutes: number; cue: string; at?: number };
+type LinkedDrill = {
+  id: string;
+  title: string;
+  stage: string;
+  equipment: string[];
+  indoor?: Placement;
+  outdoor?: Placement;
+  youtubeId?: string;
+  aspectRatio?: number;
+};
+const referenceDrills = linkedDrills as LinkedDrill[];
+const referenceById = new Map(referenceDrills.map((drill) => [drill.id, drill]));
+
+export function linkedYouTubeReference(id: string): { yt: string; ar?: number } | undefined {
+  const drill = referenceById.get(id);
+  return drill?.youtubeId ? { yt: drill.youtubeId, ar: drill.aspectRatio } : undefined;
+}
+
+/** 링크 추가 드릴은 지정한 실내 시간 또는 실외 촬영 자리 끝에 배정한다. */
 export const SHOOT_PLAN: ShootPlan = {
   ...base,
   weeks: base.weeks.map((week) => {
-    if (!week.outdoor) return week;
     let end = week.end;
     let addedLoad = 0;
+    const bucket = week.outdoor ? '스로잉 드릴' : '무브먼트 패턴 드릴';
     const stations = week.stations.map((station) => {
-      const drafts = linkedDrills.filter((drill) =>
-        !existingIds.has(drill.id) && drill.outdoor.week === week.week && drill.outdoor.station === station.station);
-      if (!drafts.length) return station;
-      let at = station.end;
-      const items: PlanItem[] = drafts.map((drill) => {
+      let stationEnd = station.end;
+      const items: PlanItem[] = [];
+      for (const drill of referenceDrills) {
+        const slot = week.outdoor ? drill.outdoor : drill.indoor;
+        if (existingIds.has(drill.id) || slot?.week !== week.week || slot.station !== station.station) continue;
         const item: PlanItem = {
           exerciseId: drill.id,
-          no: drill.outdoor.no,
+          no: slot.no,
           title: drill.title,
           equipment: drill.equipment,
           station: station.station,
-          at,
-          minutes: drill.outdoor.minutes,
-          cue: drill.outdoor.cue,
+          at: slot.at ?? stationEnd,
+          minutes: slot.minutes,
+          cue: slot.cue,
           kind: 'drill',
-          bucket: '스로잉 드릴',
+          bucket,
           group: drill.stage,
-          load: 1,
+          load: week.outdoor ? 1 : 0.5,
           perSide: false,
           breakAfter: false,
         };
-        at = Math.round((at + item.minutes) * 10) / 10;
         addedLoad += item.load;
-        return item;
-      });
-      end = Math.max(end, at);
-      return { ...station, end: at, items: [...station.items, ...items] };
+        stationEnd = Math.max(stationEnd, Math.round((item.at + item.minutes) * 10) / 10);
+        items.push(item);
+      }
+      if (!items.length) return station;
+      end = Math.max(end, stationEnd);
+      return { ...station, end: stationEnd, items: [...station.items, ...items].sort((a, b) => a.at - b.at) };
     });
-    return addedLoad ? { ...week, stations, end, load: { ...week.load, '스로잉 드릴': (week.load['스로잉 드릴'] ?? 0) + addedLoad } } : week;
+    if (!addedLoad) return week;
+    const session = week.week === 4 && week.session ? {
+      ...week.session,
+      agenda: [
+        ...week.session.agenda.slice(0, 2),
+        { start: 28, end: 42, title: '메커니즘 · 밴드·막대·맨몸 3개' },
+        { start: 42, end: 50, title: '메커니즘 · 아쿠아볼 4개' },
+        { start: 50, end: 54, title: '메커니즘 · 밴드 앞발 블로킹 2개' },
+        { start: 54, end: 60, title: '재촬영 · 파일 확인 · 웨이트 자리 인계' },
+        ...week.session.agenda.slice(-1),
+      ],
+    } : week.session;
+    return { ...week, stations, end, session, load: { ...week.load, [bucket]: (week.load[bucket] ?? 0) + addedLoad } };
   }),
 };
 
