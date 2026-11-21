@@ -2203,7 +2203,8 @@
         "fps": 30,
         "audio": false,
         "availability": "맥북에 저장한 별도 검수 목록"
-      }
+      },
+      "user_review": "등록 영상과 같은 동작 · 중복 제외 확정"
     },
     {
       "review_id": "mv-ig-DbfIDfPSZoh-12a",
@@ -2235,7 +2236,8 @@
         "fps": 30,
         "audio": false,
         "availability": "맥북에 저장한 별도 검수 목록"
-      }
+      },
+      "user_review": "등록 영상과 같은 동작 · 중복 제외 확정"
     },
     {
       "review_id": "mv-ig-DbfIDfPSZoh-12b",
@@ -2267,7 +2269,8 @@
         "fps": 30,
         "audio": false,
         "availability": "맥북에 저장한 별도 검수 목록"
-      }
+      },
+      "user_review": "등록 영상과 같은 동작 · 중복 제외 확정"
     },
     {
       "review_id": "mv-ig-DbfIDfPSZoh-12c",
@@ -2299,8 +2302,22 @@
         "fps": 30,
         "audio": false,
         "availability": "맥북에 저장한 별도 검수 목록"
-      }
+      },
+      "user_review": "등록 영상과 같은 동작 · 중복 제외 확정"
     }
   ],
-  "title_followup": "사용자 지시로 PVC 10개의 라이브러리와 촬영표 제목을 영상 표기의 영어 원문으로 맞췄다. 중복 제외 4개는 원본 영어 단계명을 붙여 별도 영상 목록으로 열었다."
+  "title_followup": "사용자 지시로 PVC 10개의 라이브러리와 촬영표 제목을 영상 표기의 영어 원문으로 맞췄다. 중복 제외 4개는 원본 영어 단계명을 붙여 별도 영상 목록으로 열었다.",
+  "duplicate_confirmation": {
+    "timestamp_kst": "2026-11-21T21:29:39+09:00",
+    "reviewed_by": "사용자",
+    "basis": "제외 후보와 해당 등록 영상을 나란히 직접 비교했다.",
+    "user_instruction": "다 동일한 영상 맞네 제외 시킨거로 가자",
+    "conclusion": "네 항목 모두 같은 동작으로 사용자 확인. 해당 네 항목의 중복 제외를 확정.",
+    "confirmed_review_ids": [
+      "mv-ig-DdldxP2sn6e-11a",
+      "mv-ig-DbfIDfPSZoh-12a",
+      "mv-ig-DbfIDfPSZoh-12b",
+      "mv-ig-DbfIDfPSZoh-12c"
+    ]
+  }
 }
