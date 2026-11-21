@@ -1,5 +1,5 @@
 import { getCurrentUser } from '@/lib/dal';
-import { mechanicsReferenceClipPath, splitInstagramReference } from '@/lib/mechanics/reference-draft';
+import { instagramReviewClip, mechanicsReferenceClipPath, splitInstagramReference } from '@/lib/mechanics/reference-draft';
 import { can } from '@/lib/permissions';
 import { prisma } from '@/lib/prisma';
 import { videoBucket } from '@/lib/storage';
@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     where: { id },
     select: { description: true, hiddenAt: true },
   }) : null;
-  if (!path || !item || item.hiddenAt || !splitInstagramReference(item.description).segment?.recorded) {
+  if (!path || !item || item.hiddenAt || (!instagramReviewClip(id) && !splitInstagramReference(item.description).segment?.recorded)) {
     return Response.json({ error: '참고 클립을 찾을 수 없어요.' }, { status: 404, headers });
   }
   const { data, error } = await videoBucket().createSignedUrl(path, 600);

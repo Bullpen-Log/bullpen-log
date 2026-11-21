@@ -2,6 +2,22 @@ const INSTAGRAM_LINE = 'Instagram 참고 영상 ';
 const PANELS = ['위', '가운데', '아래'] as const;
 export type InstagramSegment = { start: number; end: number; panel?: (typeof PANELS)[number]; recorded?: true };
 
+/** 같은 동작으로 등록하지 않은 릴은 기존 운동에 검수용 클립만 연결한다. */
+const reviewClips: Record<string, { url: string; segment: InstagramSegment }> = {
+  '30cbb5e3-b068-4518-8b4a-9f9f965e68dc': {
+    url: 'https://www.instagram.com/reel/C8Ijbi0uzWT/',
+    segment: { start: 8.5, end: 12.3, recorded: true },
+  },
+  '94dac3ea-d717-4e70-83d4-bc6ef865db41': {
+    url: 'https://www.instagram.com/reel/DeP_Af0xJet/',
+    segment: { start: 0, end: 5.6, recorded: true },
+  },
+};
+
+export function instagramReviewClip(id: string) {
+  return Object.hasOwn(reviewClips, id) ? reviewClips[id] : null;
+}
+
 export function validInstagramSegment(segment: InstagramSegment): boolean {
   return Number.isFinite(segment.start) && Number.isFinite(segment.end) &&
     segment.start >= 0 && segment.end > segment.start &&

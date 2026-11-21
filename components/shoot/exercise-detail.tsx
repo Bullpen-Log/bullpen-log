@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from 'react';
 import { ChevronDown, Wrench } from '@/components/icon';
 import { LibraryVideo } from '@/components/library-video';
+import { MechanicsReferenceVideo } from '@/components/mechanics-reference-video';
 import { referenceThumbUrl } from '@/lib/reference-video';
 import { instagramReferenceLabel, splitInstagramReference } from '@/lib/mechanics/reference-draft';
 import type { ShootExerciseInfo } from '@/lib/shoot/load';
@@ -87,13 +88,11 @@ export function ShootExerciseDetail({
       )}
 
       {reference.url && (
-        <div className="flex flex-wrap gap-2">
+        <div className="space-y-2">
           {reference.segment?.recorded && (
-            <a href={`/api/admin/mechanics-reference?id=${item.exerciseId}`} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-line px-4 py-2.5 text-sm font-semibold text-sky-strong hover:underline">
-              녹화 참고 클립 보기
-            </a>
+            <MechanicsReferenceVideo id={item.exerciseId} title={item.title} panel={reference.segment.panel} />
           )}
-          <a href={reference.url} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-line px-4 py-2.5 text-sm font-semibold text-sky-strong hover:underline">
+          <a href={reference.url} target="_blank" rel="noopener noreferrer" className="inline-flex rounded-xl border border-line px-4 py-2.5 text-sm font-semibold text-sky-strong hover:underline">
             {instagramReferenceLabel(reference.segment)}
           </a>
         </div>

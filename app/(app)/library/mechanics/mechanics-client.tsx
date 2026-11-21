@@ -1,7 +1,7 @@
 'use client';
 
 import { focusPriority } from '@/lib/mechanics/focus-priority';
-import { instagramReferenceLabel, splitInstagramReference } from '@/lib/mechanics/reference-draft';
+import { instagramReferenceLabel, instagramReviewClip, splitInstagramReference } from '@/lib/mechanics/reference-draft';
 
 import { useMemo, useState } from 'react';
 import { Pencil, Star, Trash2, X } from '@/components/icon';
@@ -14,6 +14,7 @@ import { CategorySection } from '@/components/category-section';
 import { CategoryBadge } from '@/components/category-badge';
 import type { ReviewSelection } from '@/lib/exercise-video-review';
 import { LibraryVideo } from '@/components/library-video';
+import { MechanicsReferenceVideo } from '@/components/mechanics-reference-video';
 import { LibraryTile } from '@/components/exercise-tile';
 import { DrillBadges } from '@/components/meta-badges';
 import { ThumbnailFixer } from '@/components/thumbnail-fixer';
@@ -100,14 +101,18 @@ function GuideDescription({ text }: { text: string }) {
 function GuideDetail({
   item,
   isAdmin,
+  reviewing = false,
   onClose,
 }: {
   item: GuideItem;
   isAdmin: boolean;
+  reviewing?: boolean;
   onClose: () => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const reference = splitInstagramReference(item.description);
+  const original = splitInstagramReference(item.description);
+  const reviewClip = isAdmin && reviewing ? instagramReviewClip(item.id) : null;
+  const reference = reviewClip ? { ...original, ...reviewClip } : original;
 
   if (editing) {
     const draft: GuideDraft = {
@@ -148,12 +153,10 @@ function GuideDetail({
         item.favorite ? 'border-warn-line' : 'border-sky-soft/40'
       }`}
     >
-      {reference.url && !item.videoPath && !item.referenceVideoId ? (
+      {reference.url && (reviewClip || (!item.videoPath && !item.referenceVideoId)) ? (
         <div className="flex flex-col gap-2 self-start">
           {isAdmin && reference.segment?.recorded && (
-            <a href={`/api/admin/mechanics-reference?id=${item.id}`} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-line bg-surface-2 p-4 text-sm font-semibold text-sky-strong hover:underline">
-              녹화 참고 클립 보기
-            </a>
+            <MechanicsReferenceVideo id={item.id} title={item.title} panel={reference.segment.panel} />
           )}
           <a href={reference.url} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-line bg-surface-2 p-4 text-sm font-semibold text-sky-strong hover:underline">
             {instagramReferenceLabel(reference.segment)}
@@ -309,7 +312,7 @@ export function MechanicsClient(props: MechanicsClientProps) {
   const [closed, setClosed] = useState(false);
   const selected = props.reviewSelection;
   if (closed || !selected || selected.status === 'none') return <MechanicsBrowse {...props} />;
-  if (selected.item) return <div data-library-review="mechanics"><GuideDetail key={selected.item.id} item={selected.item} isAdmin={props.isAdmin} onClose={() => setClosed(true)} /></div>;
+  if (selected.item) return <div data-library-review="mechanics"><GuideDetail key={selected.item.id} item={selected.item} isAdmin={props.isAdmin} reviewing onClose={() => setClosed(true)} /></div>;
   return <EmptyState title={selected.status === 'ambiguous' ? '같은 영상을 쓰는 드릴이 여러 개예요' : '요청한 드릴을 찾지 못했어요'} description="드릴 목록에서 확인할 항목을 직접 선택해 주세요. 다른 영상으로 자동 이동하지 않아요." action={<Button variant="secondary" onClick={() => setClosed(true)}>드릴 목록 보기</Button>} />;
 }
 
