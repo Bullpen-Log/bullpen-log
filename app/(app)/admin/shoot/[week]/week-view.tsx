@@ -95,6 +95,8 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
     return `/admin/shoot/${week.week}/run${s ? `?${s}` : ''}`;
   };
   const label = weekLabel(week);
+  const session = week.session;
+  const startMinute = session?.startMinute ?? 0;
 
   const show = (it: PlanItem) => {
     const st = stateOf(it, map);
@@ -110,7 +112,7 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
       void set(it.exerciseId, null, { label: `${it.no} 대기로 되돌림` });
     } else {
       haptic('success');
-      void set(it.exerciseId, 'done', { label: `${it.no} 찍음` });
+      void set(it.exerciseId, 'done', { label: `${it.no} 찍음`, rescheduledAt: it.rescheduledAt });
     }
   }
 
@@ -123,7 +125,9 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
       <PageHeading
         title={week.deferred ? label : `${label} 촬영${week.outdoor ? ' · 야외' : ''}`}
         description={
-          week.deferred
+          session
+            ? `${clockText(startMinute)}–${clockText(startMinute + week.end)} · 메커니즘 ${items.length}개`
+            : week.deferred
             ? `미룬 운동을 모아 둔 곳이에요 · ${items.length + carried.length}개`
             : `${items.length}개 · 계획 0:15~${clockText(week.end)} · ${crews.length ? `${crews.join(' · ')} 두 사람이 공간을 나눠 동시에` : `자리 ${week.stations.length}곳`}${carried.length ? ` · 앞 주에서 넘어온 것 ${carried.length}개` : ''}`
         }
@@ -139,6 +143,17 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
           </div>
         }
       />
+
+      {session && (
+        <ul aria-label="당일 촬영 일정" className="divide-y divide-line rounded-2xl border border-line bg-surface px-4">
+          {session.agenda.map(({ start, end, title }) => (
+            <li key={start} className="flex flex-wrap gap-x-4 gap-y-1 py-2.5 text-sm">
+              <span className="tabular-nums text-muted">{clockText(startMinute + start)}–{clockText(startMinute + end)}</span>
+              <span>{title}</span>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <Segmented
         label="주차"
@@ -284,7 +299,7 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
                 </h3>
                 <p className="flex items-center gap-3 text-xs tabular-nums text-muted">
                   <span>
-                    {clockText(s.start)}–{clockText(s.end)}
+                    {clockText(startMinute + s.start)}–{clockText(startMinute + s.end)}
                   </span>
                   <span>
                     <b className="font-semibold text-ink">{c.done}</b> / {c.total}
@@ -296,6 +311,7 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
                   <Row
                     key={it.exerciseId}
                     it={it}
+                    startMinute={startMinute}
                     index={i}
                     state={stateOf(it, map)}
                     check={map.get(it.exerciseId)}
@@ -362,10 +378,12 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
             it={open}
             info={infos[open.exerciseId]}
             check={map.get(open.exerciseId)}
+            state={stateOf(open, map)}
             runHref={runHref(crewOf.get(open.exerciseId), open.no)}
             onSet={(status, note) =>
               set(open.exerciseId, status, {
                 note,
+                rescheduledAt: open.rescheduledAt,
                 label: `${open.no} ${status ? STATE_LABEL[status] : '대기로 되돌림'}`,
               })
             }
@@ -434,6 +452,7 @@ function Row({
   uploaded,
   mark,
   carried = false,
+  startMinute = 0,
   onToggle,
   onOpen,
 }: {
@@ -445,6 +464,7 @@ function Row({
   mark: '지금' | '다음' | null;
   /** 앞 주에서 넘어온 줄 — 그 주 시각 · 쉬기 대신 자리를 보인다 */
   carried?: boolean;
+  startMinute?: number;
   onToggle: () => void;
   onOpen: (e: MouseEvent<HTMLButtonElement>) => void;
 }) {
@@ -477,7 +497,7 @@ function Row({
           className="flex min-h-14 min-w-0 flex-1 items-center gap-3 py-2 text-left"
         >
           <span className="hidden w-10 shrink-0 text-xs tabular-nums text-muted desk:block">
-            {carried ? '' : clockText(it.at)}
+            {carried ? '' : clockText(startMinute + it.at)}
           </span>
           <span className="text-numeric w-9 shrink-0 text-xs text-muted">{it.no}</span>
           <span className="min-w-0 flex-1">
@@ -546,6 +566,7 @@ function DetailBody({
   it,
   info,
   check,
+  state,
   runHref,
   onSet,
   onPick,
@@ -556,6 +577,7 @@ function DetailBody({
   it: PlanItem;
   info: ShootWeekData['infos'][string] | undefined;
   check: ShootCheckView | undefined;
+  state: ItemState;
   runHref: string;
   onSet: (status: ShootStatus | null, note?: string | null) => Promise<boolean>;
   /** 영상을 고르면 컷 편집 창으로(useClipFlow().edit) */
@@ -565,7 +587,6 @@ function DetailBody({
   /** 앱 카메라를 못 연 까닭 */
   cameraNotice: string | null;
 }) {
-  const state: ItemState = check?.status ?? 'todo';
   const [note, setNote] = useState(check?.note ?? '');
   const [saved, setSaved] = useState(false);
   return (

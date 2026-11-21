@@ -102,12 +102,9 @@ export async function loadAppShoot() {
       return { exerciseId: it.exerciseId, no: it.no, title: it.title, note: c.note, status: c.status, week: weekOfItem.get(it.exerciseId) ?? 1 };
     });
   const kind = (k: 'exercise' | 'drill' | 'warmup') => items.filter((i) => (i.kind ?? 'exercise') === k).length;
-  const span = (ws: number[]) => (ws.length ? `${ws[0]}~${ws[ws.length - 1]}주` : '');
-  const indoor = plan.weeks.filter((w) => !w.outdoor && !w.deferred).map((w) => w.week);
-  const outdoor = plan.weeks.filter((w) => w.outdoor).map((w) => w.week);
   return {
     ok: true as const,
-    description: `실내 ${span(indoor)} 운동 ${kind('exercise')}개 · 야외 ${span(outdoor)} 투구 드릴 ${kind('drill')}개와 워밍업 ${kind('warmup')}개를 우리 영상으로 찍어요. 주 1회 3시간 · ${plan.weeks.filter((w) => !w.deferred).length}주 계획.`,
+    description: `촬영 일정 ${plan.weeks.filter((w) => !w.deferred).length}회 · 운동 ${kind('exercise')}개 · 메커니즘 드릴 ${kind('drill')}개 · 워밍업 ${kind('warmup')}개`,
     all,
     uploaded,
     toUpload,

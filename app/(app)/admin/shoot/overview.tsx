@@ -68,10 +68,7 @@ export async function ShootOverview({
   ].filter((n): n is { label: string; next: (typeof weeks)[number] } => !!n.next);
   const kindCount = (k: 'exercise' | 'drill' | 'warmup') =>
     items.filter((i) => (i.kind ?? 'exercise') === k).length;
-  const indoorWeeks = plan.weeks.filter((w) => !w.outdoor && !w.deferred).map((w) => w.week);
-  const planWeeks = plan.weeks.filter((w) => !w.deferred).length;
-  const outdoorWeeks = plan.weeks.filter((w) => w.outdoor).map((w) => w.week);
-  const span = (ws: number[]) => (ws.length ? `${ws[0]}~${ws[ws.length - 1]}주` : '');
+  const sessionsPlanned = plan.weeks.filter((w) => !w.deferred).length;
   const sessions = sessionsOf(checkList, toDateKey);
   const realPer =
     sessions
@@ -106,7 +103,7 @@ export async function ShootOverview({
       <BackLink href="/admin">관리자</BackLink>
       <PageHeading
         title="트레이닝 영상 촬영"
-        description={`실내 ${span(indoorWeeks)} 운동 ${kindCount('exercise')}개 · 야외 ${span(outdoorWeeks)} 투구 드릴 ${kindCount('drill')}개와 워밍업 ${kindCount('warmup')}개를 우리 영상으로 찍어요. 주 1회 3시간 · ${planWeeks}주 계획.`}
+        description={`촬영 일정 ${sessionsPlanned}회 · 운동 ${kindCount('exercise')}개 · 메커니즘 드릴 ${kindCount('drill')}개 · 워밍업 ${kindCount('warmup')}개`}
       />
 
       {/* ── 게이지 + 이어 찍기 ── */}

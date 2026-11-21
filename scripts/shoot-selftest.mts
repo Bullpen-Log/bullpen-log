@@ -37,6 +37,7 @@ import {
   groupCounts,
   paceMinutes,
   sessionsOf,
+  stateOf,
   transitionAfter,
   weekItems,
   type ShootCheckView,
@@ -239,6 +240,33 @@ const indoorPlan: ShootPlan = {
 };
 const deferredWeeks = plan.weeks.filter((w) => w.deferred);
 {
+  const session = plan.weeks.find((week) => week.session);
+  if (!session?.session) throw new Error('11/22 실내 일정 누락');
+  const items = weekItems(session);
+  const agenda = session.session.agenda;
+  const checks = new Map<string, ShootCheckView>(items.map((item) => [item.exerciseId, {
+    exerciseId: item.exerciseId, status: 'later', at: '2026-11-15T06:00:00.000Z',
+    by: null, note: '기존 메모',
+  }]));
+  const [first, second] = items;
+  check('11/22 — 10:00–12:00, 11시부터 웨이트, 신규 드릴용 여유',
+    session.session.startMinute === 600 && session.end === 120 && agenda.at(-1)?.start === 60 &&
+    agenda.at(-1)?.end === 120 && agenda.at(-1)?.title.includes('김민 웨이트') === true &&
+    agenda.some((slot) => slot.start === 45 && slot.end === 53));
+  check('11/22 — 무투구 드릴 6개, 장비 대조, 이전 미룸을 촬영 모드에서 순서대로 연다',
+    items.length === 6 && items.every((item) => item.kind === 'drill' && !/스로우|슬램|토스/.test(item.title)) &&
+    items[2].equipment.includes('워터볼') && items[4].equipment.includes('막대') &&
+    cursorOf(session, checks).current === first && cursorOf(session, checks).next === second &&
+    carriedOver(plan, session.week, checks).length === 0);
+  const old = checks.get(first.exerciseId)!;
+  checks.set(first.exerciseId, { ...old, at: '2026-11-22T01:00:00.000Z' });
+  check('11/22 — 당일 미루면 건너뛰고 저장된 메모 유지',
+    cursorOf(session, checks).current === second && stateOf(first, checks) === 'later' &&
+    checks.get(first.exerciseId)?.note === '기존 메모');
+  checks.set(first.exerciseId, { ...old, status: 'done' });
+  check('11/22 — 완료된 드릴을 다시 대기로 열지 않는다', cursorOf(session, checks).current === second);
+}
+{
   /* 미룬 영상 칸의 운동은 실내 운동이다(원래 주차 번호 그대로) — 개수에 같이 센다 */
   const items = [...indoorPlan.weeks, ...deferredWeeks].flatMap(weekItems);
   /*
@@ -246,8 +274,9 @@ const deferredWeeks = plan.weeks.filter((w) => w.deferred);
    * 미룬 것은 미룬 영상 칸(3). 2주차는 19개, 미룬 영상 34개.
    */
   check(
-    '실내 1주(2주차) · 53개 + 미룬 영상 32개(version 6 — 찍은 것은 뺌, version 8 — 2026-11-16 라이브러리에 더한 29개, version 9 — 덤벨 벤트오버 로우 · 같은 날 더한 암케어 팔꿈치 넷, version 10 — 숨긴 운동 둘을 미룬 영상에서 뺌)',
-    indoorPlan.weeks.map((w) => w.week).join() === '2' && weekItems(indoorPlan.weeks[0]).length === 53 && items.length === 85,
+    '실내 — 11/22 메커니즘 6개 · 2주차 53개 · 미룬 영상 29개',
+    indoorPlan.weeks.map((w) => w.week).join() === '4,2' &&
+      weekItems(indoorPlan.weeks[0]).length === 6 && weekItems(indoorPlan.weeks[1]).length === 53 && items.length === 88,
     `${indoorPlan.weeks.map((w) => w.week).join(',')}주 · ${items.length}개`
   );
   invariants(indoorPlan, '고정 계획');
@@ -259,12 +288,9 @@ console.log('\n■ 미룬 영상 칸(version 4)');
   const d = deferredWeeks[0];
   const its = d ? weekItems(d) : [];
   check(
-    '미룬 영상 칸 하나 — 마지막 주 뒤 번호(3), 번호는 3-01 부터 차례로(version 6 — 옛 번호가 새 1 · 2주차와 겹쳐 다시 매김), 야외 아님',
-    deferredWeeks.length === 1 &&
-      !d.outdoor &&
-      d.week > Math.max(...plan.weeks.filter((w) => !w.deferred).map((w) => w.week)) &&
-      its.length > 0 &&
-      its.every((it, i) => it.no === `${d.week}-${String(i + 1).padStart(2, '0')}`),
+    '미룬 영상 칸 하나 — 기존 주소(3), 옮긴 번호 비움, 야외 아님',
+    deferredWeeks.length === 1 && !d.outdoor && d.week === 3 && its.length === 29 &&
+      its.every((it, i) => it.no.startsWith('3-') && (i === 0 || it.no > its[i - 1].no)),
     its.map((it) => it.no).join(' · ')
   );
 }
@@ -276,9 +302,9 @@ console.log('\n■ 고정 계획 — 야외 8~10주(투구 드릴만 — 워밍�
   const drills = items.filter((i) => i.kind === 'drill');
   const warms = items.filter((i) => i.kind === 'warmup');
   check(
-    '야외 1주(1주차) — 드릴 90 · 운동 2 · 워밍업 없음(version 6 — 6주차에서 찍은 것 · 미룬 것을 빼고 남은 것, version 7 — 나중에 촬영 37개를 넣음)',
+    '야외 1주(1주차) — 드릴 87 · 운동 2 · 워밍업 없음',
     out.map((w) => w.week).join() === '1' &&
-      drills.length === 90 &&
+      drills.length === 87 &&
       items.filter((i) => !i.kind).length === 2 &&
       warms.length === 0,
     `${out.map((w) => w.week).join(',')} · 드릴 ${drills.length} · 운동 ${items.filter((i) => !i.kind).length} · 워밍업 ${warms.length}`
@@ -299,11 +325,10 @@ console.log('\n■ 고정 계획 — 야외 8~10주(투구 드릴만 — 워밍�
     `${all.length}개`
   );
   check(
-    '번호는 주차-순번으로 빈틈없이(1-01 …)',
+    '야외 번호 보존 — 실내로 옮긴 03, 05, 06 자리만 비움',
     out.every((w) =>
-      weekItems(w).every(
-        (it, i) => it.no === `${w.week}-${String(i + 1).padStart(2, '0')}`
-      )
+      weekItems(w).map((it) => it.no).join() === Array.from({ length: 92 }, (_, i) => i + 1)
+        .filter((n) => ![3, 5, 6].includes(n)).map((n) => `1-${String(n).padStart(2, '0')}`).join()
     )
   );
   check(
@@ -573,7 +598,7 @@ console.log('\n■ 계획 계산(합성 운동)');
 
 console.log('\n■ 진행(지금 · 다음 · 미룬 것)');
 {
-  const w = plan.weeks[0];
+  const w = plan.weeks.find((week) => week.week === 1)!;
   const items = weekItems(w);
   const at = (min: number) => new Date(Date.UTC(2026, 9, 10, 0, min)).toISOString();
   const day = (d: Date) => d.toISOString().slice(0, 10);

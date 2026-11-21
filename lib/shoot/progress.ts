@@ -33,11 +33,17 @@ export type ShootCheckView = {
 
 export type ItemState = 'done' | 'redo' | 'later' | 'todo';
 
+export function isRescheduled(item: Pick<PlanItem, 'rescheduledAt'>, check?: Pick<ShootCheckView, 'status' | 'at'> | null): boolean {
+  return !!item.rescheduledAt && check?.status === 'later' &&
+    Date.parse(check.at) < Date.parse(item.rescheduledAt);
+}
+
 export function stateOf(
   item: PlanItem,
   checks: Map<string, ShootCheckView>
 ): ItemState {
-  return checks.get(item.exerciseId)?.status ?? 'todo';
+  const check = checks.get(item.exerciseId);
+  return isRescheduled(item, check) ? 'todo' : (check?.status ?? 'todo');
 }
 
 export const weekItems = (w: PlanWeek): PlanItem[] =>
@@ -143,6 +149,7 @@ export function carriedOver(
   checks: Map<string, ShootCheckView>
 ): PlanItem[] {
   const target = plan.weeks.find((w) => w.week === week);
+  if (target?.session) return [];
   const outdoor = !!target?.outdoor;
   const hasDeferred = plan.weeks.some((w) => w.deferred);
   /* 실내 · 야외 어디서 미뤘든 미룬 영상 칸에 모은다(2026-11-14 김민 — version 6, 야외 1주차에서 미룬 것도) */
@@ -153,7 +160,7 @@ export function carriedOver(
       .filter((it) => stateOf(it, checks) === 'later');
   return plan.weeks
     // 실내 주차의 남은 것은 실내 주차로, 야외는 야외로만(자리 · 기구가 다르다)
-    .filter((w) => w.week < week && !!w.outdoor === outdoor && !w.deferred)
+    .filter((w) => w.week < week && !!w.outdoor === outdoor && !w.deferred && !w.session)
     .map(weekItems)
     .filter((its) => its.some((it) => checks.has(it.exerciseId)))
     .flat()

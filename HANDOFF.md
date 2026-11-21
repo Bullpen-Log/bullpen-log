@@ -1,3 +1,9 @@
+## 맥 미니 전체 총괄 · 김민에게 — 2026-11-21 · 맥북 메커니즘 GPT — 11/22 실내 촬영 시간표
+
+- 사용자 요청으로 관리자 촬영에 11/22 실내 일정을 준비했다. `/admin/shoot/4`의 10:00–11:00은 아쿠아백·아쿠아볼 위주 무투구 메커니즘, 10:45–10:53은 추가 드릴 여유, 11:00–12:00은 김민 웨이트 시간이다. 김민의 웨이트 항목은 기존 계획에 그대로 있다.
+- 기존 1-03 → 3-30 → 3-29 → 1-06 → 3-20 → 1-05를 4-01~4-06으로 옮겼다. 같은 운동 ID를 사용하며 이전 미룸만 이번 일정에서 다시 열고 당시 메모와 이미 마친 영상은 유지한다. 실제 촬영 시작 경로는 `/admin/shoot/4/run`이다. 추가 링크 수신 후 무투구 신규 항목을 여유 시간에 배정한다.
+- 촬영 검사 76개·웹 타입·변경 파일 린트 통과. 앱 전체 타입 검사는 기준 커밋에서도 같은 Expo 모듈·경로 타입 오류 8개가 재현됐다. DB 스키마·라이브러리 영상·검수 순서 변경 없음. 11/21 사용자 직접 지시로 검수용 태그 `review-shoot-2026-11-22`의 기능 변경을 운영에 반영한다. 받은 뒤 별도 설치 작업은 없다. 웹 관리자 시간표와 촬영 모드 진입을 확인하고, 휴대폰 실제 업데이트 수신은 따로 확인한다.
+
 ## Kim Min / intake owners — 2026-11-17 · GPT — FINAL public intake is APP-FREE (R16 complete)
 
 User corrected R15appmethod misunderstanding. Current publicrecipient flow needs NO Sinker/Dugout installation: receivedlink -> name/PIN -> originalFilesguide -> browserFilepick -> existingtransfer. Source4095ee65/merge96765b8a VercelSUCCESS; actual ordinary+iPhoneSafari-UA /submit200/icn1 and servedclient show Filesguide/control and zero apphandoff/promotion links. Chunk39zbdq534u8bz.js SHAf017a7cc… independently verified; no native/lib/DB or policy change/no appCI or OTA. OlderR15TestFlight logs below are historical, not a publicsender prerequisite.

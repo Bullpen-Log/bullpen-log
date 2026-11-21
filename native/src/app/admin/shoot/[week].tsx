@@ -9,7 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppShootWeek } from '@/app/actions/app-shoot';
 import type { ShootResult } from '@/app/actions/shoot';
 import type { ShootExerciseInfo } from '@/lib/shoot/load';
-import { BUCKET_LABEL, clockText, countOf, cursorOfList, stateOf, weekItems, type ItemState, type ShootCheckView, type ShootStatus } from '@/lib/shoot/progress';
+import { BUCKET_LABEL, clockText, countOf, cursorOfList, isRescheduled, stateOf, weekItems, type ItemState, type ShootCheckView, type ShootStatus } from '@/lib/shoot/progress';
 import { crewsOf } from '@/lib/shoot/crews';
 import { weekLabel, type PlanItem } from '@/lib/shoot/schedule';
 import { Bar, Chip, LoadState, s, useLoad } from '~/community/parts';
@@ -106,11 +106,12 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
     setError(null);
     const before = checks;
     const prev = map.get(it.exerciseId);
+    const reopened = isRescheduled(it, prev);
     const optimistic: ShootCheckView[] =
       status === null
         ? checks.filter((x) => x.exerciseId !== it.exerciseId)
         : [
-            { exerciseId: it.exerciseId, status, at: prev?.status === status ? prev.at : new Date().toISOString(), by: me, note: note !== undefined ? note || null : (prev?.note ?? null) },
+            { exerciseId: it.exerciseId, status, at: prev?.status === status && !reopened ? prev.at : new Date().toISOString(), by: me, note: note !== undefined ? note || null : (prev?.note ?? null) },
             ...checks.filter((x) => x.exerciseId !== it.exerciseId),
           ];
     setChecks(optimistic);
@@ -123,7 +124,7 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
         return false;
       }
       setChecks(r.checks);
-      if (label) setToast((t) => ({ seq: (t?.seq ?? 0) + 1, text: label, it, status: prev?.status ?? null }));
+      if (label) setToast((t) => ({ seq: (t?.seq ?? 0) + 1, text: label, it, status: reopened ? 'redo' : (prev?.status ?? null) }));
       return true;
     } catch {
       setChecks(before);
@@ -142,6 +143,8 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
   };
   const openItem = openId ? queue.find((it) => it.exerciseId === openId) : undefined;
   const mark = (it: PlanItem) => (it === current ? '지금' : it === next ? '다음' : null);
+  const session = week.session;
+  const startMinute = session?.startMinute ?? 0;
 
   return (
     <>
@@ -155,10 +158,21 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
           ))}
         </ScrollView>
         <Text style={{ color: c.muted, fontSize: 15, lineHeight: 20, paddingHorizontal: 4 }}>
-          {week.deferred
+          {session
+            ? `${clockText(startMinute)}–${clockText(startMinute + week.end)} · 메커니즘 ${items.length}개`
+            : week.deferred
             ? `미룬 운동을 모아 둔 곳이에요 · ${items.length + carried.length}개`
             : `${items.length}개 · 계획 0:15~${clockText(week.end)} · ${crews.length ? `${crews.join(' · ')} 두 사람이 공간을 나눠 동시에` : `자리 ${week.stations.length}곳`}${carried.length ? ` · 앞 주에서 넘어온 것 ${carried.length}개` : ''}`}
         </Text>
+        {session && (
+          <View accessibilityLabel="당일 촬영 일정" style={{ borderRadius: 14, padding: 14, gap: 8, backgroundColor: c.card }}>
+            {session.agenda.map(({ start, end, title }) => (
+              <Text key={start} style={{ color: c.ink, fontSize: 14, lineHeight: 20 }}>
+                {clockText(startMinute + start)}–{clockText(startMinute + end)}  {title}
+              </Text>
+            ))}
+          </View>
+        )}
 
         <View style={{ borderRadius: 14, padding: 14, gap: 12, backgroundColor: c.card, boxShadow: c.float }}>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
@@ -227,7 +241,7 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
                   {st.warmup ? '몸풀기 · 가벼운 모빌리티 · 스트레칭' : st.station}
                 </Text>
                 <Text style={[s.meta, { color: c.muted, fontVariant: ['tabular-nums'] }]}>
-                  {clockText(st.start)}–{clockText(st.end)}  <Text style={{ color: c.ink, fontWeight: '600' }}>{sc.done}</Text>/{sc.total}
+                  {clockText(startMinute + st.start)}–{clockText(startMinute + st.end)}  <Text style={{ color: c.ink, fontWeight: '600' }}>{sc.done}</Text>/{sc.total}
                 </Text>
               </View>
               {list.map((it) => (
@@ -264,6 +278,8 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
             it={openItem}
             info={infos[openItem.exerciseId]}
             check={map.get(openItem.exerciseId)}
+            state={stateOf(openItem, map)}
+            startMinute={startMinute}
             onSet={(status, note) => set(openItem, status, note, `${openItem.no} ${status ? STATE_LABEL[status] : '대기로 되돌림'}`)}
             onRun={() => {
               setOpenId(null);
@@ -395,6 +411,8 @@ function DetailSheet({
   it,
   info,
   check,
+  state,
+  startMinute,
   onSet,
   onRun,
   onClose,
@@ -403,13 +421,14 @@ function DetailSheet({
   it: PlanItem;
   info: ShootExerciseInfo | undefined;
   check: ShootCheckView | undefined;
+  state: ItemState;
+  startMinute: number;
   onSet: (status: ShootStatus | null, note?: string | null) => Promise<boolean>;
   onRun: () => void;
   onClose: () => void;
   c: Palette;
 }) {
   const inset = useSafeAreaInsets();
-  const state: ItemState = check?.status ?? 'todo';
   const [note, setNote] = useState(check?.note ?? '');
   const [saved, setSaved] = useState(false);
   const [how, setHow] = useState(true);
@@ -429,7 +448,7 @@ function DetailSheet({
             {it.no} {it.title}
           </Text>
           <Text style={[s.meta, { color: c.muted }]}>
-            {it.station} · {BUCKET_LABEL[it.bucket]} · 계획 {clockText(it.at)}
+            {it.station} · {BUCKET_LABEL[it.bucket]} · 계획 {clockText(startMinute + it.at)}
           </Text>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="닫기" onPress={onClose} hitSlop={10} style={{ minHeight: 44, justifyContent: 'center' }}>
