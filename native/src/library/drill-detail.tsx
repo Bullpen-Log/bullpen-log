@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Alert, Linking, StyleSheet, Text, View } from 'react-native';
 import { DRILL_STAGES, FOCUS_POINT_DESC } from '@/lib/exercise-meta';
 import { mechanicsElement } from '@/lib/mechanics/elements';
-import { splitInstagramReference } from '@/lib/mechanics/reference-draft';
+import { instagramReferenceLabel, splitInstagramReference } from '@/lib/mechanics/reference-draft';
 import type { Palette } from '~/lib/ui';
 import { InstructionText } from '~/shell/instruction-text';
 import { Icon } from '~/shell/icon';
@@ -79,7 +79,7 @@ export function DrillDetail({ item, entry, onReturn, c }: { item: Drill; entry: 
         <Press accessibilityRole="link" style={[s.card, { backgroundColor: c.card }]} onPress={() => {
           void Linking.openURL(instagram).catch(() => Alert.alert('참고 영상을 열 수 없어요'));
         }}>
-          <Text style={[s.bodyBold, { color: c.link }]}>Instagram 참고 영상 보기</Text>
+          <Text style={[s.bodyBold, { color: c.link }]}>{instagramReferenceLabel(reference.segment)}</Text>
         </Press>
       ) : <DetailMedia key={item.id} item={item} c={c} />}
 

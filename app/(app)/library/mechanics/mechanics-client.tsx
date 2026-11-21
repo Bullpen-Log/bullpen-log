@@ -1,7 +1,7 @@
 'use client';
 
 import { focusPriority } from '@/lib/mechanics/focus-priority';
-import { splitInstagramReference } from '@/lib/mechanics/reference-draft';
+import { instagramReferenceLabel, splitInstagramReference } from '@/lib/mechanics/reference-draft';
 
 import { useMemo, useState } from 'react';
 import { Pencil, Star, Trash2, X } from '@/components/icon';
@@ -149,9 +149,16 @@ function GuideDetail({
       }`}
     >
       {reference.url && !item.videoPath && !item.referenceVideoId ? (
-        <a href={reference.url} target="_blank" rel="noopener noreferrer" className="self-start rounded-xl border border-line bg-surface-2 p-4 text-sm font-semibold text-sky-strong hover:underline">
-          Instagram 참고 영상 보기
-        </a>
+        <div className="flex flex-col gap-2 self-start">
+          {isAdmin && reference.segment?.recorded && (
+            <a href={`/api/admin/mechanics-reference?id=${item.id}`} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-line bg-surface-2 p-4 text-sm font-semibold text-sky-strong hover:underline">
+              녹화 참고 클립 보기
+            </a>
+          )}
+          <a href={reference.url} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-line bg-surface-2 p-4 text-sm font-semibold text-sky-strong hover:underline">
+            {instagramReferenceLabel(reference.segment)}
+          </a>
+        </div>
       ) : <LibraryVideo
         path={item.videoPath}
         referenceVideoId={item.referenceVideoId}

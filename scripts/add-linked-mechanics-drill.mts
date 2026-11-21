@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { LATER_CATEGORY } from '@/lib/categories';
 import { DRILL_EQUIPMENT, DRILL_STAGE_NAMES, FOCUS_POINTS } from '@/lib/exercise-meta';
 import { YT_ID } from '@/lib/exercise-video-state';
-import { canonicalInstagramLink, descriptionWithInstagram, splitInstagramReference } from '@/lib/mechanics/reference-draft';
+import { canonicalInstagramLink, descriptionWithInstagram, splitInstagramReference, validInstagramSegment, type InstagramSegment } from '@/lib/mechanics/reference-draft';
 import { prisma } from '@/lib/prisma';
 import { itemOf } from '@/lib/shoot/plan';
 
@@ -11,6 +11,7 @@ type Candidate = {
   id: string;
   title: string;
   url?: string;
+  segment?: InstagramSegment;
   youtubeId?: string;
   aspectRatio?: number;
   description: string;
@@ -24,6 +25,7 @@ function prepare(draft: Candidate) {
   const youtube = draft.youtubeId && YT_ID.test(draft.youtubeId) ? draft.youtubeId : null;
   const planned = itemOf(draft.id);
   if ((!instagram && !youtube) || (instagram && youtube) || !planned || planned.item.kind !== 'drill' ||
+      (draft.segment && (!instagram || !validInstagramSegment(draft.segment))) ||
       !draft.title.trim() || !draft.description.trim() ||
       draft.focusPoints.some((focus) => !FOCUS_POINTS.includes(focus)) ||
       draft.equipment.some((name) => !DRILL_EQUIPMENT.includes(name)) || !DRILL_STAGE_NAMES.includes(draft.stage)) {
@@ -46,24 +48,31 @@ async function main() {
     for (const { draft, instagram, youtube, planned } of candidates) {
       const title = { equals: draft.title, mode: 'insensitive' as const };
       const reference = youtube ? { referenceVideoId: youtube } : { description: { contains: instagram! } };
-      const [drills, exercise] = await Promise.all([
+      const [drills, exercises] = await Promise.all([
         tx.mechanicsGuide.findMany({
           where: { OR: [{ id: draft.id }, { title }, reference] },
           select: { id: true, title: true, description: true, referenceVideoId: true, videoPath: true, source: true, hiddenAt: true },
         }),
-        tx.exerciseVideo.findFirst({ where: { OR: [{ title }, reference] }, select: { title: true } }),
+        tx.exerciseVideo.findMany({
+          where: { OR: [{ title }, reference] },
+          select: { title: true, description: true, referenceVideoId: true },
+        }),
       ]);
-      const duplicates = drills.filter((row) => row.id !== draft.id).map((row) => row.title);
-      if (exercise) duplicates.push(exercise.title);
+      const sameSource = (row: { description: string; referenceVideoId: string | null }) => {
+        if (youtube) return row.referenceVideoId === youtube;
+        const saved = splitInstagramReference(row.description);
+        return saved.url === instagram && saved.segment?.start === draft.segment?.start &&
+          saved.segment?.end === draft.segment?.end && saved.segment?.panel === draft.segment?.panel;
+      };
+      const duplicates = [...drills.filter((row) => row.id !== draft.id), ...exercises]
+        .filter((row) => row.title.toLocaleLowerCase() === draft.title.toLocaleLowerCase() || sameSource(row))
+        .map((row) => row.title);
       if (duplicates.length) throw new Error(`같은 제목 또는 원본이 이미 있습니다: ${duplicates.join(', ')}`);
 
-      const existing = drills[0];
+      const existing = drills.find((row) => row.id === draft.id);
       let result = 'ready';
       if (existing) {
-        const sameSource = youtube
-          ? existing.referenceVideoId === youtube
-          : splitInstagramReference(existing.description).url === instagram;
-        if (existing.hiddenAt || (!sameSource && !(existing.source === 'OWN' && existing.videoPath && existing.title === draft.title))) {
+        if (existing.hiddenAt || (!sameSource(existing) && !(existing.source === 'OWN' && existing.videoPath && existing.title === draft.title))) {
           throw new Error(`지정한 ID의 기존 드릴이 숨겨졌거나 다른 원본을 가리킵니다: ${draft.title}`);
         }
         result = 'already-added';
@@ -72,7 +81,7 @@ async function main() {
           id: draft.id,
           title: draft.title,
           category: LATER_CATEGORY,
-          description: instagram ? descriptionWithInstagram(draft.description, instagram) : draft.description,
+          description: instagram ? descriptionWithInstagram(draft.description, instagram, draft.segment) : draft.description,
           source: 'REFERENCE',
           referenceVideoId: youtube,
           aspectRatio: draft.aspectRatio,

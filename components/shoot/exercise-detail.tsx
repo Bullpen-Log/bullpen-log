@@ -4,7 +4,7 @@ import { useState, type ReactNode } from 'react';
 import { ChevronDown, Wrench } from '@/components/icon';
 import { LibraryVideo } from '@/components/library-video';
 import { referenceThumbUrl } from '@/lib/reference-video';
-import { splitInstagramReference } from '@/lib/mechanics/reference-draft';
+import { instagramReferenceLabel, splitInstagramReference } from '@/lib/mechanics/reference-draft';
 import type { ShootExerciseInfo } from '@/lib/shoot/load';
 import type { PlanItem } from '@/lib/shoot/schedule';
 
@@ -87,9 +87,16 @@ export function ShootExerciseDetail({
       )}
 
       {reference.url && (
-        <a href={reference.url} target="_blank" rel="noopener noreferrer" className="inline-flex rounded-xl border border-line px-4 py-2.5 text-sm font-semibold text-sky-strong hover:underline">
-          Instagram 참고 영상 보기
-        </a>
+        <div className="flex flex-wrap gap-2">
+          {reference.segment?.recorded && (
+            <a href={`/api/admin/mechanics-reference?id=${item.exerciseId}`} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-line px-4 py-2.5 text-sm font-semibold text-sky-strong hover:underline">
+              녹화 참고 클립 보기
+            </a>
+          )}
+          <a href={reference.url} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-line px-4 py-2.5 text-sm font-semibold text-sky-strong hover:underline">
+            {instagramReferenceLabel(reference.segment)}
+          </a>
+        </div>
       )}
 
       {info?.own && (

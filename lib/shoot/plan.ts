@@ -23,6 +23,12 @@ type LinkedDrill = {
 };
 const referenceDrills = linkedDrills as LinkedDrill[];
 const referenceById = new Map(referenceDrills.map((drill) => [drill.id, drill]));
+const extraIndoorWeek: PlanWeek = {
+  week: 5,
+  end: 8,
+  stations: [{ station: '공 · 워터백(벽 앞)', start: 8, end: 8, items: [] }],
+  load: {},
+};
 
 export function linkedYouTubeReference(id: string): { yt: string; ar?: number } | undefined {
   const drill = referenceById.get(id);
@@ -32,7 +38,7 @@ export function linkedYouTubeReference(id: string): { yt: string; ar?: number } 
 /** 링크 추가 드릴은 지정한 실내 시간 또는 실외 촬영 자리 끝에 배정한다. */
 export const SHOOT_PLAN: ShootPlan = {
   ...base,
-  weeks: base.weeks.map((week) => {
+  weeks: [...base.weeks, ...(referenceDrills.some((drill) => drill.indoor?.week === 5) ? [extraIndoorWeek] : [])].map((week) => {
     let end = week.end;
     let addedLoad = 0;
     const bucket = week.outdoor ? '스로잉 드릴' : '무브먼트 패턴 드릴';
