@@ -4,6 +4,7 @@ import { BackLink, ButtonLink, Card, PageHeading } from '@/components/ui';
 import { ShootGauge, StackBar } from '@/components/shoot/gauge';
 import { STATE_LABEL, STATE_PILL, dayText, stampText } from '@/components/shoot/status';
 import { SHOOT_PLAN } from '@/lib/shoot/plan';
+import { shootRunHref } from '@/lib/shoot/guide';
 import { loadShootChecks, loadShootExercises } from '@/lib/shoot/load';
 import {
   BUCKET_LABEL,
@@ -138,15 +139,18 @@ export async function ShootOverview({
                     <span className="text-numeric mr-2 text-muted">{next.cur.current!.no}</span>
                     {next.cur.current!.title}
                   </p>
-                  <div className="flex flex-wrap gap-2">
-                    <ButtonLink href={`/admin/shoot/${next.w.week}/run`} className="min-w-40">
-                      <Clapperboard aria-hidden className="h-4 w-4" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <ButtonLink href={shootRunHref(next.w.week)} size="sm" className="min-h-12 break-keep text-center">
+                      <Clapperboard aria-hidden className="hidden h-4 w-4 shrink-0 desk:block" />
                       {next.count.done > 0 ? '이어 찍기' : '촬영 시작'}
                     </ButtonLink>
-                    <ButtonLink href={`/admin/shoot/${next.w.week}`} variant="secondary">
-                      {weekLabel(next.w)} 시간표
+                    <ButtonLink href={shootRunHref(next.w.week, null, null, 'guide')} variant="secondary" size="sm" className="min-h-12 text-center">
+                      촬영지원
                     </ButtonLink>
                   </div>
+                  <Link href={`/admin/shoot/${next.w.week}`} className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-sky-strong">
+                    {weekLabel(next.w)} 시간표 <ChevronRight aria-hidden className="h-4 w-4" />
+                  </Link>
                 </div>
               ))}
             </div>

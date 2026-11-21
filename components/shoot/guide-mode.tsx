@@ -88,7 +88,7 @@ export function ShootGuideMode({ data, crew, startAt }: {
       <header className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <Link href={backHref} className="flex min-h-11 items-center gap-1 text-sm font-semibold"><ChevronLeft aria-hidden className="h-4 w-4" />주차</Link>
         <div className="text-center">
-          <p className="font-bold">지도 모드</p>
+          <p className="font-bold">촬영지원</p>
           <p className="text-xs text-muted">{weekLabel(week)}{crew ? ` · ${crew}조` : ''}</p>
         </div>
         <button type="button" onClick={(event) => list.show(true, event)} disabled={!ready || !current} className="min-h-11 rounded-xl px-2 text-sm font-semibold disabled:opacity-40">목록</button>
@@ -96,7 +96,7 @@ export function ShootGuideMode({ data, crew, startAt }: {
       {current ? (
         <>
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 py-5">
-            <p className="text-sm text-muted">지도 순서 {index + 1} / {queue.length} · {current.no} · {STATE_LABEL[stateOf(current, map)]}</p>
+            <p className="text-sm text-muted">운동 순서 {index + 1} / {queue.length} · {current.no} · {STATE_LABEL[stateOf(current, map)]}</p>
             <h1 ref={heading} tabIndex={-1} className="scroll-mt-3 text-2xl font-bold break-keep focus:outline-none">{current.title}</h1>
             {check?.status === 'later' && check.note && <p className="whitespace-pre-wrap break-words text-sm text-muted">미룸 사유 · {check.note}</p>}
             {!hasVideo && <p className="rounded-xl bg-surface-2 p-4 text-sm text-muted">등록된 시범 영상이 없어요. 아래 시범 방법을 확인해 주세요.</p>}
@@ -108,13 +108,12 @@ export function ShootGuideMode({ data, crew, startAt }: {
               <button type="button" onClick={() => move(index - 1)} disabled={!ready || index === 0} className="min-h-13 rounded-2xl bg-ink/6 px-5 font-semibold disabled:opacity-40">이전</button>
               {next ? (
                 <button type="button" onClick={() => move(index + 1)} disabled={!ready} className="flex min-h-13 flex-1 items-center justify-center gap-2 rounded-2xl bg-sky px-4 font-bold text-white disabled:opacity-50">다음 <ChevronRight aria-hidden className="h-5 w-5" /></button>
-              ) : <ButtonLink href={backHref} className="min-h-13 flex-1">지도 끝내기</ButtonLink>}
+              ) : <ButtonLink href={backHref} className="min-h-13 flex-1">시간표로 돌아가기</ButtonLink>}
             </div>
-            <p className="text-xs text-muted">지도 순서만 바뀌어요. 촬영 상태는 그대로예요.</p>
           </footer>
         </>
-      ) : <p className="p-5 text-sm text-muted">지도할 운동이 없어요.</p>}
-      <Modal open={list.open} onClose={list.close} title="지도 순서" origin={list.origin}>
+      ) : <p className="p-5 text-sm text-muted">이 주차에는 확인할 운동이 없어요.</p>}
+      <Modal open={list.open} onClose={list.close} title="운동 순서" origin={list.origin}>
         <ol className="divide-y divide-line">
           {queue.map((item, i) => (
             <li key={item.exerciseId}>

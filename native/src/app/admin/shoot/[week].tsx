@@ -179,6 +179,22 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
             ? `미룬 운동을 모아 둔 곳이에요 · ${items.length + carried.length}개`
             : `${items.length}개 · 계획 0:15~${clockText(week.end)} · ${crews.length ? `${crews.join(' · ')} 두 사람이 공간을 나눠 동시에` : `자리 ${week.stations.length}곳`}${carried.length ? ` · 앞 주에서 넘어온 것 ${carried.length}개` : ''}`}
         </Text>
+        <View style={{ gap: 8 }}>
+          {(crews.length ? crews : [undefined]).map((crew) => (
+            <View key={crew ?? 'all'} style={{ flexDirection: 'row', gap: 8 }}>
+              <Pressable accessibilityRole="button" onPress={() => leaveTo(runHref(crew))} style={[s.pill, { flex: 1, minHeight: 52, paddingHorizontal: 8, backgroundColor: c.action }]}>
+                <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700', textAlign: 'center' }}>
+                  {crew ? `${crew}조 촬영 시작` : count.done > 0 ? '이어 찍기' : '촬영 시작'}
+                </Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" onPress={() => leaveTo(guideHref(crew))} style={[s.pill, { flex: 1, minHeight: 52, paddingHorizontal: 8, backgroundColor: c.chip }]}>
+                <Text style={{ color: c.ink, fontSize: 16, fontWeight: '700', textAlign: 'center' }}>
+                  {crew ? `${crew}조 촬영지원` : '촬영지원'}
+                </Text>
+              </Pressable>
+            </View>
+          ))}
+        </View>
         {session && (
           <View accessibilityLabel="당일 촬영 일정" style={{ borderRadius: 14, padding: 14, gap: 8, backgroundColor: c.card }}>
             {session.agenda.map(({ start, end, title }) => (
@@ -209,20 +225,6 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
               이 주 계획을 다 찍었어요{count.later ? ` · 미룬 것 ${count.later}개가 남아 있어요` : ''}.
             </Text>
           )}
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            {(crews.length ? crews : [undefined]).map((cr) => (
-              <Pressable key={cr ?? 'all'} accessibilityRole="button" onPress={() => leaveTo(runHref(cr))} style={[s.pill, { flex: 1, minHeight: 52, backgroundColor: c.action }]}>
-                <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>{cr ? `${cr} 촬영` : count.done > 0 ? '이어 찍기' : '촬영 모드로 시작'}</Text>
-              </Pressable>
-            ))}
-          </View>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            {(crews.length ? crews : [undefined]).map((cr) => (
-              <Pressable key={cr ?? 'all'} accessibilityRole="button" onPress={() => leaveTo(guideHref(cr))} style={[s.pill, { flex: 1, minHeight: 52, backgroundColor: c.chip }]}>
-                <Text style={{ color: c.ink, fontSize: 17, fontWeight: '700' }}>{cr ? `${cr}조 지도 모드` : '지도 모드'}</Text>
-              </Pressable>
-            ))}
-          </View>
         </View>
 
         <View style={{ borderRadius: 14, padding: 14, gap: 8, backgroundColor: c.card, boxShadow: c.float }}>
@@ -623,7 +625,7 @@ function DetailSheet({
           <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>{info?.uploaded ? '다시 찍기 · 촬영 모드에서' : '영상 찍기 · 촬영 모드에서'}</Text>
         </Pressable>
         <Pressable accessibilityRole="button" onPress={onGuide} style={[s.pill, { minHeight: 48, backgroundColor: c.chip }]}>
-          <Text style={{ color: c.ink, fontSize: 16, fontWeight: '600' }}>지도 모드에서 이 운동부터</Text>
+          <Text style={{ color: c.ink, fontSize: 16, fontWeight: '600' }}>촬영지원에서 이 운동 보기</Text>
         </Pressable>
 
         <View style={{ borderRadius: 14, padding: 14, gap: 8, backgroundColor: c.card, boxShadow: c.float }}>

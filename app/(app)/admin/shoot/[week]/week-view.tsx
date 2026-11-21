@@ -133,13 +133,17 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
             : `${items.length}개 · 계획 0:15~${clockText(week.end)} · ${crews.length ? `${crews.join(' · ')} 두 사람이 공간을 나눠 동시에` : `자리 ${week.stations.length}곳`}${carried.length ? ` · 앞 주에서 넘어온 것 ${carried.length}개` : ''}`
         }
         action={
-          /* 휴대폰은 진행 칸의 큰 [이어 찍기] 하나만 — ButtonLink 의 inline-flex 가 hidden 을 이겨서 감싼다 */
-          <div className="hidden gap-2 desk:flex">
-            {(crews.length ? crews : [undefined]).map((c) => (
-              <ButtonLink key={c ?? 'all'} href={runHref(c)}>
-                <Clapperboard aria-hidden className="h-4 w-4" />
-                {c ? `${c} 촬영 모드` : '촬영 모드'}
-              </ButtonLink>
+          <div className="space-y-2">
+            {(crews.length ? crews : [undefined]).map((crew) => (
+              <div key={crew ?? 'all'} className="grid grid-cols-2 gap-2">
+                <ButtonLink href={runHref(crew)} size="sm" className="min-h-12 break-keep text-center">
+                  <Clapperboard aria-hidden className="hidden h-4 w-4 shrink-0 sm:block" />
+                  {crew ? `${crew}조 촬영 시작` : count.done > 0 ? '이어 찍기' : '촬영 시작'}
+                </ButtonLink>
+                <ButtonLink href={guideHref(crew)} variant="secondary" size="sm" className="min-h-12 break-keep text-center">
+                  {crew ? `${crew}조 촬영지원` : '촬영지원'}
+                </ButtonLink>
+              </div>
             ))}
           </div>
         }
@@ -220,21 +224,6 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
             {count.later ? ` · 미룬 것 ${count.later}개가 남아 있어요` : ''}.
           </p>
         )}
-        <div className={`grid gap-2 desk:hidden ${crews.length > 1 ? 'grid-cols-2' : ''}`}>
-          {(crews.length ? crews : [undefined]).map((c) => (
-            <ButtonLink key={c ?? 'all'} href={runHref(c)} className="h-14 w-full text-base">
-              <Clapperboard aria-hidden className="h-5 w-5" />
-              {c ? `${c} 촬영` : count.done > 0 ? '이어 찍기' : '촬영 모드로 시작'}
-            </ButtonLink>
-          ))}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {(crews.length ? crews : [undefined]).map((crew) => (
-            <ButtonLink key={crew ?? 'all'} href={guideHref(crew)} variant="secondary" className="min-h-12 flex-1">
-              {crew ? `${crew}조 지도 모드` : '지도 모드'}
-            </ButtonLink>
-          ))}
-        </div>
       </section>
 
       {/* ── 챙길 기구 · 자리 순서 ── */}
@@ -715,7 +704,7 @@ function DetailBody({
         <Clapperboard aria-hidden className="h-4 w-4" />
         촬영 모드에서 이 운동부터
       </ButtonLink>
-      <ButtonLink href={guideHref} variant="secondary" className="w-full">지도 모드에서 이 운동부터</ButtonLink>
+      <ButtonLink href={guideHref} variant="secondary" className="w-full">촬영지원에서 이 운동 보기</ButtonLink>
       {postponing && (
         <PostponeDialog
           title={`${it.no} ${it.title}`}

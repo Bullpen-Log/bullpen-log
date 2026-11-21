@@ -2,6 +2,7 @@ import { type Href, router } from 'expo-router';
 import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppShoot } from '@/app/actions/app-shoot';
+import { shootRunHref } from '@/lib/shoot/guide';
 import { Bar, LoadState, Row, s, useLoad, useTitleCollapse } from '~/community/parts';
 import { PageHead } from '~/shell/heading';
 import { leaveTo } from '~/shell/web-nav';
@@ -56,19 +57,26 @@ export default function ShootHomeScreen() {
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     <Pressable
                       accessibilityRole="button"
-                      onPress={() => leaveTo(`/admin/shoot/${n.week}/run`)}
-                      style={[s.pill, { flex: 1, backgroundColor: c.action }]}
+                      onPress={() => leaveTo(shootRunHref(n.week))}
+                      style={[s.pill, { flex: 1, minHeight: 48, paddingHorizontal: 8, backgroundColor: c.action }]}
                     >
-                      <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>{n.done > 0 ? '이어 찍기' : '촬영 시작'}</Text>
+                      <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700', textAlign: 'center' }}>{n.done > 0 ? '이어 찍기' : '촬영 시작'}</Text>
                     </Pressable>
                     <Pressable
                       accessibilityRole="button"
-                      onPress={() => router.push(`/admin/shoot/${n.week}` as Href)}
-                      style={[s.pill, { backgroundColor: c.chip }]}
+                      onPress={() => leaveTo(shootRunHref(n.week, null, null, 'guide'))}
+                      style={[s.pill, { flex: 1, minHeight: 48, paddingHorizontal: 8, backgroundColor: c.chip }]}
                     >
-                      <Text style={{ color: c.ink, fontSize: 17, fontWeight: '600' }}>{n.weekLabel} 시간표</Text>
+                      <Text style={{ color: c.ink, fontSize: 16, fontWeight: '700', textAlign: 'center' }}>촬영지원</Text>
                     </Pressable>
                   </View>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => router.push(`/admin/shoot/${n.week}` as Href)}
+                    style={{ minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start', paddingHorizontal: 4 }}
+                  >
+                    <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>{n.weekLabel} 시간표</Text>
+                  </Pressable>
                 </View>
               ))
             ) : (
