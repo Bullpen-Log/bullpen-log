@@ -21,6 +21,7 @@ import { slotStateOf } from '@/lib/coach/status';
 import { applyAdjust, readAdjust } from '@/lib/coach/adjust';
 import { coachSlotOf, coachWeekBase } from '@/lib/coach/today';
 import { buildReview, reviewWeekOf, type WeekReview } from '@/lib/coach/review';
+import { weekGrowthOf, type CoachRecordsUser } from '@/lib/coach/records';
 import { zonedFormat } from '@/lib/time-zone';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
 import { visibleExercises } from '@/lib/library-cache';
@@ -184,7 +185,7 @@ export async function loadCoachWeek() {
     week,
     states: week ? week.map((s) => slotStateOf(s, done[s.date], today)) : null,
     checkedIn: checkin != null,
-    review: active ? await reviewOf(user.id, today, hour) : null,
+    review: active ? await reviewOf(user, today, hour) : null,
     followup: active ? await followupFor(user.id, today, week, done) : null,
     weekAsk: active ? await weekAskOf(user.id, today, hour) : null,
   };
@@ -274,17 +275,19 @@ export async function answerCoachFollowup(date: unknown, why: unknown): Promise<
 }
 
 /** 주간 리뷰(U37) — 일요일 18시 ~ 월요일, [확인] 전까지. 칸 상태는 기록에서, 힘듦 · 불편 동작은 그날 기록 줄에서(불편은 건강 동의가 있을 때만) */
-async function reviewOf(userId: string, today: string, hour: number): Promise<WeekReview | null> {
+async function reviewOf(user: CoachRecordsUser, today: string, hour: number): Promise<WeekReview | null> {
+  const userId = user.id;
   const ws = reviewWeekOf(today, hour);
   if (!ws) return null;
   const end = shiftDateKey(ws, 6);
   const row = await prisma.coachWeek.findUnique({ where: { userId_weekStart: { userId, weekStart: dbDate(ws) } }, select: { slots: true, reviewAckAt: true } });
   if (!row || row.reviewAckAt) return null;
   const slots = row.slots as unknown as DaySlot[];
-  const [done, notes, consent] = await Promise.all([
+  const [done, notes, consent, growth] = await Promise.all([
     loadTrainingDone(userId, ws, end),
     prisma.dailyTrainingNote.findMany({ where: { userId, date: { gte: dbDate(ws), lte: dbDate(end) } }, select: { date: true, intensity: true, discomfort: true } }),
     healthConsentFor(userId),
+    weekGrowthOf(user, ws).catch(() => null),
   ]);
   const efforts: Record<string, number> = {};
   const discomfort: Record<string, string[]> = {};
@@ -294,7 +297,7 @@ async function reviewOf(userId: string, today: string, hour: number): Promise<We
     if (consent.valid && Array.isArray(n.discomfort))
       discomfort[d] = (n.discomfort as { id?: unknown; move?: unknown }[]).map((x) => String(x.move ?? x.id ?? '')).filter(Boolean);
   }
-  return buildReview({ weekStart: ws, slots, states: slots.map((s) => slotStateOf(s, done[s.date], today)), efforts, discomfort });
+  return buildReview({ weekStart: ws, slots, states: slots.map((s) => slotStateOf(s, done[s.date], today)), efforts, discomfort, growth });
 }
 
 /** 주간 리뷰 [확인] — 그 주 카드를 접는다 */

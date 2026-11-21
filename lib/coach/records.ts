@@ -15,6 +15,8 @@ import { COACH_VELOCITY } from '@/lib/coach/act';
 import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { loadGoodDays } from '@/lib/report/good-days-load';
 import { PROGRESS_DAYS, goodDayLinesOf, liftTrendsOf, pitchFeelOf, recheckOf, type CoachAiProgress } from '@/lib/coach/progress';
+import { GROWTH_FEEL_WEEKS, GROWTH_LOOKBACK_DAYS, growthLineOf } from '@/lib/coach/review';
+import { defaultUnits } from '@/lib/units';
 
 /**
  * 코치가 '다 안다'(자비스 1단계, 2026-11-19 김민: "모든 걸 다 떠먹여 줄 수 있는 자비스") — 일정 밖 기록을 AI 맥락용으로 모은다.
@@ -112,14 +114,27 @@ const GOOD_DAYS_WAIT_MS = 2000;
  * 진척(lib/coach/progress.ts) — 최근 4주 운동 무게 · 투구 만족도와 감각 칩 · 3D 다시 재기 · 잘 던진 날. 칸마다 실패하면 그 칸만 빈다.
  * 몸 상태가 섞인 것(감각 칩 '팔 무거움' · 잘 던진 날의 잠 · 컨디션 · 근육통 · 팔)은 건강 동의가 있을 때만.
  */
+/**
+ * 무게를 적은 기록 — 두 곳에 남는다: 운동 체크의 톱세트(UserExerciseLog)와 운동 중 세트(UserExerciseSet). 둘 다 읽는다(암케어 빼고).
+ * 진척(coachProgressOf)과 주간 리뷰의 늘어난 것(weekGrowthOf)이 같이 쓴다.
+ */
+async function liftRowsOf(userId: string, from: string, to: string) {
+  const where = { userId, date: { gte: dbDate(from), lte: dbDate(to) }, weightKg: { gt: 0 }, exercise: { category: { not: '암케어' } } };
+  const [logs, sets] = await Promise.all([
+    prisma.userExerciseLog.findMany({ where: { ...where, completed: true }, select: { date: true, weightKg: true, repsDone: true, exercise: { select: { title: true } } } }),
+    prisma.userExerciseSet.findMany({ where, select: { date: true, weightKg: true, reps: true, exercise: { select: { title: true } } } }),
+  ]);
+  return [
+    ...logs.map((l) => ({ date: keyOfDbDate(l.date), name: l.exercise.title, weightKg: l.weightKg, reps: l.repsDone })),
+    ...sets.map((l) => ({ date: keyOfDbDate(l.date), name: l.exercise.title, weightKg: l.weightKg, reps: l.reps })),
+  ];
+}
+
 export async function coachProgressOf(user: CoachRecordsUser, today: string, health: Promise<boolean>): Promise<CoachAiProgress> {
-  const from = dbDate(shiftDateKey(today, -(PROGRESS_DAYS - 1)));
-  const where = { userId: user.id, date: { gte: from, lte: dbDate(today) } };
-  const lifted = { weightKg: { gt: 0 }, exercise: { category: { not: '암케어' } } };
-  const [logs, sets, pitches, recheck, good, h] = await Promise.all([
-    /* 무게는 두 곳에 남는다 — 운동 체크의 톱세트(UserExerciseLog)와 운동 중 세트(UserExerciseSet). 둘 다 읽고 그날 가장 무거운 것 */
-    soft(prisma.userExerciseLog.findMany({ where: { ...where, ...lifted, completed: true }, select: { date: true, weightKg: true, repsDone: true, exercise: { select: { title: true } } } })),
-    soft(prisma.userExerciseSet.findMany({ where: { ...where, ...lifted }, select: { date: true, weightKg: true, reps: true, exercise: { select: { title: true } } } })),
+  const fromKey = shiftDateKey(today, -(PROGRESS_DAYS - 1));
+  const where = { userId: user.id, date: { gte: dbDate(fromKey), lte: dbDate(today) } };
+  const [lifts, pitches, recheck, good, h] = await Promise.all([
+    soft(liftRowsOf(user.id, fromKey, today)),
     soft(prisma.pitchLog.findMany({ where, select: { date: true, sessionType: true, satisfaction: true, cuesGood: true, cuesBad: true } })),
     soft(
       prisma.mechanicsProgram
@@ -130,12 +145,38 @@ export async function coachProgressOf(user: CoachRecordsUser, today: string, hea
     health.catch(() => false),
   ]);
   return {
-    lifts: liftTrendsOf([
-      ...(logs ?? []).map((l) => ({ date: keyOfDbDate(l.date), name: l.exercise.title, weightKg: l.weightKg, reps: l.repsDone })),
-      ...(sets ?? []).map((l) => ({ date: keyOfDbDate(l.date), name: l.exercise.title, weightKg: l.weightKg, reps: l.reps })),
-    ]),
+    lifts: liftTrendsOf(lifts ?? []),
     pitch: pitchFeelOf((pitches ?? []).map((l) => ({ ...l, date: keyOfDbDate(l.date) })), today, h),
     recheck,
     goodDays: good ? goodDayLinesOf(good, h, hasNutrition(countryOf(user.country))) : null,
   };
+}
+
+/**
+ * 주간 리뷰의 늘어난 것 한 줄(lib/coach/review.ts growthLineOf) — 그 주 무게와 그 전 8주 · 투구 만족도 앞 3주 · 그 주 3D 다시 재기.
+ * 무게 단위는 나라 기본값(미국 lb). ponytail: 앱 설정에서 단위를 바꾼 것은 서버가 모른다 — 단위 설정을 서버에 두게 되면 그 값으로
+ */
+export async function weekGrowthOf(user: CoachRecordsUser, weekStart: string): Promise<string | null> {
+  const end = shiftDateKey(weekStart, 6);
+  const [lifts, pitches, program] = await Promise.all([
+    soft(liftRowsOf(user.id, shiftDateKey(weekStart, -GROWTH_LOOKBACK_DAYS), end)),
+    soft(
+      prisma.pitchLog.findMany({
+        where: { userId: user.id, date: { gte: dbDate(shiftDateKey(weekStart, -7 * GROWTH_FEEL_WEEKS)), lte: dbDate(end) } },
+        select: { date: true, sessionType: true, satisfaction: true },
+      })
+    ),
+    soft(prisma.mechanicsProgram.findUnique({ where: { userId: user.id }, select: { progress: true } })),
+  ]);
+  const followups = program ? (readProgramState(program.progress).focus?.review?.followups ?? []) : [];
+  return growthLineOf({
+    weekStart,
+    lifts: lifts ?? [],
+    pitches: (pitches ?? []).map((l) => ({ ...l, date: keyOfDbDate(l.date) })),
+    rechecked: followups.some((f) => {
+      const d = toDateKey(new Date(f.linkedAt));
+      return d >= weekStart && d <= end;
+    }),
+    unit: defaultUnits(countryOf(user.country)).weight,
+  });
 }

@@ -14,7 +14,7 @@ import { limitedBy } from '@/lib/coach/limits';
 import { FOLLOWUP_NEXT, followupAskOf, followupLine, followupReasonText, readFollowupWhy } from '@/lib/coach/followup';
 import { COACH_CONDITIONING_MAX, COACH_MINUTES, coachMinutes } from '@/lib/coach/answers';
 import { CONDITIONING_GOAL, minutesChoicesFor } from '@/lib/report/theme';
-import { buildReview, reviewWeekOf } from '@/lib/coach/review';
+import { buildReview, growthLineOf, reviewWeekOf, type GrowthInput } from '@/lib/coach/review';
 import { dayRuleOf, planWeek, suggestProgram, weekdayOf, type CoachAnswers, type DaySlot, type WeekInput, type Weekday } from '@/lib/coach/week';
 import { applyWeekAsk, askWeekStart, mergePicks, prefillPicks, readWeekPicks, weekAskFor, weekAskOutings, withWeekAsk, WEEK_ASK_OUTING_TITLE, type WeekAsk } from '@/lib/coach/week-ask';
 import { isOutingTitle } from '@/lib/calendar-event';
@@ -467,6 +467,39 @@ check('⑤ 쉬는 날 · 팀 훈련 → 시작 없음', startsOf(slotOf(T, [{ ki
   const r2 = buildReview({ weekStart: ws, slots, states: ['missed', 'off', 'missed', 'off', 'done', 'off', 'off'], efforts: {}, discomfort: { [day(0)]: ['hinge'], [day(2)]: ['hinge'] } });
   check('⑦ 이틀 불편은 아직 · 못 한 날 많음 한 줄', !r2.repeated && r2.lines.some((l) => l.includes('못 한 날이 많았어요')), JSON.stringify(r2));
   check('⑦ 글에 줄표 없음', [...r.lines, ...r2.lines].every((l) => !l.includes('—')));
+
+  /* 늘어난 것 한 줄(검토 4번) — 그 주를 그 전과 견준다 · 하나만 · 없으면 안 싣는다 */
+  const L = (date: string, name: string, weightKg: number | null, reps: number | null) => ({ date, name, weightKg, reps });
+  const base: GrowthInput = { weekStart: ws, lifts: [], pitches: [], rechecked: false, unit: 'kg' };
+  const up = growthLineOf({ ...base, lifts: [L('2026-10-28', '백 스쿼트', 60, 5), L(day(0), '백 스쿼트', 62.5, 5), L(day(2), '백 스쿼트', 65, 5)] });
+  check('⑦ 늘어난 것: 그 주 가장 무거운 세트 vs 그 전 가장 최근 날 · 0.5 단위', up === '백 스쿼트 65kg×5, 지난 기록 60kg×5보다 5kg 올렸어요.', String(up));
+  check('⑦ 늘어난 것: 같은 무게 횟수 늘음', growthLineOf({ ...base, lifts: [L('2026-10-30', '벤치', 50, 5), L(day(1), '벤치', 50, 7)] }) === '벤치 50kg×7, 지난 기록보다 2회 더 했어요.');
+  check(
+    '⑦ 늘어난 것: 횟수가 줄면 · 처음 한 운동 · 8주 넘은 기록 · 횟수 모름은 없음',
+    [
+      [L('2026-10-30', '벤치', 50, 5), L(day(1), '벤치', 55, 3)],
+      [L(day(0), '데드', 80, 5), L(day(3), '데드', 90, 5)],
+      [L('2026-09-01', '벤치', 50, 5), L(day(1), '벤치', 55, 5)],
+      [L('2026-10-30', '벤치', 50, null), L(day(1), '벤치', 55, null)],
+    ].every((lifts) => growthLineOf({ ...base, lifts }) === null)
+  );
+  check(
+    '⑦ 늘어난 것: 가장 크게 오른 운동 하나 · lb 나라는 lb',
+    growthLineOf({ ...base, lifts: [L('2026-10-30', '벤치', 50, 5), L(day(1), '벤치', 52.5, 5), L('2026-10-30', '스쿼트', 60, 5), L(day(1), '스쿼트', 70, 5)] })?.startsWith('스쿼트 ') === true &&
+      growthLineOf({ ...base, unit: 'lb', lifts: [L('2026-10-30', '스쿼트', 60, 5), L(day(1), '스쿼트', 70, 5)] }) === '스쿼트 154.3lb×5, 지난 기록 132.3lb×5보다 22lb 올렸어요.'
+  );
+  const P = (date: string, satisfaction: number, sessionType = '불펜') => ({ date, sessionType, satisfaction });
+  const feel = { ...base, pitches: [P('2026-10-20', 3), P('2026-10-27', 3), P(day(1), 4), P(day(4), 3.5)] };
+  check('⑦ 늘어난 것: 무게 없으면 만족도(그 주 2번 넘게 · 앞 3주 2번 넘게 · 0.5 넘게)', growthLineOf(feel) === '투구 만족도 평균 3.8, 그 전 3주 3보다 올랐어요.', String(growthLineOf(feel)));
+  check(
+    '⑦ 늘어난 것: 만족도 한 번 · 캐치볼 · 0.5 밑은 없음',
+    growthLineOf({ ...feel, pitches: [P('2026-10-20', 3), P('2026-10-27', 3), P(day(1), 5)] }) === null &&
+      growthLineOf({ ...feel, pitches: [P('2026-10-20', 3), P('2026-10-27', 3), P(day(1), 5, '캐치볼'), P(day(4), 5, '캐치볼')] }) === null &&
+      growthLineOf({ ...feel, pitches: [P('2026-10-20', 3), P('2026-10-27', 3), P(day(1), 3.4), P(day(4), 3.4)] }) === null
+  );
+  const re = growthLineOf({ ...base, rechecked: true });
+  check('⑦ 늘어난 것: 3D 다시 재기는 사실만 · 무게가 먼저', !!re?.includes('3D') && !/좋아|나빠/.test(re!) && growthLineOf({ ...base, rechecked: true, lifts: [L('2026-10-30', '벤치', 50, 5), L(day(1), '벤치', 50, 6)] })!.startsWith('벤치'));
+  check('⑦ 늘어난 것: 아무것도 없으면 null · 리뷰 둘째 줄에 · 해요체 · \'이번 주\' 안 씀', growthLineOf(base) === null && buildReview({ weekStart: ws, slots, states: ['done', 'off', 'done', 'off', 'done', 'off', 'off'], efforts: {}, discomfort: {}, growth: up }).lines[1] === up && [up!, re!, growthLineOf(feel)!].every((t) => /요\.$/.test(t) && !t.includes('이번 주') && !t.includes('—')));
 }
 
 /* ─────────── ⑧ 주마다 일정 묻기(lib/coach/week-ask.ts) ─────────── */
