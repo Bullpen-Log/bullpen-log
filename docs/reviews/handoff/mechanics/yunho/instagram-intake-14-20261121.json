@@ -94,7 +94,8 @@
           "error": "no-session"
         }
       ],
-      "decision": "신규 등록 · 사람 검수 전"
+      "decision": "신규 등록 · 사람 검수 전",
+      "current_title": "PVC ROTATION (No Flip)"
     },
     {
       "review_id": "mv-ig-DVwwahTEYEj-01b",
@@ -152,7 +153,8 @@
           "error": "no-session"
         }
       ],
-      "decision": "신규 등록 · 사람 검수 전"
+      "decision": "신규 등록 · 사람 검수 전",
+      "current_title": "PVC ROTATION (Add Flip)"
     },
     {
       "review_id": "mv-ig-DVwwahTEYEj-01c",
@@ -210,7 +212,8 @@
           "error": "no-session"
         }
       ],
-      "decision": "신규 등록 · 사람 검수 전"
+      "decision": "신규 등록 · 사람 검수 전",
+      "current_title": "PVC PITCH W/ CHOP"
     },
     {
       "review_id": "mv-ig-DdbjNqBRSFT-02a",
@@ -267,7 +270,8 @@
           "error": "no-session"
         }
       ],
-      "decision": "신규 등록 · 사람 검수 전"
+      "decision": "신규 등록 · 사람 검수 전",
+      "current_title": "Hip Fire (upper half stays closed)"
     },
     {
       "review_id": "mv-ig-DdbjNqBRSFT-02b",
@@ -325,7 +329,8 @@
           "error": "no-session"
         }
       ],
-      "decision": "신규 등록 · 사람 검수 전"
+      "decision": "신규 등록 · 사람 검수 전",
+      "current_title": "PVC \"Tunnel\""
     },
     {
       "review_id": "mv-ig-DdbjNqBRSFT-02c",
@@ -383,7 +388,8 @@
           "error": "no-session"
         }
       ],
-      "decision": "신규 등록 · 사람 검수 전"
+      "decision": "신규 등록 · 사람 검수 전",
+      "current_title": "Hip Fire with Chop"
     },
     {
       "review_id": "mv-ig-DdbjNqBRSFT-02d",
@@ -441,7 +447,8 @@
           "error": "no-session"
         }
       ],
-      "decision": "신규 등록 · 사람 검수 전"
+      "decision": "신규 등록 · 사람 검수 전",
+      "current_title": "Full Delivery"
     },
     {
       "review_id": "mv-ig-DePhjltRSHz-03a",
@@ -1593,7 +1600,8 @@
           "error": "no-session"
         }
       ],
-      "decision": "신규 등록 · 사람 검수 전"
+      "decision": "신규 등록 · 사람 검수 전",
+      "current_title": "Hip rotation + turn"
     },
     {
       "review_id": "mv-ig-DdldxP2sn6e-11c",
@@ -1651,7 +1659,8 @@
           "error": "no-session"
         }
       ],
-      "decision": "신규 등록 · 사람 검수 전"
+      "decision": "신규 등록 · 사람 검수 전",
+      "current_title": "Hip-Shoulder Separation V1 (Partial action)"
     },
     {
       "review_id": "mv-ig-DdldxP2sn6e-11d",
@@ -1709,7 +1718,8 @@
           "error": "no-session"
         }
       ],
-      "decision": "신규 등록 · 사람 검수 전"
+      "decision": "신규 등록 · 사람 검수 전",
+      "current_title": "Hip-Shoulder Separation V2 (Stop & go)"
     },
     {
       "review_id": "mv-ig-DYjRAu8SDxb-13a",
@@ -2185,7 +2195,15 @@
           "limits_ko": "해당 동작 추가와 촬영 순서 등록은 제외했다.",
           "error": "no-session"
         }
-      ]
+      ],
+      "current_title": "Hip Rotation",
+      "matched_current_title": "Hip Fire (upper half stays closed)",
+      "excluded_clip_review": {
+        "duration_seconds": 4.5,
+        "fps": 30,
+        "audio": false,
+        "availability": "맥북에 저장한 별도 검수 목록"
+      }
     },
     {
       "review_id": "mv-ig-DbfIDfPSZoh-12a",
@@ -2209,7 +2227,15 @@
           "limits_ko": "해당 동작 추가와 촬영 순서 등록은 제외했다.",
           "error": "no-session"
         }
-      ]
+      ],
+      "current_title": "Step 1",
+      "matched_current_title": "PVC ROTATION (No Flip)",
+      "excluded_clip_review": {
+        "duration_seconds": 6.3,
+        "fps": 30,
+        "audio": false,
+        "availability": "맥북에 저장한 별도 검수 목록"
+      }
     },
     {
       "review_id": "mv-ig-DbfIDfPSZoh-12b",
@@ -2233,7 +2259,15 @@
           "limits_ko": "해당 동작 추가와 촬영 순서 등록은 제외했다.",
           "error": "no-session"
         }
-      ]
+      ],
+      "current_title": "Step 2",
+      "matched_current_title": "PVC ROTATION (Add Flip)",
+      "excluded_clip_review": {
+        "duration_seconds": 7.8,
+        "fps": 30,
+        "audio": false,
+        "availability": "맥북에 저장한 별도 검수 목록"
+      }
     },
     {
       "review_id": "mv-ig-DbfIDfPSZoh-12c",
@@ -2257,7 +2291,16 @@
           "limits_ko": "해당 동작 추가와 촬영 순서 등록은 제외했다.",
           "error": "no-session"
         }
-      ]
+      ],
+      "current_title": "Step 3",
+      "matched_current_title": "PVC PITCH W/ CHOP",
+      "excluded_clip_review": {
+        "duration_seconds": 4.3,
+        "fps": 30,
+        "audio": false,
+        "availability": "맥북에 저장한 별도 검수 목록"
+      }
     }
-  ]
+  ],
+  "title_followup": "사용자 지시로 PVC 10개의 라이브러리와 촬영표 제목을 영상 표기의 영어 원문으로 맞췄다. 중복 제외 4개는 원본 영어 단계명을 붙여 별도 영상 목록으로 열었다."
 }
