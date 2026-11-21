@@ -442,7 +442,7 @@
   },
   {
     "id": "53fa4f5a-1a71-5b9f-8e11-4eefe2d8f77d",
-    "title": "피브이씨 골반 회전",
+    "title": "PVC ROTATION (No Flip)",
     "url": "https://www.instagram.com/reel/DVwwahTEYEj/",
     "segment": {
       "start": 0.21,
@@ -468,7 +468,7 @@
   },
   {
     "id": "db821f81-a5a6-5f56-a1d4-9202ac371cec",
-    "title": "피브이씨 골반 회전과 플립업",
+    "title": "PVC ROTATION (Add Flip)",
     "url": "https://www.instagram.com/reel/DVwwahTEYEj/",
     "segment": {
       "start": 3.48,
@@ -495,7 +495,7 @@
   },
   {
     "id": "2eeb87d1-cf52-5d5a-b835-09c1c65793df",
-    "title": "피브이씨 투구 동작과 찹",
+    "title": "PVC PITCH W/ CHOP",
     "url": "https://www.instagram.com/reel/DVwwahTEYEj/",
     "segment": {
       "start": 7.02,
@@ -522,7 +522,7 @@
   },
   {
     "id": "87d89010-79e0-5317-bde1-905fde59df60",
-    "title": "피브이씨 스플릿 스탠스 골반 회전",
+    "title": "Hip Fire (upper half stays closed)",
     "url": "https://www.instagram.com/reel/DdbjNqBRSFT/",
     "segment": {
       "start": 3.55,
@@ -548,7 +548,7 @@
   },
   {
     "id": "81ffee06-67d7-57a0-a6d7-fdf543a4ea6b",
-    "title": "피브이씨 터널 앞발 축 회전",
+    "title": "PVC \"Tunnel\"",
     "url": "https://www.instagram.com/reel/DdbjNqBRSFT/",
     "segment": {
       "start": 7.15,
@@ -575,7 +575,7 @@
   },
   {
     "id": "523e87ae-e5a9-5ea6-bdc1-b3d4ee839ea5",
-    "title": "피브이씨 스플릿 스탠스 골반 회전 찹",
+    "title": "Hip Fire with Chop",
     "url": "https://www.instagram.com/reel/DdbjNqBRSFT/",
     "segment": {
       "start": 14.06,
@@ -602,7 +602,7 @@
   },
   {
     "id": "b65143ca-dcfd-5efc-96de-c89645a3c4c8",
-    "title": "피브이씨 와이드 그립 전체 투구 모션",
+    "title": "Full Delivery",
     "url": "https://www.instagram.com/reel/DdbjNqBRSFT/",
     "segment": {
       "start": 23.12,
@@ -1138,7 +1138,7 @@
   },
   {
     "id": "77737210-282f-5d00-b1e8-aeaa9d57deb7",
-    "title": "피브이씨 스플릿 골반 회전과 턴",
+    "title": "Hip rotation + turn",
     "url": "https://www.instagram.com/reel/DdldxP2sn6e/",
     "segment": {
       "start": 8.08,
@@ -1165,7 +1165,7 @@
   },
   {
     "id": "c870b192-af0a-5044-88dc-17fed652d280",
-    "title": "피브이씨 상하체 분리 구간 분할",
+    "title": "Hip-Shoulder Separation V1 (Partial action)",
     "url": "https://www.instagram.com/reel/DdldxP2sn6e/",
     "segment": {
       "start": 15.5,
@@ -1192,7 +1192,7 @@
   },
   {
     "id": "ca0e843a-be21-59bd-92a5-01690f2c2d14",
-    "title": "피브이씨 상하체 분리 착지 정지 후 연결",
+    "title": "Hip-Shoulder Separation V2 (Stop & go)",
     "url": "https://www.instagram.com/reel/DdldxP2sn6e/",
     "segment": {
       "start": 26.0,
