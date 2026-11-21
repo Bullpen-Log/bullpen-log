@@ -323,7 +323,7 @@ export type PlanStation = {
 
 export type PlanWeek = {
   week: number;
-  /** 마지막 운동이 끝나는 시각(분) */
+  /** 촬영이 끝나는 시각(분). 일정이 잡힌 날은 촬영 종료 시각을 사용한다. */
   end: number;
   stations: PlanStation[];
   /** 부위별 부하 합 */
@@ -338,9 +338,16 @@ export type PlanWeek = {
   session?: {
     label: string;
     startMinute: number;
+    /** 이 시점 이후 항목은 현장에서 순서를 정하므로 예정 시각을 표시하지 않는다. */
+    flexibleFrom?: number;
     agenda: { start: number; end: number; title: string }[];
   };
 };
+
+export function hasFixedShootTime(w: Pick<PlanWeek, 'session'>, at: number): boolean {
+  const flexibleFrom = w.session?.flexibleFrom;
+  return flexibleFrom === undefined || at < flexibleFrom;
+}
 
 /** 주차 이름 — 미룬 영상 칸은 '미룬 영상' */
 export function weekLabel(w: Pick<PlanWeek, 'week' | 'deferred' | 'session'>): string {

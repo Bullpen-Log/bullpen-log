@@ -36,7 +36,7 @@ import {
   weekItems,
 } from '@/lib/shoot/progress';
 import { toDateKey } from '@/lib/pitch-stats';
-import { weekLabel, type PlanItem } from '@/lib/shoot/schedule';
+import { hasFixedShootTime, weekLabel, type PlanItem } from '@/lib/shoot/schedule';
 
 /**
  * 촬영 모드 — 찍는 동안 휴대폰 한 손으로.
@@ -107,8 +107,9 @@ export function RunClient({
     const id = window.setInterval(() => setNow(Date.now()), 30_000);
     return () => window.clearInterval(id);
   }, []);
+  const fixed = !!current && hasFixedShootTime(week, current.at);
   const pace =
-    current && !fromWeek.has(current.exerciseId)
+    current && fixed && !fromWeek.has(current.exerciseId)
       ? paceMinutes(week, map, current, new Date(now), toDateKey)
       : null;
 
@@ -278,9 +279,9 @@ export function RunClient({
                       올림
                     </span>
                   )}
-                  {!carriedNow && (
+                  {!carriedNow && fixed && (
                     <span className="ml-auto text-xs tabular-nums text-muted">
-                      계획 {clockText(current.at)}
+                      계획 {clockText((week.session?.startMinute ?? 0) + current.at)}
                     </span>
                   )}
                 </div>

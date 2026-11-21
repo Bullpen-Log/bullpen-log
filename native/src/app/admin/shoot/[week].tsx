@@ -11,7 +11,7 @@ import type { ShootExerciseInfo } from '@/lib/shoot/load';
 import { BUCKET_LABEL, clockText, countOf, cursorOfList, isRescheduled, stateOf, weekItems, type ItemState, type ShootCheckView, type ShootStatus } from '@/lib/shoot/progress';
 import { crewsOf } from '@/lib/shoot/crews';
 import { SHOOT_NOTE_MAX, shootRunHref } from '@/lib/shoot/guide';
-import { weekLabel, type PlanItem } from '@/lib/shoot/schedule';
+import { hasFixedShootTime, weekLabel, type PlanItem } from '@/lib/shoot/schedule';
 import { Bar, Chip, LoadState, s, useLoad } from '~/community/parts';
 import { rpc } from '~/lib/rpc';
 import { leaveTo } from '~/shell/web-nav';
@@ -149,6 +149,7 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
   const mark = (it: PlanItem) => (it === current ? '지금' : it === next ? '다음' : null);
   const session = week.session;
   const startMinute = session?.startMinute ?? 0;
+  const plannedTime = (it: PlanItem) => hasFixedShootTime(week, it.at) ? startMinute + it.at : undefined;
   const drillCount = items.filter((item) => item.kind === 'drill').length;
 
   return (
@@ -191,8 +192,8 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
           <StackBar done={count.done} redo={count.redo} later={count.later} total={count.total} height={10} c={c} />
           {current ? (
             <View style={{ gap: 8 }}>
-              <NowCard tag="지금" it={current} fromWeek={carriedWeek.get(current.exerciseId)} onPress={() => setOpenId(current.exerciseId)} strong c={c} />
-              {next ? <NowCard tag="다음" it={next} fromWeek={carriedWeek.get(next.exerciseId)} onPress={() => setOpenId(next.exerciseId)} c={c} /> : null}
+              <NowCard tag="지금" it={current} fromWeek={carriedWeek.get(current.exerciseId)} plannedAt={plannedTime(current)} onPress={() => setOpenId(current.exerciseId)} strong c={c} />
+              {next ? <NowCard tag="다음" it={next} fromWeek={carriedWeek.get(next.exerciseId)} plannedAt={plannedTime(next)} onPress={() => setOpenId(next.exerciseId)} c={c} /> : null}
             </View>
           ) : (
             <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>
@@ -253,7 +254,7 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
                   {st.warmup ? '몸풀기 · 가벼운 모빌리티 · 스트레칭' : st.station}
                 </Text>
                 <Text style={[s.meta, { color: c.muted, fontVariant: ['tabular-nums'] }]}>
-                  {clockText(startMinute + st.start)}–{clockText(startMinute + st.end)}  <Text style={{ color: c.ink, fontWeight: '600' }}>{sc.done}</Text>/{sc.total}
+                  {hasFixedShootTime(week, st.start) ? `${clockText(startMinute + st.start)}–${clockText(startMinute + st.end)}` : '기존 웨이트 목록'}  <Text style={{ color: c.ink, fontWeight: '600' }}>{sc.done}</Text>/{sc.total}
                 </Text>
               </View>
               {list.map((it) => (
@@ -291,7 +292,7 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
             info={infos[openItem.exerciseId]}
             check={map.get(openItem.exerciseId)}
             state={stateOf(openItem, map)}
-            startMinute={startMinute}
+            plannedAt={plannedTime(openItem)}
             onSet={(status, note) => set(openItem, status, note, `${openItem.no} ${status ? STATE_LABEL[status] : '대기로 되돌림'}`)}
             onRun={() => {
               setOpenId(null);
@@ -330,12 +331,12 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
   );
 }
 
-function NowCard({ tag, it, fromWeek, onPress, strong = false, c }: { tag: string; it: PlanItem; fromWeek?: number; onPress: () => void; strong?: boolean; c: Palette }) {
+function NowCard({ tag, it, fromWeek, plannedAt, onPress, strong = false, c }: { tag: string; it: PlanItem; fromWeek?: number; plannedAt?: number; onPress: () => void; strong?: boolean; c: Palette }) {
   return (
     <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [{ borderRadius: 12, padding: 12, gap: 3, backgroundColor: pressed ? c.line : strong ? c.chip : c.page }]}>
       <Text style={[s.meta, { color: strong ? c.link : c.muted, fontWeight: '600' }]}>
         {tag} · {it.no}
-        {fromWeek ? ` · ${fromWeek}주차에서` : ''} · 계획 {clockText(it.at)}
+        {fromWeek ? ` · ${fromWeek}주차에서` : ''}{plannedAt !== undefined ? ` · 계획 ${clockText(plannedAt)}` : ''}
       </Text>
       <Text style={{ color: c.ink, fontSize: 17, fontWeight: '700' }} numberOfLines={1}>
         {it.title}
@@ -428,7 +429,7 @@ function DetailSheet({
   info,
   check,
   state,
-  startMinute,
+  plannedAt,
   onSet,
   onRun,
   onGuide,
@@ -439,7 +440,7 @@ function DetailSheet({
   info: ShootExerciseInfo | undefined;
   check: ShootCheckView | undefined;
   state: ItemState;
-  startMinute: number;
+  plannedAt?: number;
   onSet: (status: ShootStatus | null, note?: string | null) => Promise<boolean>;
   onRun: () => void;
   onGuide: () => void;
@@ -523,7 +524,7 @@ function DetailSheet({
             {it.no} {it.title}
           </Text>
           <Text style={[s.meta, { color: c.muted }]}>
-            {it.station} · {BUCKET_LABEL[it.bucket]} · 계획 {clockText(startMinute + it.at)}
+            {it.station} · {BUCKET_LABEL[it.bucket]}{plannedAt !== undefined ? ` · 계획 ${clockText(plannedAt)}` : ''}
           </Text>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="닫기" onPress={onClose} hitSlop={10} style={{ minHeight: 44, justifyContent: 'center' }}>

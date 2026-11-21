@@ -29,7 +29,7 @@ import {
   type ShootCheckView,
   type ShootStatus,
 } from '@/lib/shoot/progress';
-import { weekLabel, type PlanItem } from '@/lib/shoot/schedule';
+import { hasFixedShootTime, weekLabel, type PlanItem } from '@/lib/shoot/schedule';
 import { crewsOf } from '@/lib/shoot/crews';
 
 type Filter = 'all' | 'open' | 'done';
@@ -197,6 +197,7 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
               tag="지금"
               it={current}
               fromWeek={carriedWeek.get(current.exerciseId)}
+              plannedAt={hasFixedShootTime(week, current.at) ? startMinute + current.at : undefined}
               onOpen={(e) => detail.show(current.exerciseId, e)}
               strong
             />
@@ -205,6 +206,7 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
                 tag="다음"
                 it={next}
                 fromWeek={carriedWeek.get(next.exerciseId)}
+                plannedAt={hasFixedShootTime(week, next.at) ? startMinute + next.at : undefined}
                 onOpen={(e) => detail.show(next.exerciseId, e)}
               />
             )}
@@ -287,6 +289,7 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
           const list = s.items.filter(show);
           if (list.length === 0) return null;
           const c = countOf(s.items, map);
+          const fixed = hasFixedShootTime(week, s.start);
           return (
             <section
               key={s.warmup ? 'warmup' : s.station}
@@ -304,7 +307,7 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
                 </h3>
                 <p className="flex items-center gap-3 text-xs tabular-nums text-muted">
                   <span>
-                    {clockText(startMinute + s.start)}–{clockText(startMinute + s.end)}
+                    {fixed ? `${clockText(startMinute + s.start)}–${clockText(startMinute + s.end)}` : '기존 웨이트 목록'}
                   </span>
                   <span>
                     <b className="font-semibold text-ink">{c.done}</b> / {c.total}
@@ -316,7 +319,7 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
                   <Row
                     key={it.exerciseId}
                     it={it}
-                    startMinute={startMinute}
+                    plannedAt={fixed ? startMinute + it.at : undefined}
                     index={i}
                     state={stateOf(it, map)}
                     check={map.get(it.exerciseId)}
@@ -372,7 +375,7 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
         title={open ? `${open.no} ${open.title}` : ''}
         description={
           open
-            ? `${open.station} · ${BUCKET_LABEL[open.bucket]} · 계획 ${clockText(open.at)}`
+            ? `${open.station} · ${BUCKET_LABEL[open.bucket]}${hasFixedShootTime(week, open.at) ? ` · 계획 ${clockText(startMinute + open.at)}` : ''}`
             : undefined
         }
         origin={detail.origin}
@@ -412,12 +415,14 @@ function NowCard({
   tag,
   it,
   fromWeek,
+  plannedAt,
   onOpen,
   strong = false,
 }: {
   tag: string;
   it: PlanItem;
   fromWeek?: number;
+  plannedAt?: number;
   onOpen: (e: MouseEvent<HTMLButtonElement>) => void;
   strong?: boolean;
 }) {
@@ -433,7 +438,8 @@ function NowCard({
         className={`text-xs font-semibold ${strong ? 'text-sky-strong' : 'text-muted'}`}
       >
         {tag} · {it.no}
-        {fromWeek ? ` · ${fromWeek}주차에서` : ''} · 계획 {clockText(it.at)}
+        {fromWeek ? ` · ${fromWeek}주차에서` : ''}
+        {plannedAt !== undefined ? ` · 계획 ${clockText(plannedAt)}` : ''}
       </span>
       <span className="truncate text-base font-bold text-ink">{it.title}</span>
       <span className="truncate text-xs text-muted">
@@ -458,7 +464,7 @@ function Row({
   uploaded,
   mark,
   carried = false,
-  startMinute = 0,
+  plannedAt,
   onToggle,
   onOpen,
 }: {
@@ -470,7 +476,7 @@ function Row({
   mark: '지금' | '다음' | null;
   /** 앞 주에서 넘어온 줄 — 그 주 시각 · 쉬기 대신 자리를 보인다 */
   carried?: boolean;
-  startMinute?: number;
+  plannedAt?: number;
   onToggle: () => void;
   onOpen: (e: MouseEvent<HTMLButtonElement>) => void;
 }) {
@@ -503,7 +509,7 @@ function Row({
           className="flex min-h-14 min-w-0 flex-1 items-center gap-3 py-2 text-left"
         >
           <span className="hidden w-10 shrink-0 text-xs tabular-nums text-muted desk:block">
-            {carried ? '' : clockText(startMinute + it.at)}
+            {plannedAt !== undefined ? clockText(plannedAt) : ''}
           </span>
           <span className="text-numeric w-9 shrink-0 text-xs text-muted">{it.no}</span>
           <span className="min-w-0 flex-1">
