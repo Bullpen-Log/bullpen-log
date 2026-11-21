@@ -1,5 +1,5 @@
 const INSTAGRAM_LINE = 'Instagram 참고 영상 ';
-const PANELS = ['위', '가운데', '아래'] as const;
+const PANELS = ['위', '가운데', '아래', '첫째', '둘째', '셋째', '넷째'] as const;
 export type InstagramSegment = { start: number; end: number; panel?: (typeof PANELS)[number]; recorded?: true };
 
 /** 같은 동작으로 등록하지 않은 릴은 기존 운동에 검수용 클립만 연결한다. */

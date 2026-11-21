@@ -26,8 +26,21 @@ const referenceById = new Map(referenceDrills.map((drill) => [drill.id, drill]))
 const extraIndoorWeek: PlanWeek = {
   week: 5,
   end: 8,
-  stations: [{ station: '공 · 워터백(벽 앞)', start: 8, end: 8, items: [] }],
+  stations: [
+    { station: '넓은 바닥(이동)', start: 8, end: 8, items: [] },
+    { station: '공 · 워터백(벽 앞)', start: 8, end: 8, items: [] },
+  ],
   load: {},
+};
+
+/** 11/22 기존 촬영 번호를 유지하면서 새 드릴과 장비 순서로 이어 찍는다. */
+const november22MovementSlots: Record<string, { at: number; minutes?: number }> = {
+  '4-01': { at: 20.5, minutes: 1.5 },
+  '4-02': { at: 43.3 },
+  '4-03': { at: 45.3 },
+  '4-04': { at: 51.6, minutes: 1.4 },
+  '4-05': { at: 8 },
+  '4-06': { at: 53, minutes: 1.4 },
 };
 
 export function linkedYouTubeReference(id: string): { yt: string; ar?: number } | undefined {
@@ -43,7 +56,10 @@ export const SHOOT_PLAN: ShootPlan = {
     let addedLoad = 0;
     const bucket = week.outdoor ? '스로잉 드릴' : '무브먼트 패턴 드릴';
     const stations = week.stations.map((station) => {
-      let stationEnd = station.end;
+      const baseItems = week.week === 4
+        ? station.items.map((item) => ({ ...item, ...november22MovementSlots[item.no] }))
+        : station.items;
+      let stationEnd = Math.max(station.end, ...baseItems.map((item) => item.at + item.minutes));
       const items: PlanItem[] = [];
       for (const drill of referenceDrills) {
         const slot = week.outdoor ? drill.outdoor : drill.indoor;
@@ -70,17 +86,19 @@ export const SHOOT_PLAN: ShootPlan = {
       }
       if (!items.length) return station;
       end = Math.max(end, stationEnd);
-      return { ...station, end: stationEnd, items: [...station.items, ...items].sort((a, b) => a.at - b.at) };
+      const merged = [...baseItems, ...items].sort((a, b) => a.at - b.at);
+      return { ...station, start: merged[0].at, end: stationEnd, items: merged };
     });
     if (!addedLoad) return week;
     const session = week.week === 4 && week.session ? {
       ...week.session,
       agenda: [
-        ...week.session.agenda.slice(0, 2),
-        { start: 28, end: 42, title: '메커니즘 · 밴드·막대·맨몸 3개' },
-        { start: 42, end: 50, title: '메커니즘 · 아쿠아볼 4개' },
-        { start: 50, end: 54, title: '메커니즘 · 밴드 앞발 블로킹 2개' },
-        { start: 54, end: 60, title: '재촬영 · 파일 확인 · 웨이트 자리 인계' },
+        week.session.agenda[0],
+        { start: 8, end: 20.5, title: '피브이씨 · 골반 회전 → 플립업 → 터널과 찹' },
+        { start: 20.5, end: 37.3, title: '워터백 · 한 발 균형 → 힙힌지 → 앞발 지지와 찹' },
+        { start: 37.3, end: 51.6, title: '워터볼 · 레그 리프트 → 착지 → 퀵픽과 전체 모션' },
+        { start: 51.6, end: 57.2, title: '밴드·맨몸 · 방향 이동과 앞발 블로킹' },
+        { start: 57.2, end: 60, title: '파일 확인 · 웨이트 자리 인계' },
         ...week.session.agenda.slice(-1),
       ],
     } : week.session;

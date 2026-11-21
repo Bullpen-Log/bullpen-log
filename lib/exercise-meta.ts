@@ -474,6 +474,8 @@ export const DRILL_STAGE_NAMES = DRILL_STAGES.map((s) => s.name);
 
 export const DRILL_EQUIPMENT = [
   '맨몸',
+  '막대',
+  '바이퍼',
   '야구공',
   /* 예전 이름 '웨이티드볼' — 트레이닝 장비와 같은 공이라 2026-10-04 이름을 맞췄다(쓰던 드릴은 없었다) */
   '플라이오볼',
