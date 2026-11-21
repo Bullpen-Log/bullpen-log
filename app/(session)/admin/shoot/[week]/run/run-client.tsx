@@ -18,6 +18,7 @@ import { Modal, useModalState } from '@/components/modal';
 import { ShootExerciseDetail } from '@/components/shoot/exercise-detail';
 import { STATE_LABEL, STATE_PILL } from '@/components/shoot/status';
 import { ShootUndoToast } from '@/components/shoot/undo-toast';
+import { PostponeDialog } from '@/components/shoot/postpone-dialog';
 import { PendingClips } from '@/components/shoot/pending-clips';
 import { useClipFlow } from '@/components/shoot/use-clip-flow';
 import { useShootChecks } from '@/components/shoot/use-shoot-checks';
@@ -35,7 +36,7 @@ import {
   weekItems,
 } from '@/lib/shoot/progress';
 import { toDateKey } from '@/lib/pitch-stats';
-import { weekLabel } from '@/lib/shoot/schedule';
+import { weekLabel, type PlanItem } from '@/lib/shoot/schedule';
 
 /**
  * 촬영 모드 — 찍는 동안 휴대폰 한 손으로.
@@ -64,7 +65,7 @@ export function RunClient({
   crew?: string | null;
 }) {
   const { week, carried, infos } = data;
-  const { map, set, adopt, toast, undo, closeToast, error, clearError } = useShootChecks(
+  const { map, set, adopt, toast, undo, closeToast, error, clearError, saving } = useShootChecks(
     data.checks,
     { me }
   );
@@ -81,11 +82,14 @@ export function RunClient({
     () => queue.find((it) => it.no === startAt)?.exerciseId ?? null
   );
   const [slate, setSlate] = useState(false);
+  const [postponing, setPostponing] = useState<{ item: PlanItem; note: string } | null>(null);
   const list = useModalState<'list'>();
   useWakeLock(true);
 
   const laterOpen = !!week.deferred;
-  const { current, next } = cursorOfList(queue, map, pickId, laterOpen);
+  const cursor = cursorOfList(queue, map, pickId, laterOpen);
+  const current = postponing?.item ?? cursor.current;
+  const next = cursor.next;
   const count = countOf(items, map);
   /* 다음 뒤로 셋 — '그다음' 줄(지금 운동 뒤의 차례로) */
   const after = current
@@ -169,13 +173,19 @@ export function RunClient({
     void set(current.exerciseId, 'done', { label: `${current.no} 찍음`, rescheduledAt: current.rescheduledAt });
   }
   function postpone() {
-    if (!current) return;
+    if (!current || saving) return;
     haptic('light');
-    setPickId(nextPick(current.exerciseId));
-    void set(current.exerciseId, 'later', {
-      label: `${current.no} 미룸 · 목록 끝 '미룬 것'에서 다시`,
-      rescheduledAt: current.rescheduledAt,
+    setPostponing({ item: current, note: map.get(current.exerciseId)?.note ?? '' });
+  }
+
+  async function savePostpone(item: PlanItem, note: string) {
+    const ok = await set(item.exerciseId, 'later', {
+      note,
+      rescheduledAt: item.rescheduledAt,
+      label: `${item.no} 미룸 · 미룬 영상에서 다시 확인할 수 있어요`,
     });
+    if (ok) setPickId(nextPick(item.exerciseId));
+    return ok;
   }
 
   const laters = queue.filter((it) => stateOf(it, map) === 'later');
@@ -456,6 +466,7 @@ export function RunClient({
             <button
               type="button"
               onClick={postpone}
+              disabled={saving}
               className="flex h-[72px] w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-2xl bg-ink/6 text-xs font-semibold text-ink motion-safe:active:scale-95 pad:h-20 pad:w-24 pad:text-sm"
             >
               <PauseCircle aria-hidden className="h-5 w-5" />
@@ -496,6 +507,14 @@ export function RunClient({
         </div>
       )}
 
+      {postponing && (
+        <PostponeDialog
+          title={`${postponing.item.no} ${postponing.item.title}`}
+          initialNote={postponing.note}
+          onSave={(note) => savePostpone(postponing.item, note)}
+          onClose={() => setPostponing(null)}
+        />
+      )}
       {clips.elements}
 
       <ShootUndoToast
@@ -562,6 +581,7 @@ export function RunClient({
                     </span>
                     <span className="block truncate text-xs text-muted">
                       {it.station}
+                      {st === 'later' && map.get(it.exerciseId)?.note ? ` · ${map.get(it.exerciseId)?.note}` : ''}
                     </span>
                   </span>
                   {it === current ? (

@@ -12,7 +12,7 @@ export type UndoToast = {
   seq: number;
   text: string;
   /** 되돌릴 것 — 없으면 알림만 */
-  revert: { exerciseId: string; status: ShootStatus | null } | null;
+  revert: { exerciseId: string; status: ShootStatus | null; note: string | null } | null;
 };
 
 function apply(
@@ -38,6 +38,7 @@ export function useShootChecks(
   const [toast, setToast] = useState<UndoToast | null>(null);
   const [saving, setSaving] = useState(0);
   const inflight = useRef(0);
+  const readVersion = useRef(0);
   const latest = useRef(checks);
   useEffect(() => {
     latest.current = checks;
@@ -65,7 +66,11 @@ export function useShootChecks(
                 : (prev?.note ?? null),
           }
         : null;
-      setChecks((cs) => apply(cs, exerciseId, next));
+      // Keep the current exercise and its reason editor in place until the server accepts a postponement.
+      const optimistic = status !== 'later';
+      if (!optimistic && inflight.current > 0) return false;
+      if (optimistic) setChecks((cs) => apply(cs, exerciseId, next));
+      readVersion.current++;
       setError(null);
       inflight.current++;
       setSaving((n) => n + 1);
@@ -81,12 +86,12 @@ export function useShootChecks(
           setToast((t) => ({
             seq: (t?.seq ?? 0) + 1,
             text: opts.label!,
-            revert: { exerciseId, status: reopened ? 'redo' : (prev?.status ?? null) },
+            revert: { exerciseId, status: reopened ? 'redo' : (prev?.status ?? null), note: prev?.note ?? null },
           }));
         }
         return true;
       }
-      setChecks((cs) => apply(cs, exerciseId, prev));
+      if (optimistic) setChecks((cs) => apply(cs, exerciseId, prev));
       setError(res.error);
       return false;
     },
@@ -99,8 +104,9 @@ export function useShootChecks(
     let alive = true;
     const tick = async () => {
       if (document.hidden || inflight.current > 0) return;
+      const version = ++readVersion.current;
       const res = await orOffline(fetchShootChecks(), null);
-      if (alive && res?.ok && inflight.current === 0) setChecks(res.checks);
+      if (alive && res?.ok && version === readVersion.current && inflight.current === 0) setChecks(res.checks);
     };
     const id = window.setInterval(tick, POLL_MS);
     const onShow = () => {
@@ -125,13 +131,14 @@ export function useShootChecks(
 
   const undo = useCallback(() => {
     if (!toast?.revert) return;
-    const { exerciseId, status } = toast.revert;
+    const { exerciseId, status, note } = toast.revert;
     setToast(null);
-    void set(exerciseId, status, { undoable: false });
+    void set(exerciseId, status, { note, undoable: false });
   }, [toast, set]);
 
   /** 서버가 돌려준 체크로 바꾼다(영상을 붙이면 그 운동이 '찍음'이 된다) — 알림은 되돌리기 없이 */
   const adopt = useCallback((next: ShootCheckView[], label?: string) => {
+    readVersion.current++;
     if (inflight.current === 0) setChecks(next);
     setError(null);
     if (label) {

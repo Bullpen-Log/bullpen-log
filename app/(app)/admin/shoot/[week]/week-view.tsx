@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Clapperboard, Clock3, Coffee, RotateCcw, Wrench } from '@/components/icon';
 import { ButtonLink, PageHeading } from '@/components/ui';
+import { PostponeDialog } from '@/components/shoot/postpone-dialog';
+import { shootRunHref, SHOOT_NOTE_MAX } from '@/lib/shoot/guide';
 import { Modal, useModalState } from '@/components/modal';
 import { Segmented } from '@/components/segmented';
 import { StackBar } from '@/components/shoot/gauge';
@@ -87,13 +89,8 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
     () => new Map(week.stations.flatMap((s) => s.items.map((it) => [it.exerciseId, s.crew] as const))),
     [week]
   );
-  const runHref = (crew?: string, at?: string) => {
-    const q = new URLSearchParams();
-    if (crew) q.set('crew', crew);
-    if (at) q.set('at', at);
-    const s = q.toString();
-    return `/admin/shoot/${week.week}/run${s ? `?${s}` : ''}`;
-  };
+  const runHref = (crew?: string, at?: string) => shootRunHref(week.week, crew, at);
+  const guideHref = (crew?: string, at?: string) => shootRunHref(week.week, crew, at, 'guide');
   const label = weekLabel(week);
   const session = week.session;
   const startMinute = session?.startMinute ?? 0;
@@ -222,6 +219,13 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
             <ButtonLink key={c ?? 'all'} href={runHref(c)} className="h-14 w-full text-base">
               <Clapperboard aria-hidden className="h-5 w-5" />
               {c ? `${c} 촬영` : count.done > 0 ? '이어 찍기' : '촬영 모드로 시작'}
+            </ButtonLink>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {(crews.length ? crews : [undefined]).map((crew) => (
+            <ButtonLink key={crew ?? 'all'} href={guideHref(crew)} variant="secondary" className="min-h-12 flex-1">
+              {crew ? `${crew}조 지도 모드` : '지도 모드'}
             </ButtonLink>
           ))}
         </div>
@@ -380,6 +384,7 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
             check={map.get(open.exerciseId)}
             state={stateOf(open, map)}
             runHref={runHref(crewOf.get(open.exerciseId), open.no)}
+            guideHref={guideHref(crewOf.get(open.exerciseId), open.no)}
             onSet={(status, note) =>
               set(open.exerciseId, status, {
                 note,
@@ -568,6 +573,7 @@ function DetailBody({
   check,
   state,
   runHref,
+  guideHref,
   onSet,
   onPick,
   appCamera,
@@ -579,6 +585,7 @@ function DetailBody({
   check: ShootCheckView | undefined;
   state: ItemState;
   runHref: string;
+  guideHref: string;
   onSet: (status: ShootStatus | null, note?: string | null) => Promise<boolean>;
   /** 영상을 고르면 컷 편집 창으로(useClipFlow().edit) */
   onPick: (target: ClipTarget, file: File, from: 'album') => void;
@@ -589,6 +596,8 @@ function DetailBody({
 }) {
   const [note, setNote] = useState(check?.note ?? '');
   const [saved, setSaved] = useState(false);
+  const [postponing, setPostponing] = useState(false);
+  const [postponeNote, setPostponeNote] = useState('');
   return (
     <div className="space-y-5">
       <Segmented
@@ -596,7 +605,12 @@ function DetailBody({
         value={state}
         onChange={(v) => {
           haptic(v === 'done' ? 'success' : 'light');
-          void onSet(v === 'todo' ? null : v);
+          if (v === 'later') {
+            setPostponeNote(note || check?.note || '');
+            setPostponing(true);
+          } else {
+            void onSet(v === 'todo' ? null : v);
+          }
         }}
         options={(['todo', 'done', 'redo', 'later'] as const).map((v) => ({
           value: v,
@@ -635,7 +649,7 @@ function DetailBody({
           htmlFor={`note-${it.exerciseId}`}
           className="block text-xs font-medium text-muted"
         >
-          메모{state === 'todo' ? ' — 저장하면 다시 찍기로 표시돼요' : ''}
+          {state === 'later' ? '미룸 사유' : '메모'}{state === 'todo' ? ' — 저장하면 다시 찍기로 표시돼요' : ''}
         </label>
         <div className="flex gap-2">
           <input
@@ -645,13 +659,14 @@ function DetailBody({
               setNote(e.target.value);
               setSaved(false);
             }}
-            maxLength={200}
+            maxLength={SHOOT_NOTE_MAX}
             placeholder="초점 나감 · 무게 바꿔서 다시"
             className="min-w-0 flex-1 rounded-xl border border-transparent bg-ink/5 px-4 py-3 text-sm text-ink placeholder:text-muted/60 focus:border-sky focus:bg-surface focus:outline-none desk:border-line desk:bg-surface-2"
           />
           <button
             type="submit"
-            className="shrink-0 rounded-xl bg-ink/8 px-4 text-sm font-semibold text-ink hover:bg-ink/12"
+            disabled={state === 'later' && !note.trim()}
+            className="shrink-0 disabled:opacity-50 rounded-xl bg-ink/8 px-4 text-sm font-semibold text-ink hover:bg-ink/12"
           >
             {saved ? '저장됨' : '저장'}
           </button>
@@ -661,6 +676,19 @@ function DetailBody({
         <Clapperboard aria-hidden className="h-4 w-4" />
         촬영 모드에서 이 운동부터
       </ButtonLink>
+      <ButtonLink href={guideHref} variant="secondary" className="w-full">지도 모드에서 이 운동부터</ButtonLink>
+      {postponing && (
+        <PostponeDialog
+          title={`${it.no} ${it.title}`}
+          initialNote={postponeNote}
+          onSave={async (reason) => {
+            const ok = await onSet('later', reason);
+            if (ok) { setNote(reason); setSaved(true); }
+            return ok;
+          }}
+          onClose={() => setPostponing(false)}
+        />
+      )}
     </div>
   );
 }

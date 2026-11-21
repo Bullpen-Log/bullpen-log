@@ -11,6 +11,7 @@ import type { ShootResult } from '@/app/actions/shoot';
 import type { ShootExerciseInfo } from '@/lib/shoot/load';
 import { BUCKET_LABEL, clockText, countOf, cursorOfList, isRescheduled, stateOf, weekItems, type ItemState, type ShootCheckView, type ShootStatus } from '@/lib/shoot/progress';
 import { crewsOf } from '@/lib/shoot/crews';
+import { SHOOT_NOTE_MAX, shootRunHref } from '@/lib/shoot/guide';
 import { weekLabel, type PlanItem } from '@/lib/shoot/schedule';
 import { Bar, Chip, LoadState, s, useLoad } from '~/community/parts';
 import { rpc } from '~/lib/rpc';
@@ -66,22 +67,21 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
   const crews = crewsOf(week);
   const crewOf = useMemo(() => new Map(week.stations.flatMap((st) => st.items.map((it) => [it.exerciseId, st.crew] as const))), [week]);
   const equipment = useMemo(() => [...new Set(items.flatMap((it) => it.equipment))].filter((e) => e !== '맨몸'), [items]);
-  const runHref = (crew?: string, no?: string) => {
-    const q = [crew ? `crew=${encodeURIComponent(crew)}` : '', no ? `at=${encodeURIComponent(no)}` : ''].filter(Boolean).join('&');
-    return `/admin/shoot/${week.week}/run${q ? `?${q}` : ''}`;
-  };
+  const runHref = (crew?: string, no?: string) => shootRunHref(week.week, crew, no);
+  const guideHref = (crew?: string, no?: string) => shootRunHref(week.week, crew, no, 'guide');
 
   /* 첫 화면 목록에서 ?at= 로 오면 그 운동 창을 연 채 시작한다 */
   const [openId, setOpenId] = useState<string | null>(() => (at ? (queue.find((it) => it.no === at)?.exerciseId ?? null) : null));
 
   /* 방금 바꾼 것 되돌리기 알림 — 웹 ShootUndoToast 와 같이 6초 */
-  const [toast, setToast] = useState<{ seq: number; text: string; it: PlanItem; status: ShootStatus | null } | null>(null);
+  const [toast, setToast] = useState<{ seq: number; text: string; it: PlanItem; status: ShootStatus | null; note: string | null } | null>(null);
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 6000);
     return () => clearTimeout(t);
   }, [toast]);
   const inflight = useRef(0);
+  const readVersion = useRef(0);
 
   /* 다른 폰의 체크 받기 — 웹 use-shoot-checks 처럼 15초마다 · 앱으로 돌아올 때, 저장 중에는 쉰다 */
   const base = data.checks;
@@ -89,8 +89,9 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
     let alive = true;
     const tick = async () => {
       if (inflight.current > 0 || AppState.currentState !== 'active') return;
+      const version = ++readVersion.current;
       const r = await rpc<ShootResult>('shoot.fetchShootChecks').catch(() => null);
-      if (alive && r?.ok && inflight.current === 0) setLocal({ from: base, list: r.checks });
+      if (alive && r?.ok && version === readVersion.current && inflight.current === 0) setLocal({ from: base, list: r.checks });
     };
     const id = setInterval(tick, 15_000);
     const sub = AppState.addEventListener('change', (st) => st === 'active' && void tick());
@@ -103,6 +104,8 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
 
   /* 바로 반영 → 서버 → 받은 체크로 맞춤(다른 사람이 찍은 것까지), 실패하면 되돌림 */
   const set = async (it: PlanItem, status: ShootStatus | null, note?: string | null, label?: string): Promise<boolean> => {
+    const optimisticWrite = status !== 'later';
+    if (!optimisticWrite && inflight.current > 0) return false;
     setError(null);
     const before = checks;
     const prev = map.get(it.exerciseId);
@@ -111,23 +114,24 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
       status === null
         ? checks.filter((x) => x.exerciseId !== it.exerciseId)
         : [
-            { exerciseId: it.exerciseId, status, at: prev?.status === status && !reopened ? prev.at : new Date().toISOString(), by: me, note: note !== undefined ? note || null : (prev?.note ?? null) },
+            { exerciseId: it.exerciseId, status, at: prev?.status === status && !reopened ? prev.at : new Date().toISOString(), by: me, note: note !== undefined ? note?.trim() || null : (prev?.note ?? null) },
             ...checks.filter((x) => x.exerciseId !== it.exerciseId),
           ];
-    setChecks(optimistic);
+    if (optimisticWrite) setChecks(optimistic);
+    readVersion.current++;
     inflight.current++;
     try {
       const r = await rpc<ShootResult>('shoot.setShootStatus', it.exerciseId, status, note).finally(() => inflight.current--);
       if (!r.ok) {
-        setChecks(before);
+        if (optimisticWrite) setChecks(before);
         setError(r.error);
         return false;
       }
       setChecks(r.checks);
-      if (label) setToast((t) => ({ seq: (t?.seq ?? 0) + 1, text: label, it, status: reopened ? 'redo' : (prev?.status ?? null) }));
+      if (label) setToast((t) => ({ seq: (t?.seq ?? 0) + 1, text: label, it, status: reopened ? 'redo' : (prev?.status ?? null), note: prev?.note ?? null }));
       return true;
     } catch {
-      setChecks(before);
+      if (optimisticWrite) setChecks(before);
       setError('신호가 약해 저장하지 못했어요. 다시 해 주세요.');
       return false;
     }
@@ -201,6 +205,13 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
               </Pressable>
             ))}
           </View>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {(crews.length ? crews : [undefined]).map((cr) => (
+              <Pressable key={cr ?? 'all'} accessibilityRole="button" onPress={() => leaveTo(guideHref(cr))} style={[s.pill, { flex: 1, minHeight: 52, backgroundColor: c.chip }]}>
+                <Text style={{ color: c.ink, fontSize: 17, fontWeight: '700' }}>{cr ? `${cr}조 지도 모드` : '지도 모드'}</Text>
+              </Pressable>
+            ))}
+          </View>
         </View>
 
         <View style={{ borderRadius: 14, padding: 14, gap: 8, backgroundColor: c.card, boxShadow: c.float }}>
@@ -271,7 +282,7 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
         ) : null}
       </ScrollView>
 
-      <Modal visible={!!openItem} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setOpenId(null)}>
+      <Modal visible={!!openItem} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => { if (!inflight.current) setOpenId(null); }}>
         {openItem ? (
           <DetailSheet
             key={openItem.exerciseId}
@@ -284,6 +295,10 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
             onRun={() => {
               setOpenId(null);
               leaveTo(runHref(crewOf.get(openItem.exerciseId), openItem.no));
+            }}
+            onGuide={() => {
+              setOpenId(null);
+              leaveTo(guideHref(crewOf.get(openItem.exerciseId), openItem.no));
             }}
             onClose={() => setOpenId(null)}
             c={c}
@@ -299,7 +314,7 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
             accessibilityRole="button"
             onPress={() => {
               setToast(null);
-              void set(toast.it, toast.status);
+              void set(toast.it, toast.status, toast.note);
             }}
             style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: 12 }}
           >
@@ -415,6 +430,7 @@ function DetailSheet({
   startMinute,
   onSet,
   onRun,
+  onGuide,
   onClose,
   c,
 }: {
@@ -425,12 +441,33 @@ function DetailSheet({
   startMinute: number;
   onSet: (status: ShootStatus | null, note?: string | null) => Promise<boolean>;
   onRun: () => void;
+  onGuide: () => void;
   onClose: () => void;
   c: Palette;
 }) {
   const inset = useSafeAreaInsets();
   const [note, setNote] = useState(check?.note ?? '');
   const [saved, setSaved] = useState(false);
+  const [reason, setReason] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const saving = useRef(false);
+
+  async function save(status: ShootStatus, value: string) {
+    if (saving.current) return false;
+    saving.current = true;
+    setPending(true);
+    setFailed(false);
+    try {
+      const ok = await onSet(status, value);
+      setFailed(!ok);
+      if (ok) setSaved(true);
+      return ok;
+    } finally {
+      saving.current = false;
+      setPending(false);
+    }
+  }
   const [how, setHow] = useState(true);
   const equipment = info?.equipment.length ? info.equipment : it.equipment;
   const facts: [string, string][] = [
@@ -440,6 +477,43 @@ function DetailSheet({
     ...(it.group ? [[it.kind === 'warmup' ? '루틴' : '단계', it.group] as [string, string]] : []),
     ...(info?.prescription ? [['앱 처방', info.prescription] as [string, string]] : []),
   ];
+  if (reason !== null) {
+    return (
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: c.page }}>
+        <ScrollView contentContainerStyle={[{ padding: 16, gap: 12, paddingBottom: inset.bottom + 24 }, READABLE]} keyboardShouldPersistTaps="handled">
+          <Text accessibilityRole="header" style={{ color: c.ink, fontSize: 22, fontWeight: '700' }}>미루기</Text>
+          <Text style={{ color: c.muted, fontSize: 15 }}>{it.no} {it.title}</Text>
+          <Text style={[s.label, { color: c.ink }]}>미룸 사유</Text>
+          <TextInput
+            accessibilityLabel="미룸 사유"
+            value={reason}
+            onChangeText={setReason}
+            editable={!pending}
+            multiline
+            maxLength={SHOOT_NOTE_MAX}
+            placeholder="예: 장비가 없어 다음 촬영일에 찍기로 했어요"
+            placeholderTextColor={c.muted}
+            style={[s.input, { minHeight: 88, backgroundColor: c.card, color: c.ink }]}
+          />
+          {failed && <Text accessibilityRole="alert" style={{ color: c.danger }}>저장하지 못했어요. 입력한 사유는 그대로예요. 다시 시도해 주세요.</Text>}
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Pressable accessibilityRole="button" disabled={pending} onPress={() => { setReason(null); setFailed(false); }} style={[s.pill, { minHeight: 48, backgroundColor: c.chip }]}>
+              <Text style={{ color: c.ink, fontSize: 16, fontWeight: '600' }}>취소</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" disabled={pending || !reason.trim()} onPress={async () => {
+              const value = reason.trim();
+              if (value && await save('later', value)) {
+                setNote(value);
+                setReason(null);
+              }
+            }} style={[s.pill, { flex: 1, minHeight: 48, backgroundColor: c.action, opacity: pending || !reason.trim() ? 0.5 : 1 }]}>
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>{pending ? '저장 중…' : '사유 저장하고 미루기'}</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: c.page }}>
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 16, paddingBottom: 8 }}>
@@ -464,7 +538,12 @@ function DetailSheet({
               on={state === v}
               color={v === 'redo' ? c.warn : undefined}
               onPress={() => {
-                if (v === state) return;
+                if (v === state || saving.current) return;
+                if (v === 'later') {
+                  setFailed(false);
+                  setReason(note || check?.note || '');
+                  return;
+                }
                 void Haptics.impactAsync(v === 'done' ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light);
                 void onSet(v === 'todo' ? null : v);
               }}
@@ -480,7 +559,9 @@ function DetailSheet({
         <Pressable accessibilityRole="button" onPress={onRun} style={[s.pill, { backgroundColor: c.action }]}>
           <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>{info?.uploaded ? '다시 찍기 · 촬영 모드에서' : '영상 찍기 · 촬영 모드에서'}</Text>
         </Pressable>
-        <Text style={[s.meta, { color: c.muted, marginTop: -6 }]}>촬영 모드에서 카메라로 찍거나 앨범에서 골라 잘라 올려요.</Text>
+        <Pressable accessibilityRole="button" onPress={onGuide} style={[s.pill, { minHeight: 48, backgroundColor: c.chip }]}>
+          <Text style={{ color: c.ink, fontSize: 16, fontWeight: '600' }}>지도 모드에서 이 운동부터</Text>
+        </Pressable>
 
         <View style={{ borderRadius: 14, padding: 14, gap: 8, backgroundColor: c.card, boxShadow: c.float }}>
           {facts.map(([k, v]) => (
@@ -514,7 +595,7 @@ function DetailSheet({
         ) : null}
 
         <View style={{ gap: 6 }}>
-          <Text style={[s.label, { color: c.muted }]}>메모{state === 'todo' ? ' — 저장하면 다시 찍기로 표시돼요' : ''}</Text>
+          <Text style={[s.label, { color: c.muted }]}>{state === 'later' ? '미룸 사유' : '메모'}{state === 'todo' ? ' — 저장하면 다시 찍기로 표시돼요' : ''}</Text>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <TextInput
               value={note}
@@ -522,22 +603,22 @@ function DetailSheet({
                 setNote(t);
                 setSaved(false);
               }}
-              maxLength={200}
+              maxLength={SHOOT_NOTE_MAX}
+              editable={!pending}
               placeholder="초점 나감 · 무게 바꿔서 다시"
               placeholderTextColor={c.muted}
               style={[s.input, { flex: 1, backgroundColor: c.card, color: c.ink }]}
             />
             <Pressable
               accessibilityRole="button"
-              onPress={async () => {
-                const ok = await onSet(state === 'todo' ? 'redo' : state, note);
-                if (ok) setSaved(true);
-              }}
+              disabled={pending || (state === 'later' && !note.trim())}
+              onPress={() => void save(state === 'todo' ? 'redo' : state, note)}
               style={{ minHeight: 48, borderRadius: 12, paddingHorizontal: 16, justifyContent: 'center', backgroundColor: c.chip }}
             >
-              <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>{saved ? '저장됨' : '저장'}</Text>
+              <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>{pending ? '저장 중…' : saved ? '저장됨' : '저장'}</Text>
             </Pressable>
           </View>
+          {failed && <Text accessibilityRole="alert" style={{ color: c.danger }}>저장하지 못했어요. 다시 시도해 주세요.</Text>}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

@@ -52,6 +52,8 @@ import {
 import { SHOOT_WARMUPS, warmupRowId } from '../lib/shoot/warmups.ts';
 import { CREW_SPACES, crewWeek, crewsOf } from '../lib/shoot/crews.ts';
 
+import { guideStart, readShootNote, shootRunHref } from '../lib/shoot/guide.ts';
+
 let pass = 0;
 let fail = 0;
 function check(name: string, ok: boolean, detail = '') {
@@ -789,6 +791,23 @@ console.log('\n■ 진행(지금 · 다음 · 미룬 것)');
     clockText(59.6) === '1:00' && clockText(149) === '2:29'
   );
 }
+
+const scheduled = plan.weeks.find((week) => week.session)!;
+const guidePlan = weekItems(scheduled);
+const firstGuideItem = guidePlan[0];
+const secondGuideItem = guidePlan[1];
+const guidedChecks = new Map<string, ShootCheckView>([[firstGuideItem.exerciseId, {
+  exerciseId: firstGuideItem.exerciseId, status: 'done', at: '2026-11-21T00:00:00.000Z', by: null, note: null,
+}]]);
+check('지도 첫 진입은 현재 촬영 차례', guideStart(guidePlan, guidedChecks, null, false) === 1);
+check('촬영 완료 운동도 명시적으로 지도 가능', guideStart(guidePlan, guidedChecks, firstGuideItem.no, false) === 0);
+check('다른 주 번호는 첫 미완료 운동으로', guideStart(guidePlan, guidedChecks, '99-01', false) === 1);
+check('지도 URL은 조·시작 번호 보존', shootRunHref(scheduled.week, 'A', secondGuideItem.no, 'guide') === `/admin/shoot/${scheduled.week}/run?crew=A&at=${secondGuideItem.no}&mode=guide`);
+check('촬영 URL은 기존 기본 경로 유지', shootRunHref(scheduled.week) === `/admin/shoot/${scheduled.week}/run`);
+const reason = readShootNote('later', '  촬영장 소음  ');
+check('미룸 사유 양끝 공백 제거', reason.ok && reason.note === '촬영장 소음');
+check('미룸 사유 공백·201자·잘못된 자료형 거부', !readShootNote('later', '  ').ok && !readShootNote('later', '가'.repeat(201)).ok && !readShootNote('later', 12).ok);
+check('미룸 사유 200자와 이전 미룸 호환', readShootNote('later', '가'.repeat(200)).ok && readShootNote('later', undefined).ok && readShootNote('later', null).ok);
 
 console.log(`\n${pass}개 통과, ${fail}개 실패`);
 process.exit(fail === 0 ? 0 : 1);

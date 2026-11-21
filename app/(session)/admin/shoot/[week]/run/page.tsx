@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { requirePermission } from '@/lib/dal';
 import { loadShootWeek } from '@/lib/shoot/load';
 import { crewWeek, crewsOf } from '@/lib/shoot/crews';
+import { ShootGuideMode } from '@/components/shoot/guide-mode';
 import { RunClient } from './run-client';
 
 /**
@@ -14,20 +15,25 @@ export default async function ShootRunPage({
   searchParams,
 }: {
   params: Promise<{ week: string }>;
-  searchParams: Promise<{ at?: string | string[]; crew?: string | string[] }>;
+  searchParams: Promise<{ at?: string | string[]; crew?: string | string[]; mode?: string | string[] }>;
 }) {
   const me = await requirePermission('shoot');
   const n = Number((await params).week);
   const data = Number.isInteger(n) ? await loadShootWeek(n) : null;
   if (!data) notFound();
-  const { at, crew } = await searchParams;
+  const { at, crew, mode } = await searchParams;
   const mine = typeof crew === 'string' && crewsOf(data.week).includes(crew) ? crew : null;
+  const scoped = mine ? { ...data, week: crewWeek(data.week, mine) } : data;
+  const startAt = typeof at === 'string' ? at : null;
+  if (mode === 'guide') {
+    return <ShootGuideMode key={`${n}:${mine}:${startAt}`} data={scoped} crew={mine} startAt={startAt} />;
+  }
   return (
     <RunClient
-      data={mine ? { ...data, week: crewWeek(data.week, mine) } : data}
+      data={scoped}
       crew={mine}
       me={me.nickname}
-      startAt={typeof at === 'string' ? at : null}
+      startAt={startAt}
     />
   );
 }

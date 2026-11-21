@@ -1,5 +1,7 @@
 'use server';
 
+import { readShootNote } from '@/lib/shoot/guide';
+
 import { allowAdmin } from '@/lib/release-gate';
 import { revalidatePath } from 'next/cache';
 import { can } from '@/lib/permissions';
@@ -31,7 +33,6 @@ export type ShootResult =
   { ok: true; checks: ShootCheckView[] } | { ok: false; error: string };
 
 const NOT_ADMIN = { ok: false as const, error: '관리자만 할 수 있습니다.' };
-const NOTE_MAX = 200;
 
 async function requireAdminUser() {
   allowAdmin('shoot');
@@ -46,7 +47,8 @@ function revalidate() {
 
 /**
  * 한 운동의 상태를 바꾼다. status null = 되돌리기(줄을 지운다 → 대기).
- * note 를 안 주면(undefined) 적어 둔 메모를 그대로 둔다. 빈 글은 메모를 지운다.
+ * note 생략은 기존 메모 유지, null 은 옛 사유 없는 체크를 되돌릴 때도 사용한다.
+ * 새 미룸 화면이 보내는 사유 문자열은 비워 둘 수 없다.
  */
 export async function setShootStatus(
   exerciseId: string,
@@ -61,15 +63,9 @@ export async function setShootStatus(
   if (status !== null && !isShootStatus(status)) {
     return { ok: false, error: '상태가 올바르지 않아요.' };
   }
-  let memo: string | null | undefined = undefined;
-  if (note !== undefined) {
-    if (note !== null && typeof note !== 'string')
-      return { ok: false, error: '메모가 올바르지 않아요.' };
-    const t = (note ?? '').trim();
-    if (t.length > NOTE_MAX)
-      return { ok: false, error: `메모는 ${NOTE_MAX}자까지예요.` };
-    memo = t || null;
-  }
+  const parsedNote = readShootNote(status, note);
+  if (!parsedNote.ok) return parsedNote;
+  const memo = parsedNote.note;
 
   if (status === null) {
     await prisma.shootCheck.deleteMany({ where: { exerciseId } });
