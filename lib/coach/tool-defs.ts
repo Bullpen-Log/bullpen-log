@@ -10,7 +10,6 @@ import { THROW_PLANS, WORKOUT_KINDS } from '@/lib/checkin';
 import { GOAL_FOCUSES, TRAINING_LEVEL_NAMES } from '@/lib/report/personalize';
 import { ALWAYS_OWNED, SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
 import { cleanEvent, isOutingTitle } from '@/lib/calendar-event';
-import { POST_BODY_MAX, POST_CATEGORIES, POST_TITLE_MAX } from '@/lib/community';
 import type { Capability } from '@/lib/release-access';
 
 /**
@@ -77,21 +76,11 @@ const CalendarIn = z.object({
   newDate: ymd.nullable().describe('change 일 때 옮길 날, 아니면 null'),
 });
 const ThrowPlanIn = z.object({ answer: z.enum(THROW_PLANS).describe('오늘 등판 답') });
-const FavoriteIn = z.object({
-  kind: z.enum(['운동', '드릴']),
-  name: z.string().describe('운동 · 드릴 이름(read_workouts · find_exercises 로 본 그대로)'),
-  on: z.boolean().describe('true 즐겨찾기 · false 빼기'),
-});
 const SettingsIn = z.object({
   kind: z.enum(['level', 'add_equipment', 'remove_equipment']).describe('level 웨이트 경력 · add_equipment 가진 장비 더하기 · remove_equipment 빼기'),
   value: z.string().describe('경력 이름 또는 장비 이름'),
 });
 const ProgramIn = z.object({ kind: z.enum(['skip', 'stop']).describe('skip 이번 세션 건너뛰기 · stop 프로그램 그만두기') });
-const PostIn = z.object({
-  category: z.enum(POST_CATEGORIES.map((c) => c.key) as [string, ...string[]]).describe('free 자유 · question 질문 · 답변 · meetup 번개 · team 팀 홍보 · 선수 모집'),
-  title: z.string(),
-  body: z.string(),
-});
 
 type Def = { name: string; description: string; input: z.ZodType };
 
@@ -124,7 +113,7 @@ export const READ_DEFS = [
   },
   { name: 'read_program', description: '근력 · 파워 프로그램 진행(이름 · 몇 번째 세션 · 마지막 한 날 · 지난 프로그램)과 메커니즘 처방 진행(요소 · 단계 · 한 세션 수).', input: NoIn },
   { name: 'read_3d_history', description: '3D 동작 분석을 한 날들(최근 10개)과 가장 최근 판정.', input: NoIn },
-  { name: 'read_settings', description: '앱 설정 — 던지는 손 · 하루 운동 시간 · 웨이트 경력 · 운동 목표 · 가진 장비, 최근 알림 10개(종류 · 제목 · 날짜).', input: NoIn },
+  { name: 'read_settings', description: '앱 설정 — 던지는 손 · 하루 운동 시간 · 웨이트 경력 · 운동 목표 · 가진 장비.', input: NoIn },
   {
     name: 'read_exercise_info',
     description:
@@ -170,7 +159,6 @@ export const WRITE_DEFS = [
     input: CalendarIn,
   },
   { name: 'throw_plan', description: '오늘 등판 답(던지는 일정) 저장 카드. 오늘 체크인이 있어야 저장된다. 오늘 운동 · 투구 계획이 이 답을 읽는다.', input: ThrowPlanIn },
-  { name: 'favorite', description: '운동 · 드릴 즐겨찾기 달기 · 빼기 카드.', input: FavoriteIn },
   {
     name: 'training_settings',
     description: `트레이닝 설정 카드 — 웨이트 경력(${TRAINING_LEVEL_NAMES.join(' · ')}) 또는 가진 장비 더하기 · 빼기(${SELECTABLE_EQUIPMENT.join(' · ')}). 다음에 만드는 운동부터 바뀐다.`,
@@ -178,11 +166,6 @@ export const WRITE_DEFS = [
   },
   { name: 'armcare_today', description: '오늘 암케어 루틴 만들기 카드(오늘 몸 상태로 앱이 짠다, 있으면 새로). 오늘 체크인이 있어야 한다.', input: NoIn },
   { name: 'program_day', description: '진행 중인 근력 프로그램의 이번 세션 건너뛰기 · 그만두기 카드(그만두기는 앱이 한 번 더 묻는다, 기록은 남는다). 새 프로그램 시작은 open_screen programs.', input: ProgramIn },
-  {
-    name: 'draft_post',
-    description: '덕아웃 커뮤니티 글 초안 카드 — 글쓰기 화면을 채워 연다. 올리기는 사용자가 직접 한다. 다른 사람의 이름 · 연락처 · 건강정보는 넣지 않는다.',
-    input: PostIn,
-  },
 ] as const satisfies readonly Def[];
 
 export type ToolName = (typeof READ_DEFS)[number]['name'] | (typeof WRITE_DEFS)[number]['name'];
@@ -194,36 +177,21 @@ const INPUT: Record<string, z.ZodType> = Object.fromEntries([...READ_DEFS, ...WR
 export const ASSIST_CAP: Record<string, Capability | ((args: Record<string, unknown>) => Capability)> = {
   calendar: 'calendar',
   throw_plan: 'training',
-  favorite: (a) => (a.kind === '드릴' ? 'mechanics' : 'training'),
   training_settings: 'training',
   armcare_today: 'armcare',
   program_day: 'training',
-  draft_post: 'dugout',
 };
 export const ASSIST_TOOLS: ReadonlySet<string> = new Set(Object.keys(ASSIST_CAP));
 export function assistCapOf(tool: string, args: Record<string, unknown>): Capability {
   const c = ASSIST_CAP[tool];
   return typeof c === 'function' ? c(args) : c;
 }
-/** 서버가 실행하는 카드 도구 — 나머지(투구 기록 초안 · 화면 열기 · 글 초안)는 앱이 화면을 여는 카드뿐 */
+/** 서버가 실행하는 카드 도구 — 나머지(투구 기록 초안 · 화면 열기)는 앱이 화면을 여는 카드뿐 */
 export const APPLY_TOOLS: ReadonlySet<string> = new Set(['change_week', 'goal', 'change_today', ...ASSIST_TOOLS]);
 
 /** 그날에만 맞는 카드 — 다음 날 누르면 안 한다(어제의 '오늘 가볍게' · 어제 답 · 어제 세션이 오늘에 걸리지 않게, 6단계 시험에서 찾음) */
 export const DAY_BOUND_TOOLS: ReadonlySet<string> = new Set(['change_today', 'throw_plan', 'armcare_today', 'program_day']);
 export const cardDayOk = (tool: string, madeOn: string, today: string) => !DAY_BOUND_TOOLS.has(tool) || madeOn === today;
-
-/** 알림 줄 — 제목은 보내지 않는다(남의 별명 · 채팅 글 · 팀이 쓴 일정 이름이 들어 있다 — 6단계 시험에서 찾음) */
-const NOTICE_LABEL: Record<string, string> = {
-  chat: '채팅',
-  community: '덕아웃',
-  lesson: '레슨',
-  note: '레슨 일지',
-  team: '팀',
-  booking: '레슨 예약',
-  venue: '연습장 예약',
-  coach: '코치',
-};
-export const noticeLine = (n: { date: string; kind: string; read: boolean }) => `- ${n.date} | ${NOTICE_LABEL[n.kind] ?? '그 밖'} | ${n.read ? '읽음' : '안 읽음'}`;
 
 /** API 에 보내는 도구 목록 — 차례 · 글자가 늘 같다(캐시) */
 export const TOOL_DEFS = [...READ_DEFS, ...WRITE_DEFS].map((d) => {
@@ -369,7 +337,7 @@ export async function proposeToday(w: TodayWork | undefined, input: Record<strin
 
 /** 순수 확인 — change_today 는 오늘 판 · 후보가 필요해 서버(lib/coach/tools.ts proposeToday)가 한다 */
 /** 서버가 DB 를 보고 확인하는 도구 — lib/coach/assist.ts ASSIST_PROPOSERS */
-export const SERVER_TOOLS = ['change_today', 'calendar', 'throw_plan', 'favorite', 'training_settings', 'armcare_today', 'program_day', 'draft_post'] as const;
+export const SERVER_TOOLS = ['change_today', 'calendar', 'throw_plan', 'training_settings', 'armcare_today', 'program_day'] as const;
 const PROPOSERS: Record<Exclude<(typeof WRITE_DEFS)[number]['name'], (typeof SERVER_TOOLS)[number]>, (ctx: ProposeCtx, input: Record<string, unknown>) => Proposed> = {
   change_week: proposeWeek,
   goal: proposeGoal,
@@ -473,12 +441,6 @@ export function throwPlanCard(answer: unknown, checkedIn: boolean): Proposed {
   return { card: { tool: 'throw_plan', title: `오늘 등판 답: ${a}`, lines: ['오늘 운동 · 투구 계획이 이 답을 읽어요'], cta: '저장', args: { answer: a } } };
 }
 
-export function favoriteCard(kind: '운동' | '드릴', found: { id: string; title: string } | null, on: boolean, already: boolean): Proposed {
-  if (!found) return { refuse: `그 ${kind}을 못 찾았어요. 이름을 그대로 주세요.` };
-  if (already === on) return { refuse: on ? '이미 즐겨찾기예요.' : '즐겨찾기에 없어요.' };
-  return { card: { tool: 'favorite', title: `${found.title} 즐겨찾기${on ? '' : ' 빼기'}`, lines: [], cta: on ? '달기' : '빼기', args: { kind, id: found.id, on } } };
-}
-
 /** 트레이닝 설정 카드 — owned 는 지금 가진 장비(한 번도 안 골랐으면 빈 목록) */
 export function settingsCard(kind: 'level' | 'add_equipment' | 'remove_equipment', value: string, level: string | null, owned: readonly string[]): Proposed {
   const v = value.trim();
@@ -514,17 +476,4 @@ export function programCard(kind: 'skip' | 'stop', p: { name: string; nextDay: n
   if (kind === 'skip')
     return { card: { tool: 'program_day', title: `${p.name} ${p.nextDay}번째 세션 건너뛰기`, lines: ['건너뜀으로 세고 다음 세션으로 넘어가요'], cta: '건너뛰기', args: { kind, day: p.nextDay } } };
   return { card: { tool: 'program_day', title: `${p.name} 그만두기`, lines: ['지금까지 기록은 남아요'], cta: '그만두기', confirm: '근력 프로그램을 그만둘까요?', args: { kind } } };
-}
-
-export function postCard(input: Record<string, unknown>): Proposed {
-  const { category, title, body } = input as { category: string; title: string; body: string };
-  const t = title.trim();
-  const b = body.trim();
-  if (!t || !b) return { refuse: '제목과 내용을 적어 주세요.' };
-  if (t.length > POST_TITLE_MAX || b.length > POST_BODY_MAX) return { refuse: `제목은 ${POST_TITLE_MAX}자 · 내용은 ${POST_BODY_MAX}자까지예요.` };
-  if (scrubNames(t) !== t || scrubNames(b) !== b) return { refuse: '다른 기관 이름은 글에 넣지 않아요.' };
-  const label = POST_CATEGORIES.find((c) => c.key === category)?.label ?? '자유';
-  return {
-    card: { tool: 'draft_post', title: `덕아웃 글 초안(${label}): ${t}`, lines: ['눌러서 고치고 직접 올려 주세요'], cta: '초안 열기', open: { kind: 'post', category, title: t, body: b } },
-  };
 }

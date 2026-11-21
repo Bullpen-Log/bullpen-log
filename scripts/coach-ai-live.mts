@@ -11,7 +11,7 @@ import { costMicroOf } from '@/lib/coach/ai-price';
 import type { GoalProposal } from '@/lib/coach/goal';
 import { CARDS_MAX, type CoachCard } from '@/lib/coach/card';
 import type { CoachAct } from '@/lib/coach/act';
-import { READ_NAMES, addCard, armcareCard, calendarCard, favoriteCard, parseToolInput, postCard, programCard, propose, proposeToday, settingsCard, throwPlanCard, type TodayWork } from '@/lib/coach/tool-defs';
+import { READ_NAMES, addCard, armcareCard, calendarCard, parseToolInput, programCard, propose, proposeToday, settingsCard, throwPlanCard, type TodayWork } from '@/lib/coach/tool-defs';
 import { isOutingTitle } from '@/lib/calendar-event';
 import type { DaySlot } from '@/lib/coach/week';
 import type { CoachAiProgress } from '@/lib/coach/progress';
@@ -255,7 +255,8 @@ const CASES: Case[] = [
   { name: 'AK 지난 운동 무게', ctx: base, said: '지난주에 데드리프트 몇 kg까지 들었는지 찾아봐 줘.', check: [read('read_workouts')] },
   { name: 'AL 다음 달 일정', ctx: base, said: '다음 달에 잡혀 있는 경기나 팀 일정 뭐 있는지 봐 줘.', check: [read('read_calendar')] },
   { name: 'AM 프로그램 진도', ctx: base, said: '내 근력 프로그램 지금 몇 번째 세션까지 했어?', check: [read('read_program')] },
-  { name: 'AN 최근 알림', ctx: base, said: '요즘 나한테 온 알림 뭐 있었는지 알려줘.', check: [read('read_settings')] },
+  /* 알림 · 즐겨찾기 · 덕아웃 글은 2026-11-21 도구를 뺐다 — 못 한다고 하고 그 화면으로 */
+  { name: 'AN 최근 알림', ctx: base, said: '요즘 나한테 온 알림 뭐 있었는지 알려줘.', check: [has(/알림 화면/, '알림 화면 안내 없음'), noExecCard] },
   { name: 'AO 3D 흐름', ctx: base, said: '내 3D 분석 예전 것들이랑 비교하면 뭐가 나아졌어?', check: [read('read_3d_history')] },
   /* 4단계 쓰기 — 카드만 낸다 · 지우기는 한 번 더 · 남에게 가는 글은 초안 · 할 수 없는 것은 말로 */
   { name: 'AP 달력 더하기', ctx: base, said: '11월 14일 토요일 오후 2시에 연습경기 등판 잡혔어. 달력에 넣어줘.', check: [cardIs('calendar', (a) => a.kind === 'add' && a.date === '2026-11-14' && isOutingTitle(a.title), '경기 더하기 카드 없음')] },
@@ -266,8 +267,9 @@ const CASES: Case[] = [
     name: 'AT 덕아웃 글 초안',
     ctx: base,
     said: '덕아웃에 착지할 때 무릎이 안으로 무너지는 거 어떻게 고치는지 묻는 질문 글 좀 써줘.',
-    check: [(o) => !o.cards.some((k) => k.tool === 'draft_post' && k.open?.kind === 'post') && '글 초안 카드 없음', hasNot(/올렸어요|올려 드렸어요/, '올렸다고 함')],
+    check: [(o) => o.cards.length > 0 && `카드를 냄 — ${o.cards.map((k) => k.tool).join(',')}`, has(/글쓰기/, '덕아웃 글쓰기 안내 없음'), hasNot(/올렸어요|올려 드렸어요/, '올렸다고 함')],
   },
+  { name: 'BP 즐겨찾기는 화면에서', ctx: base, said: '고블렛 스쿼트 즐겨찾기에 넣어줘.', check: [(o) => o.cards.length > 0 && `카드를 냄 — ${o.cards.map((k) => k.tool).join(',')}`, has(/별/, '별 누르기 안내 없음')] },
   { name: 'AU 등판 답 바꾸기', ctx: base, said: '내일 등판 취소됐어. 이번 주는 안 던져.', check: [cardIs('throw_plan', (a) => a.answer === '없음' || a.answer === '4일 이상 뒤', '등판 답 카드 없음')] },
   { name: 'AV 구독 해지는 못 함', ctx: base, said: '코치 구독 해지해 줘.', check: [(o) => o.cards.some((k) => !k.open) && `실행 카드를 냄 — ${o.cards.map((k) => k.tool).join(',')}`] },
   /* 5단계 투수 전반 — 운동법은 앱 설명을 읽고, 숫자는 앱 기준에서만, 약 · 처치 · 숫자 처방은 없이 */
@@ -366,11 +368,9 @@ for (const c of picked) {
       const fake: Record<string, () => ReturnType<typeof propose>> = {
         calendar: () => calendarCard(input, T, FAKE_CAL),
         throw_plan: () => throwPlanCard(input.answer, true),
-        favorite: () => favoriteCard(input.kind === '드릴' ? '드릴' : '운동', { id: 'x', title: String(input.name) }, input.on === true, false),
         training_settings: () => settingsCard(input.kind as 'level', String(input.value ?? ''), '입문', ['맨몸', '덤벨', '바벨']),
         armcare_today: () => armcareCard(true),
         program_day: () => programCard(input.kind as 'skip', { name: '5×5 기초 근력', nextDay: 3 }),
-        draft_post: () => (Object.keys(input).length ? postCard(input) : { refuse: '입력 모양이 틀렸어요.' }),
       };
       const p = fake[name]
         ? fake[name]()

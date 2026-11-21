@@ -10,7 +10,7 @@ import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { decideAccess, type Capability } from '@/lib/release-access';
 import { releaseStage } from '@/lib/release-gate';
 import { CARDS_MAX, type CoachCard } from '@/lib/coach/card';
-import { READ_NAMES, WRITE_NAMES, addCard, calendarKindOf, noticeLine, norm, parseToolInput, propose, proposeToday, type ProposeCtx, type TodayWork } from '@/lib/coach/tool-defs';
+import { READ_NAMES, WRITE_NAMES, addCard, calendarKindOf, norm, parseToolInput, propose, proposeToday, type ProposeCtx, type TodayWork } from '@/lib/coach/tool-defs';
 export type { TodayWork } from '@/lib/coach/tool-defs';
 import type { Toolbox } from '@/lib/coach/ai';
 import { ASSIST_TOOLS, proposeAssist } from '@/lib/coach/assist';
@@ -173,17 +173,13 @@ const READERS: Record<string, Reader> = {
     };
   },
   async read_settings(s) {
-    const [u, notes] = await Promise.all([
-      prisma.user.findUnique({ where: { id: s.user.id }, select: { throwingHand: true, dailyWorkoutMinutes: true, trainingLevel: true, trainingGoal: true, ownedEquipment: true } }),
-      prisma.notification.findMany({ where: { userId: s.user.id }, orderBy: { createdAt: 'desc' }, take: 10, select: { kind: true, createdAt: true, readAt: true } }),
-    ]);
+    const u = await prisma.user.findUnique({
+      where: { id: s.user.id },
+      select: { throwingHand: true, dailyWorkoutMinutes: true, trainingLevel: true, trainingGoal: true, ownedEquipment: true },
+    });
     if (!u) return { text: '설정을 못 읽었어요.', error: true };
     return {
-      text: [
-        `설정: 던지는 손 ${u.throwingHand ?? '모름'} | 하루 운동 시간 ${u.dailyWorkoutMinutes ?? '기본'}분 | 웨이트 경력 ${u.trainingLevel ?? '모름'} | 목표 ${u.trainingGoal ?? '없음'} | 가진 장비 ${u.ownedEquipment.join(' · ') || '없음'}`,
-        '최근 알림(날짜 | 종류 | 읽음 — 내용은 알림 화면에서):',
-        ...(notes.length ? notes.map((n) => noticeLine({ date: toDateKey(n.createdAt), kind: n.kind, read: !!n.readAt })) : ['- 없음']),
-      ].join('\n'),
+      text: `설정: 던지는 손 ${u.throwingHand ?? '모름'} | 하루 운동 시간 ${u.dailyWorkoutMinutes ?? '기본'}분 | 웨이트 경력 ${u.trainingLevel ?? '모름'} | 목표 ${u.trainingGoal ?? '없음'} | 가진 장비 ${u.ownedEquipment.join(' · ') || '없음'}`,
     };
   },
   async read_exercise_info(s, input) {

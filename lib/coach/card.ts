@@ -7,9 +7,7 @@ import type { ActLogType, OpenScreen } from '@/lib/coach/act';
  */
 export type CardOpen =
   | { kind: 'screen'; screen: OpenScreen }
-  | { kind: 'log'; date: string; type: ActLogType; count: number | null }
-  /** 덕아웃 글 초안 — 글쓰기 화면을 채워 연다(올리기는 사용자가, 4단계) */
-  | { kind: 'post'; category: string; title: string; body: string };
+  | { kind: 'log'; date: string; type: ActLogType; count: number | null };
 
 export type CoachCard = {
   /** 마디 안에서만 고유('c0' …) */
