@@ -188,7 +188,7 @@ export const allGuides = unstable_cache(
    * :v12 — 2026-10-16 주 요소 19묶음 · 새 분류 '근력 · 안정 드릴'(scripts/mechanics-reclass-2026-10-16.mjs).
    * :v13 — 2026-11-16 직접 찍은 드릴 22개(대부분 야외)를 잘라 키운 판으로 경로 바꿈(scripts/shoot-trim/size/apply.mjs).
    */
-  ['library:guides:v15'],
+  ['library:guides:v16'],
   { tags: [LIBRARY_TAG] }
 );
 

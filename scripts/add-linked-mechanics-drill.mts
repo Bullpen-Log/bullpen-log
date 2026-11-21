@@ -24,7 +24,7 @@ function prepare(draft: Candidate) {
   const youtube = draft.youtubeId && YT_ID.test(draft.youtubeId) ? draft.youtubeId : null;
   const planned = itemOf(draft.id);
   if ((!instagram && !youtube) || (instagram && youtube) || !planned || planned.item.kind !== 'drill' ||
-      !draft.title.trim() || !draft.description.trim() || !draft.focusPoints.length ||
+      !draft.title.trim() || !draft.description.trim() ||
       draft.focusPoints.some((focus) => !FOCUS_POINTS.includes(focus)) ||
       draft.equipment.some((name) => !DRILL_EQUIPMENT.includes(name)) || !DRILL_STAGE_NAMES.includes(draft.stage)) {
     throw new Error(`참고 링크, 설명, 분류 또는 촬영 계획을 확인해 주세요: ${draft.title}`);
