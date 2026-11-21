@@ -1,0 +1,655 @@
+{
+  "reviewer": "yunho",
+  "part": "mechanics",
+  "machine": "맥북",
+  "last_modified_kst": "2026-11-21T20:25:50+09:00",
+  "scope": "2026-11-21에 접수한 인스타그램 릴 4편의 드릴 13개",
+  "user_instruction": "영상에 표시된 제목을 모두 사용하고 해외 자료를 찾아 설명을 구체화한 뒤 같은 영상을 다시 띄운다.",
+  "current": {
+    "review_id": "mv-ig-DVNICJqjkdc-0-mid",
+    "drill_id": "5d2ec94d-2991-4bf4-949d-502d6b841340",
+    "title": "Driving Phase",
+    "order": 5,
+    "observed": "운영 상세 화면에서 새 제목, 구체화한 설명, 무음 자동 반복 중인 클립 확인.",
+    "state": "다시 띄움 · 사용자 판정 대기"
+  },
+  "next": {
+    "review_id": "mv-ig-DVNICJqjkdc-0-bottom",
+    "drill_id": "1af441c4-461e-45db-8674-911cd1be4734",
+    "title": "Finishing Phase",
+    "order": 6,
+    "state": "명시적인 다음 지시 후 이동"
+  },
+  "records": [
+    {
+      "review_id": "mv-ig-C8Ijbi0uzWT-4d1",
+      "drill_id": "b7bfe608-ef06-4e55-ad8c-6044a459deec",
+      "video_order": 1,
+      "title_before": "트레이서 스로우",
+      "title": "Tracers",
+      "focus_points": [
+        "스로잉"
+      ],
+      "filming": "실외 투구",
+      "shoot_no": "1-94",
+      "video_basis": "기존 720p·30fps 무음 참고 영상의 주요 프레임과 자막을 대조. 촬영 원본은 별도.",
+      "description_observation": "옆이나 뒤 45도에서 낮은 손 → 발 이동 → 던지기를 이어 봅니다. 일어서자마자 손만 위로 들어 올리거나, 손을 뒤에 오래 남겨 두었다가 한꺼번에 던지면 속도를 낮춥니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/C8Ijbi0uzWT/",
+          "status": "pending",
+          "purpose": "description",
+          "item_id": "b7bfe608-ef06-4e55-ad8c-6044a459deec",
+          "request_key": "rk-cli-32acd7b605964f86f2c34cedc6e3191927db0d51844798f8",
+          "machine": "맥북",
+          "error": "no-session"
+        },
+        {
+          "url": "https://drivelinebaseball.com/blogs/blog/how-different-drills-and-ball-weights-affect-an-athletes-workload",
+          "status": "pending",
+          "purpose": "prescription",
+          "item_id": "b7bfe608-ef06-4e55-ad8c-6044a459deec",
+          "request_key": "rk-cli-a0a3e1ad3f3755b0391015d21c612ea6bb744ba55be0b465",
+          "machine": "맥북",
+          "error": "no-session",
+          "finding_ko": "Driveline Baseball, 2021. 자체 PULSE 계측에서 드릴 종류와 공 무게에 따라 던지기 부하가 달랐다.",
+          "application_ko": "릴리스가 있는 반복을 당일 던지기량에 넣고 발 순서를 저강도에서 익히는 문구에 참고했다.",
+          "limits_ko": "업체 자체 계측이고 릴 시범과 무게·수행 조건이 같다 가정할 수 없어 횟수, 중량, 강도 수치를 적용하지 않았다."
+        }
+      ],
+      "applied": "운영 라이브러리 제목·설명 저장 후 13건 재조회 일치. 촬영 계획 제목·큐는 개발판에 반영.",
+      "human_review": "사용자 판정 대기"
+    },
+    {
+      "review_id": "mv-ig-C8Ijbi0uzWT-8d5",
+      "drill_id": "30cbb5e3-b068-4518-8b4a-9f9f965e68dc",
+      "video_order": 2,
+      "title_before": "로테이셔널 스텝백 스로우",
+      "title": "Rotational Step Backs",
+      "focus_points": [
+        "상하체 분리",
+        "몸통 회전"
+      ],
+      "filming": "실외 투구",
+      "shoot_no": null,
+      "video_basis": "기존 720p·30fps 무음 참고 영상의 주요 프레임과 자막을 대조. 촬영 원본은 별도.",
+      "description_observation": "옆에서 뒤로 한 걸음 → 무릎 들기 → 앞으로 내딛기 → 릴리스가 끊기지 않는지 봅니다. 회전 반경이 커져 목표 쪽 이동이 끊기거나 발이 교차하면 뒤로 딛는 폭을 줄입니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/C8Ijbi0uzWT/",
+          "status": "pending",
+          "purpose": "description",
+          "item_id": "30cbb5e3-b068-4518-8b4a-9f9f965e68dc",
+          "request_key": "rk-cli-8c8d42bf7b5374b51b9c177b35f01c8617631543085d3474",
+          "machine": "맥북",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/9474404/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "30cbb5e3-b068-4518-8b4a-9f9f965e68dc",
+          "request_key": "rk-cli-6106448569f972f7c872d5514b0c48d583cbca10bc416470",
+          "machine": "맥북",
+          "error": "no-session",
+          "finding_ko": "MacWilliams 등, 1998. 대학 투수 6명과 고교 투수 1명의 실제 투구 중 뒷발 추진과 앞발 착지 힘을 측정했다.",
+          "application_ko": "실제 투구에서 뒷발 추진과 앞다리 착지 후 지지를 구분해 관찰한다는 설명에 썼다.",
+          "limits_ko": "시범 드릴과 동일 조건이 아니며 관찰한 힘 크기를 자세나 무게의 연습 기준으로 옮기지 않았다."
+        },
+        {
+          "url": "https://drivelinebaseball.com/blogs/blog/how-different-drills-and-ball-weights-affect-an-athletes-workload",
+          "status": "pending",
+          "purpose": "prescription",
+          "item_id": "30cbb5e3-b068-4518-8b4a-9f9f965e68dc",
+          "request_key": "rk-cli-679dfa34a27f8a884b1dbb859f82027bfb671622d0dfbe53",
+          "machine": "맥북",
+          "error": "no-session",
+          "finding_ko": "Driveline Baseball, 2021. 자체 PULSE 계측에서 드릴 종류와 공 무게에 따라 던지기 부하가 달랐다.",
+          "application_ko": "릴리스가 있는 반복을 당일 던지기량에 넣고 발 순서를 저강도에서 익히는 문구에 참고했다.",
+          "limits_ko": "업체 자체 계측이고 릴 시범과 무게·수행 조건이 같다 가정할 수 없어 횟수, 중량, 강도 수치를 적용하지 않았다."
+        }
+      ],
+      "applied": "운영 라이브러리 제목·설명 저장 후 13건 재조회 일치. 촬영 계획 제목·큐는 개발판에 반영.",
+      "human_review": "사용자 판정 대기"
+    },
+    {
+      "review_id": "mv-ig-C8Ijbi0uzWT-12d3",
+      "drill_id": "54452d35-5d46-4fbf-8978-f0b81dc322fc",
+      "video_order": 3,
+      "title_before": "그랩 앤 고 스로우",
+      "title": "Grab & Go’s",
+      "focus_points": [
+        "드롭",
+        "몸통 회전"
+      ],
+      "filming": "실외 투구",
+      "shoot_no": "1-95",
+      "video_basis": "기존 720p·30fps 무음 참고 영상의 주요 프레임과 자막을 대조. 촬영 원본은 별도.",
+      "description_observation": "옆에서 공을 집을 때 골반이 낮아지고, 공을 잡은 뒤 앞다리 쪽으로 중심이 옮겨가는지 봅니다. 손을 뻗으려고 허리만 접히거나 공을 집은 자리에서 팔만 돌리는 경우 공 위치와 속도를 조절합니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/C8Ijbi0uzWT/",
+          "status": "pending",
+          "purpose": "description",
+          "item_id": "54452d35-5d46-4fbf-8978-f0b81dc322fc",
+          "request_key": "rk-cli-5e0c812ec780b508f2441a90be2d02b78a703a70b29e36ac",
+          "machine": "맥북",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/9474404/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "54452d35-5d46-4fbf-8978-f0b81dc322fc",
+          "request_key": "rk-cli-4fe90ad3d7634087adb8d2f0c04ac9d5c2cb9caeec96fc0b",
+          "machine": "맥북",
+          "error": "no-session",
+          "finding_ko": "MacWilliams 등, 1998. 대학 투수 6명과 고교 투수 1명의 실제 투구 중 뒷발 추진과 앞발 착지 힘을 측정했다.",
+          "application_ko": "실제 투구에서 뒷발 추진과 앞다리 착지 후 지지를 구분해 관찰한다는 설명에 썼다.",
+          "limits_ko": "시범 드릴과 동일 조건이 아니며 관찰한 힘 크기를 자세나 무게의 연습 기준으로 옮기지 않았다."
+        },
+        {
+          "url": "https://drivelinebaseball.com/blogs/blog/how-different-drills-and-ball-weights-affect-an-athletes-workload",
+          "status": "pending",
+          "purpose": "prescription",
+          "item_id": "54452d35-5d46-4fbf-8978-f0b81dc322fc",
+          "request_key": "rk-cli-215139439d5e80e8aa8cd446d3ca146637dbab49131981c0",
+          "machine": "맥북",
+          "error": "no-session",
+          "finding_ko": "Driveline Baseball, 2021. 자체 PULSE 계측에서 드릴 종류와 공 무게에 따라 던지기 부하가 달랐다.",
+          "application_ko": "릴리스가 있는 반복을 당일 던지기량에 넣고 발 순서를 저강도에서 익히는 문구에 참고했다.",
+          "limits_ko": "업체 자체 계측이고 릴 시범과 무게·수행 조건이 같다 가정할 수 없어 횟수, 중량, 강도 수치를 적용하지 않았다."
+        }
+      ],
+      "applied": "운영 라이브러리 제목·설명 저장 후 13건 재조회 일치. 촬영 계획 제목·큐는 개발판에 반영.",
+      "human_review": "사용자 판정 대기"
+    },
+    {
+      "review_id": "mv-ig-DVNICJqjkdc-0-top",
+      "drill_id": "10efb6e7-3679-4494-a6e4-0f28c4d7de5f",
+      "video_order": 4,
+      "title_before": "워터볼 오버헤드 로딩",
+      "title": "Loading phase",
+      "focus_points": [],
+      "filming": "실내 무투구",
+      "shoot_no": "5-01",
+      "video_basis": "기존 720p·30fps 무음 참고 영상의 주요 프레임과 자막을 대조. 촬영 원본은 별도.",
+      "description_observation": "옆에서 공이 머리 위 → 몸 앞 → 뒤쪽 골반 옆으로 이어지는지 봅니다. 공을 올릴 때 갈비뼈가 들리거나 내릴 때 머리와 상체가 뒷발 바깥으로 쏠리면 높이와 보폭을 줄입니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DVNICJqjkdc/",
+          "status": "pending",
+          "purpose": "description",
+          "item_id": "10efb6e7-3679-4494-a6e4-0f28c4d7de5f",
+          "request_key": "rk-cli-a66570be532f123614ea83c60ba713979f24ec3cfa51d676",
+          "machine": "맥북",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35108673/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "10efb6e7-3679-4494-a6e4-0f28c4d7de5f",
+          "request_key": "rk-cli-89115c15c21f195e104052e57cc58369babe5360d4d940d2",
+          "machine": "맥북",
+          "error": "no-session",
+          "finding_ko": "Wezenbeek 등, 2022. 건강한 성인 20명의 스쿼트·런지·스텝업에서 막대와 아쿠아백 조건의 근활성을 비교했다.",
+          "application_ko": "물이 움직이는 도구를 가벼운 부하와 제어 가능한 범위에서 다루는 설명에 참고했다.",
+          "limits_ko": "부하가 서로 달랐고 즉시 근활성을 측정했다. 릴 드릴의 장기 효과, 구속이나 최적 중량은 연구하지 않았다."
+        }
+      ],
+      "applied": "운영 라이브러리 제목·설명 저장 후 13건 재조회 일치. 촬영 계획 제목·큐는 개발판에 반영.",
+      "human_review": "사용자 판정 대기"
+    },
+    {
+      "review_id": "mv-ig-DVNICJqjkdc-0-mid",
+      "drill_id": "5d2ec94d-2991-4bf4-949d-502d6b841340",
+      "video_order": 5,
+      "title_before": "워터볼 로우 투 하이 스트라이드",
+      "title": "Driving Phase",
+      "focus_points": [
+        "드리프트"
+      ],
+      "filming": "실내 무투구",
+      "shoot_no": "5-02",
+      "video_basis": "기존 720p·30fps 무음 참고 영상의 주요 프레임과 자막을 대조. 촬영 원본은 별도.",
+      "description_observation": "옆 90도에서 좁은 시작, 앞발이 닿기 직전, 착지 직후를 차례로 봅니다. 발만 먼저 멀리 뻗어 골반이 뒤에 남는지, 공을 들어 올리면서 허리가 뒤로 꺾이는지, 착지 때 앞발이 미끄러지는지 확인합니다. 하나라도 반복되면 보폭이나 공 높이부터 줄입니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DVNICJqjkdc/",
+          "status": "pending",
+          "purpose": "description",
+          "item_id": "5d2ec94d-2991-4bf4-949d-502d6b841340",
+          "request_key": "rk-cli-0bb6d4bfac22e55cc0e6be72728c71a2bb670671d624f7d2",
+          "machine": "맥북",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/9474404/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "5d2ec94d-2991-4bf4-949d-502d6b841340",
+          "request_key": "rk-cli-e3b9f83733e39096300c950df1f12c69f50436f466088b04",
+          "machine": "맥북",
+          "error": "no-session",
+          "finding_ko": "MacWilliams 등, 1998. 대학 투수 6명과 고교 투수 1명의 실제 투구 중 뒷발 추진과 앞발 착지 힘을 측정했다.",
+          "application_ko": "실제 투구에서 뒷발 추진과 앞다리 착지 후 지지를 구분해 관찰한다는 설명에 썼다.",
+          "limits_ko": "시범 드릴과 동일 조건이 아니며 관찰한 힘 크기를 자세나 무게의 연습 기준으로 옮기지 않았다."
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35108673/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "5d2ec94d-2991-4bf4-949d-502d6b841340",
+          "request_key": "rk-cli-501d75a5c3e03ef1b47b47862157dc75915fa7167b92612a",
+          "machine": "맥북",
+          "error": "no-session",
+          "finding_ko": "Wezenbeek 등, 2022. 건강한 성인 20명의 스쿼트·런지·스텝업에서 막대와 아쿠아백 조건의 근활성을 비교했다.",
+          "application_ko": "물이 움직이는 도구를 가벼운 부하와 제어 가능한 범위에서 다루는 설명에 참고했다.",
+          "limits_ko": "부하가 서로 달랐고 즉시 근활성을 측정했다. 릴 드릴의 장기 효과, 구속이나 최적 중량은 연구하지 않았다."
+        }
+      ],
+      "applied": "운영 라이브러리 제목·설명 저장 후 13건 재조회 일치. 촬영 계획 제목·큐는 개발판에 반영.",
+      "human_review": "사용자 판정 대기"
+    },
+    {
+      "review_id": "mv-ig-DVNICJqjkdc-0-bottom",
+      "drill_id": "1af441c4-461e-45db-8674-911cd1be4734",
+      "video_order": 6,
+      "title_before": "워터볼 스플릿 스탠스 피니시",
+      "title": "Finishing Phase",
+      "focus_points": [
+        "몸통 회전"
+      ],
+      "filming": "실내 무투구",
+      "shoot_no": "5-03",
+      "video_basis": "기존 720p·30fps 무음 참고 영상의 주요 프레임과 자막을 대조. 촬영 원본은 별도.",
+      "description_observation": "뒤 45도에서 공이 실제로 양손에 남는지, 공이 내려올 때 앞발이 밀리지 않는지 봅니다. 마지막에 팔만 급히 잡아당기거나 몸통이 앞무릎 너머로 한꺼번에 무너지면 공의 경로를 줄입니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DVNICJqjkdc/",
+          "status": "pending",
+          "purpose": "description",
+          "item_id": "1af441c4-461e-45db-8674-911cd1be4734",
+          "request_key": "rk-cli-4ba77c54bc03d109f2bc77e940c03d34fc9de7ff44ffc309",
+          "machine": "맥북",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35836313/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "1af441c4-461e-45db-8674-911cd1be4734",
+          "request_key": "rk-cli-c419fc4f04f767004b3decc2d144d79a05a54e7f0e704331",
+          "machine": "맥북",
+          "error": "no-session",
+          "finding_ko": "Orishimo 등, 2023. 고교·대학 남자 투수 29명의 직구를 분석했다. 평균에서 착지 뒤 최대 골반 각속도가 최대 몸통 각속도보다 먼저 관찰됐다.",
+          "application_ko": "착지 전후 골반과 몸통을 따로 관찰하고 마무리에서 회전·균형을 함께 보는 기준에 적용했다.",
+          "limits_ko": "단면 상관 연구다. 이 드릴의 학습 효과나 구속 변화를 시험하지 않았고 화면에서 각도를 정량화하지 않았다."
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/9474404/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "1af441c4-461e-45db-8674-911cd1be4734",
+          "request_key": "rk-cli-1336eb77f1de9b989ff4a347e22ba7920a043005e8b10d64",
+          "machine": "맥북",
+          "error": "no-session",
+          "finding_ko": "MacWilliams 등, 1998. 대학 투수 6명과 고교 투수 1명의 실제 투구 중 뒷발 추진과 앞발 착지 힘을 측정했다.",
+          "application_ko": "실제 투구에서 뒷발 추진과 앞다리 착지 후 지지를 구분해 관찰한다는 설명에 썼다.",
+          "limits_ko": "시범 드릴과 동일 조건이 아니며 관찰한 힘 크기를 자세나 무게의 연습 기준으로 옮기지 않았다."
+        }
+      ],
+      "applied": "운영 라이브러리 제목·설명 저장 후 13건 재조회 일치. 촬영 계획 제목·큐는 개발판에 반영.",
+      "human_review": "사용자 판정 대기"
+    },
+    {
+      "review_id": "mv-ig-DWrScccEau_-0",
+      "drill_id": "af401092-6627-4e81-9a74-c88b6bb24829",
+      "video_order": 7,
+      "title_before": "워터필 스플릿 회전",
+      "title": "Waterpill Counter Rotators",
+      "focus_points": [
+        "몸통 회전"
+      ],
+      "filming": "실내 무투구",
+      "shoot_no": "5-04",
+      "video_basis": "기존 720p·30fps 무음 참고 영상의 주요 프레임과 자막을 대조. 촬영 원본은 별도.",
+      "description_observation": "정면이나 뒤 45도에서 어깨선과 허리띠 방향을 같이 봅니다. 도구가 움직여도 허리가 과하게 따라 꺾이거나 앞발이 돌아 밀리는 경우 회전 폭을 줄입니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DWrScccEau_/",
+          "status": "pending",
+          "purpose": "description",
+          "item_id": "af401092-6627-4e81-9a74-c88b6bb24829",
+          "request_key": "rk-cli-8811bfa5beb16d2b47d3eb6f7472e9a9713663d48fecd22b",
+          "machine": "맥북",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35836313/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "af401092-6627-4e81-9a74-c88b6bb24829",
+          "request_key": "rk-cli-5b2f57e0c2f29676a8e96fe06f1b6f9f4763e3667a5d9321",
+          "machine": "맥북",
+          "error": "no-session",
+          "finding_ko": "Orishimo 등, 2023. 고교·대학 남자 투수 29명의 직구를 분석했다. 평균에서 착지 뒤 최대 골반 각속도가 최대 몸통 각속도보다 먼저 관찰됐다.",
+          "application_ko": "착지 전후 골반과 몸통을 따로 관찰하고 마무리에서 회전·균형을 함께 보는 기준에 적용했다.",
+          "limits_ko": "단면 상관 연구다. 이 드릴의 학습 효과나 구속 변화를 시험하지 않았고 화면에서 각도를 정량화하지 않았다."
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35108673/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "af401092-6627-4e81-9a74-c88b6bb24829",
+          "request_key": "rk-cli-c8eef8a5d5d7df51755ef9e30d68e97323c016a649590636",
+          "machine": "맥북",
+          "error": "no-session",
+          "finding_ko": "Wezenbeek 등, 2022. 건강한 성인 20명의 스쿼트·런지·스텝업에서 막대와 아쿠아백 조건의 근활성을 비교했다.",
+          "application_ko": "물이 움직이는 도구를 가벼운 부하와 제어 가능한 범위에서 다루는 설명에 참고했다.",
+          "limits_ko": "부하가 서로 달랐고 즉시 근활성을 측정했다. 릴 드릴의 장기 효과, 구속이나 최적 중량은 연구하지 않았다."
+        }
+      ],
+      "applied": "운영 라이브러리 제목·설명 저장 후 13건 재조회 일치. 촬영 계획 제목·큐는 개발판에 반영.",
+      "human_review": "사용자 판정 대기"
+    },
+    {
+      "review_id": "mv-ig-DWrScccEau_-4d7",
+      "drill_id": "35fec7b6-517f-488e-8520-bc737ac72a9e",
+      "video_order": 8,
+      "title_before": "워터볼 플립업 스트라이드",
+      "title": "Hydroball Flip Ups",
+      "focus_points": [],
+      "filming": "실내 무투구",
+      "shoot_no": "5-05",
+      "video_basis": "기존 720p·30fps 무음 참고 영상의 주요 프레임과 자막을 대조. 촬영 원본은 별도.",
+      "description_observation": "옆에서 시작할 때 공의 높이, 앞발 착지 시점, 공이 머리 옆에서 멈추는 위치를 비교합니다. 공을 먼 곳으로 휘두르거나 두 손 사이에서 미끄러져 리듬이 깨지는지 확인합니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DWrScccEau_/",
+          "status": "pending",
+          "purpose": "description",
+          "item_id": "35fec7b6-517f-488e-8520-bc737ac72a9e",
+          "request_key": "rk-cli-54eb3cceaa68a10e5e7be3866baef8f87268161d92abd5ca",
+          "machine": "맥북",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35108673/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "35fec7b6-517f-488e-8520-bc737ac72a9e",
+          "request_key": "rk-cli-27351d11cb62037ddfa0a200726aa2f6217dfa50da3f4388",
+          "machine": "맥북",
+          "error": "no-session",
+          "finding_ko": "Wezenbeek 등, 2022. 건강한 성인 20명의 스쿼트·런지·스텝업에서 막대와 아쿠아백 조건의 근활성을 비교했다.",
+          "application_ko": "물이 움직이는 도구를 가벼운 부하와 제어 가능한 범위에서 다루는 설명에 참고했다.",
+          "limits_ko": "부하가 서로 달랐고 즉시 근활성을 측정했다. 릴 드릴의 장기 효과, 구속이나 최적 중량은 연구하지 않았다."
+        }
+      ],
+      "applied": "운영 라이브러리 제목·설명 저장 후 13건 재조회 일치. 촬영 계획 제목·큐는 개발판에 반영.",
+      "human_review": "사용자 판정 대기"
+    },
+    {
+      "review_id": "mv-ig-DWrScccEau_-10d7",
+      "drill_id": "e75eda1c-c958-45d7-bca4-90fce399b85e",
+      "video_order": 9,
+      "title_before": "불가리안백 앞발 찹",
+      "title": "Bulgarian Bag Chops",
+      "focus_points": [
+        "브레이크",
+        "몸통 회전"
+      ],
+      "filming": "실내 무투구",
+      "shoot_no": "5-06",
+      "video_basis": "기존 720p·30fps 무음 참고 영상의 주요 프레임과 자막을 대조. 촬영 원본은 별도.",
+      "description_observation": "정면 45도에서 백이 어깨 위에 머무는 동안 앞발에 체중이 실리고 몸통이 사선으로 움직이는지 봅니다. 앞무릎이 안쪽으로 무너지거나 허리만 접히면 깊이와 속도를 줄입니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DWrScccEau_/",
+          "status": "pending",
+          "purpose": "description",
+          "item_id": "e75eda1c-c958-45d7-bca4-90fce399b85e",
+          "request_key": "rk-cli-70021646449023da1469b2edb3404df2ecd7db0bd461e321",
+          "machine": "맥북",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35836313/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "e75eda1c-c958-45d7-bca4-90fce399b85e",
+          "request_key": "rk-cli-c5633638baf91f684ce266dd87ee9ae93c7acac1fdfba8d1",
+          "machine": "맥북",
+          "error": "no-session",
+          "finding_ko": "Orishimo 등, 2023. 고교·대학 남자 투수 29명의 직구를 분석했다. 평균에서 착지 뒤 최대 골반 각속도가 최대 몸통 각속도보다 먼저 관찰됐다.",
+          "application_ko": "착지 전후 골반과 몸통을 따로 관찰하고 마무리에서 회전·균형을 함께 보는 기준에 적용했다.",
+          "limits_ko": "단면 상관 연구다. 이 드릴의 학습 효과나 구속 변화를 시험하지 않았고 화면에서 각도를 정량화하지 않았다."
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/9474404/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "e75eda1c-c958-45d7-bca4-90fce399b85e",
+          "request_key": "rk-cli-57da9a831af6d604800b4d0157bbb739d726f02a2505ad6a",
+          "machine": "맥북",
+          "error": "no-session",
+          "finding_ko": "MacWilliams 등, 1998. 대학 투수 6명과 고교 투수 1명의 실제 투구 중 뒷발 추진과 앞발 착지 힘을 측정했다.",
+          "application_ko": "실제 투구에서 뒷발 추진과 앞다리 착지 후 지지를 구분해 관찰한다는 설명에 썼다.",
+          "limits_ko": "시범 드릴과 동일 조건이 아니며 관찰한 힘 크기를 자세나 무게의 연습 기준으로 옮기지 않았다."
+        }
+      ],
+      "applied": "운영 라이브러리 제목·설명 저장 후 13건 재조회 일치. 촬영 계획 제목·큐는 개발판에 반영.",
+      "human_review": "사용자 판정 대기"
+    },
+    {
+      "review_id": "mv-ig-DeP_Af0xJet-0",
+      "drill_id": "94dac3ea-d717-4e70-83d4-bc6ef865db41",
+      "video_order": 10,
+      "title_before": "워터볼 로딩 스트라이드",
+      "title": "OH Drop In",
+      "focus_points": [
+        "드리프트",
+        "드롭"
+      ],
+      "filming": "실내 무투구",
+      "shoot_no": "4-08",
+      "video_basis": "기존 720p·30fps 무음 참고 영상의 주요 프레임과 자막을 대조. 촬영 원본은 별도.",
+      "description_observation": "옆에서 무릎이 가장 높은 순간과 앞발이 처음 닿는 순간을 비교합니다. 골반이 앞으로 가면서 내려오는지, 앞발만 멀리 뻗거나 공을 들 때 허리가 뒤로 젖혀지는지 확인합니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DeP_Af0xJet/",
+          "status": "pending",
+          "purpose": "description",
+          "item_id": "94dac3ea-d717-4e70-83d4-bc6ef865db41",
+          "request_key": "rk-cli-1db98826c46fbaa9fb8c774907b187bbb72b796868c66d76",
+          "machine": "맥북",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/9474404/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "94dac3ea-d717-4e70-83d4-bc6ef865db41",
+          "request_key": "rk-cli-d2af43bd4e908dc5d132357e25106574a28f346dd5f55b74",
+          "machine": "맥북",
+          "error": "no-session",
+          "finding_ko": "MacWilliams 등, 1998. 대학 투수 6명과 고교 투수 1명의 실제 투구 중 뒷발 추진과 앞발 착지 힘을 측정했다.",
+          "application_ko": "실제 투구에서 뒷발 추진과 앞다리 착지 후 지지를 구분해 관찰한다는 설명에 썼다.",
+          "limits_ko": "시범 드릴과 동일 조건이 아니며 관찰한 힘 크기를 자세나 무게의 연습 기준으로 옮기지 않았다."
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35108673/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "94dac3ea-d717-4e70-83d4-bc6ef865db41",
+          "request_key": "rk-cli-86b655ad9173033ffc84e429410306585381196d499d0681",
+          "machine": "맥북",
+          "error": "no-session",
+          "finding_ko": "Wezenbeek 등, 2022. 건강한 성인 20명의 스쿼트·런지·스텝업에서 막대와 아쿠아백 조건의 근활성을 비교했다.",
+          "application_ko": "물이 움직이는 도구를 가벼운 부하와 제어 가능한 범위에서 다루는 설명에 참고했다.",
+          "limits_ko": "부하가 서로 달랐고 즉시 근활성을 측정했다. 릴 드릴의 장기 효과, 구속이나 최적 중량은 연구하지 않았다."
+        }
+      ],
+      "applied": "운영 라이브러리 제목·설명 저장 후 13건 재조회 일치. 촬영 계획 제목·큐는 개발판에 반영.",
+      "human_review": "사용자 판정 대기"
+    },
+    {
+      "review_id": "mv-ig-DeP_Af0xJet-5d6",
+      "drill_id": "ea93a006-021f-4b2a-be92-5b72a533f0c9",
+      "video_order": 11,
+      "title_before": "워터백 플립업 투 찹",
+      "title": "Flip up to Chop",
+      "focus_points": [
+        "몸통 회전",
+        "브레이크"
+      ],
+      "filming": "실내 무투구",
+      "shoot_no": "5-07",
+      "video_basis": "기존 720p·30fps 무음 참고 영상의 주요 프레임과 자막을 대조. 촬영 원본은 별도.",
+      "description_observation": "옆이나 뒤 45도에서 낮은 시작, 머리 옆, 반대쪽 낮은 끝을 모두 확인합니다. 머리 옆에서 허리가 크게 젖혀지거나, 내려올 때 앞발이 미끄러지면 백을 낮게 올립니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DeP_Af0xJet/",
+          "status": "pending",
+          "purpose": "description",
+          "item_id": "ea93a006-021f-4b2a-be92-5b72a533f0c9",
+          "request_key": "rk-cli-68adf8ebafa984636d6d00c0d21e4244ab088ba878073f15",
+          "machine": "맥북",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35836313/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "ea93a006-021f-4b2a-be92-5b72a533f0c9",
+          "request_key": "rk-cli-ec4aa7819bcc233e6d079ebf1233cb6432f7f2afc4cbcac4",
+          "machine": "맥북",
+          "error": "no-session",
+          "finding_ko": "Orishimo 등, 2023. 고교·대학 남자 투수 29명의 직구를 분석했다. 평균에서 착지 뒤 최대 골반 각속도가 최대 몸통 각속도보다 먼저 관찰됐다.",
+          "application_ko": "착지 전후 골반과 몸통을 따로 관찰하고 마무리에서 회전·균형을 함께 보는 기준에 적용했다.",
+          "limits_ko": "단면 상관 연구다. 이 드릴의 학습 효과나 구속 변화를 시험하지 않았고 화면에서 각도를 정량화하지 않았다."
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35108673/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "ea93a006-021f-4b2a-be92-5b72a533f0c9",
+          "request_key": "rk-cli-a9f0b10e56e92da7ae72d5a0bc9934cc7f8e1fd2ef8d9b96",
+          "machine": "맥북",
+          "error": "no-session",
+          "finding_ko": "Wezenbeek 등, 2022. 건강한 성인 20명의 스쿼트·런지·스텝업에서 막대와 아쿠아백 조건의 근활성을 비교했다.",
+          "application_ko": "물이 움직이는 도구를 가벼운 부하와 제어 가능한 범위에서 다루는 설명에 참고했다.",
+          "limits_ko": "부하가 서로 달랐고 즉시 근활성을 측정했다. 릴 드릴의 장기 효과, 구속이나 최적 중량은 연구하지 않았다."
+        }
+      ],
+      "applied": "운영 라이브러리 제목·설명 저장 후 13건 재조회 일치. 촬영 계획 제목·큐는 개발판에 반영.",
+      "human_review": "사용자 판정 대기"
+    },
+    {
+      "review_id": "mv-ig-DeP_Af0xJet-11d7",
+      "drill_id": "174f9e8c-bb34-4afa-94b7-544e268abebd",
+      "video_order": 12,
+      "title_before": "워터백 스플릿 스탠스 찹",
+      "title": "SS Chops",
+      "focus_points": [
+        "몸통 회전",
+        "브레이크"
+      ],
+      "filming": "실내 무투구",
+      "shoot_no": "5-08",
+      "video_basis": "기존 720p·30fps 무음 참고 영상의 주요 프레임과 자막을 대조. 촬영 원본은 별도.",
+      "description_observation": "뒤 45도에서 앞발을 옮겨 새로 딛지 않고도 백이 어깨 쪽에서 반대쪽 아래로 움직이는지 봅니다. 끝에서 머리가 급히 떨어지거나 앞무릎이 안쪽으로 크게 무너지면 속도를 낮춥니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DeP_Af0xJet/",
+          "status": "pending",
+          "purpose": "description",
+          "item_id": "174f9e8c-bb34-4afa-94b7-544e268abebd",
+          "request_key": "rk-cli-531d02d669f4d773ce82bd0148b916e33d3e8abaaa0893de",
+          "machine": "맥북",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35836313/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "174f9e8c-bb34-4afa-94b7-544e268abebd",
+          "request_key": "rk-cli-a9e674a96e6fc2d15dc380298f5a96a3eaa449f11e5baf08",
+          "machine": "맥북",
+          "error": "no-session",
+          "finding_ko": "Orishimo 등, 2023. 고교·대학 남자 투수 29명의 직구를 분석했다. 평균에서 착지 뒤 최대 골반 각속도가 최대 몸통 각속도보다 먼저 관찰됐다.",
+          "application_ko": "착지 전후 골반과 몸통을 따로 관찰하고 마무리에서 회전·균형을 함께 보는 기준에 적용했다.",
+          "limits_ko": "단면 상관 연구다. 이 드릴의 학습 효과나 구속 변화를 시험하지 않았고 화면에서 각도를 정량화하지 않았다."
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/9474404/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "174f9e8c-bb34-4afa-94b7-544e268abebd",
+          "request_key": "rk-cli-c1568d7081c26bb5dfc75f46ee773e98cc4c17a8f6ab2a26",
+          "machine": "맥북",
+          "error": "no-session",
+          "finding_ko": "MacWilliams 등, 1998. 대학 투수 6명과 고교 투수 1명의 실제 투구 중 뒷발 추진과 앞발 착지 힘을 측정했다.",
+          "application_ko": "실제 투구에서 뒷발 추진과 앞다리 착지 후 지지를 구분해 관찰한다는 설명에 썼다.",
+          "limits_ko": "시범 드릴과 동일 조건이 아니며 관찰한 힘 크기를 자세나 무게의 연습 기준으로 옮기지 않았다."
+        }
+      ],
+      "applied": "운영 라이브러리 제목·설명 저장 후 13건 재조회 일치. 촬영 계획 제목·큐는 개발판에 반영.",
+      "human_review": "사용자 판정 대기"
+    },
+    {
+      "review_id": "mv-ig-DeP_Af0xJet-17d1",
+      "drill_id": "fed40745-4fce-434f-bcd1-40b92dd8d3db",
+      "video_order": 13,
+      "title_before": "워터백 퀵픽 투구 모션",
+      "title": "Quick Pick Full Delivery",
+      "focus_points": [
+        "드리프트",
+        "몸통 회전"
+      ],
+      "filming": "실내 무투구",
+      "shoot_no": "5-09",
+      "video_basis": "기존 720p·30fps 무음 참고 영상의 주요 프레임과 자막을 대조. 촬영 원본은 별도.",
+      "description_observation": "뒤 45도에서 짧은 준비 → 앞발 착지 → 몸통 회전 → 뒷다리 따라오기를 한 화면에서 확인합니다. 빠르게 시작하다 앞발이 미끄러지거나, 높은 뒷다리 모양을 만들려고 허리가 꺾이면 속도를 낮춥니다.",
+      "evidence_registrations": [
+        {
+          "url": "https://www.instagram.com/reel/DeP_Af0xJet/",
+          "status": "pending",
+          "purpose": "description",
+          "item_id": "fed40745-4fce-434f-bcd1-40b92dd8d3db",
+          "request_key": "rk-cli-2d3dacda67bed217b725df8a22002d3f6498fd28619dbd87",
+          "machine": "맥북",
+          "error": "no-session"
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/35836313/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "fed40745-4fce-434f-bcd1-40b92dd8d3db",
+          "request_key": "rk-cli-51c224e278e7c212f142de7584c261e0362f1b9f2113b9b3",
+          "machine": "맥북",
+          "error": "no-session",
+          "finding_ko": "Orishimo 등, 2023. 고교·대학 남자 투수 29명의 직구를 분석했다. 평균에서 착지 뒤 최대 골반 각속도가 최대 몸통 각속도보다 먼저 관찰됐다.",
+          "application_ko": "착지 전후 골반과 몸통을 따로 관찰하고 마무리에서 회전·균형을 함께 보는 기준에 적용했다.",
+          "limits_ko": "단면 상관 연구다. 이 드릴의 학습 효과나 구속 변화를 시험하지 않았고 화면에서 각도를 정량화하지 않았다."
+        },
+        {
+          "url": "https://pubmed.ncbi.nlm.nih.gov/9474404/",
+          "status": "pending",
+          "purpose": "mechanism",
+          "item_id": "fed40745-4fce-434f-bcd1-40b92dd8d3db",
+          "request_key": "rk-cli-32447162f18e937c57bbb25824276ad720e6a057e9ff0abd",
+          "machine": "맥북",
+          "error": "no-session",
+          "finding_ko": "MacWilliams 등, 1998. 대학 투수 6명과 고교 투수 1명의 실제 투구 중 뒷발 추진과 앞발 착지 힘을 측정했다.",
+          "application_ko": "실제 투구에서 뒷발 추진과 앞다리 착지 후 지지를 구분해 관찰한다는 설명에 썼다.",
+          "limits_ko": "시범 드릴과 동일 조건이 아니며 관찰한 힘 크기를 자세나 무게의 연습 기준으로 옮기지 않았다."
+        }
+      ],
+      "applied": "운영 라이브러리 제목·설명 저장 후 13건 재조회 일치. 촬영 계획 제목·큐는 개발판에 반영.",
+      "human_review": "사용자 판정 대기"
+    }
+  ]
+}
