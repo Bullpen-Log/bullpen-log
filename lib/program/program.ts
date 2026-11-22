@@ -1042,8 +1042,8 @@ export type ProgramOutline = {
   weeks: number;
   /** 첫 주의 세션들(A · B · C) — '대표 구성'. 실제 운동은 장비 · 경력으로 정해진다 */
   sessions: { day: number; label: string; items: OutlineItem[] }[];
-  /** 주차마다 그 주 세션들의 본운동 처방(보조 칸 뺌) — 주차 고르기는 미리보기다 */
-  weekRows: { week: number; light: boolean; note: string | null; days: { day: number; label: string; items: { label: string; line: string }[] }[] }[];
+  /** 주차마다 그 주 세션들의 운동(assist = 보조 칸) — 주차 고르기는 미리보기다 */
+  weekRows: { week: number; light: boolean; note: string | null; days: { day: number; label: string; items: (OutlineItem & { assist: boolean })[] }[] }[];
 };
 
 /**
@@ -1066,21 +1066,17 @@ export function programOutline(def: ProgramDef, perWeek: PerWeek): ProgramOutlin
     return kinds.get(v) as VariantKind;
   };
   const labelOfDay = (day: number, i: number) => dayPlan(plan, day).label ?? `${i + 1}번 세션`;
-  const sessions = Array.from({ length: perWeek }, (_, i) => {
-    const day = i + 1;
-    return {
-      day,
-      label: labelOfDay(day, i),
-      items: dayPlan(plan, day).items.map((x) => ({
-        variant: x.variant,
-        label: variantLabel(x.variant, audience),
-        line: prescriptionLine(x),
-        kind: kindOf(x.variant),
-        optionalSlot: x.variant === 'medball' || x.variant === 'rotationalThrow',
-        group: x.group,
-      })),
-    };
-  });
+  const itemsOf = (day: number) =>
+    dayPlan(plan, day).items.map((x) => ({
+      variant: x.variant,
+      label: variantLabel(x.variant, audience),
+      line: prescriptionLine(x),
+      kind: kindOf(x.variant),
+      optionalSlot: x.variant === 'medball' || x.variant === 'rotationalThrow',
+      group: x.group,
+      assist: !!x.assist,
+    }));
+  const sessions = Array.from({ length: perWeek }, (_, i) => ({ day: i + 1, label: labelOfDay(i + 1, i), items: itemsOf(i + 1) }));
   const weekRows = Array.from({ length: def.weeks }, (_, w) => {
     const week = w + 1;
     return {
@@ -1092,9 +1088,7 @@ export function programOutline(def: ProgramDef, perWeek: PerWeek): ProgramOutlin
         return {
           day,
           label: labelOfDay(day, i),
-          items: dayPlan(plan, day)
-            .items.filter((x) => !x.assist)
-            .map((x) => ({ label: variantLabel(x.variant, audience), line: prescriptionLine(x) })),
+          items: itemsOf(day),
         };
       }),
     };
