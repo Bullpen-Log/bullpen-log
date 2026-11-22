@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useSyncExternalStore, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { ClipEditor, type ClipSubmit } from '@/components/clip/clip-editor';
 import { haptic } from '@/lib/haptics';
@@ -64,11 +64,13 @@ const RELEASE_MS = 300;
 export function useClipFlow({
   adopt,
   onAttached,
+  onCanceled,
 }: {
   /** 서버가 돌려준 체크로 바꾸기(useShootChecks().adopt) */
   adopt: (checks: ShootCheckView[], label?: string) => void;
-  /** 붙인 뒤 — 촬영 모드는 다음 운동으로 */
-  onAttached?: (exerciseId: string) => void;
+  /** 붙인 뒤 — 돌아갈 주소를 넘기면 그 주소의 최신 운동 정보를 읽는다. */
+  onAttached?: (exerciseId: string) => string | void;
+  onCanceled?: (exerciseId: string) => void;
 }) {
   const router = useRouter();
   const albumRef = useRef<HTMLInputElement>(null);
@@ -81,7 +83,7 @@ export function useClipFlow({
     () => ''
   );
   const [cameraNotice, setCameraNotice] = useState<string | null>(null);
-  const targetRef = useRef<ClipTarget | null>(null);
+  const albumPick = useRef<{ target: ClipTarget; replacing: boolean } | null>(null);
   const [editing, setEditing] = useState<Editing | null>(null);
   /** 지금 편집의 번호 — 카메라 취소 · 실패 때 그 편집만 닫으려고 */
   const seqRef = useRef(0);
@@ -152,7 +154,6 @@ export function useClipFlow({
    * prev: [다시 찍기]로 왔으면 앞 촬영본 — 카메라를 취소하거나 실패하면 그것으로 돌아간다(예전엔 창이 닫혀 앞 영상까지 잃었다).
    */
   async function startCamera(target: ClipTarget, prev: Editing | null = null) {
-    targetRef.current = target;
     setCameraNotice(null);
     if (!appCameraAvailable()) {
       setCameraNotice(appCameraMissingText());
@@ -180,6 +181,7 @@ export function useClipFlow({
         { exerciseId: target.exerciseId, no: target.no, title: target.title, cue: target.cue }
       );
       if (!take) {
+        if (!prev && seqRef.current === seq) onCanceled?.(target.exerciseId);
         back();
         return;
       }
@@ -209,7 +211,6 @@ export function useClipFlow({
     if (!take.meta || cameraBusy.current) return;
     cameraBusy.current = true;
     const target = take.meta;
-    targetRef.current = target;
     setCameraNotice(null);
     setLeftovers((list) => list.filter((t) => t.path !== take.path));
     const seq = ++seqRef.current;
@@ -238,26 +239,38 @@ export function useClipFlow({
     void refreshLeftovers();
   }
 
-  function startAlbum(target: ClipTarget) {
-    targetRef.current = target;
+  function startAlbum(target: ClipTarget, replacing = false) {
+    albumPick.current = { target, replacing };
     albumRef.current?.click();
   }
 
   /** 고른 파일로 편집 창 열기 — 다른 창(주차 화면의 운동 창) 안에서 고른 것도 이리로 */
   function edit(target: ClipTarget, file: File, from: Editing['from']) {
-    targetRef.current = target;
     const seq = ++seqRef.current;
     setEditing({ target, file, from, seq });
     setOpen(true);
   }
 
-  function picked(e: ChangeEvent<HTMLInputElement>, from: Editing['from']) {
+  function picked(e: ChangeEvent<HTMLInputElement>) {
     const file = e.currentTarget.files?.[0];
     e.currentTarget.value = '';
-    const target = targetRef.current;
-    if (!file || !target) return;
-    edit(target, file, from);
+    if (!file) return cancelAlbum();
+    const pick = albumPick.current;
+    albumPick.current = null;
+    if (pick) edit(pick.target, file, 'album');
   }
+
+  const cancelAlbum = useCallback(() => {
+    const pick = albumPick.current;
+    albumPick.current = null;
+    if (pick && !pick.replacing) onCanceled?.(pick.target.exerciseId);
+  }, [onCanceled]);
+
+  useEffect(() => {
+    const input = albumRef.current;
+    input?.addEventListener('cancel', cancelAlbum);
+    return () => input?.removeEventListener('cancel', cancelAlbum);
+  }, [cancelAlbum]);
 
   /** 그 편집(seq)이 아직 열려 있으면 닫는다 — 카메라를 취소했을 때 */
   function closeSeq(seq: number) {
@@ -287,9 +300,9 @@ export function useClipFlow({
   function attached(target: ClipTarget, checks: ShootCheckView[]) {
     adopt(checks, `${target.no} 올림 · 소리 없음`);
     haptic('success');
-    onAttached?.(target.exerciseId);
-    // 운동 정보(우리 영상으로 바뀜 · 올림 수)를 서버에서 다시 받는다
-    router.refresh();
+    const href = onAttached?.(target.exerciseId);
+    if (href) router.replace(href, { scroll: false });
+    else router.refresh();
   }
 
   const submit: ClipSubmit = async (clip, thumb, report) => {
@@ -387,10 +400,13 @@ export function useClipFlow({
         title={editing ? `${editing.target.no} ${editing.target.title}` : ''}
         cue={editing?.target.cue}
         from={editing?.from ?? 'album'}
-        onClose={close}
+        onClose={() => {
+          close();
+          if (editing) onCanceled?.(editing.target.exerciseId);
+        }}
         onRetake={
           editing?.from === 'album'
-            ? () => albumRef.current?.click()
+            ? () => startAlbum(editing.target, true)
             : () => editing && void startCamera(editing.target, editing)
         }
         onSubmit={submit}
@@ -400,7 +416,7 @@ export function useClipFlow({
           type="file"
           accept="video/*"
           hidden
-          onChange={(e) => picked(e, 'album')}
+          onChange={picked}
         />
       </ClipEditor>
   );

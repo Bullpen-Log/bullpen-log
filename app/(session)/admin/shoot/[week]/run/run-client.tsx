@@ -24,7 +24,7 @@ import { useClipFlow } from '@/components/shoot/use-clip-flow';
 import { useShootChecks } from '@/components/shoot/use-shoot-checks';
 import { useWakeLock } from '@/components/use-wake-lock';
 import { haptic } from '@/lib/haptics';
-import type { ShootWeekData } from '@/lib/shoot/load';
+import type { ShootExerciseInfo, ShootWeekData } from '@/lib/shoot/load';
 import {
   BUCKET_LABEL,
   clockText,
@@ -37,9 +37,19 @@ import {
 } from '@/lib/shoot/progress';
 import { toDateKey } from '@/lib/pitch-stats';
 import { hasFixedShootTime, weekLabel, type PlanItem } from '@/lib/shoot/schedule';
-import { shootRunHref } from '@/lib/shoot/guide';
+import { shootRetakeHref, shootRunHref } from '@/lib/shoot/guide';
 
 const noSubscribe = () => () => {};
+
+function replaceRunLocation(href: string) {
+  if (`${window.location.pathname}${window.location.search}` === href) return;
+  try {
+    const guard = window.history.state?.bpClipGuard ? { bpClipGuard: true } : null;
+    window.history.replaceState(guard, '', href);
+  } catch {
+    // The shooting position still works when a browser refuses the history write.
+  }
+}
 
 /**
  * 촬영 모드 — 찍는 동안 휴대폰 한 손으로.
@@ -59,11 +69,13 @@ export function RunClient({
   data,
   me,
   startAt,
+  initialRetake = null,
   crew = null,
 }: {
   data: ShootWeekData;
   me: string;
   startAt: string | null;
+  initialRetake?: { item: PlanItem; info?: ShootExerciseInfo } | null;
   /** 두 사람이 나눠 찍는 주에서 이 사람 몫만 돌 때('A') */
   crew?: string | null;
 }) {
@@ -84,6 +96,7 @@ export function RunClient({
   const [pickId, setPickId] = useState<string | null>(
     () => queue.find((it) => it.no === startAt)?.exerciseId ?? null
   );
+  const [retake, setRetake] = useState(initialRetake);
   const [slate, setSlate] = useState(false);
   const [postponing, setPostponing] = useState<{ item: PlanItem; note: string } | null>(null);
   const list = useModalState<'list'>();
@@ -91,11 +104,12 @@ export function RunClient({
 
   const laterOpen = !!week.deferred;
   const cursor = cursorOfList(queue, map, pickId, laterOpen);
-  const current = postponing?.item ?? cursor.current;
-  const next = cursor.next;
+  const current = retake?.item ?? postponing?.item ?? cursor.current;
+  const currentInfo = current ? infos[current.exerciseId] ?? retake?.info : undefined;
+  const next = retake ? null : cursor.next;
   const count = countOf(items, map);
   /* 다음 뒤로 셋 — '그다음' 줄(지금 운동 뒤의 차례로) */
-  const after = current
+  const after = current && next
     ? openAfter(queue, map, current.exerciseId, laterOpen).slice(1, 4)
     : [];
   /*
@@ -110,7 +124,7 @@ export function RunClient({
     const id = window.setInterval(() => setNow(Date.now()), 30_000);
     return () => window.clearInterval(id);
   }, []);
-  const fixed = !!current && hasFixedShootTime(week, current.at);
+  const fixed = !retake && !!current && hasFixedShootTime(week, current.at);
   /* 계획 대비는 붙은 뒤에만 — 서버와 폰이 '지금'을 따로 재 분이 갈리면 그림이 맞지 않는다(hydration) */
   const mounted = useSyncExternalStore(noSubscribe, () => true, () => false);
   const pace =
@@ -122,23 +136,17 @@ export function RunClient({
     current && next && next.station !== current.station ? next.station : null;
   /* 앞 주에서 넘어온 운동은 그 주 시각 · 쉬는 때가 맞지 않는다 */
   const carriedNow = current ? fromWeek.has(current.exerciseId) : false;
-  const rest = current ? current.breakAfter && !carriedNow : false;
+  const rest = !retake && !!current?.breakAfter && !carriedNow;
 
   /*
    * 지금 운동을 주소(?at=)에 적어 둔다 — 웹뷰가 다시 불러와지면(앱 메모리 · 새로고침) 처음 연 운동으로 돌아갔다(2026-11-21 검토).
-   * 다른 칸은 그대로(history.state — 편집 창의 뒤로 막기 칸을 지우지 않게)
+   * 편집 창의 뒤로 가기 표시도 지우지 않는다.
    */
   const currentNo = current?.no ?? null;
   useEffect(() => {
-    if (!currentNo) return;
-    const href = shootRunHref(week.week, crew, currentNo);
-    if (`${window.location.pathname}${window.location.search}` === href) return;
-    try {
-      window.history.replaceState(window.history.state, '', href);
-    } catch {
-      // 주소를 못 바꾸는 브라우저 — 화면의 차례는 그대로 돈다
-    }
-  }, [currentNo, week.week, crew]);
+    if (retake || !currentNo) return;
+    replaceRunLocation(shootRunHref(week.week, crew, currentNo));
+  }, [currentNo, week.week, crew, retake]);
 
   /* 운동이 바뀌면 본문을 맨 위로 — 아래 단추로 넘겨도 번호 · 이름부터 보이게 */
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -175,10 +183,34 @@ export function RunClient({
   );
 
   // 붙인 운동이 목록에서 고른 운동이었을 때만 그 바로 다음 차례로 옮긴다(다시 올리기로 다른 운동이 붙어도 지금 운동은 그대로)
+  function finishRetake() {
+    replaceRunLocation(shootRunHref(week.week, crew, cursor.current?.no));
+    setRetake(null);
+  }
+
   const clips = useClipFlow({
     adopt,
-    onAttached: (id) => setPickId((p) => (p === id ? nextPick(id) : p)),
+    onAttached: (id) => {
+      if (retake?.item.exerciseId === id) {
+        setRetake(null);
+        return shootRunHref(week.week, crew, cursor.current?.no);
+      }
+      setPickId((p) => (p === id ? nextPick(id) : p));
+    },
+    onCanceled: (id) => {
+      if (retake?.item.exerciseId === id) finishRetake();
+    },
   });
+
+  function startRetake(item: PlanItem) {
+    if (clips.retry) return;
+    clips.clearCameraNotice();
+    setPickId(cursor.current?.exerciseId ?? null);
+    replaceRunLocation(shootRetakeHref(week.week, crew, item, cursor.current?.no));
+    setRetake({ item, info: infos[item.exerciseId] });
+    list.close();
+  }
+
   const clipTarget = current
     ? {
         exerciseId: current.exerciseId,
@@ -272,6 +304,7 @@ export function RunClient({
             type="button"
             onClick={(e) => list.show('list', e)}
             aria-label="전체 목록"
+            disabled={!!retake}
             className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-ink hover:bg-ink/6"
           >
             <ListOrdered aria-hidden className="h-5 w-5" />
@@ -284,7 +317,7 @@ export function RunClient({
         <div className="mx-auto w-full max-w-2xl pad:max-w-6xl space-y-5 px-4 py-4 pad:px-8 pad:py-6">
           {!current && errorBox}
 
-          <PendingClips clips={clips} isUploaded={(id) => !!infos[id]?.uploaded} />
+          {!retake && <PendingClips clips={clips} isUploaded={(id) => !!infos[id]?.uploaded} />}
 
           {current ? (
             <article
@@ -306,7 +339,7 @@ export function RunClient({
                     <MapPin aria-hidden className="h-3.5 w-3.5 text-muted" />
                     {current.station}
                   </span>
-                  {infos[current.exerciseId]?.uploaded && (
+                  {currentInfo?.uploaded && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-sky/12 px-2.5 py-1 text-xs font-bold text-sky-strong">
                       <CircleCheck aria-hidden className="h-3.5 w-3.5" />
                       올림
@@ -323,7 +356,11 @@ export function RunClient({
                     {fromWeek.get(current.exerciseId)}주차에서 넘어온 운동
                   </p>
                 )}
-                {stateOf(current, map) === 'redo' && (
+                {retake ? (
+                  <p className="rounded-xl bg-sky/10 px-3 py-2 text-sm text-sky-strong">
+                    <strong>다시 찍기</strong> · 저장이 끝나면 원래 촬영 위치로 돌아가요.
+                  </p>
+                ) : stateOf(current, map) === 'redo' && (
                   <p className="rounded-xl bg-warn/12 px-3 py-2 text-sm font-semibold text-warn">
                     다시 찍기
                     {map.get(current.exerciseId)?.note
@@ -351,10 +388,10 @@ export function RunClient({
                 </div>
                 <ShootExerciseDetail
                   item={current}
-                  info={infos[current.exerciseId]}
+                  info={currentInfo}
                   compact
                 />
-                <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted">
+                {!retake && <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted">
                   다른 폰 · 카메라 앱으로 찍었으면
                   <button
                     type="button"
@@ -364,7 +401,7 @@ export function RunClient({
                     <Images aria-hidden className="h-4 w-4" />
                     앨범에서 고르기
                   </button>
-                </p>
+                </p>}
 
                 {(rest || move) && (
                   <p className="flex items-center gap-2 rounded-xl border border-dashed border-line-strong px-4 py-3 text-sm text-ink">
@@ -466,6 +503,16 @@ export function RunClient({
                   ))}
                 </ul>
               )}
+              {queue.some((it) => stateOf(it, map) === 'done' || infos[it.exerciseId]?.uploaded) && (
+                <button
+                  type="button"
+                  onClick={(e) => list.show('list', e)}
+                  className="mx-auto flex min-h-11 items-center gap-2 rounded-full bg-sky/10 px-4 text-sm font-semibold text-sky-strong"
+                >
+                  <ListOrdered aria-hidden className="h-4 w-4" />
+                  다시 찍을 운동 고르기
+                </button>
+              )}
               <Link
                 href="/admin/shoot"
                 className="inline-flex min-h-11 items-center gap-1 rounded-full px-4 text-sm font-semibold text-sky-strong hover:bg-sky/10"
@@ -496,7 +543,26 @@ export function RunClient({
               </span>
             </p>
           )}
-          <div className="mx-auto flex w-full max-w-2xl pad:max-w-6xl items-center gap-2">
+          {retake ? (
+            <div className="mx-auto w-full max-w-2xl space-y-2">
+              <div className="flex gap-2">
+                {clips.appCamera && (
+                  <button type="button" onClick={() => clipTarget && void clips.startCamera(clipTarget)}
+                    className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-sky px-3 font-bold text-white">
+                    <Camera aria-hidden className="h-5 w-5 shrink-0" /> 다시 찍기
+                  </button>
+                )}
+                <button type="button" onClick={() => clipTarget && clips.startAlbum(clipTarget)}
+                  className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-ink/6 px-3 font-semibold text-ink">
+                  <Images aria-hidden className="h-5 w-5 shrink-0" /> 앨범에서 고르기
+                </button>
+              </div>
+              <button type="button" onClick={() => { clips.clearCameraNotice(); finishRetake(); }}
+                className="min-h-11 w-full rounded-full px-3 text-sm font-semibold text-ink">
+                재촬영 취소
+              </button>
+            </div>
+          ) : <div className="mx-auto flex w-full max-w-2xl pad:max-w-6xl items-center gap-2">
             <button
               type="button"
               onClick={postpone}
@@ -536,7 +602,7 @@ export function RunClient({
                 찍음 · 다음으로
               </button>
             )}
-          </div>
+          </div>}
         </div>
       )}
 
@@ -581,12 +647,13 @@ export function RunClient({
         open={list.open}
         onClose={list.close}
         title={`${weekLabel(week)}${crew ? ` · ${crew}` : ''} 목록`}
-        description="누르면 그 운동을 먼저 찍어요"
+        description="완료한 운동의 영상을 바꾸려면 ‘다시 찍기’를 누르세요."
         origin={list.origin}
       >
         <ol className="-mx-2 divide-y divide-line">
           {queue.map((it) => {
             const st = stateOf(it, map);
+            const canRetake = st === 'done' || !!infos[it.exerciseId]?.uploaded;
             return (
               <li
                 key={it.exerciseId}
@@ -595,10 +662,14 @@ export function RunClient({
                 <button
                   type="button"
                   onClick={() => {
+                    if (canRetake) {
+                      startRetake(it);
+                      return;
+                    }
                     setPickId(it.exerciseId);
                     list.close();
                   }}
-                  disabled={st === 'done'}
+                  disabled={canRetake && !!clips.retry}
                   className={`flex min-h-12 w-full items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-ink/4 disabled:opacity-60 ${
                     it === current ? 'bg-sky/8' : ''
                   }`}
@@ -617,7 +688,11 @@ export function RunClient({
                       {st === 'later' && map.get(it.exerciseId)?.note ? ` · ${map.get(it.exerciseId)?.note}` : ''}
                     </span>
                   </span>
-                  {it === current ? (
+                  {canRetake ? (
+                    <span className="shrink-0 rounded-full bg-sky/10 px-3 py-1.5 text-xs font-semibold text-sky-strong">
+                      다시 찍기
+                    </span>
+                  ) : it === current ? (
                     <span className="shrink-0 rounded-full bg-sky px-2 py-0.5 text-caption font-bold text-white">
                       지금
                     </span>

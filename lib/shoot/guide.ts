@@ -23,6 +23,17 @@ export function shootRunHref(week: number, crew?: string | null, at?: string | n
   return `/admin/shoot/${week}/run${search ? `?${search}` : ''}`;
 }
 
+export function shootRetakeHref(
+  week: number,
+  crew: string | null | undefined,
+  item: Pick<PlanItem, 'no' | 'exerciseId'>,
+  resumeAt?: string | null,
+): string {
+  const query = new URLSearchParams({ retake: '1', exercise: item.exerciseId });
+  if (resumeAt) query.set('resume', resumeAt);
+  return `${shootRunHref(week, crew, item.no)}&${query}`;
+}
+
 /** Checks select the initial exercise only. The guide then follows this fixed plan. */
 export function guideStart(items: PlanItem[], checks: Map<string, ShootCheckView>, at: string | null, deferred: boolean) {
   const picked = items.findIndex((item) => item.no === at);

@@ -10,7 +10,7 @@ import type { ShootResult } from '@/app/actions/shoot';
 import type { ShootExerciseInfo } from '@/lib/shoot/load';
 import { BUCKET_LABEL, clockText, countOf, cursorOfList, isRescheduled, stateOf, weekItems, type ItemState, type ShootCheckView, type ShootStatus } from '@/lib/shoot/progress';
 import { crewsOf } from '@/lib/shoot/crews';
-import { SHOOT_NOTE_MAX, shootRunHref } from '@/lib/shoot/guide';
+import { SHOOT_NOTE_MAX, shootRetakeHref, shootRunHref } from '@/lib/shoot/guide';
 import { hasFixedShootTime, weekLabel, type PlanItem } from '@/lib/shoot/schedule';
 import { shootReferenceOf, type ShootReference } from '@/lib/shoot/reference';
 import { splitInstagramReference } from '@/lib/mechanics/reference-draft';
@@ -334,7 +334,10 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
             onSet={(status, note) => set(openItem, status, note, `${openItem.no} ${status ? STATE_LABEL[status] : '대기로 되돌림'}`)}
             onRun={() => {
               setOpenId(null);
-              leaveTo(runHref(crewOf.get(openItem.exerciseId), openItem.no));
+              const crew = crewOf.get(openItem.exerciseId);
+              leaveTo(stateOf(openItem, map) === 'done' || infos[openItem.exerciseId]?.uploaded
+                ? shootRetakeHref(week.week, crew, openItem)
+                : runHref(crew, openItem.no));
             }}
             onGuide={() => {
               setOpenId(null);
@@ -622,7 +625,7 @@ function DetailSheet({
           </Text>
         ) : null}
         <Pressable accessibilityRole="button" onPress={onRun} style={[s.pill, { backgroundColor: c.action }]}>
-          <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>{info?.uploaded ? '다시 찍기 · 촬영 모드에서' : '영상 찍기 · 촬영 모드에서'}</Text>
+          <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>{state === 'done' || info?.uploaded ? '다시 찍기 · 촬영 모드에서' : '영상 찍기 · 촬영 모드에서'}</Text>
         </Pressable>
         <Pressable accessibilityRole="button" onPress={onGuide} style={[s.pill, { minHeight: 48, backgroundColor: c.chip }]}>
           <Text style={{ color: c.ink, fontSize: 16, fontWeight: '600' }}>촬영지원에서 이 운동 보기</Text>

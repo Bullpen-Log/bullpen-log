@@ -53,7 +53,7 @@ import {
 import { SHOOT_WARMUPS, warmupRowId } from '../lib/shoot/warmups.ts';
 import { CREW_SPACES, crewWeek, crewsOf } from '../lib/shoot/crews.ts';
 
-import { guideStart, readShootNote, shootRunHref } from '../lib/shoot/guide.ts';
+import { guideStart, readShootNote, shootRetakeHref, shootRunHref } from '../lib/shoot/guide.ts';
 import { SHOOT_PLAN, itemOf, linkedDrillCategory, weekOf } from '../lib/shoot/plan.ts';
 
 let pass = 0;
@@ -849,6 +849,13 @@ check('촬영 완료 운동도 명시적으로 지도 가능', guideStart(guideP
 check('다른 주 번호는 첫 미완료 운동으로', guideStart(guidePlan, guidedChecks, '99-01', false) === 1);
 check('지도 URL은 조·시작 번호 보존', shootRunHref(scheduled.week, 'A', secondGuideItem.no, 'guide') === `/admin/shoot/${scheduled.week}/run?crew=A&at=${secondGuideItem.no}&mode=guide`);
 check('촬영 URL은 기존 기본 경로 유지', shootRunHref(scheduled.week) === `/admin/shoot/${scheduled.week}/run`);
+const retakeUrl = new URL(shootRetakeHref(scheduled.week, 'A', firstGuideItem, secondGuideItem.no), 'https://fixture.invalid');
+check('다시 찍기 URL은 대상 ID·번호와 돌아갈 운동을 따로 보존', retakeUrl.searchParams.get('retake') === '1' &&
+  retakeUrl.searchParams.get('exercise') === firstGuideItem.exerciseId &&
+  retakeUrl.searchParams.get('at') === firstGuideItem.no &&
+  retakeUrl.searchParams.get('resume') === secondGuideItem.no && retakeUrl.searchParams.get('crew') === 'A');
+const directRetake = new URL(shootRetakeHref(scheduled.week, null, firstGuideItem), 'https://fixture.invalid');
+check('주차에서 바로 다시 찍기는 돌아갈 운동을 미리 지정하지 않음', !directRetake.searchParams.has('resume'));
 const reason = readShootNote('later', '  촬영장 소음  ');
 check('미룸 사유 양끝 공백 제거', reason.ok && reason.note === '촬영장 소음');
 check('미룸 사유 공백·201자·잘못된 자료형 거부', !readShootNote('later', '  ').ok && !readShootNote('later', '가'.repeat(201)).ok && !readShootNote('later', 12).ok);

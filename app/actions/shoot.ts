@@ -4,6 +4,7 @@ import { readShootNote } from '@/lib/shoot/guide';
 
 import { allowAdmin } from '@/lib/release-gate';
 import { revalidatePath } from 'next/cache';
+import { Prisma } from '@prisma/client';
 import { can } from '@/lib/permissions';
 import { getCurrentUser } from '@/lib/dal';
 import { clearLibraryCache } from '@/lib/library-cache';
@@ -145,100 +146,121 @@ export async function attachShootClip(
     referenceVideoId: null,
   };
 
-  const select = { videoPath: true, thumbPath: true, referenceVideoId: true, category: true } as const;
-  let before: { videoPath: string | null; thumbPath: string | null };
-  let libraryPath: string;
-  const warmup = isWarmupId(exerciseId) ? warmupOf(exerciseId) : null;
-  if (warmup) {
-    // 이름만 있는 워밍업 — 미리 정한 id(warmupRowId)의 운동이 있으면 그것에, 없으면 그 id 로 숨긴 채 만들어 붙인다.
-    // 이름이 아니라 id 로 잇는다 — 라이브러리에서 이름 · 카테고리를 고쳐도 끊기지 않게. 손으로 먼저 만든 같은 이름의
-    // '워밍업' 운동이 있으면 그것을 쓴다. 설명 · 부위를 채워 보이게 하고 루틴에 넣는 것은 라이브러리 관리 화면(/library/warmup).
-    const rowId = warmupRowId(exerciseId);
-    if (!rowId) return { ok: false, error: '워밍업 목록에 없는 운동이에요. 새로고침해 주세요.' };
-    const byId = await prisma.exerciseVideo.findUnique({
-      where: { id: rowId },
-      select: { id: true, videoPath: true, thumbPath: true },
-    });
-    const made =
-      byId ??
-      (
-        await prisma.exerciseVideo.findMany({
-          where: { category: '워밍업' },
-          select: { id: true, title: true, videoPath: true, thumbPath: true },
-          orderBy: { createdAt: 'asc' },
-        })
-      ).find((e) => e.title.replace(/\s+/g, '') === warmup.title.replace(/\s+/g, ''));
-    if (made) {
-      before = made;
-      await prisma.exerciseVideo.update({ where: { id: made.id }, data });
-    } else {
-      before = { videoPath: null, thumbPath: null };
-      const equipment = warmup.equipment.filter((e) =>
-        (EXERCISE_EQUIPMENT as readonly string[]).includes(e)
-      );
-      await prisma.exerciseVideo.create({
-        data: {
-          ...data,
-          id: rowId,
-          title: warmup.title,
-          category: '워밍업',
-          description: '',
-          bodyParts: warmup.bodyParts,
-          equipment: equipment.length ? equipment : ['맨몸'],
-          intensity: '낮음',
-          perSide: /한쪽/.test(warmup.cue),
-          hiddenAt: new Date(),
-        },
+  const persist = () => prisma.$transaction(async (tx) => {
+    const select = { videoPath: true, thumbPath: true, referenceVideoId: true, category: true } as const;
+    let before: { videoPath: string | null; thumbPath: string | null };
+    let libraryPath: string;
+    const warmup = isWarmupId(exerciseId) ? warmupOf(exerciseId) : null;
+    if (warmup) {
+      // 이름만 있는 워밍업 — 미리 정한 id(warmupRowId)의 운동이 있으면 그것에, 없으면 그 id 로 숨긴 채 만들어 붙인다.
+      // 이름이 아니라 id 로 잇는다 — 라이브러리에서 이름 · 카테고리를 고쳐도 끊기지 않게. 손으로 먼저 만든 같은 이름의
+      // '워밍업' 운동이 있으면 그것을 쓴다. 설명 · 부위를 채워 보이게 하고 루틴에 넣는 것은 라이브러리 관리 화면(/library/warmup).
+      const rowId = warmupRowId(exerciseId);
+      if (!rowId) return { ok: false, error: '워밍업 목록에 없는 운동이에요. 새로고침해 주세요.' } as const;
+      const byId = await tx.exerciseVideo.findUnique({
+        where: { id: rowId },
+        select: { id: true, videoPath: true, thumbPath: true },
       });
+      const made =
+        byId ??
+        (
+          await tx.exerciseVideo.findMany({
+            where: { category: '워밍업' },
+            select: { id: true, title: true, videoPath: true, thumbPath: true },
+            orderBy: { createdAt: 'asc' },
+          })
+        ).find((e) => e.title.replace(/\s+/g, '') === warmup.title.replace(/\s+/g, ''));
+      if (made) {
+        before = made;
+        await tx.exerciseVideo.update({ where: { id: made.id }, data });
+      } else {
+        before = { videoPath: null, thumbPath: null };
+        const equipment = warmup.equipment.filter((e) =>
+          (EXERCISE_EQUIPMENT as readonly string[]).includes(e)
+        );
+        await tx.exerciseVideo.create({
+          data: {
+            ...data,
+            id: rowId,
+            title: warmup.title,
+            category: '워밍업',
+            description: '',
+            bodyParts: warmup.bodyParts,
+            equipment: equipment.length ? equipment : ['맨몸'],
+            intensity: '낮음',
+            perSide: /한쪽/.test(warmup.cue),
+            hiddenAt: new Date(),
+          },
+        });
+      }
+      libraryPath = '/library/warmup';
+    } else {
+      const exercise = await tx.exerciseVideo.findUnique({ where: { id: exerciseId }, select });
+      const guide = exercise
+        ? null
+        : await tx.mechanicsGuide.findUnique({ where: { id: exerciseId }, select });
+      const found = exercise ?? guide;
+      if (!found) return { ok: false, error: '라이브러리에서 이 운동을 찾지 못했어요.' } as const;
+      before = found;
+      if (exercise) await tx.exerciseVideo.update({ where: { id: exerciseId }, data });
+      else {
+        // '나중에 촬영'으로 미뤄 둔 드릴(2026-10-14)은 영상을 올리면 원래 분류로 — 그래야 트레이닝 · 드릴 목록에 나온다(2026-11-14)
+        const back =
+          guide?.category === LATER_CATEGORY
+            ? ((laterDrills as Record<string, { category: string }>)[exerciseId]?.category ??
+              linkedDrillCategory(exerciseId))
+            : undefined;
+        await tx.mechanicsGuide.update({ where: { id: exerciseId }, data: back ? { ...data, category: back } : data });
+        // 파워에 복사해 둔 같은 드릴(scripts/library-power-plyo-2026-10-15.mjs — 같은 참고 영상, 다시 찍으면 같은 영상 경로)도 같은 영상으로
+        const same = [
+          ...(guide?.referenceVideoId ? [{ referenceVideoId: guide.referenceVideoId }] : []),
+          ...(guide?.videoPath ? [{ videoPath: guide.videoPath }] : []),
+        ];
+        if (same.length)
+          await tx.exerciseVideo.updateMany({ where: { category: '파워', OR: same }, data });
+      }
+      libraryPath = exercise ? '/library/training' : '/library/mechanics';
     }
-    libraryPath = '/library/warmup';
-  } else {
-    const exercise = await prisma.exerciseVideo.findUnique({ where: { id: exerciseId }, select });
-    const guide = exercise
-      ? null
-      : await prisma.mechanicsGuide.findUnique({ where: { id: exerciseId }, select });
-    const found = exercise ?? guide;
-    if (!found) return { ok: false, error: '라이브러리에서 이 운동을 찾지 못했어요.' };
-    before = found;
-    if (exercise) await prisma.exerciseVideo.update({ where: { id: exerciseId }, data });
-    else {
-      // '나중에 촬영'으로 미뤄 둔 드릴(2026-10-14)은 영상을 올리면 원래 분류로 — 그래야 트레이닝 · 드릴 목록에 나온다(2026-11-14)
-      const back =
-        guide?.category === LATER_CATEGORY
-          ? ((laterDrills as Record<string, { category: string }>)[exerciseId]?.category ??
-            linkedDrillCategory(exerciseId))
-          : undefined;
-      await prisma.mechanicsGuide.update({ where: { id: exerciseId }, data: back ? { ...data, category: back } : data });
-      // 파워에 복사해 둔 같은 드릴(scripts/library-power-plyo-2026-10-15.mjs — 같은 참고 영상, 다시 찍으면 같은 영상 경로)도 같은 영상으로
-      const same = [
-        ...(guide?.referenceVideoId ? [{ referenceVideoId: guide.referenceVideoId }] : []),
-        ...(guide?.videoPath ? [{ videoPath: guide.videoPath }] : []),
-      ];
-      if (same.length)
-        await prisma.exerciseVideo.updateMany({ where: { category: '파워', OR: same }, data });
-    }
-    libraryPath = exercise ? '/library/training' : '/library/mechanics';
-  }
 
-  const prev = await prisma.shootCheck.findUnique({ where: { exerciseId } });
-  await prisma.shootCheck.upsert({
-    where: { exerciseId },
-    update: {
-      status: 'done',
-      userId: user.id,
-      ...(prev?.status === 'done' ? {} : { checkedAt: new Date() }),
-    },
-    create: { exerciseId, status: 'done', userId: user.id },
-  });
+    const prev = await tx.shootCheck.findUnique({ where: { exerciseId } });
+    await tx.shootCheck.upsert({
+      where: { exerciseId },
+      update: {
+        status: 'done',
+        userId: user.id,
+        ...(prev?.status === 'done' ? {} : { checkedAt: new Date() }),
+      },
+      create: { exerciseId, status: 'done', userId: user.id },
+    });
+    return { ok: true, before, libraryPath } as const;
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  let saved: Awaited<ReturnType<typeof persist>>;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      saved = await persist();
+      break;
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2034' || attempt >= 2) {
+        throw error;
+      }
+    }
+  }
+  if (!saved.ok) return saved;
 
   // DB 를 먼저 바꾼 뒤에 옛 파일을 지운다 — 반대 순서면 실패할 때 영상이 사라진다
-  const old = [before.videoPath, before.thumbPath].filter(
+  const old = [saved.before.videoPath, saved.before.thumbPath].filter(
     (p): p is string => !!p && isLibraryPath(p) && p !== clip.videoPath && p !== clip.thumbPath
   );
-  if (old.length) await deleteVideos(old);
+  if (old.length) {
+    try {
+      await deleteUnreferencedShootFiles(old);
+    } catch (error) {
+      console.error('[shoot] 이전 영상 정리 실패', error);
+    }
+  }
 
   clearLibraryCache();
-  revalidatePath(libraryPath);
+  revalidatePath(saved.libraryPath);
   revalidate();
   return { ok: true, checks: await loadShootChecks() };
 }
@@ -252,7 +274,12 @@ export async function discardShootUpload(paths: string[]): Promise<{ ok: boolean
   const want = (Array.isArray(paths) ? paths : [])
     .filter((p): p is string => typeof p === 'string' && isLibraryPath(p))
     .slice(0, 4);
-  if (!want.length) return { ok: true };
+  await deleteUnreferencedShootFiles(want);
+  return { ok: true };
+}
+
+async function deleteUnreferencedShootFiles(want: string[]) {
+  if (!want.length) return;
   const [ex, gd] = await Promise.all([
     prisma.exerciseVideo.findMany({
       where: { OR: [{ videoPath: { in: want } }, { thumbPath: { in: want } }] },
@@ -266,7 +293,6 @@ export async function discardShootUpload(paths: string[]): Promise<{ ok: boolean
   const used = new Set([...ex, ...gd].flatMap((r) => [r.videoPath, r.thumbPath]));
   const orphan = want.filter((p) => !used.has(p));
   if (orphan.length) await deleteVideos(orphan);
-  return { ok: true };
 }
 
 /** 지금 체크 — 촬영 화면이 15초마다 · 다시 볼 때 부른다(다른 사람이 찍은 것을 받으려고) */

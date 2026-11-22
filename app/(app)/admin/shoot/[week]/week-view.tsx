@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Check, Clapperboard, Clock3, Coffee, Play, RotateCcw, Wrench, X } from '@/components/icon';
 import { ButtonLink, PageHeading } from '@/components/ui';
 import { PostponeDialog } from '@/components/shoot/postpone-dialog';
-import { shootRunHref, SHOOT_NOTE_MAX } from '@/lib/shoot/guide';
+import { shootRetakeHref, shootRunHref, SHOOT_NOTE_MAX } from '@/lib/shoot/guide';
 import { Modal, useModalState } from '@/components/modal';
 import { Segmented } from '@/components/segmented';
 import { StackBar } from '@/components/shoot/gauge';
@@ -385,7 +385,9 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
             info={infos[open.exerciseId]}
             check={map.get(open.exerciseId)}
             state={stateOf(open, map)}
-            runHref={runHref(crewOf.get(open.exerciseId), open.no)}
+            runHref={stateOf(open, map) === 'done' || infos[open.exerciseId]?.uploaded
+              ? shootRetakeHref(week.week, crewOf.get(open.exerciseId), open)
+              : runHref(crewOf.get(open.exerciseId), open.no)}
             guideHref={guideHref(crewOf.get(open.exerciseId), open.no)}
             onSet={(status, note) =>
               set(open.exerciseId, status, {
@@ -702,7 +704,7 @@ function DetailBody({
       </form>
       <ButtonLink href={runHref} variant="secondary" className="w-full">
         <Clapperboard aria-hidden className="h-4 w-4" />
-        촬영 모드에서 이 운동부터
+        {state === 'done' || info?.uploaded ? '촬영 모드에서 다시 찍기' : '촬영 모드에서 이 운동부터'}
       </ButtonLink>
       <ButtonLink href={guideHref} variant="secondary" className="w-full">촬영지원에서 이 운동 보기</ButtonLink>
       {postponing && (
