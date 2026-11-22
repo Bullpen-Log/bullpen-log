@@ -43,13 +43,12 @@ export function linkedYouTubeReference(id: string): { yt: string; ar?: number } 
  * (app/actions/shoot.ts attachShootClip). 안 옮기면 영상을 올려도 드릴 목록에 '나중에 촬영'으로 남아 안 찍은 것처럼 보였다(2026-11-21 김민:
  * "영상 올리면 찍음으로 표시되게"). 라이브러리의 장비 관례대로 — 야구공 · 플라이오볼 스로잉, 메디신볼, 밴드 · 워터백 · 워터볼 · 바이퍼 ·
  * 불가리안 백(장비 칸 없음)은 버티는 힘(근력 · 안정 — lib/categories.ts 정의에 워터백/워터볼이 든다), 막대 · 맨몸은 동작 익히기(무브먼트 패턴).
- * 지금은 11/22 실내 촬영 목록의 연결 드릴만 옮긴다(2026-11-21 김민: "우선 내일 목록에 있는거만").
- * 그 밖의 연결 드릴이면 undefined(올려도 '나중에 촬영' 그대로).
+ * 11/22 목록만 옮기다가(2026-11-21 "우선 내일 목록에 있는거만") 야외 · 실내로 다시 짠 뒤 모든 연결 드릴로 넓혔다(2026-11-22 김민).
+ * 연결 드릴이 아니면 undefined.
  */
 export function linkedDrillCategory(id: string): string | undefined {
   const drill = referenceById.get(id);
-  /* 11/22 목록 = 연결 드릴 자리의 실내 4주차(linked-drills.json — 2026-11-22 다시 짠 계획은 plan-data.json 에 직접 두지만 이 자리는 그대로 둔다) */
-  if (!drill || drill.indoor?.week !== 4) return undefined;
+  if (!drill) return undefined;
   const eq = drill.equipment ?? [];
   if (eq.some((e) => e === '야구공' || e === '플라이오볼')) return '스로잉 드릴';
   if (eq.includes('메디신볼')) return '메디신볼 드릴';

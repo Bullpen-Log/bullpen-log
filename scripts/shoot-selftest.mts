@@ -248,11 +248,13 @@ console.log('\n■ 고정 계획(lib/shoot/plan-data.json) — 야외 · 실내 
       done.week === 4 && weekLabel(done) === '촬영 완료',
     plan.weeks.map((w) => `${w.week} ${weekLabel(w)}`).join(' · '));
   const n = (w: PlanWeek) => weekItems(w).length;
-  check('11/22 뒤 — 야외 77 · 실내 83 · 미룬 27 · 촬영 완료 43',
-    n(out) === 77 && n(ind) === 83 && n(def) === 27 && n(done) === 43,
+  /* 미룬 4-02 리드암 외전 + 워터볼은 2026-11-22 김민 "아예 삭제"(라이브러리에서도 숨김) — 26 */
+  check('11/22 뒤 — 야외 77 · 실내 83 · 미룬 26 · 촬영 완료 43',
+    n(out) === 77 && n(ind) === 83 && n(def) === 26 && n(done) === 43 &&
+      !weekItems(def).some((it) => it.exerciseId === '21b42b35-4574-40b2-88b9-4fecb47512bd'),
     plan.weeks.map(n).join(' · '));
   const all = plan.weeks.flatMap(weekItems).map((i) => i.exerciseId);
-  check('네 주를 통틀어 운동마다 한 번씩만', new Set(all).size === all.length && all.length === 230, `${all.length}개`);
+  check('네 주를 통틀어 운동마다 한 번씩만', new Set(all).size === all.length && all.length === 229, `${all.length}개`);
   const THROW = ['야구공', '플라이오볼', '메디신볼'];
   const throws = (it: PlanItem) => it.equipment.some((e) => THROW.includes(e));
   check('야외는 공 · 메디신볼을 던지는 것만', weekItems(out).every(throws),
@@ -314,20 +316,18 @@ console.log('\n■ 고정 계획(lib/shoot/plan-data.json) — 야외 · 실내 
     return nos.filter((no, i) => nos.indexOf(no) !== i);
   });
   check('모든 주 — 번호판 번호가 겹치지 않는다(연결 드릴 포함)', dupNos.length === 0, dupNos.join(' '));
-  /* 연결 드릴은 영상을 올리면 '나중에 촬영'에서 진짜 분류로 — 지금은 11/22 목록 것만(2026-11-21 김민: "우선 내일 목록에 있는거만") */
+  /* 연결 드릴은 영상을 올리면 '나중에 촬영'에서 진짜 분류로 — 모든 연결 드릴(2026-11-22 김민, 11/22 목록만이던 것을 넓힘) */
   {
     const linked = JSON.parse(readFileSync(new URL('../lib/shoot/linked-drills.json', import.meta.url), 'utf8')) as
-      { id: string; title: string; indoor?: { week: number } }[];
+      { id: string; title: string }[];
     const drillCats = new Set(['스로잉 드릴', '메디신볼 드릴', '무브먼트 패턴 드릴', '근력 · 안정 드릴']);
-    const nov22 = linked.filter((d) => d.indoor?.week === 4);
-    const bad = nov22.filter((d) => !drillCats.has(linkedDrillCategory(d.id) ?? ''));
-    check('11/22 연결 드릴 — 영상을 올리면 옮길 분류가 다 있다', nov22.length === 18 && bad.length === 0, bad.map((d) => d.title).join(', '));
-    check('11/22 연결 드릴 분류 — PVC · Hip Fire 는 무브먼트, 워터백은 근력 · 안정',
-      nov22.filter((d) => /PVC|Hip Fire/.test(d.title)).every((d) => linkedDrillCategory(d.id) === '무브먼트 패턴 드릴') &&
-      nov22.filter((d) => /워터백/.test(d.title)).every((d) => linkedDrillCategory(d.id) === '근력 · 안정 드릴'));
-    check('11/22 밖의 연결 드릴 · 연결 드릴이 아닌 것은 분류를 안 바꾼다',
-      linked.filter((d) => d.indoor?.week !== 4).every((d) => linkedDrillCategory(d.id) === undefined) &&
-      linkedDrillCategory('00000000-0000-0000-0000-000000000000') === undefined);
+    const bad = linked.filter((d) => !drillCats.has(linkedDrillCategory(d.id) ?? ''));
+    check('연결 드릴 — 영상을 올리면 옮길 분류가 다 있다(전부)', linked.length === 55 && bad.length === 0, bad.map((d) => d.title).join(', '));
+    check('연결 드릴 분류 — 플라이오볼 · 야구공은 스로잉, PVC · Hip Fire 는 무브먼트, 워터백은 근력 · 안정',
+      linkedDrillCategory('40210b71-a43e-4cc2-a149-946f5d48814f') === '스로잉 드릴' &&
+      linked.filter((d) => /PVC|Hip Fire/.test(d.title)).every((d) => linkedDrillCategory(d.id) === '무브먼트 패턴 드릴') &&
+      linked.filter((d) => /워터백/.test(d.title)).every((d) => linkedDrillCategory(d.id) === '근력 · 안정 드릴'));
+    check('연결 드릴이 아닌 것은 분류를 안 바꾼다', linkedDrillCategory('00000000-0000-0000-0000-000000000000') === undefined);
   }
   const rowIds = SHOOT_WARMUPS.map((w) => warmupRowId(w.id));
   check(

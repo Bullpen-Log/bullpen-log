@@ -188,8 +188,9 @@ export const allGuides = unstable_cache(
    * :v10 — 2026-10-14 드릴 37개를 '나중에 촬영'으로(scripts/drills-later-2026-10-14.mjs).
    * :v12 — 2026-10-16 주 요소 19묶음 · 새 분류 '근력 · 안정 드릴'(scripts/mechanics-reclass-2026-10-16.mjs).
    * :v13 — 2026-11-16 직접 찍은 드릴 22개(대부분 야외)를 잘라 키운 판으로 경로 바꿈(scripts/shoot-trim/size/apply.mjs).
+   * :v21 — 2026-11-22 '리드암 외전 + 워터볼' 숨김(김민 "의미없는 훈련 — 아예 삭제").
    */
-  ['library:guides:v20'],
+  ['library:guides:v21'],
   { tags: [LIBRARY_TAG] }
 );
 
