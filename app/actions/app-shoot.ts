@@ -14,7 +14,7 @@ import {
   stateOf,
   weekItems,
 } from '@/lib/shoot/progress';
-import { weekLabel } from '@/lib/shoot/schedule';
+import { isDoneWeek, weekLabel } from '@/lib/shoot/schedule';
 import { crewsOf } from '@/lib/shoot/crews';
 
 /**
@@ -104,7 +104,7 @@ export async function loadAppShoot() {
   const kind = (k: 'exercise' | 'drill' | 'warmup') => items.filter((i) => (i.kind ?? 'exercise') === k).length;
   return {
     ok: true as const,
-    description: `촬영 일정 ${plan.weeks.filter((w) => !w.deferred).length}회 · 운동 ${kind('exercise')}개 · 메커니즘 드릴 ${kind('drill')}개 · 워밍업 ${kind('warmup')}개`,
+    description: `촬영 일정 ${plan.weeks.filter((w) => !w.deferred && !isDoneWeek(w)).length}회 · 운동 ${kind('exercise')}개 · 메커니즘 드릴 ${kind('drill')}개 · 워밍업 ${kind('warmup')}개`,
     all,
     uploaded,
     toUpload,

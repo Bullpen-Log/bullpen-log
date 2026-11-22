@@ -11,17 +11,16 @@ import {
   LOWER_BUCKETS,
   SESSION_MINUTES,
   ALL_STATIONS,
-  OUTDOOR_STATIONS,
   buildPlan,
   bucketOf,
   demoCue,
-  hasFixedShootTime,
   loadOf,
   postureOf,
   setupOf,
   isWarmupItem,
   shotMinutes,
   stationOf,
+  weekLabel,
   type PlanItem,
   type PlanWeek,
   type ShootExercise,
@@ -38,14 +37,12 @@ import {
   groupCounts,
   paceMinutes,
   sessionsOf,
-  stateOf,
   transitionAfter,
   weekItems,
   type ShootCheckView,
 } from '../lib/shoot/progress.ts';
 import {
   OUTDOOR_DEFAULT,
-  PLYO,
   buildOutdoorWeeks,
   drillMinutes,
   familyOf,
@@ -236,186 +233,60 @@ check(
     postureOf('고블렛 스쿼트') === '서서'
 );
 
-console.log(
-  '\n■ 고정 계획(lib/shoot/plan-data.json) — 실내 1~7주(version 3 — 우리 영상인 운동도 다시 찍는다)'
-);
-const indoorPlan: ShootPlan = {
-  ...plan,
-  weeks: plan.weeks.filter((w) => !w.outdoor && !w.deferred),
-};
-const deferredWeeks = plan.weeks.filter((w) => w.deferred);
+/*
+ * version 13(2026-11-22 김민): 11/22 촬영 뒤 다시 짰다 — "1주차, 2주차가 아니라 야외 · 실내 둘로. 비슷한 장비 · 위치 · 동작끼리 묶고,
+ * 밴드 · 워터볼 · 워터백은 실내, 공 · 메디신볼을 던지는 것만 야외". 찍은 것은 '촬영 완료'(다시 찍기는 거기서), 미룬 것은 미룬 영상 그대로.
+ */
+console.log('\n■ 고정 계획(lib/shoot/plan-data.json) — 야외 · 실내 · 미룬 영상 · 촬영 완료(version 13)');
 {
-  const session = plan.weeks.find((week) => week.session);
-  if (!session?.session) throw new Error('11/22 실내 일정 누락');
-  const items = weekItems(session);
-  const agenda = session.session.agenda;
-  const checks = new Map<string, ShootCheckView>(items.map((item) => [item.exerciseId, {
-    exerciseId: item.exerciseId, status: 'later', at: '2026-11-15T06:00:00.000Z',
-    by: null, note: '기존 메모',
-  }]));
-  const [first, second] = items;
-  check('11/22 — 10:00 메커니즘 준비, 11:00 김민 웨이트 목록, 12:00 종료',
-    session.session.startMinute === 600 && session.end === 120 && agenda.at(-1)?.start === 60 &&
-    agenda.at(-1)?.end === 120 && agenda.at(-1)?.title.includes('김민이 가져오는 목록') === true &&
-    agenda.some((slot) => slot.start === 45 && slot.end === 53));
-  const drills = items.filter((item) => item.kind === 'drill');
-  check('11/22 — 무투구 드릴 6개(맨 앞) + 트레이닝 49개, 이전 미룸을 촬영 모드에서 순서대로 연다',
-    drills.length === 6 && items.slice(0, 6).every((item) => item.kind === 'drill' && !/스로우|슬램|토스/.test(item.title)) &&
-    items.length - drills.length === 49 &&
-    items[2].equipment.includes('워터볼') && items[4].equipment.includes('막대') &&
-    cursorOf(session, checks).current === first && cursorOf(session, checks).next === second &&
-    carriedOver(plan, session.week, checks).length === 0);
-  const old = checks.get(first.exerciseId)!;
-  checks.set(first.exerciseId, { ...old, at: '2026-11-22T01:00:00.000Z' });
-  check('11/22 — 당일 미루면 건너뛰고 저장된 메모 유지',
-    cursorOf(session, checks).current === second && stateOf(first, checks) === 'later' &&
-    checks.get(first.exerciseId)?.note === '기존 메모');
-  checks.set(first.exerciseId, { ...old, status: 'done' });
-  check('11/22 — 완료된 드릴을 다시 대기로 열지 않는다', cursorOf(session, checks).current === second);
-  /* 번호판 번호가 영상 파일 이름을 대신한다 — 한 주에 같은 번호가 둘이면 다른 카메라로 찍은 영상을 맞출 수 없고 ?at= · #번호가 엉뚱한 운동을 연다
-     (2026-11-21 연결 드릴 4-13~4-24 가 트레이닝 번호와 겹쳤다) — 연결 드릴을 합친 실제 주로 본다 */
-  const dupNos = SHOOT_PLAN.weeks.flatMap((w) => {
-    const nos = weekItems(weekOf(w.week)!).map((it) => it.no);
-    return nos.filter((no, i) => nos.indexOf(no) !== i);
-  });
-  check('모든 주 — 번호판 번호가 겹치지 않는다(연결 드릴 포함)', dupNos.length === 0, dupNos.join(' '));
-  /* 연결 드릴은 영상을 올리면 '나중에 촬영'에서 진짜 분류로 — 지금은 11/22(4주차) 것만(2026-11-21 김민: "우선 내일 목록에 있는거만") */
-  {
-    const linked = JSON.parse(readFileSync(new URL('../lib/shoot/linked-drills.json', import.meta.url), 'utf8')) as
-      { id: string; title: string; indoor?: { week: number } }[];
-    const drillCats = new Set(['스로잉 드릴', '메디신볼 드릴', '무브먼트 패턴 드릴', '근력 · 안정 드릴']);
-    const tomorrow = linked.filter((d) => d.indoor?.week === 4);
-    const bad = tomorrow.filter((d) => !drillCats.has(linkedDrillCategory(d.id) ?? ''));
-    check('11/22 연결 드릴 — 영상을 올리면 옮길 분류가 다 있다', tomorrow.length === 18 && bad.length === 0, bad.map((d) => d.title).join(', '));
-    check('11/22 연결 드릴 분류 — PVC · Hip Fire 는 무브먼트, 워터백은 근력 · 안정',
-      tomorrow.filter((d) => /PVC|Hip Fire/.test(d.title)).every((d) => linkedDrillCategory(d.id) === '무브먼트 패턴 드릴') &&
-      tomorrow.filter((d) => /워터백/.test(d.title)).every((d) => linkedDrillCategory(d.id) === '근력 · 안정 드릴'));
-    check('11/22 밖의 연결 드릴 · 연결 드릴이 아닌 것은 분류를 안 바꾼다',
-      linked.filter((d) => d.indoor?.week !== 4).every((d) => linkedDrillCategory(d.id) === undefined) &&
-      linkedDrillCategory('00000000-0000-0000-0000-000000000000') === undefined);
-  }
-  const liveWeek = weekOf(4)!;
-  const liveItems = weekItems(liveWeek);
-  check('실제 11/22 화면 데이터 — 메커니즘 24개 시각 유지, 웨이트 49개 현장 순서',
-    liveWeek.end === 120 && liveWeek.session?.agenda.at(-1)?.end === 120 &&
-    liveItems.filter((it) => it.kind === 'drill').length === 24 &&
-    liveItems.filter((it) => it.kind !== 'drill').length === 49 &&
-    liveItems.every((it) => hasFixedShootTime(liveWeek, it.at) === (it.kind === 'drill')));
-  const wallThrow = itemOf('45452ae0-a2f5-4bc6-a5c7-d01761fc5f56');
-  check('플라이오볼 벽 던지기 — 기존 운동 ID로 야외 벽 1-106에만 배치',
-    wallThrow?.week === 1 && wallThrow.item.no === '1-106' &&
-    wallThrow.item.station === '메디신볼 벽' &&
-    !liveItems.some((it) => it.exerciseId === wallThrow.item.exerciseId));
-}
-{
-  /* 미룬 영상 칸의 운동은 실내 운동이다(원래 주차 번호 그대로) — 개수에 같이 센다 */
-  const items = [...indoorPlan.weeks, ...deferredWeeks].flatMap(weekItems);
-  /*
-   * version 6(2026-11-14 김민): 찍은 것은 모두 계획에서 뺐다 — 야외 남은 것 1주차, 실내 남은 것(라이브러리에 새로 넣은 운동) 2주차,
-   * 미룬 것은 미룬 영상 칸(3). 2주차는 19개, 미룬 영상 34개.
-   */
-  check(
-    /* version 12(2026-11-21 김민): 2주차 · 미룬 영상에서 11/22 에 찍을 것을 옮기고 2주차를 비웠다(야외에서 할 몸풀기 9개는 야외 1주차로) */
-    '실내 — 11/22 메커니즘 6개 + 트레이닝 49개 · 미룬 영상 21개',
-    indoorPlan.weeks.map((w) => w.week).join() === '4' &&
-      weekItems(indoorPlan.weeks[0]).length === 55 && items.length === 76,
-    `${indoorPlan.weeks.map((w) => w.week).join(',')}주 · ${items.length}개`
-  );
-  invariants(indoorPlan, '고정 계획');
-  void LOWER_BUCKETS;
-}
-
-console.log('\n■ 미룬 영상 칸(version 4)');
-{
-  const d = deferredWeeks[0];
-  const its = d ? weekItems(d) : [];
-  check(
-    '미룬 영상 칸 하나 — 기존 주소(3), 옮긴 번호 비움, 야외 아님',
-    deferredWeeks.length === 1 && !d.outdoor && d.week === 3 && its.length === 21 &&
-      its.every((it, i) => it.no.startsWith('3-') && (i === 0 || it.no > its[i - 1].no)),
-    its.map((it) => it.no).join(' · ')
-  );
-}
-
-console.log('\n■ 고정 계획 — 야외 8~10주(투구 드릴만 — 워밍업 24개는 2026-10-09 뺐다)');
-{
-  const out = plan.weeks.filter((w) => w.outdoor);
-  const items = out.flatMap(weekItems);
-  const drills = items.filter((i) => i.kind === 'drill');
-  const warms = items.filter((i) => i.kind === 'warmup');
-  check(
-    '야외 1주(1주차) — 드릴 87 · 운동 12 · 워밍업 없음',
-    out.map((w) => w.week).join() === '1' &&
-      drills.length === 87 &&
-      items.filter((i) => !i.kind).length === 12 &&
-      warms.length === 0,
-    `${out.map((w) => w.week).join(',')} · 드릴 ${drills.length} · 운동 ${items.filter((i) => !i.kind).length} · 워밍업 ${warms.length}`
-  );
-  const rowIds = SHOOT_WARMUPS.map((w) => warmupRowId(w.id));
-  check(
-    '워밍업마다 라이브러리 운동 id(uuid)가 따로 정해져 있다',
-    rowIds.every(
-      (r) =>
-        !!r &&
-        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(r)
-    ) && new Set(rowIds).size === rowIds.length
-  );
+  const [out, ind, def, done] = plan.weeks;
+  check('주 넷 — 1 야외 · 2 실내 · 3 미룬 영상 · 4 촬영 완료',
+    plan.weeks.length === 4 &&
+      out.week === 1 && out.outdoor === true && weekLabel(out) === '야외' &&
+      ind.week === 2 && !ind.outdoor && weekLabel(ind) === '실내' &&
+      def.week === 3 && def.deferred === true && weekLabel(def) === '미룬 영상' &&
+      done.week === 4 && weekLabel(done) === '촬영 완료',
+    plan.weeks.map((w) => `${w.week} ${weekLabel(w)}`).join(' · '));
+  const n = (w: PlanWeek) => weekItems(w).length;
+  check('11/22 뒤 — 야외 77 · 실내 83 · 미룬 27 · 촬영 완료 43',
+    n(out) === 77 && n(ind) === 83 && n(def) === 27 && n(done) === 43,
+    plan.weeks.map(n).join(' · '));
   const all = plan.weeks.flatMap(weekItems).map((i) => i.exerciseId);
-  check(
-    '실내 · 야외 통틀어 한 번씩만',
-    new Set(all).size === all.length,
-    `${all.length}개`
-  );
-  check(
-    '야외 번호 보존 — 벽 던지기(106) 추가, 맨 앞 몸풀기는 기존 번호(96~104)',
-    out.every((w) =>
-      weekItems(w).filter((it) => it.no !== '1-106').map((it) => it.no).join() === [
-        ...Array.from({ length: 9 }, (_, i) => 96 + i),
-        ...Array.from({ length: 92 }, (_, i) => i + 1).filter((n) => ![3, 5, 6].includes(n)),
-      ].map((n) => `1-${String(n).padStart(2, '0')}`).join()
-    )
-  );
-  check(
-    '6주차 하루에 4시간 30분 안(2026-10-23 사용자가 6 · 7주를 한 번에 — 3시간 기준 밖)',
-    out.every((w) => w.end <= 270),
-    out.map((w) => clockText(w.end)).join(' · ')
-  );
-  const order = OUTDOOR_STATIONS as readonly string[];
-  check(
-    '자리 차례 — 무브먼트 → 메디신볼 → 스로잉',
-    out.every((w) =>
-      w.stations.every(
-        (st, i) =>
-          i === 0 ||
-          order.indexOf(st.station) > order.indexOf(w.stations[i - 1].station)
-      )
-    )
-  );
-  check(
-    '계획 시각이 앞 것이 끝난 뒤 · 영상 1개 3분 안 · 쉬기 다섯 번까지',
-    out.every((w) => {
-      const its = weekItems(w);
-      return (
-        its.every(
-          (it, i) =>
-            it.minutes <= 3 &&
-            (i === 0 || it.at >= its[i - 1].at + its[i - 1].minutes - 1e-6)
-        ) && its.filter((it) => it.breakAfter).length <= 5
-      );
-    })
-  );
-  const fam = new Map<string, Set<number>>();
-  for (const w of out)
-    for (const it of weekItems(w).filter((i) => i.kind === 'drill')) {
-      const k = `${it.bucket}|${familyOf(it.title)}`;
-      fam.set(k, (fam.get(k) ?? new Set()).add(w.week));
-    }
-  check(
-    '도구만 다른 같은 동작(작은 공 · 큰 공)은 같은 주',
-    [...fam.values()].every((ws) => ws.size === 1),
-    `묶음 ${fam.size}개`
-  );
-  const adjacentOk = out.every((w) => {
+  check('네 주를 통틀어 운동마다 한 번씩만', new Set(all).size === all.length && all.length === 230, `${all.length}개`);
+  const THROW = ['야구공', '플라이오볼', '메디신볼'];
+  const throws = (it: PlanItem) => it.equipment.some((e) => THROW.includes(e));
+  check('야외는 공 · 메디신볼을 던지는 것만', weekItems(out).every(throws),
+    weekItems(out).filter((it) => !throws(it)).map((it) => it.title).join(', '));
+  check('실내에는 던지는 것이 없다(밴드 · 워터볼 · 워터백 · 막대는 실내)',
+    !weekItems(ind).some(throws) &&
+      weekItems(ind).some((it) => it.equipment.includes('밴드')) &&
+      weekItems(ind).some((it) => it.equipment.includes('워터백')) &&
+      weekItems(ind).some((it) => it.equipment.includes('워터볼')),
+    weekItems(ind).filter(throws).map((it) => it.title).join(', '));
+  const nosOk = plan.weeks.every((w) =>
+    weekItems(w).every((it, i) => it.no === `${w.week}-${String(i + 1).padStart(2, '0')}`));
+  check('번호는 주-순번(1-01 …) 빈자리 없이 차례대로', nosOk);
+  check('계획 시각이 앞 것이 끝난 뒤', plan.weeks.every((w) => {
+    const its = weekItems(w);
+    return its.every((it, i) => i === 0 || it.at >= its[i - 1].at + its[i - 1].minutes - 1e-6);
+  }));
+  check('자리는 한 주에 한 번씩(같은 자리끼리 모음)', plan.weeks.every((w) => {
+    const sts = w.stations.map((s) => s.station);
+    return new Set(sts).size === sts.length;
+  }));
+  check('야외 자리 차례 — 메디신볼 벽 → 투구 그물(팔은 몸이 다 풀린 뒤)',
+    out.stations.map((s) => s.station).join() === '메디신볼 벽,투구 그물');
+  check('실내 자리 차례 — 넓은 바닥(몸풀기 · 막대 · 바이퍼) → 매트 → 공 · 워터백 → 밴드 → 덤벨 → 박스 → 철봉 → 랙 → 케이블 → 머신',
+    ind.stations.map((s) => s.station).join() ===
+      '넓은 바닥(이동),매트,공 · 워터백(벽 앞),밴드(고정 기둥),덤벨 · 케틀벨,박스,철봉 · TRX,랙 · 바벨 · 원판,케이블,머신');
+  /* 한 자리 안에서 같은 장비(조합)는 한 번에 이어서 — 장비를 두 번 꺼내지 않게 */
+  const eqKey = (it: PlanItem) => [...it.equipment].sort().join('+');
+  const grouped = [out, ind].every((w) => w.stations.every((s) => {
+    const ks = s.items.map(eqKey);
+    return ks.every((k, i) => i === 0 || k === ks[i - 1] || !ks.slice(0, i - 1).includes(k));
+  }));
+  check('야외 · 실내 — 한 자리 안에서 같은 장비는 이어서', grouped);
+  const famOk = [out, ind].every((w) => {
     const its = weekItems(w).filter((i) => i.kind === 'drill');
     const seen = new Map<string, number>();
     return its.every((it, i) => {
@@ -425,28 +296,50 @@ console.log('\n■ 고정 계획 — 야외 8~10주(투구 드릴만 — 워밍�
       return last === undefined || last === i - 1;
     });
   });
-  check('같은 동작 묶음은 이어서 찍는다', adjacentOk);
-  const spread = (f: (i: (typeof items)[number]) => boolean) =>
-    out.map((w) => weekItems(w).filter(f).length);
-  const even = (xs: number[], tol: number) => Math.max(...xs) - Math.min(...xs) <= tol;
-  const throws = spread((i) => i.bucket === '스로잉 드릴');
-  const balls = spread((i) => i.bucket === '메디신볼 드릴');
-  const moves = spread((i) => i.bucket === '무브먼트 패턴 드릴');
-  const jumps = spread((i) => i.kind === 'drill' && PLYO.test(i.title));
-  check('주마다 스로잉 수 고르게(차이 3 안)', even(throws, 3), throws.join(' · '));
-  check('주마다 메디신볼 수 고르게(차이 3 안)', even(balls, 3), balls.join(' · '));
-  check('주마다 무브먼트 수 고르게(차이 3 안)', even(moves, 3), moves.join(' · '));
-  check('주마다 점프 · 착지 드릴 고르게(차이 2 안)', even(jumps, 2), jumps.join(' · '));
+  check('같은 동작 묶음(작은 공 · 큰 공 …)은 이어서 찍는다', famOk);
+  check('실내 맨 앞은 몸풀기(이름만 있는 워밍업 아홉)',
+    weekItems(ind).slice(0, 9).every((it) => it.bucket === '모빌리티' && it.equipment.join() === '맨몸'));
+  check('미룬 영상 · 촬영 완료는 야외 아님', !def.outdoor && !done.outdoor);
+  const wallThrow = itemOf('45452ae0-a2f5-4bc6-a5c7-d01761fc5f56');
+  check('플라이오볼 벽 던지기 — 야외 메디신볼 벽 끝(벽 자리 그대로)',
+    wallThrow?.week === 1 && wallThrow.item.station === '메디신볼 벽' &&
+      out.stations[0].items.at(-1)?.exerciseId === wallThrow.item.exerciseId);
+  /* 연결 드릴은 계획에 직접 든다 — 연결 자리(linked-drills.json)로 따로 붙는 주(예전 5주차)가 생기지 않는다 */
+  check('연결 드릴을 품은 계획 — 따로 붙는 주 없음', SHOOT_PLAN.weeks.length === 4 &&
+    SHOOT_PLAN.weeks.every((w) => weekItems(w).length === weekItems(plan.weeks.find((x) => x.week === w.week)!).length));
+  /* 번호판 번호가 영상 파일 이름을 대신한다 — 한 주에 같은 번호가 둘이면 다른 카메라로 찍은 영상을 맞출 수 없고 ?at= · #번호가 엉뚱한 운동을 연다
+     (2026-11-21 연결 드릴 4-13~4-24 가 트레이닝 번호와 겹쳤다) — 연결 드릴을 합친 실제 주로 본다 */
+  const dupNos = SHOOT_PLAN.weeks.flatMap((w) => {
+    const nos = weekItems(weekOf(w.week)!).map((it) => it.no);
+    return nos.filter((no, i) => nos.indexOf(no) !== i);
+  });
+  check('모든 주 — 번호판 번호가 겹치지 않는다(연결 드릴 포함)', dupNos.length === 0, dupNos.join(' '));
+  /* 연결 드릴은 영상을 올리면 '나중에 촬영'에서 진짜 분류로 — 지금은 11/22 목록 것만(2026-11-21 김민: "우선 내일 목록에 있는거만") */
+  {
+    const linked = JSON.parse(readFileSync(new URL('../lib/shoot/linked-drills.json', import.meta.url), 'utf8')) as
+      { id: string; title: string; indoor?: { week: number } }[];
+    const drillCats = new Set(['스로잉 드릴', '메디신볼 드릴', '무브먼트 패턴 드릴', '근력 · 안정 드릴']);
+    const nov22 = linked.filter((d) => d.indoor?.week === 4);
+    const bad = nov22.filter((d) => !drillCats.has(linkedDrillCategory(d.id) ?? ''));
+    check('11/22 연결 드릴 — 영상을 올리면 옮길 분류가 다 있다', nov22.length === 18 && bad.length === 0, bad.map((d) => d.title).join(', '));
+    check('11/22 연결 드릴 분류 — PVC · Hip Fire 는 무브먼트, 워터백은 근력 · 안정',
+      nov22.filter((d) => /PVC|Hip Fire/.test(d.title)).every((d) => linkedDrillCategory(d.id) === '무브먼트 패턴 드릴') &&
+      nov22.filter((d) => /워터백/.test(d.title)).every((d) => linkedDrillCategory(d.id) === '근력 · 안정 드릴'));
+    check('11/22 밖의 연결 드릴 · 연결 드릴이 아닌 것은 분류를 안 바꾼다',
+      linked.filter((d) => d.indoor?.week !== 4).every((d) => linkedDrillCategory(d.id) === undefined) &&
+      linkedDrillCategory('00000000-0000-0000-0000-000000000000') === undefined);
+  }
+  const rowIds = SHOOT_WARMUPS.map((w) => warmupRowId(w.id));
   check(
-    '워밍업이 그 주 맨 앞',
-    out.every((w) => {
-      const its = weekItems(w);
-      const n = its.filter((i) => i.kind === 'warmup').length;
-      return its.slice(0, n).every((i) => i.kind === 'warmup');
-    })
+    '워밍업마다 라이브러리 운동 id(uuid)가 따로 정해져 있다',
+    rowIds.every(
+      (r) =>
+        !!r &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(r)
+    ) && new Set(rowIds).size === rowIds.length
   );
-  /* 같은 입력이면 같은 계획(드릴 순서를 뒤섞어도) */
-  const drillIn = drills.map((d) => ({
+  /* 야외 계획 계산(scripts/shoot-plan-outdoor.mts)은 그대로 — 같은 드릴이면 같은 계획(순서를 뒤섞어도) */
+  const drillIn = weekItems(out).filter((d) => d.kind === 'drill').map((d) => ({
     id: d.exerciseId,
     title: d.title,
     category: d.bucket,
@@ -454,11 +347,10 @@ console.log('\n■ 고정 계획 — 야외 8~10주(투구 드릴만 — 워밍�
     stage: d.group ?? null,
     oldVideo: d.oldVideo ?? null,
   }));
-  /* 실내 바로 다음 주부터, 고정해 둔 주 수로(scripts/shoot-plan-outdoor.mts) */
-  const opts = { ...OUTDOOR_DEFAULT, firstWeek: out[0].week, sessions: out.length };
+  const opts = { ...OUTDOOR_DEFAULT, firstWeek: 1, sessions: 1 };
   const a = JSON.stringify(buildOutdoorWeeks(drillIn, [], opts));
   const b = JSON.stringify(buildOutdoorWeeks([...drillIn].reverse(), [], opts));
-  check('같은 드릴이면 같은 계획(순서를 뒤섞어도)', a === b);
+  check('같은 드릴이면 같은 야외 계산(순서를 뒤섞어도)', a === b);
   check(
     '드릴 영상 분 — 던지기 · 이어지는 동작은 더',
     drillMinutes({
@@ -476,6 +368,7 @@ console.log('\n■ 고정 계획 — 야외 8~10주(투구 드릴만 — 워밍�
         stage: '연결',
       }) === 2.4
   );
+  void LOWER_BUCKETS;
 }
 
 console.log('\n■ 계획 계산(합성 운동)');
@@ -837,7 +730,8 @@ console.log('\n■ 진행(지금 · 다음 · 미룬 것)');
   );
 }
 
-const scheduled = plan.weeks.find((week) => week.session)!;
+/* 지도 · 다시 찍기 주소는 아무 주로 본다 — 11/22 날짜를 정한 회는 끝나 실내 목록으로(version 13) */
+const scheduled = plan.weeks.find((week) => week.week === 2)!;
 const guidePlan = weekItems(scheduled);
 const firstGuideItem = guidePlan[0];
 const secondGuideItem = guidePlan[1];

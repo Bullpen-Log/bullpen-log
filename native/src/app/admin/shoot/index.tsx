@@ -97,7 +97,7 @@ export default function ShootHomeScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Text style={{ color: c.ink, fontSize: 17, fontWeight: '700' }}>
                   {w.label}
-                  {w.outdoor ? <Text style={[s.meta, { color: c.muted, fontWeight: '600' }]}>  야외</Text> : null}
+                  {w.outdoor && w.label !== '야외' ? <Text style={[s.meta, { color: c.muted, fontWeight: '600' }]}>  야외</Text> : null}
                 </Text>
                 <WeekState state={w.state} deferred={w.deferred} c={c} />
               </View>

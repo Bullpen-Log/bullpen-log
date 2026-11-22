@@ -124,7 +124,7 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
   return (
     <>
       <PageHeading
-        title={week.deferred ? label : `${label} 촬영${week.outdoor ? ' · 야외' : ''}`}
+        title={week.deferred ? label : `${label} 촬영${week.outdoor && label !== '야외' ? ' · 야외' : ''}`}
         description={
           session
             ? `${clockText(startMinute)}–${clockText(startMinute + week.end)} · 메커니즘 ${drillCount}개 · 트레이닝 ${items.length - drillCount}개`
@@ -245,7 +245,7 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
         <p className="text-xs leading-relaxed text-muted">
           자리 순서 · {week.stations.map((s) => (s.warmup ? '몸풀기' : s.station)).join(' → ')}.{' '}
           {week.outdoor
-            ? '워밍업으로 모델이 몸을 푼 뒤 드릴로. 던지는 드릴은 2~3구, 메디신볼은 3회 — 공 줍는 사람 한 명.'
+            ? '던지는 드릴은 2~3구, 메디신볼은 3회 — 공 줍는 사람 한 명.'
             : '시범은 가볍게 3회 · 버티기 10초 · 천천히 내리기는 1~2회 · 좌우는 한쪽만.'}
         </p>
       </section>

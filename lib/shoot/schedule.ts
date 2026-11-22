@@ -335,6 +335,11 @@ export type PlanWeek = {
    * 다른 주(실내 · 야외)에서 미룸으로 체크한 것도 여기 끝에 이어 붙는다(lib/shoot/progress.ts carriedOver).
    */
   deferred?: boolean;
+  /**
+   * 주 이름 — 주차 번호 대신(2026-11-22 김민: "1주차, 2주차가 아니라 야외 · 실내 둘로"). '야외' · '실내' · '촬영 완료'(찍은 것을 모아 둔 곳 —
+   * 다시 찍기는 거기서). 없으면 'N주차'.
+   */
+  label?: string;
   session?: {
     label: string;
     startMinute: number;
@@ -349,9 +354,13 @@ export function hasFixedShootTime(w: Pick<PlanWeek, 'session'>, at: number): boo
   return flexibleFrom === undefined || at < flexibleFrom;
 }
 
-/** 주차 이름 — 미룬 영상 칸은 '미룬 영상' */
-export function weekLabel(w: Pick<PlanWeek, 'week' | 'deferred' | 'session'>): string {
-  return w.session?.label ?? (w.deferred ? '미룬 영상' : `${w.week}주차`);
+/** 찍은 것을 모아 둔 곳의 이름 — 다시 찍기는 거기서, 촬영 일정으로는 세지 않는다 */
+export const DONE_WEEK_LABEL = '촬영 완료';
+export const isDoneWeek = (w: Pick<PlanWeek, 'label'>): boolean => w.label === DONE_WEEK_LABEL;
+
+/** 주차 이름 — 이름이 있으면 그것(야외 · 실내 · 촬영 완료), 미룬 영상 칸은 '미룬 영상' */
+export function weekLabel(w: Pick<PlanWeek, 'week' | 'deferred' | 'session' | 'label'>): string {
+  return w.label ?? w.session?.label ?? (w.deferred ? '미룬 영상' : `${w.week}주차`);
 }
 
 export type ShootPlan = {

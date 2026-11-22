@@ -21,7 +21,7 @@ import {
   type Count,
   type ShootCheckView,
 } from '@/lib/shoot/progress';
-import { ALL_STATIONS, SESSION_MINUTES, WRAP_MINUTES, weekLabel } from '@/lib/shoot/schedule';
+import { ALL_STATIONS, SESSION_MINUTES, WRAP_MINUTES, isDoneWeek, weekLabel } from '@/lib/shoot/schedule';
 import { crewsOf } from '@/lib/shoot/crews';
 import { toDateKey } from '@/lib/pitch-stats';
 
@@ -69,7 +69,7 @@ export async function ShootOverview({
   ].filter((n): n is { label: string; next: (typeof weeks)[number] } => !!n.next);
   const kindCount = (k: 'exercise' | 'drill' | 'warmup') =>
     items.filter((i) => (i.kind ?? 'exercise') === k).length;
-  const sessionsPlanned = plan.weeks.filter((w) => !w.deferred).length;
+  const sessionsPlanned = plan.weeks.filter((w) => !w.deferred && !isDoneWeek(w)).length;
   const sessions = sessionsOf(checkList, toDateKey);
   const realPer =
     sessions
@@ -194,7 +194,7 @@ export async function ShootOverview({
                   <span className="flex items-center justify-between gap-2">
                     <span className="flex items-center gap-2 text-base font-bold text-ink">
                       {weekLabel(w)}
-                      {w.outdoor && (
+                      {w.outdoor && weekLabel(w) !== '야외' && (
                         <span className="rounded-full bg-ink/6 px-2 py-0.5 text-caption font-semibold text-muted">
                           야외
                         </span>
