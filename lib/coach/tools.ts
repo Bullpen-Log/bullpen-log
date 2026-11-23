@@ -10,6 +10,7 @@ import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { decideAccess, type Capability } from '@/lib/release-access';
 import { releaseStage } from '@/lib/release-gate';
 import { CARDS_MAX, type CoachCard } from '@/lib/coach/card';
+import { notesText } from '@/lib/coach/notes';
 import { READ_NAMES, WRITE_NAMES, addCard, calendarKindOf, norm, parseToolInput, propose, proposeToday, type ProposeCtx, type TodayWork } from '@/lib/coach/tool-defs';
 export type { TodayWork } from '@/lib/coach/tool-defs';
 import type { Toolbox } from '@/lib/coach/ai';
@@ -181,6 +182,10 @@ const READERS: Record<string, Reader> = {
     return {
       text: `설정: 던지는 손 ${u.throwingHand ?? '모름'} | 하루 운동 시간 ${u.dailyWorkoutMinutes ?? '기본'}분 | 웨이트 경력 ${u.trainingLevel ?? '모름'} | 목표 ${u.trainingGoal ?? '없음'} | 가진 장비 ${u.ownedEquipment.join(' · ') || '없음'}`,
     };
+  },
+  /* 일반 지식 노트(lib/coach/notes.ts) — 우리 글이라 권한 · 동의와 상관없다(이 사람 자료가 아니다) */
+  async read_knowledge(_s, input) {
+    return { text: notesText(String(input.topic ?? '')) };
   },
   async read_exercise_info(s, input) {
     const drill = input.kind === '드릴';

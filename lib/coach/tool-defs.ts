@@ -64,6 +64,7 @@ const TodayIn = z.object({
 const NoIn = z.object({});
 const FindIn = z.object({ query: z.string().describe('운동 이름 일부 · 부위(예: 스쿼트, 하체, 어깨)') });
 const InfoIn = z.object({ kind: z.enum(['운동', '드릴']), name: z.string().describe('운동 · 드릴 이름(일부여도 됨)') });
+const KnowIn = z.object({ topic: z.string().describe('찾을 주제(지시문의 지식 노트 주제 이름 그대로, 또는 사용자 물음의 핵심 낱말)') });
 
 /* 4단계 쓰기 — 확인 · 실행은 서버(lib/coach/assist.ts), 카드 글은 아래 순수 함수 */
 export const CALENDAR_KINDS = ['경기', '훈련', '레슨', '기타'] as const;
@@ -124,6 +125,12 @@ export const READ_DEFS = [
     name: 'read_checkins',
     description: '체크인을 날짜 범위로 읽는다(최대 30일). 컨디션 · 잠의 질 · 어깨 · 팔꿈치. 건강정보 동의가 없으면 못 읽는다.',
     input: RangeIn,
+  },
+  {
+    name: 'read_knowledge',
+    description:
+      '야구 · 운동 일반 지식 노트를 읽는다(투구 기술 · 메커니즘 원리 · 근력 · 컨디셔닝 · 회복 · 잠 · 영양 — 검증된 자료로 쓴 글). 이 사람의 기록이 아니라 일반 원리 · 요령 · 왜를 물으면 답하기 전에 읽는다.',
+    input: KnowIn,
   },
 ] as const satisfies readonly Def[];
 

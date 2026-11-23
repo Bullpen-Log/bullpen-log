@@ -25,6 +25,7 @@ import { newProgression } from '@/lib/mechanics/progression';
 import { REPORT_CRITERIA } from '@/lib/pitch-3d/v2/report-policy';
 import type { ElementRx } from '@/lib/pitch-3d/v2/report';
 import { decideAccess } from '@/lib/release-access';
+import { KNOW_NOTES, NOTE_SOURCES, findNotes, noteTopicsLine, notesText, shippedNotes, type KnowNote } from '@/lib/coach/notes';
 import { CARD_SOURCES, COACH_CARDS, cardsBlock, shippedCards } from '@/lib/coach/cards';
 import { slotProgressOf } from '@/lib/coach/status';
 import { sanitizeAdjusts } from '@/lib/coach/adjust';
@@ -422,7 +423,7 @@ check('⑩ 답 글에 샌 칸 이름은 우리말로(조사도)', scrubCodes('�
   const T = '2026-11-04';
   const pc = { today: T, said: '오늘 팀 불펜 40개 던졌어', week, locked: (d: string) => d < T, goalOpen: false };
   const names = TOOL_DEFS.map((d) => d.name);
-  check('⑬ 도구 목록: 차례 고정 · 모르는 칸 없음 · 이름 겹침 없음', JSON.stringify(names) === JSON.stringify(['read_pitch_logs', 'find_exercises', 'read_workouts', 'read_armcare', 'read_calendar', 'read_program', 'read_3d_history', 'read_settings', 'read_exercise_info', 'read_checkins', 'change_week', 'change_today', 'goal', 'draft_pitch_log', 'open_screen', 'calendar', 'throw_plan', 'training_settings', 'armcare_today', 'program_day']) && TOOL_DEFS.every((d) => d.input_schema.type === 'object' && (d.input_schema as { additionalProperties?: unknown }).additionalProperties === false));
+  check('⑬ 도구 목록: 차례 고정 · 모르는 칸 없음 · 이름 겹침 없음', JSON.stringify(names) === JSON.stringify(['read_pitch_logs', 'find_exercises', 'read_workouts', 'read_armcare', 'read_calendar', 'read_program', 'read_3d_history', 'read_settings', 'read_exercise_info', 'read_checkins', 'read_knowledge', 'change_week', 'change_today', 'goal', 'draft_pitch_log', 'open_screen', 'calendar', 'throw_plan', 'training_settings', 'armcare_today', 'program_day']) && TOOL_DEFS.every((d) => d.input_schema.type === 'object' && (d.input_schema as { additionalProperties?: unknown }).additionalProperties === false));
   check('⑬ 도구 목록은 부를 때마다 같은 글자(캐시)', JSON.stringify(TOOL_DEFS) === JSON.stringify(TOOL_DEFS.map((d) => ({ ...d }))) && !JSON.stringify(TOOL_DEFS).includes('$schema'));
   const skip = propose('change_week', pc, { kind: 'skip', date: '2026-11-06', minutes: null, from: null, to: null });
   check('⑬ 일정 쉬기 → 카드(미리보기 줄 · 적용)', 'card' in skip && skip.card.cta === '적용' && skip.card.title === `${dayText('2026-11-06')} 운동 쉬기` && skip.card.lines.length >= 1 && !skip.card.open, JSON.stringify(skip));
@@ -687,6 +688,20 @@ check(
   "㉑ 시작 질문 선택지에 '제구' 없음 · 서버는 옛 답 'control' 을 받음",
   !COACH_PRIORITY_CHOICES.some((p) => (p.value as string) === 'control') && COACH_PRIORITY_CHOICES.length === 3 && mergeStep({}, 'goal', { priority: 'control' }, true)?.priority === 'control'
 );
+
+/* ㉒ 지식 노트(lib/coach/notes.ts, 2026-11-23) — 출처 둘 넘게 · 검토한 것만 실림 · 이름 · 이 사람 숫자 없음 · 일반 지식 규칙 */
+{
+  const sample: KnowNote = { id: 'x1', topic: '롱토스', keys: ['멀리 던지기', '롱 토스'], body: '시험 글이에요.', sources: [], review: { by: null, at: null } };
+  const other: KnowNote = { ...sample, id: 'x2', topic: '아이싱', keys: ['얼음', '얼음찜질'], review: { by: '시험', at: '2026-11-23' } };
+  check('㉒ 노트마다 출처 둘 넘게 · 출처 표에 있음 · id · 주제 겹침 없음', KNOW_NOTES.every((n) => n.sources.length >= 2 && n.sources.every((id) => id in NOTE_SOURCES)) && new Set(KNOW_NOTES.map((n) => n.id)).size === KNOW_NOTES.length && new Set(KNOW_NOTES.map((n) => n.topic)).size === KNOW_NOTES.length, KNOW_NOTES.filter((n) => n.sources.length < 2).map((n) => n.id).join());
+  check('㉒ 출처는 논문 · 기관 문서 주소(https)', Object.values(NOTE_SOURCES as Record<string, string>).every((v) => /https:\/\//.test(v)));
+  check('㉒ 노트 글: 해요체 · 줄표 · 기관 이름 없음 · 1,200자 안', KNOW_NOTES.every((n) => !n.body.includes('—') && scrubNames(n.body) === n.body && n.body.length <= 1200 && /요\.$/.test(n.body.trim())), KNOW_NOTES.filter((n) => n.body.includes('—') || scrubNames(n.body) !== n.body || n.body.length > 1200 || !/요\.$/.test(n.body.trim())).map((n) => n.id).join());
+  check('㉒ 검토자가 적힌 노트만 실린다', shippedNotes([sample, other]).length === 1 && shippedNotes().every((n) => n.review.by && n.review.at));
+  check('㉒ 찾기: 주제 · 찾는 낱말 · 띄어쓰기 달라도 · 없으면 빈 목록', findNotes('롱 토스 얼마나 멀리', [sample, other])[0]?.id === 'x1' && findNotes('던지고 얼음 찜질 해야 돼?', [sample, other])[0]?.id === 'x2' && findNotes('슬라이더', [sample, other]).length === 0 && findNotes('', [sample, other]).length === 0);
+  check('㉒ 못 찾으면 있는 주제를 알려 준다 · 찾으면 출처 번호 없이 글만', notesText('슬라이더', [other]).includes('있는 주제: 아이싱') && notesText('얼음', [other]).includes('[아이싱]') && !/NS\d|PM\d/.test(notesText('얼음', [other])));
+  check('㉒ 읽기 도구 · 지시문: 일반 지식은 노트 먼저 · 없으면 기본만 · 꼬리 금지 · 답 고치기 안내', TOOL_DEFS.some((d) => d.name === 'read_knowledge') && COACH_SYSTEM.includes('답하기 전에 read_knowledge') && COACH_SYSTEM.includes("'일반적으로는'을 붙여") && COACH_SYSTEM.includes('덧붙이지 않는다') && COACH_SYSTEM.includes("'답 고치기'에서 바꾸면"));
+  check('㉒ 고정 덩이 끝에 실린 노트 주제 목록(검토 전 노트는 없다)', COACH_SYSTEM_BLOCK.includes(`지식 노트 주제(read_knowledge 의 topic 으로 쓴다): ${noteTopicsLine() || '아직 없음'}`) && KNOW_NOTES.filter((n) => !n.review.by).every((n) => !noteTopicsLine().split(' · ').includes(n.topic)));
+}
 
 console.log(`coach-ai: ${pass}개 통과${fails.length ? `, ${fails.length}개 실패` : ''}`);
 for (const f of fails) console.log(`  - ${f}`);
