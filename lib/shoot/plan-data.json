@@ -1431,12 +1431,12 @@
   },
   {
    "week": 2,
-   "end": 220.8,
+   "end": 231.8,
    "stations": [
     {
      "station": "넓은 바닥(이동)",
      "start": 15.0,
-     "end": 51.5,
+     "end": 58.1,
      "items": [
       {
        "exerciseId": "11688c75-8edd-4431-b081-1c4e03d1f24e",
@@ -1583,14 +1583,62 @@
        "breakAfter": false
       },
       {
-       "exerciseId": "523e87ae-e5a9-5ea6-bdc1-b3d4ee839ea5",
+       "exerciseId": "a67e152a-dfd2-4588-8e73-34e26d27f233",
        "no": "2-10",
+       "title": "섀도 복싱",
+       "station": "넓은 바닥(이동)",
+       "bucket": "유산소",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 29.7,
+       "minutes": 2.2,
+       "load": 0.5,
+       "cue": "20초 · 정면 45도",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "be9f970b-eaec-4820-a8de-3bc1dc671f65",
+       "no": "2-11",
+       "title": "마운틴 클라이머",
+       "station": "넓은 바닥(이동)",
+       "bucket": "유산소",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 31.9,
+       "minutes": 2.2,
+       "load": 1,
+       "cue": "20초 · 옆에서",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "d442d25a-345f-44e7-8bee-b001adb71eb3",
+       "no": "2-12",
+       "title": "스텝 버피",
+       "station": "넓은 바닥(이동)",
+       "bucket": "유산소",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 34.1,
+       "minutes": 2.2,
+       "load": 2,
+       "cue": "2~3회 · 옆에서",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "523e87ae-e5a9-5ea6-bdc1-b3d4ee839ea5",
+       "no": "2-13",
        "title": "Hip Fire with Chop",
        "equipment": [
         "막대"
        ],
        "station": "넓은 바닥(이동)",
-       "at": 30.7,
+       "at": 37.3,
        "minutes": 2.2,
        "cue": "실내 무투구 · 피브이씨 막대 · 상하체 분리 · 정면 45도 · 고정 보폭과 찹",
        "kind": "drill",
@@ -1602,13 +1650,13 @@
       },
       {
        "exerciseId": "77737210-282f-5d00-b1e8-aeaa9d57deb7",
-       "no": "2-11",
+       "no": "2-14",
        "title": "Hip rotation + turn",
        "equipment": [
         "막대"
        ],
        "station": "넓은 바닥(이동)",
-       "at": 32.9,
+       "at": 39.5,
        "minutes": 2.2,
        "cue": "실내 무투구 · 피브이씨 막대 · 몸통 회전 · 정면 45도 · 막대 기울기",
        "kind": "drill",
@@ -1620,13 +1668,13 @@
       },
       {
        "exerciseId": "c870b192-af0a-5044-88dc-17fed652d280",
-       "no": "2-12",
+       "no": "2-15",
        "title": "Hip-Shoulder Separation V1 (Partial action)",
        "equipment": [
         "막대"
        ],
        "station": "넓은 바닥(이동)",
-       "at": 35.1,
+       "at": 41.7,
        "minutes": 2.2,
        "cue": "실내 무투구 · 피브이씨 막대 · 상하체 분리 · 정면 45도 · 구간별 정지 장면",
        "kind": "drill",
@@ -1638,13 +1686,13 @@
       },
       {
        "exerciseId": "ca0e843a-be21-59bd-92a5-01690f2c2d14",
-       "no": "2-13",
+       "no": "2-16",
        "title": "Hip-Shoulder Separation V2 (Stop & go)",
        "equipment": [
         "막대"
        ],
        "station": "넓은 바닥(이동)",
-       "at": 37.3,
+       "at": 43.9,
        "minutes": 2.2,
        "cue": "실내 무투구 · 피브이씨 막대 · 상하체 분리 · 옆에서 멈춤 위치와 재출발",
        "kind": "drill",
@@ -1656,13 +1704,13 @@
       },
       {
        "exerciseId": "b65143ca-dcfd-5efc-96de-c89645a3c4c8",
-       "no": "2-14",
+       "no": "2-17",
        "title": "Full Delivery",
        "equipment": [
         "막대"
        ],
        "station": "넓은 바닥(이동)",
-       "at": 39.5,
+       "at": 46.1,
        "minutes": 2.2,
        "cue": "실내 무투구 · 피브이씨 막대 · 드리프트 · 옆 전신 · 레그 리프트와 끝",
        "kind": "drill",
@@ -1674,13 +1722,13 @@
       },
       {
        "exerciseId": "b43528c2-f197-5108-8ed5-c8656d5c0ec3",
-       "no": "2-15",
+       "no": "2-18",
        "title": "바이퍼 한 발 골반·몸통 안정",
        "equipment": [
         "바이퍼"
        ],
        "station": "넓은 바닥(이동)",
-       "at": 42.7,
+       "at": 49.3,
        "minutes": 2.2,
        "cue": "실내 무투구 · 바이퍼 · 균형·안정 · 정면 · 지지발과 도구 수평",
        "kind": "drill",
@@ -1692,13 +1740,13 @@
       },
       {
        "exerciseId": "dfdb1e0f-0c72-55cf-817b-d78a1e5aebef",
-       "no": "2-16",
+       "no": "2-19",
        "title": "바이퍼 체중 이동 제어",
        "equipment": [
         "바이퍼"
        ],
        "station": "넓은 바닥(이동)",
-       "at": 44.9,
+       "at": 51.5,
        "minutes": 2.2,
        "cue": "실내 무투구 · 바이퍼 · 드리프트 · 옆 전신 · 골반 이동과 도구",
        "kind": "drill",
@@ -1710,13 +1758,13 @@
       },
       {
        "exerciseId": "684a2e0a-6370-584f-acc3-f9b64de215dd",
-       "no": "2-17",
+       "no": "2-20",
        "title": "바이퍼 레그 리프트와 드라이브",
        "equipment": [
         "바이퍼"
        ],
        "station": "넓은 바닥(이동)",
-       "at": 47.1,
+       "at": 53.7,
        "minutes": 2.2,
        "cue": "실내 무투구 · 바이퍼 · 드리프트 · 옆 전신 · 지지발과 사선 리프트",
        "kind": "drill",
@@ -1728,13 +1776,13 @@
       },
       {
        "exerciseId": "68141282-3406-55a4-a7a9-39e2f7d13c4b",
-       "no": "2-18",
+       "no": "2-21",
        "title": "바이퍼 회전 스윙",
        "equipment": [
         "바이퍼"
        ],
        "station": "넓은 바닥(이동)",
-       "at": 49.3,
+       "at": 55.9,
        "minutes": 2.2,
        "cue": "실내 무투구 · 바이퍼 · 몸통 회전 · 뒤 45도 · 바이퍼 끝 경로",
        "kind": "drill",
@@ -1748,19 +1796,19 @@
     },
     {
      "station": "매트",
-     "start": 54.5,
-     "end": 57.7,
+     "start": 61.1,
+     "end": 64.3,
      "items": [
       {
        "exerciseId": "f60ca4bb-9189-4034-aee8-1d4ac954351f",
-       "no": "2-19",
+       "no": "2-22",
        "title": "박수 푸시업",
        "station": "매트",
        "bucket": "하체 파워",
        "equipment": [
         "맨몸"
        ],
-       "at": 54.5,
+       "at": 61.1,
        "minutes": 1.6,
        "load": 2,
        "cue": "3회",
@@ -1769,14 +1817,14 @@
       },
       {
        "exerciseId": "d0d64b03-4802-43db-ba34-0ad9378888f1",
-       "no": "2-20",
+       "no": "2-23",
        "title": "다운독 푸시업",
        "station": "매트",
        "bucket": "모빌리티",
        "equipment": [
         "맨몸"
        ],
-       "at": 56.1,
+       "at": 62.7,
        "minutes": 1.6,
        "load": 0.5,
        "cue": "2~3회 · 끝 자세 2초",
@@ -1787,18 +1835,18 @@
     },
     {
      "station": "공 · 워터백(벽 앞)",
-     "start": 60.7,
-     "end": 135.0,
+     "start": 67.3,
+     "end": 146.0,
      "items": [
       {
        "exerciseId": "10efb6e7-3679-4494-a6e4-0f28c4d7de5f",
-       "no": "2-21",
+       "no": "2-24",
        "title": "Loading phase",
        "equipment": [
         "워터볼"
        ],
        "station": "공 · 워터백(벽 앞)",
-       "at": 60.7,
+       "at": 67.3,
        "minutes": 2.4,
        "cue": "실내 워터볼 · 머리 위 시작부터 뒤쪽 골반 옆 낮은 위치까지 · 옆 전신",
        "kind": "drill",
@@ -1806,17 +1854,17 @@
        "group": "기초",
        "load": 0.5,
        "perSide": false,
-       "breakAfter": false
+       "breakAfter": true
       },
       {
        "exerciseId": "5d2ec94d-2991-4bf4-949d-502d6b841340",
-       "no": "2-22",
+       "no": "2-25",
        "title": "Driving Phase",
        "equipment": [
         "워터볼"
        ],
        "station": "공 · 워터백(벽 앞)",
-       "at": 63.1,
+       "at": 74.7,
        "minutes": 2.4,
        "cue": "실내 워터볼 · 낮은 시작 → 뒷발에서 홈 쪽 이동 → 앞발 착지와 공의 높은 위치 · 옆 전신",
        "kind": "drill",
@@ -1824,17 +1872,17 @@
        "group": "연결",
        "load": 0.5,
        "perSide": false,
-       "breakAfter": true
+       "breakAfter": false
       },
       {
        "exerciseId": "35fec7b6-517f-488e-8520-bc737ac72a9e",
-       "no": "2-23",
+       "no": "2-26",
        "title": "Hydroball Flip Ups",
        "equipment": [
         "워터볼"
        ],
        "station": "공 · 워터백(벽 앞)",
-       "at": 70.5,
+       "at": 77.1,
        "minutes": 2.4,
        "cue": "실내 워터볼 · 허리 앞 공과 작은 발동작 → 머리 옆 높이 · 옆 전신",
        "kind": "drill",
@@ -1846,13 +1894,13 @@
       },
       {
        "exerciseId": "1af441c4-461e-45db-8674-911cd1be4734",
-       "no": "2-24",
+       "no": "2-27",
        "title": "Finishing Phase",
        "equipment": [
         "워터볼"
        ],
        "station": "공 · 워터백(벽 앞)",
-       "at": 72.9,
+       "at": 79.5,
        "minutes": 2.4,
        "cue": "실내 워터볼 · 스플릿 자세에서 공이 몸 앞을 지나 반대쪽으로 이어지는 피니시 · 뒤 45도",
        "kind": "drill",
@@ -1864,14 +1912,14 @@
       },
       {
        "exerciseId": "63b1fff9-be10-4f0a-99ad-8275b41e2038",
-       "no": "2-25",
+       "no": "2-28",
        "title": "워터볼 내로우 스쿼트",
        "station": "공 · 워터백(벽 앞)",
        "bucket": "고관절 · 발목 보강",
        "equipment": [
         "워터볼"
        ],
-       "at": 75.3,
+       "at": 81.9,
        "minutes": 1.7,
        "load": 2,
        "cue": "3회",
@@ -1880,14 +1928,14 @@
       },
       {
        "exerciseId": "bdbe4522-b915-44fa-ab88-49687f1a9b64",
-       "no": "2-26",
+       "no": "2-29",
        "title": "워터볼 마치 홀드",
        "station": "공 · 워터백(벽 앞)",
        "bucket": "고관절 · 발목 보강",
        "equipment": [
         "워터볼"
        ],
-       "at": 77.0,
+       "at": 83.6,
        "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
@@ -1896,13 +1944,13 @@
       },
       {
        "exerciseId": "e0bf4359-88e6-52ec-a6f6-b6fcc27e3cb8",
-       "no": "2-27",
+       "no": "2-30",
        "title": "아쿠아백 허리 높이 좌우 방향 전환",
        "equipment": [
         "워터백"
        ],
        "station": "공 · 워터백(벽 앞)",
-       "at": 79.7,
+       "at": 86.3,
        "minutes": 2.2,
        "cue": "실내 무투구 · 워터백 · 몸통 회전 · 정면 · 허리 높이와 양발",
        "kind": "drill",
@@ -1914,13 +1962,13 @@
       },
       {
        "exerciseId": "af401092-6627-4e81-9a74-c88b6bb24829",
-       "no": "2-28",
+       "no": "2-31",
        "title": "Waterpill Counter Rotators",
        "equipment": [
         "워터백"
        ],
        "station": "공 · 워터백(벽 앞)",
-       "at": 81.9,
+       "at": 88.5,
        "minutes": 2.4,
        "cue": "실내 워터백 · 가슴 앞 도구를 짧게 움직이는 반대 회전 · 정면에서 두 발과 어깨",
        "kind": "drill",
@@ -1932,13 +1980,13 @@
       },
       {
        "exerciseId": "24894efa-703a-5abe-8dab-2c8c54696c55",
-       "no": "2-29",
+       "no": "2-32",
        "title": "워터백 프런트랙 연속 턴",
        "equipment": [
         "워터백"
        ],
        "station": "공 · 워터백(벽 앞)",
-       "at": 84.3,
+       "at": 90.9,
        "minutes": 2.2,
        "cue": "실내 무투구 · 워터백 · 몸통 회전 · 정면 · 손잡이와 흉곽 가까이",
        "kind": "drill",
@@ -1950,13 +1998,13 @@
       },
       {
        "exerciseId": "587ecb17-64c2-585b-b6d0-3942d7ad5e19",
-       "no": "2-30",
+       "no": "2-33",
        "title": "아쿠아백 스텝 프런트랙 회전",
        "equipment": [
         "워터백"
        ],
        "station": "공 · 워터백(벽 앞)",
-       "at": 86.5,
+       "at": 93.1,
        "minutes": 2.2,
        "cue": "실내 무투구 · 워터백 · 몸통 회전 · 정면 45도 · 발 피벗 포함",
        "kind": "drill",
@@ -1968,13 +2016,13 @@
       },
       {
        "exerciseId": "2de6d82d-aec9-5d3e-a975-0dc101b5cb67",
-       "no": "2-31",
+       "no": "2-34",
        "title": "워터백 가슴 받치고 레그 리프트 턴",
        "equipment": [
         "워터백"
        ],
        "station": "공 · 워터백(벽 앞)",
-       "at": 88.7,
+       "at": 95.3,
        "minutes": 2.2,
        "cue": "실내 무투구 · 워터백 · 몸통 회전 · 옆 45도 · 가슴 높이 유지",
        "kind": "drill",
@@ -1986,13 +2034,13 @@
       },
       {
        "exerciseId": "b9685652-4982-57c1-bc56-d67cd1177507",
-       "no": "2-32",
+       "no": "2-35",
        "title": "워터백 어깨 걸치고 스플릿 분리 회전",
        "equipment": [
         "워터백"
        ],
        "station": "공 · 워터백(벽 앞)",
-       "at": 90.9,
+       "at": 97.5,
        "minutes": 2.2,
        "cue": "실내 무투구 · 워터백 · 상하체 분리 · 정면 45도 · 골반과 백 방향",
        "kind": "drill",
@@ -2004,13 +2052,13 @@
       },
       {
        "exerciseId": "cbcd1ee9-19b3-5705-b01b-0a160da38180",
-       "no": "2-33",
+       "no": "2-36",
        "title": "워터백 세워 지지하며 빈손 투구 모션",
        "equipment": [
         "워터백"
        ],
        "station": "공 · 워터백(벽 앞)",
-       "at": 93.1,
+       "at": 99.7,
        "minutes": 2.2,
        "cue": "실내 무투구 · 워터백 · 몸통 회전 · 옆 전신 · 바닥 백과 빈손",
        "kind": "drill",
@@ -2022,13 +2070,13 @@
       },
       {
        "exerciseId": "8f201f41-70a8-5618-ae65-1debfca5f4c4",
-       "no": "2-34",
+       "no": "2-37",
        "title": "워터백 하이 쓰리쿼터 회전",
        "equipment": [
         "워터백"
        ],
        "station": "공 · 워터백(벽 앞)",
-       "at": 95.3,
+       "at": 101.9,
        "minutes": 2.2,
        "cue": "실내 무투구 · 워터백 · 몸통 회전 · 정면 전신 · 높은 회전면",
        "kind": "drill",
@@ -2040,13 +2088,13 @@
       },
       {
        "exerciseId": "c505227c-834e-5747-92b1-f63ad204d5d8",
-       "no": "2-35",
+       "no": "2-38",
        "title": "워터백 쓰리쿼터 회전",
        "equipment": [
         "워터백"
        ],
        "station": "공 · 워터백(벽 앞)",
-       "at": 97.5,
+       "at": 104.1,
        "minutes": 2.2,
        "cue": "실내 무투구 · 워터백 · 몸통 회전 · 정면 전신 · 중간 회전면",
        "kind": "drill",
@@ -2058,13 +2106,13 @@
       },
       {
        "exerciseId": "ab89d951-65ea-581c-af3a-91a028497ef6",
-       "no": "2-36",
+       "no": "2-39",
        "title": "워터백 낮은 쓰리쿼터·사이드암 회전",
        "equipment": [
         "워터백"
        ],
        "station": "공 · 워터백(벽 앞)",
-       "at": 99.7,
+       "at": 106.3,
        "minutes": 2.2,
        "cue": "실내 무투구 · 워터백 · 몸통 회전 · 정면 전신 · 수평에 가까운 어깨선",
        "kind": "drill",
@@ -2076,13 +2124,13 @@
       },
       {
        "exerciseId": "a6b7506c-68a9-5a14-ab1c-aea49bdeef8a",
-       "no": "2-37",
+       "no": "2-40",
        "title": "워터백 불가리안 스윙·언더핸드 회전",
        "equipment": [
         "워터백"
        ],
        "station": "공 · 워터백(벽 앞)",
-       "at": 101.9,
+       "at": 108.5,
        "minutes": 2.2,
        "cue": "실내 무투구 · 워터백 · 몸통 회전 · 정면 전신 · 아래에서 위로",
        "kind": "drill",
@@ -2094,13 +2142,13 @@
       },
       {
        "exerciseId": "b206f9b5-d7dc-5285-9a68-58c83fd3ac2f",
-       "no": "2-38",
+       "no": "2-41",
        "title": "아쿠아백 대각선 머리 위 리프트",
        "equipment": [
         "워터백"
        ],
        "station": "공 · 워터백(벽 앞)",
-       "at": 104.1,
+       "at": 110.7,
        "minutes": 2.2,
        "cue": "실내 무투구 · 워터백 · 몸통 회전 · 정면 · 대각선 경로 전체",
        "kind": "drill",
@@ -2112,13 +2160,13 @@
       },
       {
        "exerciseId": "ea93a006-021f-4b2a-be92-5b72a533f0c9",
-       "no": "2-39",
+       "no": "2-42",
        "title": "Flip up to Chop",
        "equipment": [
         "워터백"
        ],
        "station": "공 · 워터백(벽 앞)",
-       "at": 106.3,
+       "at": 112.9,
        "minutes": 2.4,
        "cue": "실내 워터백 · 스플릿 자세에서 낮게 → 머리 옆 → 반대쪽 아래 · 옆 전신",
        "kind": "drill",
@@ -2130,13 +2178,13 @@
       },
       {
        "exerciseId": "174f9e8c-bb34-4afa-94b7-544e268abebd",
-       "no": "2-40",
+       "no": "2-43",
        "title": "SS Chops",
        "equipment": [
         "워터백"
        ],
        "station": "공 · 워터백(벽 앞)",
-       "at": 108.7,
+       "at": 115.3,
        "minutes": 2.4,
        "cue": "실내 워터백 · 이미 벌린 발과 어깨 앞 준비 → 대각선 찹 · 뒤 45도",
        "kind": "drill",
@@ -2148,13 +2196,13 @@
       },
       {
        "exerciseId": "c38c86c1-4e01-564f-8442-924be59a100a",
-       "no": "2-41",
+       "no": "2-44",
        "title": "워터백 신호 반응 되감기 회전",
        "equipment": [
         "워터백"
        ],
        "station": "공 · 워터백(벽 앞)",
-       "at": 111.1,
+       "at": 117.7,
        "minutes": 2.2,
        "cue": "실내 무투구 · 워터백 · 상하체 분리 · 옆 45도 · 음성 신호 구간 별도 촬영",
        "kind": "drill",
@@ -2166,13 +2214,13 @@
       },
       {
        "exerciseId": "8fe2d96d-60c3-5ec9-8e1f-0a56bd831866",
-       "no": "2-42",
+       "no": "2-45",
        "title": "워터백 바운스 후 신호 회전",
        "equipment": [
         "워터백"
        ],
        "station": "공 · 워터백(벽 앞)",
-       "at": 113.3,
+       "at": 119.9,
        "minutes": 2.2,
        "cue": "실내 무투구 · 워터백 · 몸통 회전 · 정면 45도 · 발 바운스와 회전",
        "kind": "drill",
@@ -2184,13 +2232,13 @@
       },
       {
        "exerciseId": "46e023f6-9767-5d6f-bd4c-66a9c70d554a",
-       "no": "2-43",
+       "no": "2-46",
        "title": "워터백 셔플 턴",
        "equipment": [
         "워터백"
        ],
        "station": "공 · 워터백(벽 앞)",
-       "at": 115.5,
+       "at": 122.1,
        "minutes": 2.2,
        "cue": "실내 무투구 · 워터백 · 드리프트 · 정면 전신 · 셔플 거리와 끝 균형",
        "kind": "drill",
@@ -2202,33 +2250,15 @@
       },
       {
        "exerciseId": "eee708ea-8985-5a24-968a-0852034e9175",
-       "no": "2-44",
+       "no": "2-47",
        "title": "워터백 레그 리프트 플로우",
        "equipment": [
         "워터백"
        ],
        "station": "공 · 워터백(벽 앞)",
-       "at": 117.7,
+       "at": 124.3,
        "minutes": 2.2,
        "cue": "실내 무투구 · 워터백 · 드리프트 · 넓은 옆 전신 · 앞걸음과 회전",
-       "kind": "drill",
-       "bucket": "무브먼트 패턴 드릴",
-       "group": "통합",
-       "load": 0.5,
-       "perSide": false,
-       "breakAfter": false
-      },
-      {
-       "exerciseId": "fed40745-4fce-434f-bcd1-40b92dd8d3db",
-       "no": "2-45",
-       "title": "Quick Pick Full Delivery",
-       "equipment": [
-        "워터백"
-       ],
-       "station": "공 · 워터백(벽 앞)",
-       "at": 119.9,
-       "minutes": 2.4,
-       "cue": "실내 워터백 · 짧은 준비 걸음부터 앞발 착지·뒷다리 피니시까지 · 뒤 45도 전신",
        "kind": "drill",
        "bucket": "무브먼트 패턴 드릴",
        "group": "통합",
@@ -2237,12 +2267,46 @@
        "breakAfter": true
       },
       {
+       "exerciseId": "fed40745-4fce-434f-bcd1-40b92dd8d3db",
+       "no": "2-48",
+       "title": "Quick Pick Full Delivery",
+       "equipment": [
+        "워터백"
+       ],
+       "station": "공 · 워터백(벽 앞)",
+       "at": 131.5,
+       "minutes": 2.4,
+       "cue": "실내 워터백 · 짧은 준비 걸음부터 앞발 착지·뒷다리 피니시까지 · 뒤 45도 전신",
+       "kind": "drill",
+       "bucket": "무브먼트 패턴 드릴",
+       "group": "통합",
+       "load": 0.5,
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "2b2fe8ba-e731-4340-901f-b23b7a65d465",
+       "no": "2-49",
+       "title": "워터백 클린 투 쇼울더 인터벌",
+       "station": "공 · 워터백(벽 앞)",
+       "bucket": "유산소",
+       "equipment": [
+        "워터백"
+       ],
+       "at": 133.9,
+       "minutes": 2.2,
+       "load": 1,
+       "cue": "좌우 1회씩 · 정면 45도",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
        "exerciseId": "e75eda1c-c958-45d7-bca4-90fce399b85e",
-       "no": "2-46",
+       "no": "2-50",
        "title": "Bulgarian Bag Chops",
        "equipment": [],
        "station": "공 · 워터백(벽 앞)",
-       "at": 128.3,
+       "at": 137.1,
        "minutes": 2.4,
        "cue": "실내 불가리안백 · 어깨에 걸친 채 앞다리 쪽으로 짧게 돌고 기울이기 · 정면 45도",
        "kind": "drill",
@@ -2254,14 +2318,14 @@
       },
       {
        "exerciseId": "1a80560e-d281-4b18-993e-ecaa175135c5",
-       "no": "2-47",
+       "no": "2-51",
        "title": "짐볼 햄스트링 컬",
        "station": "공 · 워터백(벽 앞)",
        "bucket": "하체 뒤(힌지)",
        "equipment": [
         "짐볼"
        ],
-       "at": 131.7,
+       "at": 140.5,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회",
@@ -2270,37 +2334,53 @@
       },
       {
        "exerciseId": "8c6effeb-b0b6-4187-ab58-b020b7fbeb97",
-       "no": "2-48",
+       "no": "2-52",
        "title": "짐볼 월 니 드라이브 아이소 홀드",
        "station": "공 · 워터백(벽 앞)",
        "bucket": "고관절 · 발목 보강",
        "equipment": [
         "짐볼"
        ],
-       "at": 133.3,
+       "at": 142.1,
        "minutes": 1.7,
        "load": 0.5,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "dfeac347-e06c-4fcb-b9d7-713c9c9200aa",
+       "no": "2-53",
+       "title": "짐볼 시티드 바운스",
+       "station": "공 · 워터백(벽 앞)",
+       "bucket": "유산소",
+       "equipment": [
+        "짐볼"
+       ],
+       "at": 143.8,
+       "minutes": 2.2,
+       "load": 0.5,
+       "cue": "20초 · 옆에서",
+       "perSide": false,
        "breakAfter": false
       }
      ]
     },
     {
      "station": "밴드(고정 기둥)",
-     "start": 138.0,
-     "end": 150.5,
+     "start": 149.0,
+     "end": 161.5,
      "items": [
       {
        "exerciseId": "fe1a4c31-541d-4355-84c4-b099000a48f0",
-       "no": "2-49",
+       "no": "2-54",
        "title": "밴드 오버헤드 익스텐션",
        "station": "밴드(고정 기둥)",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
         "밴드"
        ],
-       "at": 138.0,
+       "at": 149.0,
        "minutes": 1.6,
        "load": 0.5,
        "cue": "3회",
@@ -2309,14 +2389,14 @@
       },
       {
        "exerciseId": "e9124066-f9a5-4154-831a-8cd229551cf7",
-       "no": "2-50",
+       "no": "2-55",
        "title": "밴드 킥백 + 프로네이션",
        "station": "밴드(고정 기둥)",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
         "밴드"
        ],
-       "at": 139.6,
+       "at": 150.6,
        "minutes": 2,
        "load": 0.5,
        "cue": "3회 · 한쪽",
@@ -2325,14 +2405,14 @@
       },
       {
        "exerciseId": "edc85549-0f6e-40e4-b016-6f5bdda515de",
-       "no": "2-51",
+       "no": "2-56",
        "title": "튜빙 리스트 플렉션 (두꺼운 그립)",
        "station": "밴드(고정 기둥)",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
         "밴드"
        ],
-       "at": 141.6,
+       "at": 152.6,
        "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
@@ -2341,14 +2421,14 @@
       },
       {
        "exerciseId": "ef791731-cfc1-4d4f-8c16-962436dc03cd",
-       "no": "2-52",
+       "no": "2-57",
        "title": "밴드 노 머니",
        "station": "밴드(고정 기둥)",
        "bucket": "모빌리티",
        "equipment": [
         "밴드"
        ],
-       "at": 143.3,
+       "at": 154.3,
        "minutes": 1.6,
        "load": 0.5,
        "cue": "2~3회 · 끝 자세 2초",
@@ -2357,14 +2437,14 @@
       },
       {
        "exerciseId": "47a4ee57-1b67-4ad0-b846-98a474ce40d8",
-       "no": "2-53",
+       "no": "2-58",
        "title": "밴드 Y · T · W",
        "station": "밴드(고정 기둥)",
        "bucket": "모빌리티",
        "equipment": [
         "밴드"
        ],
-       "at": 144.9,
+       "at": 155.9,
        "minutes": 1.6,
        "load": 0.5,
        "cue": "2~3회 · 끝 자세 2초",
@@ -2373,14 +2453,14 @@
       },
       {
        "exerciseId": "24b60147-53d8-47d1-a619-94a2af25a4f9",
-       "no": "2-54",
+       "no": "2-59",
        "title": "에센트릭 밴드 트라이셉스 푸시다운",
        "station": "밴드(고정 기둥)",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
         "밴드"
        ],
-       "at": 146.5,
+       "at": 157.5,
        "minutes": 2,
        "load": 1.5,
        "cue": "1~2회 천천히 내리기",
@@ -2389,14 +2469,14 @@
       },
       {
        "exerciseId": "4e55dc31-04e8-4b8d-8fa4-e033f093cd7d",
-       "no": "2-55",
+       "no": "2-60",
        "title": "튜빙 내회전 0도 리바운드",
        "station": "밴드(고정 기둥)",
        "bucket": "어깨 · 견갑(암케어)",
        "equipment": [
         "밴드"
        ],
-       "at": 148.5,
+       "at": 159.5,
        "minutes": 2,
        "load": 1,
        "cue": "2~3회 · 한쪽",
@@ -2407,19 +2487,19 @@
     },
     {
      "station": "덤벨 · 케틀벨",
-     "start": 153.5,
-     "end": 162.5,
+     "start": 164.5,
+     "end": 173.5,
      "items": [
       {
        "exerciseId": "206d5fa4-eb24-423f-aac9-7e928b93b4aa",
-       "no": "2-56",
+       "no": "2-61",
        "title": "덤벨 스플릿 스쿼트",
        "station": "덤벨 · 케틀벨",
        "bucket": "하체 앞(무릎)",
        "equipment": [
         "덤벨"
        ],
-       "at": 153.5,
+       "at": 164.5,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회 · 한쪽",
@@ -2428,14 +2508,14 @@
       },
       {
        "exerciseId": "e905e93a-9e7c-46fc-bc14-e67f38f78d35",
-       "no": "2-57",
+       "no": "2-62",
        "title": "덤벨 워킹 런지",
        "station": "덤벨 · 케틀벨",
        "bucket": "하체 앞(무릎)",
        "equipment": [
         "덤벨"
        ],
-       "at": 155.1,
+       "at": 166.1,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회 · 한쪽",
@@ -2444,14 +2524,14 @@
       },
       {
        "exerciseId": "0968eec9-5c6d-4d90-8b63-01b3f6384f62",
-       "no": "2-58",
+       "no": "2-63",
        "title": "덤벨 벤트오버 로우",
        "station": "덤벨 · 케틀벨",
        "bucket": "상체 당기기",
        "equipment": [
         "덤벨"
        ],
-       "at": 156.7,
+       "at": 167.7,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회",
@@ -2460,14 +2540,14 @@
       },
       {
        "exerciseId": "96c84dca-1611-4b0e-8937-5cca4af68bfa",
-       "no": "2-59",
+       "no": "2-64",
        "title": "킥스탠드 RDL",
        "station": "덤벨 · 케틀벨",
        "bucket": "하체 뒤(힌지)",
        "equipment": [
         "덤벨"
        ],
-       "at": 158.3,
+       "at": 169.3,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회 · 한쪽",
@@ -2476,14 +2556,14 @@
       },
       {
        "exerciseId": "02f4256a-ce06-4728-8c5c-78651bd3156c",
-       "no": "2-60",
+       "no": "2-65",
        "title": "바텀업 케틀벨 프레스",
        "station": "덤벨 · 케틀벨",
        "bucket": "상체 밀기 · 어깨",
        "equipment": [
         "케틀벨"
        ],
-       "at": 160.9,
+       "at": 171.9,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회 · 한쪽",
@@ -2494,12 +2574,12 @@
     },
     {
      "station": "박스",
-     "start": 165.5,
-     "end": 171.3,
+     "start": 176.5,
+     "end": 182.3,
      "items": [
       {
        "exerciseId": "8c7fc696-3bcd-4c41-8f8e-1f882a73cc33",
-       "no": "2-61",
+       "no": "2-66",
        "title": "고블렛 박스 스쿼트",
        "station": "박스",
        "bucket": "하체 앞(무릎)",
@@ -2507,7 +2587,7 @@
         "덤벨",
         "박스"
        ],
-       "at": 165.5,
+       "at": 176.5,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회",
@@ -2516,7 +2596,7 @@
       },
       {
        "exerciseId": "a26a8a36-f3ba-46b4-90d6-219d05be81bd",
-       "no": "2-62",
+       "no": "2-67",
        "title": "덤벨 래터럴 스텝업",
        "station": "박스",
        "bucket": "하체 앞(무릎)",
@@ -2524,7 +2604,7 @@
         "덤벨",
         "박스"
        ],
-       "at": 167.1,
+       "at": 178.1,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회 · 한쪽",
@@ -2533,14 +2613,14 @@
       },
       {
        "exerciseId": "b7914adf-d204-4d32-86c4-6e6b9a2963bc",
-       "no": "2-63",
+       "no": "2-68",
        "title": "래터럴 스텝다운",
        "station": "박스",
        "bucket": "하체 앞(무릎)",
        "equipment": [
         "박스"
        ],
-       "at": 169.7,
+       "at": 180.7,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회 · 한쪽",
@@ -2551,19 +2631,19 @@
     },
     {
      "station": "철봉 · TRX",
-     "start": 174.3,
-     "end": 180.2,
+     "start": 185.3,
+     "end": 191.2,
      "items": [
       {
        "exerciseId": "4548baf3-371f-4d77-8859-eceb1b229400",
-       "no": "2-64",
+       "no": "2-69",
        "title": "뉴트럴 그립 풀업",
        "station": "철봉 · TRX",
        "bucket": "상체 당기기",
        "equipment": [
         "철봉"
        ],
-       "at": 174.3,
+       "at": 185.3,
        "minutes": 1.6,
        "load": 2,
        "cue": "3회",
@@ -2572,14 +2652,14 @@
       },
       {
        "exerciseId": "cd0cf6df-e3b5-4b6c-876e-5b56fabe21b0",
-       "no": "2-65",
+       "no": "2-70",
        "title": "TRX 로테이션",
        "station": "철봉 · TRX",
        "bucket": "코어",
        "equipment": [
         "TRX"
        ],
-       "at": 176.9,
+       "at": 187.9,
        "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
@@ -2599,27 +2679,27 @@
        "cue": "2~3회 · 한쪽",
        "perSide": true,
        "breakAfter": false,
-       "no": "2-66",
+       "no": "2-71",
        "station": "철봉 · TRX",
-       "at": 178.6
+       "at": 189.6
       }
      ]
     },
     {
      "station": "랙 · 바벨 · 원판",
-     "start": 183.2,
-     "end": 200.4,
+     "start": 194.2,
+     "end": 211.4,
      "items": [
       {
        "exerciseId": "1f1dfe14-6d52-4a78-8e9d-01fbf09a8e06",
-       "no": "2-67",
+       "no": "2-72",
        "title": "랜드마인 펀치",
        "station": "랙 · 바벨 · 원판",
        "bucket": "하체 파워",
        "equipment": [
         "바벨"
        ],
-       "at": 183.2,
+       "at": 194.2,
        "minutes": 1.9,
        "load": 2,
        "cue": "3회 · 한쪽",
@@ -2628,14 +2708,14 @@
       },
       {
        "exerciseId": "ffbcc8f4-70a7-4671-bc5b-b9032f3da6c6",
-       "no": "2-68",
+       "no": "2-73",
        "title": "랜드마인 회전 펀치",
        "station": "랙 · 바벨 · 원판",
        "bucket": "하체 파워",
        "equipment": [
         "바벨"
        ],
-       "at": 185.1,
+       "at": 196.1,
        "minutes": 1.9,
        "load": 2,
        "cue": "3회 · 한쪽",
@@ -2644,14 +2724,14 @@
       },
       {
        "exerciseId": "e628cd24-7cc1-4309-9f9f-dbd088d761ac",
-       "no": "2-69",
+       "no": "2-74",
        "title": "랜드마인 싱글암 로우",
        "station": "랙 · 바벨 · 원판",
        "bucket": "상체 당기기",
        "equipment": [
         "바벨"
        ],
-       "at": 187.0,
+       "at": 198.0,
        "minutes": 1.9,
        "load": 1,
        "cue": "3회 · 한쪽",
@@ -2660,14 +2740,14 @@
       },
       {
        "exerciseId": "ad50e37b-9ff8-4266-9b2a-af03b19c249b",
-       "no": "2-70",
+       "no": "2-75",
        "title": "하프닐링 랜드마인 프레스",
        "station": "랙 · 바벨 · 원판",
        "bucket": "상체 밀기 · 어깨",
        "equipment": [
         "바벨"
        ],
-       "at": 188.9,
+       "at": 199.9,
        "minutes": 1.9,
        "load": 1,
        "cue": "3회 · 한쪽",
@@ -2676,14 +2756,14 @@
       },
       {
        "exerciseId": "92ec03d2-93e6-4d86-ae50-4ae590552a1b",
-       "no": "2-71",
+       "no": "2-76",
        "title": "인버티드 로우",
        "station": "랙 · 바벨 · 원판",
        "bucket": "상체 당기기",
        "equipment": [
         "바벨"
        ],
-       "at": 190.8,
+       "at": 201.8,
        "minutes": 1.9,
        "load": 1,
        "cue": "3회",
@@ -2692,7 +2772,7 @@
       },
       {
        "exerciseId": "72dfaa22-44ab-4c8d-8ef7-4a8de03d3068",
-       "no": "2-72",
+       "no": "2-77",
        "title": "바벨 스피드 벤치 프레스",
        "station": "랙 · 바벨 · 원판",
        "bucket": "하체 파워",
@@ -2700,7 +2780,7 @@
         "바벨",
         "벤치"
        ],
-       "at": 193.7,
+       "at": 204.7,
        "minutes": 1.9,
        "load": 2,
        "cue": "3회",
@@ -2709,7 +2789,7 @@
       },
       {
        "exerciseId": "324ae715-2f02-4b31-ba40-525fe1ea48b2",
-       "no": "2-73",
+       "no": "2-78",
        "title": "클로즈그립 벤치 프레스",
        "station": "랙 · 바벨 · 원판",
        "bucket": "상체 밀기 · 어깨",
@@ -2717,7 +2797,7 @@
         "바벨",
         "벤치"
        ],
-       "at": 195.6,
+       "at": 206.6,
        "minutes": 1.9,
        "load": 2,
        "cue": "3회",
@@ -2726,14 +2806,14 @@
       },
       {
        "exerciseId": "636f4f96-8e1e-47c6-b5b6-bc004d59a204",
-       "no": "2-74",
+       "no": "2-79",
        "title": "뎁스 드롭 플라이오 푸쉬업",
        "station": "랙 · 바벨 · 원판",
        "bucket": "하체 파워",
        "equipment": [
         "원판"
        ],
-       "at": 198.5,
+       "at": 209.5,
        "minutes": 1.9,
        "load": 2,
        "cue": "2~3회",
@@ -2744,19 +2824,19 @@
     },
     {
      "station": "케이블",
-     "start": 203.4,
-     "end": 206.6,
+     "start": 214.4,
+     "end": 217.6,
      "items": [
       {
        "exerciseId": "a7d88c1e-91b7-4b73-9a4d-2b6a444a29b1",
-       "no": "2-75",
+       "no": "2-80",
        "title": "스탠딩 케이블 익스플로시브 로테이션",
        "station": "케이블",
        "bucket": "하체 파워",
        "equipment": [
         "케이블"
        ],
-       "at": 203.4,
+       "at": 214.4,
        "minutes": 1.6,
        "load": 2,
        "cue": "3회 · 한쪽",
@@ -2765,14 +2845,14 @@
       },
       {
        "exerciseId": "49107c6e-8fd9-4856-99f0-2c016baa9ae3",
-       "no": "2-76",
+       "no": "2-81",
        "title": "케이블 풀 스루",
        "station": "케이블",
        "bucket": "하체 뒤(힌지)",
        "equipment": [
         "케이블"
        ],
-       "at": 205.0,
+       "at": 216.0,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회",
@@ -2783,19 +2863,19 @@
     },
     {
      "station": "머신",
-     "start": 209.6,
-     "end": 220.8,
+     "start": 220.6,
+     "end": 231.8,
      "items": [
       {
        "exerciseId": "8a1aa457-756b-4169-9a35-4c4bf0f15623",
-       "no": "2-77",
+       "no": "2-82",
        "title": "45° 백 익스텐션",
        "station": "머신",
        "bucket": "하체 뒤(힌지)",
        "equipment": [
         "머신"
        ],
-       "at": 209.6,
+       "at": 220.6,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회",
@@ -2804,14 +2884,14 @@
       },
       {
        "exerciseId": "a74e638f-b231-4062-898b-191dc8fda4b7",
-       "no": "2-78",
+       "no": "2-83",
        "title": "레그 익스텐션",
        "station": "머신",
        "bucket": "하체 뒤(힌지)",
        "equipment": [
         "머신"
        ],
-       "at": 211.2,
+       "at": 222.2,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회",
@@ -2820,14 +2900,14 @@
       },
       {
        "exerciseId": "3d471200-8e15-4e65-8647-4cb0c3b021e5",
-       "no": "2-79",
+       "no": "2-84",
        "title": "레그 컬",
        "station": "머신",
        "bucket": "하체 뒤(힌지)",
        "equipment": [
         "머신"
        ],
-       "at": 212.8,
+       "at": 223.8,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회",
@@ -2836,14 +2916,14 @@
       },
       {
        "exerciseId": "fc480738-044d-48eb-bb61-51089cd8abc7",
-       "no": "2-80",
+       "no": "2-85",
        "title": "랫 풀다운",
        "station": "머신",
        "bucket": "상체 당기기",
        "equipment": [
         "머신"
        ],
-       "at": 214.4,
+       "at": 225.4,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회",
@@ -2852,14 +2932,14 @@
       },
       {
        "exerciseId": "2c9c317f-e7da-4573-afc9-0464ea420b05",
-       "no": "2-81",
+       "no": "2-86",
        "title": "힙 어덕션",
        "station": "머신",
        "bucket": "하체 뒤(힌지)",
        "equipment": [
         "머신"
        ],
-       "at": 216.0,
+       "at": 227.0,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회",
@@ -2868,14 +2948,14 @@
       },
       {
        "exerciseId": "09445a2f-7263-4738-8ef7-85f3cf82cf7c",
-       "no": "2-82",
+       "no": "2-87",
        "title": "힙 어브덕션",
        "station": "머신",
        "bucket": "하체 뒤(힌지)",
        "equipment": [
         "머신"
        ],
-       "at": 217.6,
+       "at": 228.6,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회",
@@ -2884,14 +2964,14 @@
       },
       {
        "exerciseId": "5beea154-647b-4c90-9f37-5de8967144b2",
-       "no": "2-83",
+       "no": "2-88",
        "title": "레그 프레스",
        "station": "머신",
        "bucket": "하체 앞(무릎)",
        "equipment": [
         "머신"
        ],
-       "at": 219.2,
+       "at": 230.2,
        "minutes": 1.6,
        "load": 2,
        "cue": "3회",
@@ -2903,6 +2983,7 @@
    ],
    "load": {
     "모빌리티": 5.0,
+    "유산소": 5.0,
     "무브먼트 패턴 드릴": 16.5,
     "하체 파워": 12.0,
     "고관절 · 발목 보강": 3.5,

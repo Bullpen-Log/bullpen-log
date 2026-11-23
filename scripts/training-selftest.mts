@@ -343,6 +343,7 @@ import {
   BODY_PARTS,
   EXERCISE_EQUIPMENT,
   EXERCISE_NOTE_MAX,
+  HEAVY_EQUIPMENT,
   INTENSITY_CAP,
   cleanExerciseNote,
   formatAmount,
@@ -3853,14 +3854,22 @@ console.log('\n[회복날] 가벼운 것만 · 가동성 중심 · 유산소는 
     thin.join(', ')
   );
 
-  /* 유산소는 영상이 올라오기 전까지 없다 — 그동안은 그 칸 없이 짠다 */
-  const cardioInLibrary = library.some((e) => e.category === '유산소');
+  /*
+   * 유산소는 영상이 올라오기 전까지 없다 — 그동안은 그 칸 없이 짠다. 회복날은 '낮음' 이하 · 무거운 장비 없는 것만 받으므로(theme.ts
+   * isRecoveryLight) 그런 유산소가 있을 때만 맨 앞에 하나를 기대한다(2026-11-23 — 케틀벨 스윙 인터벌처럼 '높음'만 있으면 회복날엔 없다).
+   */
+  const cardioInLibrary = library.some(
+    (e) =>
+      e.category === '유산소' &&
+      ['매우 낮음', '낮음'].includes(e.intensity ?? '') &&
+      !(e.equipment ?? []).some((q: string) => HEAVY_EQUIPMENT.includes(q))
+  );
   const { themed: today } = planFor({ person: { condition: 3 }, minutes: 60 });
   const cardioNow = today.picks.filter((p) => p.slot === 'cardio');
   check(
     cardioInLibrary
-      ? '유산소 영상이 있으면 → 회복날 맨 앞에 하나'
-      : '유산소 영상이 없으면 → 유산소 칸 없이 짬',
+      ? '회복날에 맞는 유산소가 있으면 → 회복날 맨 앞에 하나'
+      : '회복날에 맞는 유산소가 없으면 → 유산소 칸 없이 짬',
     cardioInLibrary
       ? cardioNow.length === 1 && today.picks[0]?.slot === 'cardio'
       : cardioNow.length === 0

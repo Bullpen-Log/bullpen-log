@@ -13,6 +13,7 @@ import { deleteVideos, isLibraryPath } from '@/lib/storage';
 import { EXERCISE_EQUIPMENT } from '@/lib/exercise-meta';
 import { LATER_CATEGORY } from '@/lib/categories';
 import laterDrills from '@/lib/shoot/later-drills.json';
+import laterExercises from '@/lib/shoot/later.json';
 import { PLAN_EXERCISE_IDS, itemOf, linkedDrillCategory } from '@/lib/shoot/plan';
 import { isWarmupId, warmupOf, warmupRowId } from '@/lib/shoot/warmups';
 import {
@@ -202,7 +203,14 @@ export async function attachShootClip(
       const found = exercise ?? guide;
       if (!found) return { ok: false, error: '라이브러리에서 이 운동을 찾지 못했어요.' } as const;
       before = found;
-      if (exercise) await tx.exerciseVideo.update({ where: { id: exerciseId }, data });
+      if (exercise) {
+        /* '나중에 촬영'으로 미뤄 둔 운동도 영상을 올리면 원래 분류로 — 드릴과 같게(2026-11-23 유산소 다섯을 이렇게 등록했다, lib/shoot/later.json) */
+        const back =
+          exercise.category === LATER_CATEGORY
+            ? (laterExercises as Record<string, { category: string }>)[exerciseId]?.category
+            : undefined;
+        await tx.exerciseVideo.update({ where: { id: exerciseId }, data: back ? { ...data, category: back } : data });
+      }
       else {
         // '나중에 촬영'으로 미뤄 둔 드릴(2026-10-14)은 영상을 올리면 원래 분류로 — 그래야 트레이닝 · 드릴 목록에 나온다(2026-11-14)
         const back =
