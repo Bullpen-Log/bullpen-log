@@ -249,13 +249,13 @@ console.log('\n■ 고정 계획(lib/shoot/plan-data.json) — 야외 · 실내 
     plan.weeks.map((w) => `${w.week} ${weekLabel(w)}`).join(' · '));
   const n = (w: PlanWeek) => weekItems(w).length;
   /* 미룬 4-02 리드암 외전 + 워터볼은 2026-11-22 김민 "아예 삭제"(라이브러리에서도 숨김) — 26 */
-  /* 2026-11-23 유산소 다섯을 실내에 더함(넓은 바닥 몸풀기 뒤 셋 · 공 · 워터백 둘) — 88 */
-  check('11/22 뒤 — 야외 77 · 실내 88 · 미룬 26 · 촬영 완료 43',
-    n(out) === 77 && n(ind) === 88 && n(def) === 26 && n(done) === 43 &&
+  /* 2026-11-23 유산소 다섯을 실내에 더함(넓은 바닥 몸풀기 뒤 셋 · 공 · 워터백 둘) — 88, 같은 날 바벨 런지(랙 · 바벨) — 89 */
+  check('11/22 뒤 — 야외 77 · 실내 89 · 미룬 26 · 촬영 완료 43',
+    n(out) === 77 && n(ind) === 89 && n(def) === 26 && n(done) === 43 &&
       !weekItems(def).some((it) => it.exerciseId === '21b42b35-4574-40b2-88b9-4fecb47512bd'),
     plan.weeks.map(n).join(' · '));
   const all = plan.weeks.flatMap(weekItems).map((i) => i.exerciseId);
-  check('네 주를 통틀어 운동마다 한 번씩만', new Set(all).size === all.length && all.length === 234, `${all.length}개`);
+  check('네 주를 통틀어 운동마다 한 번씩만', new Set(all).size === all.length && all.length === 235, `${all.length}개`);
   const THROW = ['야구공', '플라이오볼', '메디신볼'];
   const throws = (it: PlanItem) => it.equipment.some((e) => THROW.includes(e));
   check('야외는 공 · 메디신볼을 던지는 것만', weekItems(out).every(throws),

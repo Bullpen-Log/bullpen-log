@@ -1431,7 +1431,7 @@
   },
   {
    "week": 2,
-   "end": 231.8,
+   "end": 233.7,
    "stations": [
     {
      "station": "넓은 바닥(이동)",
@@ -2688,7 +2688,7 @@
     {
      "station": "랙 · 바벨 · 원판",
      "start": 194.2,
-     "end": 211.4,
+     "end": 213.3,
      "items": [
       {
        "exerciseId": "1f1dfe14-6d52-4a78-8e9d-01fbf09a8e06",
@@ -2771,28 +2771,27 @@
        "breakAfter": false
       },
       {
-       "exerciseId": "72dfaa22-44ab-4c8d-8ef7-4a8de03d3068",
+       "exerciseId": "392a9d7e-c945-40dd-b529-9d0246a6150d",
        "no": "2-77",
-       "title": "바벨 스피드 벤치 프레스",
+       "title": "바벨 런지",
        "station": "랙 · 바벨 · 원판",
-       "bucket": "하체 파워",
+       "bucket": "하체 앞(무릎)",
        "equipment": [
-        "바벨",
-        "벤치"
+        "바벨"
        ],
-       "at": 204.7,
+       "at": 203.7,
        "minutes": 1.9,
        "load": 2,
-       "cue": "3회",
-       "perSide": false,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
        "breakAfter": false
       },
       {
-       "exerciseId": "324ae715-2f02-4b31-ba40-525fe1ea48b2",
+       "exerciseId": "72dfaa22-44ab-4c8d-8ef7-4a8de03d3068",
        "no": "2-78",
-       "title": "클로즈그립 벤치 프레스",
+       "title": "바벨 스피드 벤치 프레스",
        "station": "랙 · 바벨 · 원판",
-       "bucket": "상체 밀기 · 어깨",
+       "bucket": "하체 파워",
        "equipment": [
         "바벨",
         "벤치"
@@ -2805,15 +2804,32 @@
        "breakAfter": false
       },
       {
-       "exerciseId": "636f4f96-8e1e-47c6-b5b6-bc004d59a204",
+       "exerciseId": "324ae715-2f02-4b31-ba40-525fe1ea48b2",
        "no": "2-79",
+       "title": "클로즈그립 벤치 프레스",
+       "station": "랙 · 바벨 · 원판",
+       "bucket": "상체 밀기 · 어깨",
+       "equipment": [
+        "바벨",
+        "벤치"
+       ],
+       "at": 208.5,
+       "minutes": 1.9,
+       "load": 2,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "636f4f96-8e1e-47c6-b5b6-bc004d59a204",
+       "no": "2-80",
        "title": "뎁스 드롭 플라이오 푸쉬업",
        "station": "랙 · 바벨 · 원판",
        "bucket": "하체 파워",
        "equipment": [
         "원판"
        ],
-       "at": 209.5,
+       "at": 211.4,
        "minutes": 1.9,
        "load": 2,
        "cue": "2~3회",
@@ -2824,19 +2840,19 @@
     },
     {
      "station": "케이블",
-     "start": 214.4,
-     "end": 217.6,
+     "start": 216.3,
+     "end": 219.5,
      "items": [
       {
        "exerciseId": "a7d88c1e-91b7-4b73-9a4d-2b6a444a29b1",
-       "no": "2-80",
+       "no": "2-81",
        "title": "스탠딩 케이블 익스플로시브 로테이션",
        "station": "케이블",
        "bucket": "하체 파워",
        "equipment": [
         "케이블"
        ],
-       "at": 214.4,
+       "at": 216.3,
        "minutes": 1.6,
        "load": 2,
        "cue": "3회 · 한쪽",
@@ -2845,14 +2861,14 @@
       },
       {
        "exerciseId": "49107c6e-8fd9-4856-99f0-2c016baa9ae3",
-       "no": "2-81",
+       "no": "2-82",
        "title": "케이블 풀 스루",
        "station": "케이블",
        "bucket": "하체 뒤(힌지)",
        "equipment": [
         "케이블"
        ],
-       "at": 216.0,
+       "at": 217.9,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회",
@@ -2863,19 +2879,19 @@
     },
     {
      "station": "머신",
-     "start": 220.6,
-     "end": 231.8,
+     "start": 222.5,
+     "end": 233.7,
      "items": [
       {
        "exerciseId": "8a1aa457-756b-4169-9a35-4c4bf0f15623",
-       "no": "2-82",
+       "no": "2-83",
        "title": "45° 백 익스텐션",
        "station": "머신",
        "bucket": "하체 뒤(힌지)",
        "equipment": [
         "머신"
        ],
-       "at": 220.6,
+       "at": 222.5,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회",
@@ -2884,14 +2900,14 @@
       },
       {
        "exerciseId": "a74e638f-b231-4062-898b-191dc8fda4b7",
-       "no": "2-83",
+       "no": "2-84",
        "title": "레그 익스텐션",
        "station": "머신",
        "bucket": "하체 뒤(힌지)",
        "equipment": [
         "머신"
        ],
-       "at": 222.2,
+       "at": 224.1,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회",
@@ -2900,14 +2916,14 @@
       },
       {
        "exerciseId": "3d471200-8e15-4e65-8647-4cb0c3b021e5",
-       "no": "2-84",
+       "no": "2-85",
        "title": "레그 컬",
        "station": "머신",
        "bucket": "하체 뒤(힌지)",
        "equipment": [
         "머신"
        ],
-       "at": 223.8,
+       "at": 225.7,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회",
@@ -2916,14 +2932,14 @@
       },
       {
        "exerciseId": "fc480738-044d-48eb-bb61-51089cd8abc7",
-       "no": "2-85",
+       "no": "2-86",
        "title": "랫 풀다운",
        "station": "머신",
        "bucket": "상체 당기기",
        "equipment": [
         "머신"
        ],
-       "at": 225.4,
+       "at": 227.3,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회",
@@ -2932,14 +2948,14 @@
       },
       {
        "exerciseId": "2c9c317f-e7da-4573-afc9-0464ea420b05",
-       "no": "2-86",
+       "no": "2-87",
        "title": "힙 어덕션",
        "station": "머신",
        "bucket": "하체 뒤(힌지)",
        "equipment": [
         "머신"
        ],
-       "at": 227.0,
+       "at": 228.9,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회",
@@ -2948,14 +2964,14 @@
       },
       {
        "exerciseId": "09445a2f-7263-4738-8ef7-85f3cf82cf7c",
-       "no": "2-87",
+       "no": "2-88",
        "title": "힙 어브덕션",
        "station": "머신",
        "bucket": "하체 뒤(힌지)",
        "equipment": [
         "머신"
        ],
-       "at": 228.6,
+       "at": 230.5,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회",
@@ -2964,14 +2980,14 @@
       },
       {
        "exerciseId": "5beea154-647b-4c90-9f37-5de8967144b2",
-       "no": "2-88",
+       "no": "2-89",
        "title": "레그 프레스",
        "station": "머신",
        "bucket": "하체 앞(무릎)",
        "equipment": [
         "머신"
        ],
-       "at": 230.2,
+       "at": 232.1,
        "minutes": 1.6,
        "load": 2,
        "cue": "3회",
@@ -2990,7 +3006,7 @@
     "하체 뒤(힌지)": 8.0,
     "전완 · 팔꿈치": 3.0,
     "어깨 · 견갑(암케어)": 1.0,
-    "하체 앞(무릎)": 7.0,
+    "하체 앞(무릎)": 9.0,
     "상체 당기기": 6.0,
     "상체 밀기 · 어깨": 4.0,
     "코어": 1.0
