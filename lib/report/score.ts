@@ -17,6 +17,7 @@
  *   stiff     조심할 관절(뻐근 · 최근 통증 · 재활 · 메모 — prescription.ts easedJointsOf)의 부위를 쓰는 '중간' 이상 운동   −2
  *             회복 날에는 뻐근한 부위를 푸는 가동성 · 회복 운동                                                        +2
  *   arm       팔 피로 '조금'(2) 이상 — 무거운 상체 밀기 · 팔로 던지는 파워 · 손으로 쥐는 '중간' 이상 운동             −2
+ *   tired     주 부위가 덜 회복된(회복도 50% 밑 — lib/report/recovery.ts, 2026-11-23) '중간' 이상 운동                 −2
  *   program   다음 근력 프로그램 날이 내일 안(PROGRAM_NEAR_DAYS) — 그날 프로그램과 같은 동작 열쇠(movementKeyOf)       −3
  *   swapped   오늘 일정에서 뺀 운동 −3, 최근 60일에 두 번 이상 바꿔서 뺀 운동(plan-swaps.ts swappedOutCounts) −2
  *   pattern   2주 동안 한 번도 안 한 큰 동작 계열(스쿼트 · 힌지 · 런지 · 밀기 · 당기기 · 회전 · 운반)의 무게 운동   +2
@@ -64,6 +65,7 @@ import {
   type MOVEMENT_PATTERNS,
 } from '@/lib/exercise-meta';
 import type { ReportFacts } from '@/lib/report/facts';
+import { tiredPartOf } from '@/lib/report/recovery';
 import {
   checkinPartLabel,
   easedBodyPartsOf,
@@ -76,7 +78,7 @@ import type { ThemeKey } from '@/lib/report/theme';
 /* ─────────────────────────── 상수 ─────────────────────────── */
 
 export type ScoreKey =
-  'outing' | 'stiff' | 'arm' | 'program' | 'swapped' | 'pattern' | 'favorite';
+  'outing' | 'stiff' | 'arm' | 'tired' | 'program' | 'swapped' | 'pattern' | 'favorite';
 
 /**
  * 항목 차례 — parts · detail 에 싣는 차례이자, 값의 크기가 같을 때 이유 글이 고르는 차례. 다음 날 몸에 남는 것(등판) → 오늘 몸이
@@ -86,6 +88,7 @@ export const SCORE_KEYS: readonly ScoreKey[] = [
   'outing',
   'stiff',
   'arm',
+  'tired',
   'program',
   'swapped',
   'pattern',
@@ -100,6 +103,7 @@ export const PROTECT_KEYS: readonly ScoreKey[] = [
   'outing',
   'stiff',
   'arm',
+  'tired',
   'program',
   'swapped',
 ];
@@ -119,6 +123,7 @@ export const SCORE_POINTS = {
   stiff: -2,
   stiffLoosen: 2,
   arm: -2,
+  tired: -2,
   program: -3,
   swapped: -2,
   swappedToday: -3,
@@ -219,6 +224,8 @@ export type ScoreContext = {
   swappedOutToday: ReadonlySet<string>;
   /** 즐겨찾기한 운동(lib/favorites.ts favoriteExerciseIds) */
   favoriteIds: ReadonlySet<string>;
+  /** 부위별 회복도(lib/report/recovery.ts partRecovery) — 안 넘기면(옛 부르는 쪽 · 기록 없음) 항목이 꺼진다 */
+  recovery?: ReadonlyMap<string, number> | null;
 };
 
 /** 항목마다 왜 걸렸나 — 이유 글이 읽는다(값만 저장한 옛 줄이면 없을 수 있다) */
@@ -241,6 +248,8 @@ export type ScoreDetail = {
     /** 무거운 밀기 · 팔로 던지는 파워 · 손으로 쥐는 운동 */
     kind: 'push' | 'throw' | 'grip';
   };
+  /** 덜 회복된 주 부위와 그 회복도(%) */
+  tired?: { part: string; pct: number };
   program?: { key: string; inDays: number };
   swapped?: { today: boolean; count: number };
   pattern?: { pattern: string; /** 안 한 것이 아니라 짝보다 덜 한 것(밀기 · 당기기) */ balance?: true };
@@ -296,6 +305,7 @@ export function scoreContextOf({
   swappedOut = new Map(),
   swappedOutToday = new Set(),
   favoriteIds = new Set(),
+  recovery = null,
 }: {
   theme: ThemeKey;
   facts: ReportFacts;
@@ -306,6 +316,7 @@ export function scoreContextOf({
   swappedOut?: ReadonlyMap<string, number>;
   swappedOutToday?: ReadonlySet<string>;
   favoriteIds?: ReadonlySet<string>;
+  recovery?: ReadonlyMap<string, number> | null;
 }): ScoreContext {
   return {
     theme,
@@ -320,6 +331,7 @@ export function scoreContextOf({
     swappedOut,
     swappedOutToday,
     favoriteIds,
+    ...(recovery ? { recovery } : {}),
   };
 }
 
@@ -432,6 +444,15 @@ export function scoreOf(ex: ScorableExercise, ctx: ScoreContext): ExerciseScore 
   ) {
     parts.pattern = SCORE_POINTS.patternBalance;
     detail.pattern = { pattern, balance: true };
+  }
+
+  /* tired — 주 부위가 덜 회복됐는데 무게가 실리는 운동. 푸는 운동 · 가벼운 운동은 그대로 둔다(덜 회복된 날 오히려 좋다) */
+  if (ctx.recovery && loads) {
+    const tired = tiredPartOf(ex.bodyParts, ctx.recovery);
+    if (tired) {
+      parts.tired = SCORE_POINTS.tired;
+      detail.tired = tired;
+    }
   }
 
   /* favorite */
@@ -553,6 +574,8 @@ function fallbackLine(
         : '조심할 부위를 써서 뒤로 뒀어요.';
     case 'arm':
       return '팔이 피곤해 팔을 많이 쓰는 운동은 뒤로 뒀어요.';
+    case 'tired':
+      return '아직 덜 회복된 부위를 써서 뒤로 뒀어요.';
     case 'program':
       return '근력 프로그램과 같은 동작이라 뒤로 뒀어요.';
     case 'swapped':
@@ -595,6 +618,11 @@ function lineFor(
       const d = detail.arm;
       if (!d) break;
       return `${armCause(d.fatigue)} ${josa(ARM_OBJECT[d.kind], '은', '는')} 뒤로 뒀어요.`;
+    }
+    case 'tired': {
+      const d = detail.tired;
+      if (!d) break;
+      return `${josa(d.part, '이', '가')} 아직 덜 회복돼서 뒤로 뒀어요.`;
     }
     case 'program': {
       const d = detail.program;
@@ -795,6 +823,20 @@ export function planReasonItemsOf({
         sign: -1,
         weight: weightOf(list, 'arm'),
         text: `${armCause(list[0].score.detail.arm!.fatigue)} 팔을 많이 쓰는 운동은 뒤로 뒀어요.`,
+      });
+    }
+  }
+
+  /* tired — 덜 회복된 부위를 처음 걸린 차례로 둘까지 */
+  {
+    const list = pushedBack('tired').filter((s) => s.score.detail.tired);
+    if (list.length > 0) {
+      const names = [...new Set(list.map((s) => s.score.detail.tired!.part))].slice(0, 2);
+      signals.push({
+        key: 'tired',
+        sign: -1,
+        weight: weightOf(list, 'tired'),
+        text: `${josa(names.join(' · '), '이', '가')} 아직 덜 회복돼서 그쪽 운동은 뒤로 뒀어요.`,
       });
     }
   }

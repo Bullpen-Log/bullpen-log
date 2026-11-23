@@ -391,6 +391,8 @@ export type PlanScoreInput = {
   swappedOutToday?: ReadonlySet<string>;
   /** 즐겨찾기한 운동(lib/favorites.ts favoriteExerciseIds) */
   favoriteIds?: ReadonlySet<string>;
+  /** 부위별 회복도(lib/report/recovery.ts partRecovery — recovery-load.ts 가 읽는다). 없으면 '덜 회복된 부위 −2' 가 꺼진다 */
+  recovery?: ReadonlyMap<string, number> | null;
 };
 
 /** 통증 등으로 일정을 만들지 않은 경우 */
@@ -707,6 +709,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
       swappedOut: score.swappedOut,
       swappedOutToday: score.swappedOutToday,
       favoriteIds: score.favoriteIds,
+      recovery: score.recovery ?? null,
     });
   }
   const scores = new Map<string, ExerciseScore>();

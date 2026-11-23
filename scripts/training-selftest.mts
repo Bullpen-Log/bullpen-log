@@ -25122,11 +25122,14 @@ console.log(
             'outing',
             'stiff',
             'arm',
+            /* 2026-11-23 부위별 회복도 — 덜 회복된 부위(lib/report/recovery.ts)를 지키는 항목으로 더했다 */
+            'tired',
             'program',
             'swapped',
             'pattern',
             'favorite',
           ]) &&
+        SCORE_POINTS.tired === -2 &&
         PLAN_REASONS_MAX === 3 &&
         SCORE_POINTS.outing === -3 &&
         SCORE_POINTS.program === -3 &&
@@ -25196,6 +25199,8 @@ console.log(
       ]),
       swappedOut: new Map([[library[0].id, 2]]),
       swappedOutToday: new Set([library[1].id]),
+      /* 2026-11-23 부위별 회복도 — 햄스트링 · 둔근이 덜 회복된 날 */
+      recovery: new Map([['햄스트링·둔근', 30]]),
       /*
        * P5 검토로 바뀜(2026-10-13) — 지키는 항목이 걸린 운동엔 즐겨찾기가 안 실린다. 앞 둘은 이 ctx 에서 모두 걸려(어깨 · 허리 · 등판 ·
        * 팔), 걸릴 일이 없는 가동성 하나를 더한다(푸는 카테고리 · 동작 열쇠 없음 · 뺀 기록 없음).
@@ -25228,6 +25233,9 @@ console.log(
      * 지키는 항목(등판 · 관절 · 팔 · 프로그램 · 뺌)이 걸리는가 — 아래 판정을 다시 적어 고르는 쪽(계열 · 즐겨찾기)이 빠지는 운동을 따로 센다(P5 검토).
      * 이 ctx 는 회복 날이 아니라 관절 항목은 늘 '−'다.
      */
+    /* 덜 회복된 부위 — 주 부위(온몸 다음 첫 부위)가 햄스트링 · 둔근이고 무게가 실리는 운동 */
+    const tiredHit = (e: (typeof library)[number]): boolean =>
+      loads(e) && e.bodyParts.find((p) => p !== '전신') === '햄스트링·둔근';
     const protects = (e: (typeof library)[number]): boolean =>
       isLowerPower(e) ||
       isLowerEccentric(e) ||
@@ -25238,7 +25246,8 @@ console.log(
         (e.bodyParts.includes('손목·전완') || e.movementPattern === '운반')) ||
       (movementKeyOf(e) != null && busy.programNext!.patterns.has(movementKeyOf(e)!)) ||
       (busy.swappedOut.get(e.id) ?? 0) >= SWAPPED_MIN ||
-      busy.swappedOutToday.has(e.id);
+      busy.swappedOutToday.has(e.id) ||
+      tiredHit(e);
     const want: Record<string, (e: (typeof library)[number]) => boolean> = {
       outing: (e) => isLowerPower(e) || isLowerEccentric(e),
       arm: (e) =>
@@ -25257,6 +25266,7 @@ console.log(
         !busy.patternsDone14d!.has(e.movementPattern) &&
         !protects(e),
       stiff: (e) => loads(e) && e.bodyParts.some((p) => busy.eased.has(p)),
+      tired: tiredHit,
       favorite: (e) => busy.favoriteIds.has(e.id) && !protects(e),
     };
     const mism = Object.entries(want).flatMap(([key, fn]) => {
@@ -25947,6 +25957,8 @@ console.log(
             '@/lib/engine/exercise-class',
             '@/lib/exercise-meta',
             '@/lib/report/prescription',
+            /* 2026-11-23 부위별 회복도 — 순수 파일(DB · 날짜 함수 없음) */
+            '@/lib/report/recovery',
           ]),
       json(valueImports)
     );
@@ -26979,9 +26991,11 @@ console.log(
         /swappedOutRecently\(user\.id, today\),\s*favoriteExerciseIds\(user\.id\),\s*activeProgram\(user\.id\),\s*pitchTypesToday\(user\.id, toDateKey\(today\)\),[\s\S]*?currentCoachWeek\(user, facts\),\s*\]\);/.test(
           fn
         ) &&
-        /score: \{\s*programPatterns: program\.patterns,\s*patternsDone14d: strengthDates\.patternsDone14d,\s*swappedOut,\s*swappedOutToday: swappedOutOf\(before\?\.plan\),\s*favoriteIds,\s*\},/.test(
+        /score: \{\s*programPatterns: program\.patterns,\s*patternsDone14d: strengthDates\.patternsDone14d,\s*swappedOut,\s*swappedOutToday: swappedOutOf\(before\?\.plan\),\s*favoriteIds,\s*recovery,\s*\},/.test(
           fn
-        )
+        ) &&
+        /* 2026-11-23 부위별 회복도 — 같은 Promise.all 에 넣어 왕복이 늘지 않는다 */
+        /pitchTypesToday\(user\.id, toDateKey\(today\)\),\s*loadPartRecovery\(user\.id, today\),/.test(fn)
     );
     /*
      * P6 로 바뀜(P6-3) — 왜: buildDay 가 점수 재료 뒤에 프로그램 날의 운동(programToday — D6)과 중재의 예산(budget)을 같이 넘긴다(앱
@@ -33612,6 +33626,70 @@ console.log('\n[통합 2026-10-16] 근육통 어림(sorenessFromParts) · 카드
       src('app/actions/workout.ts').includes('!ex.programSlot && ex.askReserve !== true') &&
       src('app/(session)/workout/run/session-client.tsx').includes('ex.askReserve === true && ex.plannedSets != null') &&
       src('native/src/app/workout.tsx').includes('ex.askReserve === true && ex.plannedSets != null')
+  );
+}
+
+/*
+ * ── [부위별 회복도] (2026-11-23, lib/report/recovery.ts) — 최근 운동으로 부위마다 0~100%. 던진 공 수는 넣지 않는다.
+ */
+{
+  const { partRecovery, tiredPartOf, TIRED_BELOW, RECOVERY_WINDOW_DAYS } = await import('@/lib/report/recovery');
+  const squat = { bodyParts: ['고관절', '햄스트링·둔근', '코어'], intensity: '높음', sets: 4 };
+  const today = partRecovery([{ daysAgo: 0, items: [squat] }]);
+  const twoAgo = partRecovery([{ daysAgo: 2, items: [squat] }]);
+  const both = partRecovery([
+    { daysAgo: 0, items: [squat] },
+    { daysAgo: 2, items: [squat] },
+  ]);
+  check(
+    '[부위별 회복도] 셈 — 주 부위는 세트 × 강도, 보조는 절반 · 날이 지나면 풀리고 · 여러 날은 더한다 · 엿새 넘으면 안 본다',
+    partRecovery([]).size === 0 &&
+      today.get('고관절') === 40 &&
+      today.get('햄스트링·둔근') === 70 &&
+      today.get('코어') === 70 &&
+      twoAgo.get('고관절') === 72 &&
+      both.get('고관절') === 12 &&
+      partRecovery([{ daysAgo: RECOVERY_WINDOW_DAYS + 1, items: [squat] }]).size === 0 &&
+      partRecovery([{ daysAgo: 5, items: [squat] }]).get('고관절') === undefined,
+    `${today.get('고관절')} ${today.get('코어')} ${twoAgo.get('고관절')} ${both.get('고관절')}`
+  );
+  check(
+    '[부위별 회복도] 다 쓴 날은 0% 에서 닷새에 걸쳐 풀리고, 온몸 운동은 어느 부위도 깎지 않는다',
+    partRecovery([{ daysAgo: 0, items: [{ ...squat, sets: 20 }] }]).get('고관절') === 0 &&
+      partRecovery([{ daysAgo: 4, items: [{ ...squat, sets: 20 }] }]).get('고관절') === 80 &&
+      partRecovery([{ daysAgo: 0, items: [{ bodyParts: ['전신', '코어'], intensity: '높음', sets: 6 }] }]).get('전신') === undefined &&
+      partRecovery([{ daysAgo: 0, items: [{ bodyParts: ['전신', '코어'], intensity: '높음', sets: 6 }] }]).get('코어') === 55
+  );
+  const rec = new Map([
+    ['고관절', 30],
+    ['코어', 20],
+    ['어깨', 80],
+  ]);
+  check(
+    '[부위별 회복도] 덜 회복된 부위 — 주 부위(온몸 다음 첫 부위)가 50% 밑일 때만',
+    TIRED_BELOW === 50 &&
+      tiredPartOf(['고관절', '코어'], rec)?.part === '고관절' &&
+      tiredPartOf(['전신', '코어'], rec)?.part === '코어' &&
+      tiredPartOf(['어깨', '코어'], rec) === null &&
+      tiredPartOf(['등'], rec) === null &&
+      tiredPartOf([], rec) === null
+  );
+  const ctx = scoreContextOf({
+    theme: 'lower',
+    facts: buildFacts({ nickname: '시험', age: 22, heightCm: 180, logs: [], checkins: [], memos: [], today: TODAY }),
+    state: { outing: { daysUntilNext: null, nextSource: null }, arm: { fatigue: null } } as never,
+    recovery: rec,
+  });
+  const heavy = library.find((e) => e.title === '바벨 백 스쿼트')!;
+  const loose = library.find((e) => e.category === '모빌리티' && e.bodyParts[0] === '고관절');
+  const scored = scoreOf(heavy, ctx);
+  check(
+    '[부위별 회복도] 점수 — 덜 회복된 부위가 주 부위인 무거운 운동은 −2(이유 한 줄), 푸는 운동은 그대로, 재료를 안 넘기면 꺼진다',
+    scored.parts.tired === -2 &&
+      reasonLineOf(heavy, scored) === '고관절이 아직 덜 회복돼서 뒤로 뒀어요.' &&
+      (loose == null || scoreOf(loose, ctx).parts.tired == null) &&
+      scoreOf(heavy, { ...ctx, recovery: null }).parts.tired == null,
+    `${JSON.stringify(scored.parts)} ${reasonLineOf(heavy, scored)}`
   );
 }
 

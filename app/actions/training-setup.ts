@@ -36,6 +36,7 @@ import { painStateUnknown } from '@/lib/report/prescription';
 import { carrySwaps, swappedOutOf } from '@/lib/report/plan-swaps';
 import { fingerprintOf } from '@/lib/report/plan-fingerprint';
 import { visibleExercises, type CachedExercise } from '@/lib/library-cache';
+import { loadPartRecovery } from '@/lib/report/recovery-load';
 import {
   gatherFactsAndPlan,
   lastStrengthDates,
@@ -321,6 +322,7 @@ export async function generateTodayPlan(formData: FormData) {
     favoriteIds,
     programRow,
     typesToday,
+    recovery,
     coach,
   ] = await Promise.all([
     /* 누가 보든 같은 목록이라 캐시에서 꺼낸다 (lib/library-cache.ts) */
@@ -350,6 +352,8 @@ export async function generateTodayPlan(formData: FormData) {
      * buildProgramDay 가 같은 조회를 한 번 더 하지만, 프로그램 줄을 받기 전이라 갈라 묻지 않는다(같은 Promise.all 이라 왕복은 안 는다).
      */
     pitchTypesToday(user.id, toDateKey(today)),
+    /* 부위별 회복도(2026-11-23, lib/report/recovery.ts) — 덜 회복된 부위가 주 부위인 운동을 뒤로 미는 점수 재료 */
+    loadPartRecovery(user.id, today),
     /*
      * 유료 코치 진행 중이면 이번 주 틀을 지금 상태로 맞춘 뒤 그날 칸(docs/designs/ai-coach.md 10-5) — 자동 맞춤의 기본 시간만 바꾼다(엔진 판정 · 줄이기는 그대로).
      * 위에서 읽은 facts 를 넘겨 같은 계산을 다시 안 한다.
@@ -475,6 +479,7 @@ export async function generateTodayPlan(formData: FormData) {
       swappedOut,
       swappedOutToday: swappedOutOf(before?.plan),
       favoriteIds,
+      recovery,
     },
     /*
      * 최근 운동 힘듦 급증(2판 P5-e) — 직접 고르기는 본운동 세트를 한 개씩 줄이고, 폼의 '그래도 고른 대로'(overrideEffort)면 그 몫만
