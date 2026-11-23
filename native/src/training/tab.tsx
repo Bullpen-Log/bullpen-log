@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import type { CardAction, ProgramShelf, TrainingCard } from '@/lib/report/training-home-data';
 import { TIRED_BELOW, type PartRecovery } from '@/lib/report/recovery';
+import type { WeekSetRow } from '@/lib/report/week-sets';
 import { ThrowNoteCard } from '~/mechanics/parts';
 import type { TrainingPart } from '@/lib/training-part';
 import { rpc, RpcError } from '~/lib/rpc';
@@ -32,7 +33,7 @@ import { RecoveryNotice } from '~/workout/recovery-notice';
  * 그날 일정의 실제 값만(state · plan 칸, 옛 서버면 action · tone 으로 짐작). [시작]은 운동 화면(/workout)을 바로 밀고, 암케어 · 메카닉 따라 하기 ·
  * 각 앱의 전체 화면도 앱 화면이다. 지난날 트레이닝 기록은 기록 탭(날짜별)에서 본다 — 예전 날짜 띠 · 이번 주 한 줄은 걷었다.
  */
-type Loaded = { today: string; cards: TrainingCard[]; programs?: ProgramShelf | null; recovery?: PartRecovery[] };
+type Loaded = { today: string; cards: TrainingCard[]; programs?: ProgramShelf | null; recovery?: PartRecovery[]; weekSets?: WeekSetRow[] };
 let cached: Loaded | null = null;
 export const resetTrainingCache = () => {
   cached = null;
@@ -200,6 +201,8 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
       {fresh && mechanics?.throwNote ? <ThrowNoteCard note={mechanics.throwNote} c={c} /> : null}
 
       {data?.programs ? <ProgramCards shelf={data.programs} today={day} /> : null}
+
+      {data?.weekSets?.some((r) => r.done > 0) ? <WeekSetsCard rows={data.weekSets} /> : null}
 
       {data?.recovery?.length ? <RecoveryCard rows={data.recovery} /> : null}
 
@@ -370,6 +373,36 @@ function DumbbellArt({ done }: { done: boolean }) {
       <View style={styles.badge}>
         <Icon name={done ? 'check' : 'plus'} size={14} color="#eaf5ff" strokeWidth={2.6} />
       </View>
+    </View>
+  );
+}
+
+/**
+ * 주간 세트 목표(2026-11-23, lib/report/week-sets.ts) — 이번 주(월요일부터) 동작 묶음마다 한 세트 / 목표. 이번 주에 하나도 안 했으면
+ * 카드가 없다. 목표를 채운 묶음은 체크 색.
+ */
+function WeekSetsCard({ rows }: { rows: WeekSetRow[] }) {
+  const c = usePalette();
+  return (
+    <View
+      accessible
+      accessibilityLabel={`이번 주 세트. ${rows.map((r) => `${r.label} ${r.done}세트, 목표 ${r.target}세트`).join(', ')}`}
+      style={[styles.recovery, { backgroundColor: c.card, boxShadow: c.float }]}
+    >
+      <Text style={[TYPE.section, { color: c.ink }]}>이번 주 세트</Text>
+      {rows.map((r) => (
+        <View key={r.key} style={styles.recoveryRow}>
+          <Text numberOfLines={1} style={{ width: 96, color: c.ink, fontSize: 15 }}>
+            {r.label}
+          </Text>
+          <View style={[styles.recoveryTrack, { backgroundColor: c.line }]}>
+            <View style={{ width: `${Math.min(100, Math.round((r.done / r.target) * 100))}%`, height: 8, borderRadius: 4, backgroundColor: c.action }} />
+          </View>
+          <Text style={{ width: 60, textAlign: 'right', color: r.done >= r.target ? c.ink : c.muted, fontSize: 13, fontVariant: ['tabular-nums'] }}>
+            {r.done} / {r.target}
+          </Text>
+        </View>
+      ))}
     </View>
   );
 }

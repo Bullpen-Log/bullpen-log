@@ -22,6 +22,7 @@ import { loadTrainingStrip } from '@/lib/training-week';
 import { loadTrainingWeekCounts } from '@/lib/report/training-week-counts';
 import { TIRED_BELOW, recoveryRows } from '@/lib/report/recovery';
 import { loadPartRecovery } from '@/lib/report/recovery-load';
+import { loadWeekSets } from '@/lib/report/week-sets-load';
 
 /**
  * 트레이닝 홈 — 트레이닝 · 암케어 · 메카닉을 앱 카드 셋으로(2026-10-04).
@@ -91,6 +92,9 @@ export function TrainingHome({
       <div className="stack-block pad:grid pad:grid-cols-2 pad:min-[60rem]:grid-cols-3 pad:items-stretch pad:gap-(--gap-block) pad:[&>*]:mb-0!">{order.map((app) => cards[app])}</div>
       <Suspense fallback={<div className="h-12" />}>
         <WeekStrip userId={user.id} today={today} />
+      </Suspense>
+      <Suspense fallback={null}>
+        <WeekSetsCard userId={user.id} today={today} />
       </Suspense>
       <Suspense fallback={null}>
         <RecoveryCard userId={user.id} today={today} />
@@ -317,6 +321,36 @@ async function DayStripLoad({ userId, today }: { userId: string; today: string }
 }
 
 /* ─────────────────────────────── 이번 주 ─────────────────────────────── */
+
+/**
+ * 주간 세트 목표(2026-11-23, lib/report/week-sets.ts) — 이번 주 동작 묶음마다 한 세트 / 목표. 앱 트레이닝 탭과 같은 값.
+ * 이번 주에 하나도 안 했으면 카드가 없다.
+ */
+async function WeekSetsCard({ userId, today }: { userId: string; today: Date }) {
+  const rows = await loadWeekSets(userId, today);
+  if (!rows.some((r) => r.done > 0)) return null;
+  return (
+    <section className="rounded-2xl bg-surface p-(--block-pad)">
+      <h2 className="text-sm font-semibold text-ink">이번 주 세트</h2>
+      <ul className="mt-3 space-y-2.5">
+        {rows.map((r) => (
+          <li key={r.key} className="flex items-center gap-3 text-sm">
+            <span className="w-24 shrink-0 truncate text-ink">{r.label}</span>
+            <span className="h-2 flex-1 overflow-hidden rounded-full bg-line" aria-hidden>
+              <span
+                className="block h-full rounded-full bg-sky"
+                style={{ width: `${Math.min(100, Math.round((r.done / r.target) * 100))}%` }}
+              />
+            </span>
+            <span className={`w-14 shrink-0 text-right tabular-nums ${r.done >= r.target ? 'text-ink' : 'text-muted'}`}>
+              {r.done} / {r.target}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
 
 /**
  * 부위별 회복도(2026-11-23, lib/report/recovery.ts) — 최근 운동으로 어림한 부위마다의 회복 %. 앱 트레이닝 탭과 같은 값 · 같은 줄.

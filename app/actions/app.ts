@@ -6,6 +6,8 @@ import { cookies } from 'next/headers';
 import { unstable_rethrow } from 'next/navigation';
 import { recoveryRows, type PartRecovery } from '@/lib/report/recovery';
 import { loadPartRecovery } from '@/lib/report/recovery-load';
+import type { WeekSetRow } from '@/lib/report/week-sets';
+import { loadWeekSets } from '@/lib/report/week-sets-load';
 import { appNow } from '@/lib/clock';
 import { getCurrentUser } from '@/lib/dal';
 import { loadTrainingStrip, type TrainingStripDay } from '@/lib/training-week';
@@ -330,6 +332,8 @@ export async function loadAppTraining(): Promise<
       programs: ProgramShelf | null;
       /** 부위별 회복도(2026-11-23, lib/report/recovery.ts) — 덜 회복된 부위부터 여섯까지. 다 회복됐거나 못 읽으면 빈 목록 */
       recovery: PartRecovery[];
+      /** 주간 세트 목표(2026-11-23, lib/report/week-sets.ts) — 이번 주 동작 묶음마다 한 세트 · 목표. 못 읽으면 빈 목록 */
+      weekSets: WeekSetRow[];
     }
   | { ok: false; error: string; to?: string }
 > {
@@ -348,7 +352,7 @@ export async function loadAppTraining(): Promise<
     }
   };
   const todayKey = toDateKey(now);
-  const [cards, strip, week, programs, recovery] = await Promise.all([
+  const [cards, strip, week, programs, recovery, weekSets] = await Promise.all([
     Promise.all([
       safe('today', () => workoutCardData(user, now)),
       safe('armcare', () => armcareCardData(user, now)),
@@ -368,10 +372,15 @@ export async function loadAppTraining(): Promise<
         console.error('[앱 트레이닝] 부위별 회복도', err);
         return [];
       }),
+    loadWeekSets(user.id, now).catch((err: unknown) => {
+      unstable_rethrow(err);
+      console.error('[앱 트레이닝] 주간 세트', err);
+      return [];
+    }),
   ]);
   const last = readTrainingPart((await cookies()).get(TRAINING_PART_COOKIE)?.value);
   if (last) cards.sort((a, b) => Number(b.app === last) - Number(a.app === last));
-  return { ok: true, today: todayKey, cards, strip, week, programs, recovery };
+  return { ok: true, today: todayKey, cards, strip, week, programs, recovery, weekSets };
 }
 
 /**

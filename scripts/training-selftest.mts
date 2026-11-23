@@ -33811,5 +33811,35 @@ console.log('\n[통합 2026-10-16] 근육통 어림(sorenessFromParts) · 카드
   );
 }
 
+/*
+ * ── [주간 세트 목표] (2026-11-23, lib/report/week-sets.ts) — 이번 주 동작 묶음(하체 · 밀기 · 당기기 · 코어 · 회전)마다 한 세트 / 목표.
+ */
+{
+  const { WEEK_SET_GROUPS, weekSetGroupOf, weekSetRows } = await import('@/lib/report/week-sets');
+  const t = (title: string) => library.find((e) => e.title === title)!;
+  const counted = library.filter((e) => weekSetGroupOf(e) != null).length;
+  check(
+    '[주간 세트 목표] 묶음 — 스쿼트 · 런지는 하체, 벤치는 밀기, 로우는 당기기, 회전 동작은 분류와 상관없이 회전, 워밍업 · 가동성 · 암케어 · 유산소는 안 센다',
+    weekSetGroupOf(t('바벨 백 스쿼트')) === 'lower' &&
+      weekSetGroupOf(t('바벨 런지')) === 'lower' &&
+      weekSetGroupOf(t('벤치 프레스')) === 'push' &&
+      weekSetGroupOf(t('바벨 로우')) === 'pull' &&
+      weekSetGroupOf({ category: '파워', movementPattern: '회전' }) === 'rotation' &&
+      weekSetGroupOf({ category: '코어', movementPattern: null }) === 'core' &&
+      weekSetGroupOf({ category: '암케어', movementPattern: '회전' }) === null &&
+      weekSetGroupOf({ category: '모빌리티' }) === null &&
+      weekSetGroupOf({ category: '유산소' }) === null &&
+      counted > 50,
+    `${counted}개가 묶음에 든다`
+  );
+  const rows = weekSetRows(new Map([['lower', 9], ['pull', 8]]));
+  check(
+    '[주간 세트 목표] 줄 — 다섯 묶음이 목표 차례로, 안 한 묶음은 0',
+    WEEK_SET_GROUPS.length === 5 &&
+      rows.map((r) => `${r.label} ${r.done}/${r.target}`).join(' · ') === '하체 9/12 · 밀기 0/8 · 당기기 8/8 · 코어 0/6 · 회전 0/4',
+    rows.map((r) => `${r.label} ${r.done}/${r.target}`).join(' · ')
+  );
+}
+
 console.log(`\n${passed}개 통과, ${failed}개 실패`);
 process.exit(failed === 0 ? 0 : 1);
