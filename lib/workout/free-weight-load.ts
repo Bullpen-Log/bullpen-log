@@ -12,6 +12,9 @@ import {
 /** 지난 기록을 이만큼 앞까지 본다 — 그보다 오래된 무게는 기준이 못 된다(exercise-recent.ts 와 같은 값) */
 const WINDOW_DAYS = 180;
 
+/** '몇 개 더?'를 묻는 자유 운동 — 무게를 올려 가는 근력 본운동만(암케어 · 코어 · 파워는 안 묻는다) */
+const ASK_RESERVE_CATEGORIES: readonly string[] = ['하체 스트렝스', '상체 스트렝스'];
+
 /** 운동마다 읽는 날 수 — 지난번과 그 앞 날(두 번 이어 채웠나, free-weight.ts ③ — 2판 P5-g) */
 export const FREE_WEIGHT_DAYS = 2;
 
@@ -60,9 +63,13 @@ export async function withFreeWeights(
       cautious: opts.cautious === true,
       holdProgress: opts.holdProgress,
     });
-    const shown = opts.cautious
+    const cautioned = opts.cautious
       ? { ...e, prescription: cautiousPrescription(e.prescription) }
       : e;
+    /* 근력 본운동은 마지막 세트 뒤에 '몇 개 더?'를 묻는다(2026-11-23) — 다음번 무게 올림을 앞당긴다(free-weight.ts ③) */
+    const shown = ASK_RESERVE_CATEGORIES.includes(e.category)
+      ? { ...cautioned, askReserve: true as const }
+      : cautioned;
     return s ? { ...shown, suggestedKg: s.kg, suggestNote: s.note } : shown;
   });
 }
@@ -119,6 +126,7 @@ async function recentDays(
         date: true,
         weightKg: true,
         reps: true,
+        rir: true,
       },
     }),
     prisma.trainingSession.findMany({
@@ -138,11 +146,12 @@ async function recentDays(
         const planned = plans
           .get(sessionId)
           ?.exercises.find((x) => x.id === exerciseId)?.plannedReps;
+        const mine = rows.filter((r) => r.exerciseId === exerciseId && r.sessionId === sessionId);
         return {
           date: toDateKey(date),
-          sets: rows
-            .filter((r) => r.exerciseId === exerciseId && r.sessionId === sessionId)
-            .map((r) => ({ weightKg: kgOf(r), reps: r.reps })),
+          sets: mine.map((r) => ({ weightKg: kgOf(r), reps: r.reps })),
+          /* '몇 개 더?'는 마지막 세트에만 묻는다 — 그날 답한 것 중 가장 뒤 세트의 답 */
+          rir: mine.reduce<number | null>((got, r) => r.rir ?? got, null),
           /* 판에 없거나 숫자가 아니면 없음 — free-weight.ts 가 오늘 처방으로 잰다 */
           plannedReps: typeof planned === 'number' ? planned : null,
         };

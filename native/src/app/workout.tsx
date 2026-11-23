@@ -215,7 +215,9 @@ function plannedAmount(ex: {
   return ex.isHold && m[2] === '분' ? n * 60 : n;
 }
 
-const asksReserve = (ex: RunExercise) => asksReserveFor(ex.programSlot, ex.plannedSets);
+/* 프로그램 칸, 그리고 프로그램이 아닌 날의 근력 본운동(askReserve — 2026-11-23, 다음번 무게 올림을 앞당긴다) */
+const asksReserve = (ex: RunExercise) =>
+  asksReserveFor(ex.programSlot, ex.plannedSets) || (ex.askReserve === true && ex.plannedSets != null);
 
 /** 지금 보던 운동을 이 판 번호로 적어 두는 곳 — 앱이 메모리 탓에 다시 켜져도 보던 운동으로 돌아온다(웹 sessionStorage 와 같은 몫) */
 const atKey = (sessionId: string) => `bullpen-workout-at:${sessionId}`;

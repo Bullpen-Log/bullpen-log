@@ -33552,5 +33552,68 @@ console.log('\n[통합 2026-10-16] 근육통 어림(sorenessFromParts) · 카드
   );
 }
 
+/*
+ * ── [몇 개 더 · 자유 운동] (2026-11-23) — 프로그램이 아닌 날의 근력 본운동도 마지막 세트 뒤에 묻고, 2개 이상이면 한 번 채운 것으로 올린다.
+ */
+{
+  const { suggestFreeWeight, RESERVE_RAISE } = await import('@/lib/workout/free-weight');
+  const day = (date: string, rir?: number | null) => ({
+    date,
+    sets: [
+      { weightKg: 60, reps: 8 },
+      { weightKg: 60, reps: 8 },
+      { weightKg: 60, reps: 8 },
+    ],
+    plannedReps: 8,
+    ...(rir !== undefined ? { rir } : {}),
+  });
+  const ask = (rir: number | null | undefined, extra: object = {}) =>
+    suggestFreeWeight({
+      equipment: ['바벨'],
+      bigLower: false,
+      plannedSets: 3,
+      plannedReps: 8,
+      last: day('2026-06-12', rir),
+      todayKey: '2026-06-15',
+      ...extra,
+    });
+  check(
+    '[몇 개 더 · 자유 운동] 한 번 채우고 여유 2개 이상이면 바로 올린다 — 답이 없거나 0~1개면 예전처럼 한 번 더',
+    RESERVE_RAISE === 2 &&
+      ask(2)?.kg === 62.5 &&
+      /여유가 있어서/.test(ask(2)!.note) &&
+      ask(4)?.kg === 62.5 &&
+      ask(1)?.kg === 60 &&
+      ask(0)?.kg === 60 &&
+      ask(null)?.kg === 60 &&
+      ask(undefined)?.kg === 60 &&
+      /한 번 더 채우면/.test(ask(1)!.note),
+    `${ask(2)?.kg} ${ask(2)?.note} / ${ask(1)?.note}`
+  );
+  check(
+    '[몇 개 더 · 자유 운동] 여유가 있어도 양을 줄인 날 · 영양 추세로 멈춘 주는 안 올리고, 성장기 · 입문은 한 단위만, 못 채웠으면 내린다',
+    ask(3, { hold: true })?.kg === 60 &&
+      ask(3, { holdProgress: '이번 주는 그대로 가요.' })?.kg === 60 &&
+      /여유가 있었어요\. 이번 주는 그대로 가요\./.test(ask(3, { holdProgress: '이번 주는 그대로 가요.' })!.note) &&
+      ask(3, { cautious: true })?.kg === 62.5 &&
+      suggestFreeWeight({
+        equipment: ['바벨'],
+        bigLower: false,
+        plannedSets: 3,
+        plannedReps: 8,
+        last: { ...day('2026-06-12', 4), sets: [{ weightKg: 60, reps: 5 }] },
+        todayKey: '2026-06-15',
+      })!.kg < 60
+  );
+  const src = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf-8');
+  check(
+    '[몇 개 더 · 자유 운동] 배선 — 근력 본운동에 askReserve 를 얼리고, 서버가 그 운동의 답을 받고, 웹 · 앱 운동 화면이 같은 칸으로 묻는다',
+    /ASK_RESERVE_CATEGORIES.includes\(e\.category\)/.test(src('lib/workout/free-weight-load.ts')) &&
+      src('app/actions/workout.ts').includes('!ex.programSlot && ex.askReserve !== true') &&
+      src('app/(session)/workout/run/session-client.tsx').includes('ex.askReserve === true && ex.plannedSets != null') &&
+      src('native/src/app/workout.tsx').includes('ex.askReserve === true && ex.plannedSets != null')
+  );
+}
+
 console.log(`\n${passed}개 통과, ${failed}개 실패`);
 process.exit(failed === 0 ? 0 : 1);

@@ -69,6 +69,11 @@ export type FrozenExercise = {
    */
   programSlot?: FrozenProgramSlot | null;
   /**
+   * 프로그램이 아닌 날에도 마지막 세트 뒤에 '몇 개 더?'를 묻는 운동인가(2026-11-23 — 무게를 드는 근력 본운동, free-weight-load.ts).
+   * 답은 다음번 무게 올림을 앞당긴다(free-weight.ts ③). 옛 판 · 그 밖의 운동에는 없다.
+   */
+  askReserve?: true;
+  /**
    * 운동 시작 때 얼린 추천 무게(kg) — 세트 기록의 '추천 담기'와 '추천 vs 실제'에 쓴다. 숫자 없이 안내하는 날은 null.
    * 프로그램 날은 next-weight.ts, 그 밖의 무게 운동은 free-weight.ts(2026-10-09 — 그 앞에 찍은 판에는 프로그램 칸에만 있다).
    */

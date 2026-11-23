@@ -2348,7 +2348,10 @@ const BUNDLE_SHORT_REST = 30;
 
 /** 프로그램 날, 마지막 세트 뒤에 '몇 개 더?'를 묻는가(lib/program/program.ts asksReserve) */
 function asksReserve(ex: RunExercise): boolean {
-  return asksReserveFor(ex.programSlot, ex.plannedSets);
+  return (
+    asksReserveFor(ex.programSlot, ex.plannedSets) ||
+    (ex.askReserve === true && ex.plannedSets != null)
+  );
 }
 
 /**

@@ -382,9 +382,9 @@ export async function logSet(input: SetInput): Promise<SetResult> {
     if (k in input && input[k] !== undefined) original[k] = input[k];
   const reps = whole(input.reps, AMOUNT_LIMITS.reps);
   const hold = whole(input.holdSeconds, AMOUNT_LIMITS.holdSeconds);
-  /* '몇 개 더?'는 프로그램 칸의 운동에만 받는다 — 0~4 밖은 버린다 */
+  /* '몇 개 더?'는 프로그램 칸의 운동과 묻기로 얼린 자유 운동(askReserve)에만 받는다 — 0~4 밖은 버린다 */
   const rir =
-    input.rir === undefined || !ex.programSlot
+    input.rir === undefined || (!ex.programSlot && ex.askReserve !== true)
       ? undefined
       : input.rir === null
         ? null

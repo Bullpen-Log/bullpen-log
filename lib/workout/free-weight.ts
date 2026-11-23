@@ -10,8 +10,8 @@ import { YOUTH_AGE_THRESHOLD } from '@/lib/report/plan';
 /**
  * 프로그램이 아닌 날의 무게 추천 — 순수 함수(DB 를 모른다). 2026-10-09 트레이닝 검토 2-⑤, 2026-10-12 트레이닝 추천 2판 P5-g 로 고침.
  *
- * 프로그램 날은 next-weight.ts 가 '몇 개 더?'(RIR)로 올리고 내린다. 자유 운동은 RIR 을 묻지 않는다 — 그래서 횟수로만 정한다
- * (이중 진행, double progression). 처방 횟수(목표 처방 · 양 조절을 거친 숫자 하나)를 횟수 범위의 위 끝으로, 그 4분의 3(올림)을
+ * 프로그램 날은 next-weight.ts 가 '몇 개 더?'(RIR)로 올리고 내린다. 자유 운동은 횟수로 정한다(이중 진행, double progression) —
+ * 2026-11-23 부터 근력 본운동은 마지막 세트 뒤에 '몇 개 더?'도 묻고(free-weight-load.ts askReserve), 답이 있으면 ③ 을 앞당긴다. 처방 횟수(목표 처방 · 양 조절을 거친 숫자 하나)를 횟수 범위의 위 끝으로, 그 4분의 3(올림)을
  * 아래 끝으로 본다 — 8회면 6~8회, 5회면 4~5회(repFloorOf). 검토안 2판 4-5 '무게: 올림은 2회 연속일 때, 내림은 1회로 바로'.
  *
  *   ① 기준 W = 지난번(가장 최근 세트를 남긴 날)의 가장 무거운 무게. 그 무게로 한 세트가 '본 세트'.
@@ -22,6 +22,8 @@ import { YOUTH_AGE_THRESHOLD } from '@/lib/report/plan';
  *   ③ 올림 — 지난번과 그 앞 날(prev)이 같은 무게로 둘 다 채움이고 둘 사이가 8일 안이면. 하체 큰 운동 ×1.05, 그 밖 ×1.025
  *      (프로그램과 같은 비율), 적어도 한 단위. 지난번 하루만 채웠으면 그대로('한 번 더 채우면 올려요') — 한 번은 그날 컨디션일 수
  *      있고, 두 번이면 몸이 따라온 것이다. 예전(2026-10-09)에는 한 번 채우면 올렸다.
+ *      다만 지난번 마지막 세트에 '몇 개 더?'를 2개 이상(RESERVE_RAISE)이라 답했으면 한 번 채운 것으로 올린다(2026-11-23) — 채웠고
+ *      여유도 있었다는 본인의 말이라 두 번째 날을 기다릴 까닭이 없다. 답이 없거나 0~1개면 두 번 이어 채움을 본다.
  *   ④ 내림 — 지난번이 못 채움이면 바로 ×0.95, 적어도 한 단위(가장 가벼운 단위 밑으로는 안 간다). 비율은 프로그램의 '두 번 연속
  *      못 채움'(next-weight.ts missTwice)과 같다. RIR 이 없어도 아래 끝을 못 넘긴 것은 무거웠다는 뜻이고, 내리는 쪽은 틀려도
  *      안전하다(예전에는 '힘들어서'인지 몰라 내리지 않았다). 아래 끝은 그날 처방(FreeLast.plannedReps — 그날 세션 판)과 오늘 처방
@@ -57,6 +59,8 @@ export type FreeLast = {
    * 내림(④)의 아래 끝에만 쓴다.
    */
   plannedReps?: number | null;
+  /** 그날 마지막 세트 뒤 '몇 개 더?' 답(0~4, 4는 4개 이상). 안 물었거나 안 답했으면 없음 — 올림(③)을 앞당기는 데만 쓴다 */
+  rir?: number | null;
 };
 
 export type FreeSuggestion = {
@@ -84,6 +88,9 @@ export const REP_FLOOR_RATIO = 0.75;
  * 따라왔다는 증거가 못 된다.
  */
 export const STREAK_MAX_GAP_DAYS = 8;
+
+/** 지난번에 다 채우고 '몇 개 더?'가 이 이상이면 한 번 채운 것으로 올린다(③) */
+export const RESERVE_RAISE = 2;
 
 /** 조심해서 드는 사람(⑧ 성장기 · 입문)이 세트마다 남기는 개수 — 처방 줄 꼬리 '· 3개 남기고' */
 export const CAUTIOUS_RESERVE = 3;
@@ -230,20 +237,25 @@ export function suggestFreeWeight(input: {
       daysBetween(earlier.date, input.last.date) < STREAK_MAX_GAP_DAYS &&
       Math.abs(before.top - top) < 0.01 &&
       filled(before.working, sets, reps);
-    if (!twice) {
+    const rir = input.last.rir;
+    const roomy = !twice && typeof rir === 'number' && rir >= RESERVE_RAISE;
+    if (!twice && !roomy) {
       return {
         kg: top,
         note: `${prev} × ${reps}회를 ${sets}세트 다 채웠어요. 한 번 더 채우면 올려요`,
       };
     }
+    const how = roomy ? '채우고 여유가 있었어요' : '두 번 이어 채웠어요';
     if (input.holdProgress) {
       /* ⑨ 올림 멈춤 — 올릴 때가 왔지만 먹는 양 · 몸무게 · 컨디션이 함께 낮은 주라 그대로(성장기 · 입문의 한 단위도 멈춘다) */
       return {
         kg: top,
-        note: `${prev} × ${reps}회를 ${sets}세트 두 번 이어 채웠어요. ${input.holdProgress}`,
+        note: `${prev} × ${reps}회를 ${sets}세트 ${how}. ${input.holdProgress}`,
       };
     }
-    const done = `${top}kg × ${reps}회 ${sets}세트를 두 번 이어 채워서`;
+    const done = roomy
+      ? `${top}kg × ${reps}회 ${sets}세트를 채우고 여유가 있어서`
+      : `${top}kg × ${reps}회 ${sets}세트를 두 번 이어 채워서`;
     if (input.cautious) {
       /* ⑧ 성장기 · 입문 — 한 단위만 */
       const raised = nextUnitAbove(top, unit);
