@@ -4,6 +4,8 @@ import { allowFeature, releaseAccessFor } from '@/lib/release-gate';
 import type { ReleaseAccess } from '@/lib/release-access';
 import { cookies } from 'next/headers';
 import { unstable_rethrow } from 'next/navigation';
+import { recoveryRows, type PartRecovery } from '@/lib/report/recovery';
+import { loadPartRecovery } from '@/lib/report/recovery-load';
 import { appNow } from '@/lib/clock';
 import { getCurrentUser } from '@/lib/dal';
 import { loadTrainingStrip, type TrainingStripDay } from '@/lib/training-week';
@@ -326,6 +328,8 @@ export async function loadAppTraining(): Promise<
       week: TrainingWeekCounts;
       /** 프로그램 가로 카드(2026-10-29) — 보일 프로그램 · 진행 중 · 오늘 시작 가능. 실패해도 카드 셋은 보인다(null) */
       programs: ProgramShelf | null;
+      /** 부위별 회복도(2026-11-23, lib/report/recovery.ts) — 덜 회복된 부위부터 여섯까지. 다 회복됐거나 못 읽으면 빈 목록 */
+      recovery: PartRecovery[];
     }
   | { ok: false; error: string; to?: string }
 > {
@@ -344,7 +348,7 @@ export async function loadAppTraining(): Promise<
     }
   };
   const todayKey = toDateKey(now);
-  const [cards, strip, week, programs] = await Promise.all([
+  const [cards, strip, week, programs, recovery] = await Promise.all([
     Promise.all([
       safe('today', () => workoutCardData(user, now)),
       safe('armcare', () => armcareCardData(user, now)),
@@ -357,10 +361,17 @@ export async function loadAppTraining(): Promise<
       console.error('[앱 트레이닝] 프로그램 카드', err);
       return null;
     }),
+    loadPartRecovery(user.id, now)
+      .then((map) => recoveryRows(map))
+      .catch((err: unknown) => {
+        unstable_rethrow(err);
+        console.error('[앱 트레이닝] 부위별 회복도', err);
+        return [];
+      }),
   ]);
   const last = readTrainingPart((await cookies()).get(TRAINING_PART_COOKIE)?.value);
   if (last) cards.sort((a, b) => Number(b.app === last) - Number(a.app === last));
-  return { ok: true, today: todayKey, cards, strip, week, programs };
+  return { ok: true, today: todayKey, cards, strip, week, programs, recovery };
 }
 
 /**

@@ -8,6 +8,7 @@ import { ScrollView, type ScrollViewInstance, StyleSheet, Text, View, useWindowD
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import type { CardAction, ProgramShelf, TrainingCard } from '@/lib/report/training-home-data';
+import { TIRED_BELOW, type PartRecovery } from '@/lib/report/recovery';
 import { ThrowNoteCard } from '~/mechanics/parts';
 import type { TrainingPart } from '@/lib/training-part';
 import { rpc, RpcError } from '~/lib/rpc';
@@ -31,7 +32,7 @@ import { RecoveryNotice } from '~/workout/recovery-notice';
  * 그날 일정의 실제 값만(state · plan 칸, 옛 서버면 action · tone 으로 짐작). [시작]은 운동 화면(/workout)을 바로 밀고, 암케어 · 메카닉 따라 하기 ·
  * 각 앱의 전체 화면도 앱 화면이다. 지난날 트레이닝 기록은 기록 탭(날짜별)에서 본다 — 예전 날짜 띠 · 이번 주 한 줄은 걷었다.
  */
-type Loaded = { today: string; cards: TrainingCard[]; programs?: ProgramShelf | null };
+type Loaded = { today: string; cards: TrainingCard[]; programs?: ProgramShelf | null; recovery?: PartRecovery[] };
 let cached: Loaded | null = null;
 export const resetTrainingCache = () => {
   cached = null;
@@ -199,6 +200,8 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
       {fresh && mechanics?.throwNote ? <ThrowNoteCard note={mechanics.throwNote} c={c} /> : null}
 
       {data?.programs ? <ProgramCards shelf={data.programs} today={day} /> : null}
+
+      {data?.recovery?.length ? <RecoveryCard rows={data.recovery} /> : null}
 
       {/* 영상 라이브러리 — 운동 영상 · 투구 드릴(2026-10-29 상단 메뉴 개편으로 더보기에서 옮겨 왔다 — 드릴은 트레이닝 소속) */}
       <View style={[styles.library, { backgroundColor: c.card, boxShadow: c.float }]}>
@@ -371,7 +374,38 @@ function DumbbellArt({ done }: { done: boolean }) {
   );
 }
 
+/**
+ * 부위별 회복도(2026-11-23, lib/report/recovery.ts) — 최근 운동으로 어림한 부위마다의 회복 %. 덜 회복된 부위부터 여섯까지,
+ * 50% 밑은 주의색. 다 회복된 날은 카드가 없다. 일정 만들기가 같은 값으로 덜 회복된 부위의 무거운 운동을 뒤로 민다.
+ */
+function RecoveryCard({ rows }: { rows: PartRecovery[] }) {
+  const c = usePalette();
+  return (
+    <View
+      accessible
+      accessibilityLabel={`부위별 회복. ${rows.map((r) => `${r.part} ${r.pct}퍼센트`).join(', ')}`}
+      style={[styles.recovery, { backgroundColor: c.card, boxShadow: c.float }]}
+    >
+      <Text style={[TYPE.section, { color: c.ink }]}>부위별 회복</Text>
+      {rows.map((r) => (
+        <View key={r.part} style={styles.recoveryRow}>
+          <Text numberOfLines={1} style={{ width: 96, color: c.ink, fontSize: 15 }}>
+            {r.part}
+          </Text>
+          <View style={[styles.recoveryTrack, { backgroundColor: c.line }]}>
+            <View style={{ width: `${Math.max(4, r.pct)}%`, height: 8, borderRadius: 4, backgroundColor: r.pct < TIRED_BELOW ? c.warn : c.action }} />
+          </View>
+          <Text style={{ width: 44, textAlign: 'right', color: c.muted, fontSize: 13, fontVariant: ['tabular-nums'] }}>{r.pct}%</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  recovery: { borderRadius: RADIUS.card, padding: 16, gap: 10 },
+  recoveryRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 24 },
+  recoveryTrack: { flex: 1, height: 8, borderRadius: 4, overflow: 'hidden' },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
   skel: { borderRadius: 24 },
   hero: { borderRadius: 26, padding: SPACE.pad, gap: 16 },

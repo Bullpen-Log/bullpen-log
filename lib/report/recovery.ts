@@ -68,6 +68,17 @@ export function partRecovery(days: readonly RecoveryDay[]): Map<string, number> 
   return out;
 }
 
+export type PartRecovery = { part: string; pct: number };
+
+/** 화면에 보일 줄 — 덜 회복된 것부터, 다 회복된 부위(100%)는 빼고 max 개까지 */
+export function recoveryRows(recovery: ReadonlyMap<string, number>, max = 6): PartRecovery[] {
+  return [...recovery]
+    .filter(([, pct]) => pct < 100)
+    .map(([part, pct]) => ({ part, pct }))
+    .sort((a, b) => a.pct - b.pct || a.part.localeCompare(b.part, 'ko'))
+    .slice(0, max);
+}
+
 /** 운동의 주 부위(맨 앞, 온몸은 건너뜀)가 덜 회복됐으면 그 부위와 회복도 — 아니면 null */
 export function tiredPartOf(
   bodyParts: readonly string[],

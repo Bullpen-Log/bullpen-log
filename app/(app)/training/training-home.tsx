@@ -20,6 +20,8 @@ import { StartWorkout } from './start-workout';
 import { TrainingDayStrip } from './day-strip';
 import { loadTrainingStrip } from '@/lib/training-week';
 import { loadTrainingWeekCounts } from '@/lib/report/training-week-counts';
+import { TIRED_BELOW, recoveryRows } from '@/lib/report/recovery';
+import { loadPartRecovery } from '@/lib/report/recovery-load';
 
 /**
  * 트레이닝 홈 — 트레이닝 · 암케어 · 메카닉을 앱 카드 셋으로(2026-10-04).
@@ -89,6 +91,9 @@ export function TrainingHome({
       <div className="stack-block pad:grid pad:grid-cols-2 pad:min-[60rem]:grid-cols-3 pad:items-stretch pad:gap-(--gap-block) pad:[&>*]:mb-0!">{order.map((app) => cards[app])}</div>
       <Suspense fallback={<div className="h-12" />}>
         <WeekStrip userId={user.id} today={today} />
+      </Suspense>
+      <Suspense fallback={null}>
+        <RecoveryCard userId={user.id} today={today} />
       </Suspense>
     </div>
   );
@@ -312,6 +317,34 @@ async function DayStripLoad({ userId, today }: { userId: string; today: string }
 }
 
 /* ─────────────────────────────── 이번 주 ─────────────────────────────── */
+
+/**
+ * 부위별 회복도(2026-11-23, lib/report/recovery.ts) — 최근 운동으로 어림한 부위마다의 회복 %. 앱 트레이닝 탭과 같은 값 · 같은 줄.
+ * 덜 회복된 부위부터 여섯까지, 다 회복된 날은 카드가 없다.
+ */
+async function RecoveryCard({ userId, today }: { userId: string; today: Date }) {
+  const rows = recoveryRows(await loadPartRecovery(userId, today));
+  if (rows.length === 0) return null;
+  return (
+    <section className="rounded-2xl bg-surface p-(--block-pad)">
+      <h2 className="text-sm font-semibold text-ink">부위별 회복</h2>
+      <ul className="mt-3 space-y-2.5">
+        {rows.map((r) => (
+          <li key={r.part} className="flex items-center gap-3 text-sm">
+            <span className="w-24 shrink-0 truncate text-ink">{r.part}</span>
+            <span className="h-2 flex-1 overflow-hidden rounded-full bg-line" aria-hidden>
+              <span
+                className={`block h-full rounded-full ${r.pct < TIRED_BELOW ? 'bg-warn' : 'bg-sky'}`}
+                style={{ width: `${Math.max(4, r.pct)}%` }}
+              />
+            </span>
+            <span className="w-10 shrink-0 text-right tabular-nums text-muted">{r.pct}%</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
 
 /** 이번 주(월요일부터) 앱마다 한 날 수 — 셋 다 '일'(2026-10-16 디자인 점검 — 운동만 '번'이라 단위가 섞였다) */
 async function WeekStrip({ userId, today }: { userId: string; today: Date }) {
