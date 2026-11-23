@@ -278,6 +278,32 @@ export function suggestFreeWeight(input: {
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
+/** 워밍업 세트의 계단 — 작업 무게의 비율과 횟수(2026-11-23). 무거워질수록 횟수를 줄여 힘을 남긴다 */
+export const WARMUP_STEPS: readonly { ratio: number; reps: number }[] = [
+  { ratio: 0.5, reps: 5 },
+  { ratio: 0.7, reps: 3 },
+  { ratio: 0.85, reps: 1 },
+];
+/** 이보다 가벼운 작업 무게에는 워밍업 계단을 안 낸다 — 빈 바(20kg)와 차이가 작아 계단이 안 선다 */
+export const WARMUP_MIN_KG = 40;
+/* 빈 바 */
+const BAR_KG = 20;
+
+/**
+ * 바벨 큰 운동의 워밍업 한 줄 — '워밍업 30kg × 5회 · 42.5kg × 3회 · 50kg × 1회'. 작업 무게(추천 무게)의 50 · 70 · 85% 를 바벨 단위로.
+ * 바벨이 아니거나 작업 무게가 가벼우면(WARMUP_MIN_KG 밑) null. 같은 무게가 겹치면 한 번만, 작업 무게와 같아진 계단은 뺀다.
+ */
+export function warmupLineOf(kg: number | null, equipment: readonly string[]): string | null {
+  if (kg == null || kg < WARMUP_MIN_KG || weightKindOf(equipment) !== 'barbell') return null;
+  const steps: { kg: number; reps: number }[] = [];
+  for (const step of WARMUP_STEPS) {
+    const w = Math.max(BAR_KG, roundToUnit(kg * step.ratio, 'barbell'));
+    if (w >= kg || steps.some((x) => x.kg === w)) continue;
+    steps.push({ kg: w, reps: step.reps });
+  }
+  return steps.length > 0 ? `워밍업 ${steps.map((x) => `${x.kg}kg × ${x.reps}회`).join(' · ')}` : null;
+}
+
 /**
  * top 보다 무거운 가장 가까운 단위 배수(⑥) — 바벨 60 → 62.5, 61 → 62.5, 61.5 → 62.5, 덤벨 21 → 22. 세트 기록은 0.5kg 단위라 단위 밖 무게가
  * 남는다(바벨 61kg). 예전 top + unit 은 63.5kg 처럼 장비로 못 만드는 무게를 냈다(2판 P5 검토). top 이 단위 배수면 top + unit 과 같다.

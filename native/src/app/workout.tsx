@@ -1603,6 +1603,8 @@ function Run({
                       </Press>
                       {/* 자유 운동의 추천은 까닭 한 줄 — 왜 올랐는지(안 올랐는지) 보여야 믿고 담는다 */}
                       {ex.suggestNote && !suggestIsMine ? <Text style={[s.tiny, s.center, { color: c.muted }]}>{ex.suggestNote}</Text> : null}
+                      {/* 바벨 큰 운동의 워밍업 계단 — 첫 세트 전에만(추천 무게의 50 · 70 · 85%) */}
+                      {ex.warmupNote && !suggestIsMine && mine.length === 0 ? <Text style={[s.tiny, s.center, { color: c.muted }]}>{ex.warmupNote}</Text> : null}
                     </View>
                   ) : ex.last ? (
                     <Press onPress={fillLast} accessibilityRole="button" style={s.fillBtn}>

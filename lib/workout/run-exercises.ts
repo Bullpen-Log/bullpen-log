@@ -57,6 +57,8 @@ export type RunExercise = {
   programSlot: FrozenProgramSlot | null;
   /** 프로그램이 아닌 날에도 마지막 세트 뒤에 '몇 개 더?'를 묻는가(session-plan.ts askReserve). 옛 서버 답에는 없다 */
   askReserve?: boolean;
+  /** 워밍업 계단 한 줄(session-plan.ts warmupNote) — 추천 무게 밑에 보인다. 옛 서버 답에는 없다 */
+  warmupNote?: string;
   /** 얼린 추천 무게(kg) — 프로그램 날(next-weight.ts) · 자유 운동(free-weight.ts). '추천 담기'와 '몇 개 더?'가 쓴다. 숫자 없이 안내하는 날은 null */
   suggestedKg: number | null;
   /** 자유 운동 추천의 까닭 한 줄 — 추천 단추 밑에 적는다. 프로그램 날 · 추천 없는 운동은 null */
@@ -192,6 +194,7 @@ export async function runExercises(
       best: bests.get(e.id) ?? null,
       programSlot: e.programSlot ?? null,
       ...(e.askReserve === true ? { askReserve: true } : {}),
+      ...(typeof e.warmupNote === 'string' ? { warmupNote: e.warmupNote } : {}),
       suggestedKg: e.suggestedKg ?? null,
       suggestNote: e.suggestNote ?? null,
       setTargets: e.setTargets ?? null,

@@ -2130,6 +2130,12 @@ export function SessionClient({
                       {ex.suggestNote}
                     </p>
                   )}
+                  {/* 바벨 큰 운동의 워밍업 계단 — 첫 세트 전에만(추천 무게의 50 · 70 · 85%, free-weight.ts warmupLineOf) */}
+                  {ex.warmupNote && !suggestIsMine && mine.length === 0 && (
+                    <p className="text-center text-caption leading-relaxed break-keep text-muted">
+                      {ex.warmupNote}
+                    </p>
+                  )}
                 </div>
               ) : (
                 ex.last && (

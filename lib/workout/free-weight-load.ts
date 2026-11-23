@@ -6,6 +6,7 @@ import { readFrozenPlan, type FrozenExercise } from '@/lib/workout/session-plan'
 import {
   cautiousPrescription,
   suggestFreeWeight,
+  warmupLineOf,
   type FreeLast,
 } from '@/lib/workout/free-weight';
 
@@ -70,7 +71,10 @@ export async function withFreeWeights(
     const shown = ASK_RESERVE_CATEGORIES.includes(e.category)
       ? { ...cautioned, askReserve: true as const }
       : cautioned;
-    return s ? { ...shown, suggestedKg: s.kg, suggestNote: s.note } : shown;
+    if (!s) return shown;
+    /* 바벨 근력 본운동은 워밍업 계단을 같이 얼린다(2026-11-23 — 추천 무게의 50 · 70 · 85%) */
+    const warmup = shown.askReserve ? warmupLineOf(s.kg, e.equipment) : null;
+    return { ...shown, suggestedKg: s.kg, suggestNote: s.note, ...(warmup ? { warmupNote: warmup } : {}) };
   });
 }
 

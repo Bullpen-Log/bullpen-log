@@ -33760,5 +33760,29 @@ console.log('\n[통합 2026-10-16] 근육통 어림(sorenessFromParts) · 카드
   );
 }
 
+/*
+ * ── [워밍업 세트] (2026-11-23, free-weight.ts warmupLineOf) — 바벨 근력 본운동의 추천 무게 밑에 50 · 70 · 85% 계단 한 줄.
+ */
+{
+  const { warmupLineOf } = await import('@/lib/workout/free-weight');
+  const src = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf-8');
+  check(
+    '[워밍업 세트] 바벨 60kg → 30 · 42.5 · 50kg, 가벼우면(40kg 밑) · 바벨이 아니면 없음, 빈 바 밑으로 안 내려가고 겹친 계단은 한 번',
+    warmupLineOf(60, ['바벨']) === '워밍업 30kg × 5회 · 42.5kg × 3회 · 50kg × 1회' &&
+      warmupLineOf(100, ['바벨', '벤치']) === '워밍업 50kg × 5회 · 70kg × 3회 · 85kg × 1회' &&
+      warmupLineOf(40, ['바벨']) === '워밍업 20kg × 5회 · 27.5kg × 3회 · 35kg × 1회' &&
+      warmupLineOf(37.5, ['바벨']) === null &&
+      warmupLineOf(60, ['덤벨']) === null &&
+      warmupLineOf(null, ['바벨']) === null,
+    `${warmupLineOf(60, ['바벨'])} / ${warmupLineOf(40, ['바벨'])}`
+  );
+  check(
+    '[워밍업 세트] 배선 — 근력 본운동의 추천 무게와 같이 얼리고, 웹 · 앱 운동 화면이 첫 세트 전에만 보인다',
+    src('lib/workout/free-weight-load.ts').includes('shown.askReserve ? warmupLineOf(s.kg, e.equipment) : null') &&
+      src('app/(session)/workout/run/session-client.tsx').includes('ex.warmupNote && !suggestIsMine && mine.length === 0') &&
+      src('native/src/app/workout.tsx').includes('ex.warmupNote && !suggestIsMine && mine.length === 0')
+  );
+}
+
 console.log(`\n${passed}개 통과, ${failed}개 실패`);
 process.exit(failed === 0 ? 0 : 1);

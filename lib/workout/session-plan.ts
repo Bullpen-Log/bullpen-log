@@ -73,6 +73,8 @@ export type FrozenExercise = {
    * 답은 다음번 무게 올림을 앞당긴다(free-weight.ts ③). 옛 판 · 그 밖의 운동에는 없다.
    */
   askReserve?: true;
+  /** 바벨 근력 본운동의 워밍업 계단 한 줄(free-weight.ts warmupLineOf, 2026-11-23) — 추천 무게가 있을 때만. 옛 판에는 없다 */
+  warmupNote?: string;
   /**
    * 운동 시작 때 얼린 추천 무게(kg) — 세트 기록의 '추천 담기'와 '추천 vs 실제'에 쓴다. 숫자 없이 안내하는 날은 null.
    * 프로그램 날은 next-weight.ts, 그 밖의 무게 운동은 free-weight.ts(2026-10-09 — 그 앞에 찍은 판에는 프로그램 칸에만 있다).
