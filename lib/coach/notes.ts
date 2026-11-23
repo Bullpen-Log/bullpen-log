@@ -3,8 +3,11 @@
  * 자료를 바탕으로") — 투구 · 근력 · 컨디셔닝 · 회복 · 잠 · 영양의 일반 지식을 주제별 짧은 글로. AI 가 일반 질문에 답하기 전에 read_knowledge 로 읽는다.
  *
  * 약속(자체 시험 coach:ai-test 가 지킨다)
- *   - 노트의 주장마다 출처가 둘 넘게(NOTE_SOURCES — 동료 평가 논문 · 학회 · 기관 공식 문서만. 훈련 회사 · 블로그 · 영상은 안 쓴다).
- *     출처가 하나뿐이거나 근거가 약하면 글에 그렇게 적는다('연구가 적어요' · '결과가 갈려요').
+ *   - 노트의 주장마다 출처가 둘 넘게(NOTE_SOURCES). 근력 · 회복 · 잠 · 영양 노트(S · R)는 동료 평가 논문 · 학회 · 기관 공식 문서만 쓴다
+ *     (훈련 회사 · 블로그 · 영상은 안 쓴다). 출처가 하나뿐이거나 근거가 약하면 글에 그렇게 적는다('연구가 적어요' · '결과가 갈려요').
+ *   - 투구 노트(P01~P11)는 투구 코칭 기관 두 곳(Driveline · Tread)의 공개 글만 쓴다(2026-11-23 김민: "투구에 관한 건 전부 두 곳에서 · 두 곳만으로").
+ *     유료 강좌 · 제품 쪽 · 영상 · 댓글은 안 쓴다. 자체 측정인지(표본 수) · 인용한 연구인지 · 지도 경험인지 · 한 명 사례인지를 글에 그대로 적는다.
+ *     두 곳의 현장 방식이 공식 안전 기준과 부딪히면 안전 기준이 이긴다(D8) — 투구 수 · 쉬는 날은 공식 지침과 앱의 투구 계획을 가리킨다.
  *   - 출처 원문을 열어 주장과 맞는지 대조한 것만 쓴다(조사 → 다른 눈으로 원문 대조 → 글). 자료 글을 옮기지 않고 우리 말로 다시 쓴다.
  *   - 사람이 검토한 노트만 AI 에 실린다(review.by — 지식 카드 D3 와 같은 문). 검토 전 노트는 저장소에만 있다.
  *   - 이 사람에게 맞춘 숫자(오늘 공 수 · 세트 · 무게 · 쉬는 날)는 노트에 없다 — 그것은 앱 엔진만 말한다(D1). 노트의 숫자는 자료의 일반 기준이다.
@@ -29,100 +32,12 @@ export type KnowNote = {
 
 /** 근거 자료 — 내부 추적용(화면 · AI 에 안 보낸다). 조사 때 원문을 열어 대조한 것만 */
 export const NOTE_SOURCES = {
-  PM25842029:
-    '청소년 투수 구속 예측 요인(Sgroi 2015, J Shoulder Elbow Surg) — https://pubmed.ncbi.nlm.nih.gov/25842029/',
-  PM41389727:
-    '대학 투수 경기 중 상하체 분리와 구속(Jump 2026, J Biomech) — https://pubmed.ncbi.nlm.nih.gov/41389727/',
-  PM40414041:
-    '상하체 분리와 팔꿈치 토크(Peters 2025, Braz J Phys Ther) — https://pubmed.ncbi.nlm.nih.gov/40414041/',
-  PM26952088:
-    '청소년 모의 경기 피로와 동작(Erickson 2016, Arthroscopy) — https://pubmed.ncbi.nlm.nih.gov/26952088/',
-  PM19633230:
-    '몸통 회전 시작 시점과 팔꿈치 토크(Aguinaldo 2009, Am J Sports Med) — https://pubmed.ncbi.nlm.nih.gov/19633230/',
-  PM17585177:
-    '수준별 몸통 회전 시점(Aguinaldo 2007, J Appl Biomech) — https://pubmed.ncbi.nlm.nih.gov/17585177/',
-  PM26665056:
-    'MLB 투수 동작과 수술 위험(Douoguih 2015, Orthop J Sports Med) — https://pubmed.ncbi.nlm.nih.gov/26665056/',
-  PM32636133:
-    '투구 동작 부상 위험 요인 체계적 문헌고찰(Bullock 2021, J Sci Med Sport) — https://pubmed.ncbi.nlm.nih.gov/32636133/',
-  PM36479467:
-    '착지 때 골반 방향과 구속 · 토크(Dowling 2022, Orthop J Sports Med) — https://pubmed.ncbi.nlm.nih.gov/36479467/',
-  PM29910355:
-    '앞무릎 폄과 구속(van Trigt 2018, Sports) — https://pubmed.ncbi.nlm.nih.gov/29910355/',
-  PM39157018:
-    '앞무릎 폄과 구속 · 토크(Dowling 2024, Orthop J Sports Med) — https://pubmed.ncbi.nlm.nih.gov/39157018/',
-  PM26402471:
-    '디딤발 지면 반력과 구속(McNally 2015, J Strength Cond Res) — https://pubmed.ncbi.nlm.nih.gov/26402471/',
-  PM25435765:
-    '구속 높은 · 낮은 대학 투수 하체(Kageyama 2014, J Sports Sci Med) — https://pubmed.ncbi.nlm.nih.gov/25435765/',
-  PM39906602:
-    '팔꿈치 토크 높은 · 낮은 투수 동작(McCutcheon 2025, Orthop J Sports Med) — https://pubmed.ncbi.nlm.nih.gov/39906602/',
-  PM23015888:
-    '투구 생체역학 리뷰(Fortenbaugh 2009, Sports Health) — https://pubmed.ncbi.nlm.nih.gov/23015888/',
-  PM21212502:
-    '롱토스와 마운드 투구 비교(Fleisig 2011, J Orthop Sports Phys Ther) — https://pubmed.ncbi.nlm.nih.gov/21212502/',
-  PM24664135:
-    '평지 거리별 · 마운드 힘 조절 투구 부하(Slenker 2014, Am J Sports Med) — https://pubmed.ncbi.nlm.nih.gov/24664135/',
-  PM30215544:
-    '거리별 팔꿈치 토크(Dowling 2018, Am J Sports Med) — https://pubmed.ncbi.nlm.nih.gov/30215544/',
-  PM31150269:
-    '체감 강도와 팔꿈치 토크(Melugin 2019, Am J Sports Med) — https://pubmed.ncbi.nlm.nih.gov/31150269/',
-  PM29882722:
-    '웨이티드볼 6주 무작위 연구(Reinold 2018, Sports Health) — https://pubmed.ncbi.nlm.nih.gov/29882722/',
-  PM30800693:
-    '웨이티드 도구 훈련 체계적 문헌고찰(Caldwell 2019, Orthop J Sports Med) — https://pubmed.ncbi.nlm.nih.gov/30800693/',
-  PM10783901:
-    '무게 다른 공 훈련 리뷰(Escamilla 2000, Sports Med) — https://pubmed.ncbi.nlm.nih.gov/10783901/',
-  PM32598234:
-    '무거운 공 던진 직후 어깨 가동 범위(Reinold 2020, Sports Health) — https://pubmed.ncbi.nlm.nih.gov/32598234/',
-  PM27872403:
-    '무게 다른 공 · 크로우홉 투구 부하(Fleisig 2017, Sports Health) — https://pubmed.ncbi.nlm.nih.gov/27872403/',
-  PM18707902:
-    '대학 투수 구속 관련 요인(Werner 2008, J Shoulder Elbow Surg) — https://pubmed.ncbi.nlm.nih.gov/18707902/',
-  PM32153984:
-    '신체 특성과 구속 범위 문헌고찰(Mercier 2020, BMJ Open Sport Exerc Med) — https://pubmed.ncbi.nlm.nih.gov/32153984/',
-  PM26983459:
-    'MLB 투수 인대 재건술 예측 요인(Chalmers 2016, Am J Sports Med) — https://pubmed.ncbi.nlm.nih.gov/26983459/',
-  PM20093420:
-    '프로 투수 구속과 팔꿈치 부상(Bushnell 2010, Am J Sports Med) — https://pubmed.ncbi.nlm.nih.gov/20093420/',
-  PM18055920:
-    '유소년 구종별 부하(Dun 2008, Am J Sports Med) — https://pubmed.ncbi.nlm.nih.gov/18055920/',
-  PM19448049:
-    '청소년 커브 · 직구 부하(Nissen 2009, Am J Sports Med) — https://pubmed.ncbi.nlm.nih.gov/19448049/',
-  PM16260466:
-    '대학 투수 구종별 부하(Fleisig 2006, Am J Sports Med) — https://pubmed.ncbi.nlm.nih.gov/16260466/',
-  PM28968139:
-    '프로 투수 구종별 · 볼 스트라이크 동작(Escamilla 2017, Am J Sports Med) — https://pubmed.ncbi.nlm.nih.gov/28968139/',
   PM12130397:
     '유소년 구종 · 투구 수와 통증(Lyman 2002, Am J Sports Med) — https://pubmed.ncbi.nlm.nih.gov/12130397/',
   PM21098816:
     '유소년 투수 10년 추적(Fleisig 2011, Am J Sports Med) — https://pubmed.ncbi.nlm.nih.gov/21098816/',
-  PM25553209:
-    '커브와 부상 체계적 문헌고찰(Grantham 2015, Sports Health) — https://pubmed.ncbi.nlm.nih.gov/25553209/',
-  PM24627578:
-    '유소년 투수 전국 설문(Yang 2014, Am J Sports Med) — https://pubmed.ncbi.nlm.nih.gov/24627578/',
-  PM34843301:
-    '주의 초점 메타분석(Chua 2021, Psychol Bull) — https://pubmed.ncbi.nlm.nih.gov/34843301/',
-  PM20078758:
-    '운동 기술 학습 리뷰(Wulf 2010, Med Educ) — https://pubmed.ncbi.nlm.nih.gov/20078758/',
-  PM38987617:
-    '섞어 연습하기 메타분석(Czyz 2024, Sci Rep) — https://pubmed.ncbi.nlm.nih.gov/38987617/',
-  PM31449438:
-    '동작 변동과 제구 일관성(Glanzer 2021, Sports Biomech) — https://pubmed.ncbi.nlm.nih.gov/31449438/',
-  PM19391491:
-    '수준별 동작 변동(Fleisig 2009, Sports Biomech) — https://pubmed.ncbi.nlm.nih.gov/19391491/',
-  PM33345028:
-    '릴리스 각도와 투구 위치(Kusafuka 2020, Front Sports Act Living) — https://pubmed.ncbi.nlm.nih.gov/33345028/',
-  PM12776824:
-    '정확도 지시와 던지기 속도(van den Tillaar 2003, Percept Mot Skills) — https://pubmed.ncbi.nlm.nih.gov/12776824/',
   PM16452269:
     '청소년 투수 부상 위험 요인(Olsen 2006, Am J Sports Med) — https://pubmed.ncbi.nlm.nih.gov/16452269/',
-  PM16973902:
-    '모의 경기 피로와 동작(Escamilla 2007, Am J Sports Med) — https://pubmed.ncbi.nlm.nih.gov/16973902/',
-  PM24427428:
-    '청소년 마운드 · 평지 부하(Nissen 2013, Sports Health) — https://pubmed.ncbi.nlm.nih.gov/24427428/',
-  PM30207787:
-    '유소년 마운드 높이와 부하(Fleisig 2018, Am J Sports Med) — https://pubmed.ncbi.nlm.nih.gov/30207787/',
   PM38125451:
     '야구 던지기 속도 훈련 체계적 문헌고찰(Zhang 2023, Heliyon) — https://pubmed.ncbi.nlm.nih.gov/38125451/',
   PM11708700:
@@ -149,8 +64,6 @@ export const NOTE_SOURCES = {
     '유산소 · 근력 병행 메타분석(Schumann 2022, Sports Med) — https://pubmed.ncbi.nlm.nih.gov/34757594/',
   PM33751469:
     '병행 훈련 간섭 메타분석(Petre 2021, Sports Med) — https://pubmed.ncbi.nlm.nih.gov/33751469/',
-  PM22002517:
-    '병행 훈련 메타분석(Wilson 2012, J Strength Cond Res) — https://pubmed.ncbi.nlm.nih.gov/22002517/',
   PM17685676:
     '고교 선수 메디신볼 회전 훈련(Szymanski 2007, J Strength Cond Res) — https://pubmed.ncbi.nlm.nih.gov/17685676/',
   PM26102258:
@@ -207,9 +120,6 @@ export const NOTE_SOURCES = {
     '몸통 근육 훈련 메타분석(Saeterbakken 2022, Sports Med) — https://pubmed.ncbi.nlm.nih.gov/35061213/',
   PM25159541:
     '프로 투수 허리 · 골반 조절과 결장(Chaudhari 2014, Am J Sports Med) — https://pubmed.ncbi.nlm.nih.gov/25159541/',
-  PS15: '청소년 투구 지침 15~18세(MLB · USA Baseball Pitch Smart) — https://www.mlb.com/pitch-smart/pitching-guidelines/ages-15-18',
-  PS13: '청소년 투구 지침 13~14세(MLB · USA Baseball Pitch Smart) — https://www.mlb.com/pitch-smart/pitching-guidelines/ages-13-14',
-  PS09: '청소년 투구 지침 9~12세(MLB · USA Baseball Pitch Smart) — https://www.mlb.com/pitch-smart/pitching-guidelines/ages-9-12',
   AM02: '청소년 투수 입장문(ASMI) — https://asmi.org/position-statement-for-adolescent-baseball-pitchers/',
   NS03: '쉬다가 운동 재개 합의 지침(CSCCa · NSCA 2019) — https://www.nsca.com/contentassets/202023e9d6c440dab582d9d87c0f3729/cscca_and_nsca_joint_consensus_guidelines_for.1.pdf',
   PM22336838:
@@ -337,6 +247,72 @@ export const NOTE_SOURCES = {
     '보충제 국제 합의문(Maughan 2018, Br J Sports Med) — https://pubmed.ncbi.nlm.nih.gov/29540367/',
   PM33388079:
     '카페인 입장문(Guest 2021, J Int Soc Sports Nutr) — https://pubmed.ncbi.nlm.nih.gov/33388079/',
+  DL01: '동작 평가와 동작 바꾸기(Driveline 2018) — https://drivelinebaseball.com/2018/10/pitching-assessments-changing-mechanics',
+  DL02: '웨이트룸에서 동작 바꾸기(Driveline 2019) — https://drivelinebaseball.com/blogs/blog/making-movement-changes-weight-room',
+  DL03: '동작 분석 보고서 읽는 법(Driveline 2019) — https://drivelinebaseball.com/2019/03/interpret-biomechanics-reports',
+  DL04: '동작 분석으로 선수 키우기 사례 1(Driveline 2022) — https://drivelinebaseball.com/blogs/blog/dillon-tate-using-biomechanics-for-player-development',
+  DL05: '동작 분석으로 선수 키우기 사례 2(Driveline 2021) — https://drivelinebaseball.com/blogs/blog/thomas-ruwe-from-not-pitching-in-high-school-to-throwing-98-mph',
+  DL06: '8~14세 나이별 투구 동작(Driveline 2022) — https://drivelinebaseball.com/blogs/blog/youth-baseball-pitching-mechanics-analysis-across-age-groups',
+  DL07: '동작 분석 6개월 숫자 정리(Driveline 2019) — https://drivelinebaseball.com/2019/02/biomechanics-rewind-look-numbers-last-six-months',
+  DL08: '몸통 회전을 늦게 시작하기(Driveline 2013) — https://drivelinebaseball.com/blogs/blog/a-biomechanical-understanding-of-the-late-launch-wolforth-tenet',
+  DL09: '빠른 투수와 느린 투수의 동작 전 구간 비교(Driveline 2019) — https://drivelinebaseball.com/blogs/blog/full-signal-analyses-the-next-step-in-biomechanical-analysis',
+  DL10: '앞다리 버티기와 구속의 정량 분석(Driveline 2022) — https://www.drivelinebaseball.com/2022/10/a-quantitative-analysis-of-the-lead-leg-block-and-its-contributions-to-velocity/',
+  DL11: '구속을 만드는 앞다리 동작(Driveline 2015) — https://www.drivelinebaseball.com/2015/12/efficient-front-leg-mechanics-that-lead-to-high-velocity/',
+  DL12: '인버티드 W 와 투구 동작(Driveline 2010, 2022 고침) — https://drivelinebaseball.com/2010/09/strasburg-the-inverted-w-and-pitching-mechanics',
+  DL13: '팔꿈치 수술과 동작 탓(Driveline 2012) — https://drivelinebaseball.com/2012/02/joel-zumayas-injuries-whats-really-to-blame',
+  DL14: '팔 벌림 각도 바꾸기(Driveline 2018) — https://drivelinebaseball.com/2018/12/changing-shoulder-abduction',
+  DL15: '롱토스의 뜻(Driveline 2017) — https://www.drivelinebaseball.com/2017/04/defining-long-toss/',
+  DL16: '롱토스와 롱토스 프로그램(Driveline 2023) — https://drivelinebaseball.com/blogs/blog/everything-long-toss-and-long-toss-programs',
+  DL17: '롱토스 훈련의 사실(Driveline 2013) — https://www.drivelinebaseball.com/2013/01/the-facts-behind-long-toss/',
+  DL18: '풀다운과 마운드 투구의 팔꿈치 부담 비교(Driveline 2017) — https://www.drivelinebaseball.com/2017/03/comparison-elbow-torques-pulldowns-pitching/',
+  DL19: '무게 3~7온스 공 연구 다시 해 보기(Driveline 2021) — https://www.drivelinebaseball.com/2021/03/weighted-ball-training-recreating-and-validating-3-7oz-ball-research/',
+  DL20: '무게 공이 동작에 주는 영향 전 구간 분석(Driveline 2021) — https://www.drivelinebaseball.com/2021/03/effects-of-weighted-balls-on-pitching-mechanics-a-full-signal-analysis/',
+  DL21: '무게 공 장기 연구 살펴보기(Driveline 2018) — https://www.drivelinebaseball.com/2018/07/look-long-term-weighted-ball-research/',
+  DL22: '자체 6주 연구 요약(Driveline 2018) — https://drivelinebaseball.com/blogs/blog/6-week-research-paper-recap',
+  DL23: '성장기 선수의 무게 공(Driveline 도움말) — https://help.drivelinebaseball.com/portal/en/kb/articles/can-a-youth-athlete-benefit-from-throwing-weighted-balls-27-1-2022',
+  DL24: '점프 · 근력 측정으로 구속 예측(Driveline 2021) — https://www.drivelinebaseball.com/2021/05/predicted-pitch-velocity/',
+  DL25: '2019~2020 투구 훈련 구속 결과(Driveline 2021) — https://www.drivelinebaseball.com/2021/06/pitching-training-velocity-results-2019-2020/',
+  DL26: '수직 점프 힘과 구속(Driveline 2016) — https://drivelinebaseball.com/blogs/blog/examining-the-relationship-between-vertical-jump-force-and-velocity',
+  DL27: '구속과 던지려는 마음(Driveline 2013) — https://www.drivelinebaseball.com/2013/10/role-intent-pitching/',
+  DL28: '부상 위험 · 성적 · 구속(Driveline 2019) — https://drivelinebaseball.com/2019/03/injury-risk-performance-velocity',
+  DL29: '평지와 마운드의 팔꿈치 부담 비교(Driveline 2017) — https://www.drivelinebaseball.com/2017/08/comparing-flat-ground-mound-elbow-torques/',
+  DL30: '센서로 던지기 부담 정의하기(Driveline 2020) — https://www.drivelinebaseball.com/2020/04/what-is-throwing-workload/',
+  DL31: '선발 투수를 되살릴 수 있을까(Driveline 2025) — https://drivelinebaseball.com/blogs/blog/return-of-the-starting-pitcher',
+  DL32: '직구와 변화구의 팔꿈치 부담(Driveline 2017) — https://www.drivelinebaseball.com/2017/02/fastballs-offspeed-pitches-comparative-relative-elbow-stress/',
+  DL33: '변화구와 팔꿈치 부담 다시 보기(Driveline 2017) — https://www.drivelinebaseball.com/2017/11/reviewing-offspeed-pitches-elbow-torque/',
+  DL34: '어린 투수가 커브를 던져도 되나(Driveline 2014) — https://drivelinebaseball.com/blogs/blog/youth-pitchers-throw-curveballs-probably',
+  DL35: '측정 장비로 구종 만들기 기초(Driveline 2017) — https://drivelinebaseball.com/2017/04/basics-pitch-design-using-rapsodo',
+  DL36: '체인지업 던지는 법(Driveline 2020) — https://www.drivelinebaseball.com/2020/06/how-to-throw-a-changeup/',
+  DL37: '슬라이더 던지는 법(Driveline 2020) — https://www.drivelinebaseball.com/2020/06/how-to-throw-a-slider/',
+  DL38: '커브 던지는 법(Driveline 2020) — https://drivelinebaseball.com/2020/06/how-to-throw-a-curveball',
+  DL39: '구종 그립 안내(Driveline 2022) — https://www.drivelinebaseball.com/2022/01/ultimate-guide-baseball-pitch-grips/',
+  DL40: '동작과 제구의 관계(Driveline 2026) — https://drivelinebaseball.com/blogs/blog/the-interaction-of-biomechanics-and-command',
+  DL41: '제구가 가장 좋았던 투수의 숫자(Driveline 2025) — https://drivelinebaseball.com/blogs/blog/greg-maddux-was-a-unicorn',
+  DL42: '겨눈 곳 측정으로 제구를 올린 두 사례(Driveline 2025) — https://drivelinebaseball.com/blogs/blog/how-intended-zones-helped-janson-junk-and-stefan-raeth-to-breakout-seasons',
+  DL43: '제구 훈련과 속도 · 정확도 맞바꿈(Driveline 2018) — https://www.drivelinebaseball.com/2018/09/command-training-closer-look-speed-accuracy-trade-off/',
+  DL44: '무게 · 크기를 바꾼 제구 공(Driveline 2018) — https://www.drivelinebaseball.com/2018/09/differential-command-balls/',
+  DL45: '팀 연습에 제구 훈련 넣기(Driveline 2018) — https://www.drivelinebaseball.com/2018/09/implementing-command-training-team-practice/',
+  DL46: '부담 · 가동 범위 · 시즌 초 부상(Driveline 2019) — https://drivelinebaseball.com/2019/03/workload-range-motion-early-season-injuries',
+  DL47: '오프시즌 던지기 프로그램(Driveline 2020) — https://www.drivelinebaseball.com/2020/09/off-season-throwing-program/',
+  DL48: '성장기 선수가 쉬어야 하는 기간(Driveline 도움말) — https://help.drivelinebaseball.com/portal/en/kb/articles/what-is-the-amount-of-time-off-from-baseball-that-you-recommend-for-a-youth-athlete-27-1-2022',
+  DL49: '성장기 야구의 건강과 발달 1부(Driveline 2025) — https://drivelinebaseball.com/blogs/blog/optimizing-for-health-development-in-youth-baseball-part-1',
+  TA01: '무게 공 훈련 4주 입문(Tread, 공개 PDF) — https://treadathletics.com/wp-content/uploads/2021/05/A-4-Week-Intro-to-Weighted-Ball-Training.pdf',
+  TA02: '고관절 뼈 모양과 맞는 동작(Tread 2019) — https://treadathletics.com/how-does-hip-anatomy-affect-your-ideal-mechanics/',
+  TA03: '힘을 주는 세 가지 방식과 구속(Tread 2019) — https://treadathletics.com/muscling-up/',
+  TA04: '팔을 밀어 던지는 동작의 원인 일곱(Tread 2019) — https://treadathletics.com/7-causes-of-pushing/',
+  TA05: '밴드 운동 세 가지(Tread 2019) — https://treadathletics.com/j-band-exercises/',
+  TA06: '빠른 투수 동작 살펴보기 2부(Tread 2020) — https://treadathletics.com/nate-pearson-2/',
+  TA07: '다리 쓰기 · 지면 반력과 에너지 흐름(Tread 2021) — https://treadathletics.com/energy-flow/',
+  TA08: '팔을 어깨 회전면에 맞추기(Tread 2019) — https://treadathletics.com/plane-of-rotation/',
+  TA09: '늦는 팔 고치는 드릴 순서(Tread 2020, 공개 PDF) — https://treadathletics.com/wp-content/uploads/2020/12/Late-Arm-Drill-Progression-PDF.pdf',
+  TA10: '팔이 뒤로 젖혀지는 범위 늘리기(Tread 2016) — https://treadathletics.com/external-rotation-throw-harder/',
+  TA11: '그날 팔 상태로 세기 정하기(Tread 2015) — https://treadathletics.com/throw-harder-and-recover-quicker-with-auto-regulation/',
+  TA12: '근육량과 구속(Tread 2015) — https://treadathletics.com/mass-equals-gas-why-muscle-matters-for-pitching-velocity/',
+  TA13: '메디신볼 회전 던지기와 구속(Tread 2022) — https://treadathletics.com/rmbt/',
+  TA14: '구속이 오르내리는 까닭 1부(Tread 2018) — https://treadathletics.com/velocity-fluctuation-pt1/',
+  TA15: '구종 설계로 경기 성적 올리기(Tread 2026) — https://treadathletics.com/using-pitch-design-to-improve-in-game-performance/',
+  TA16: '입스의 이론(Tread 2019) — https://treadathletics.com/yips/',
+  TA17: '회복에서 할 것과 말 것 열 가지(Tread 2019) — https://treadathletics.com/recovery-top-10/',
 } as const satisfies Record<string, string>;
 
 /** 검토 전 — 검토자가 이름 · 날짜를 적으면 AI 에 실린다 */
@@ -347,40 +323,40 @@ export const KNOW_NOTES: readonly KnowNote[] = [
     id: 'P01',
     topic: '상하체 분리',
     keys: ['상하체분리', '힙숄더', '골반과 어깨', '분리', '꼬임'],
-    body: '상하체 분리는 골반이 먼저 목표 쪽으로 돌고 윗몸통이 잠깐 뒤에 남아 있는 차이를 말해요. 구속과 양의 관계가 있지만 크기는 작아요. 대학 투수 경기 측정에서 상관이 약했고, 청소년 연구에서는 나이와 키가 구속을 훨씬 크게 설명했어요. 같은 투수 안에서도 분리가 클 때 늘 더 빠르지는 않았어요. 분리가 팔꿈치 부담을 줄인다거나 늘린다고 말할 근거는 작고 수준에 따라 달라요. 청소년 모의 경기에서는 공 수가 늘수록 분리가 줄었어요(연구 하나). 그래서 분리만 키우면 구속이 오른다고 단정할 수 없어요.',
-    sources: ['PM25842029', 'PM41389727', 'PM40414041', 'PM26952088'],
+    body: '상하체 분리는 골반이 먼저 돌고 윗몸통이 잠깐 닫힌 채 남는 차이예요. 투구 훈련 기관 한 곳은 각도의 크기보다 골반과 몸통이 도는 시간 차가 더 중요할 수 있다고 봐요. 다른 곳도 분리가 전부는 아니고 도는 순서가 매우 중요하다고 해요. 앞의 기관은 골반 회전이 가장 빠른 순간과 몸통 회전이 가장 빠른 순간 사이가 0.05초 넘게 벌어지는 것을 목표로 삼아요(자체 기준이고 각도는 몇 도라고 정해 두지 않았어요). 동작 분석 사례에서 39도는 충분하다고, 48도는 높은 편이라고 봤어요. 분리가 구속을 정하지는 않아요. 한 투수는 착지 때 분리가 20도에서 31도로 늘며 구속이 시속 2km쯤 올랐지만, 다른 투수는 분리가 줄었는데도 최고 구속이 시속 6km쯤 올랐어요(각각 한 명 사례). 분리는 등뼈와 고관절이 잘 돌아야 나온다고 봐요. 골반을 억지로 빨리 돌리면 허리와 배에 힘이 들어가 오히려 힘 전달이 막힌다고 해요. 골반을 안으로 닫았다 여는 연습이 흔히 쓰이지만 고관절 뼈 모양에 따라 안 맞는 사람도 있어요. 8~14세 99명 측정에서는 나이가 많을수록 분리가 컸어요. 모두 자체 측정과 지도 경험이고, 분리 각도와 구속의 관계를 큰 표본의 숫자로 보인 글은 찾지 못했어요.',
+    sources: ['DL01', 'DL02', 'DL03', 'DL04', 'DL05', 'DL06', 'TA01', 'TA02', 'TA03'],
     review: DRAFT,
   },
   {
     id: 'P02',
     topic: '몸이 일찍 열림',
     keys: ['일찍 열림', '일찍 열려', '몸이 열려', '몸통 회전', '열린다'],
-    body: '앞발이 땅에 닿기 전에 윗몸통이 먼저 돌기 시작하는 것을 흔히 몸이 일찍 열린다고 해요. 성인 투수 연구에서 앞발 착지 전에 몸통 회전을 시작한 투수는 팔꿈치가 받는 힘이 더 컸어요(같은 연구실의 연구 둘). MLB 투수 영상 연구에서는 일찍 도는 투수의 어깨 · 팔꿈치 수술 위험이 더 높게 나왔어요(연구 하나, 차이가 아슬아슬해요). 착지 때 골반이 열려 있는 것은 다른 이야기예요. 프로 투수에서 골반이 더 열린 채 착지한 쪽은 구속이 조금 높았고 팔꿈치 부담은 차이가 없었어요(연구 하나). 모두 관찰 연구라 원인과 결과로 단정할 수는 없어요.',
-    sources: ['PM19633230', 'PM17585177', 'PM26665056', 'PM32636133', 'PM36479467'],
+    body: '앞발이 닿기 전에 윗몸통이 먼저 돌기 시작하는 것을 흔히 몸이 일찍 열린다고 해요. 투구 훈련 기관 두 곳 모두 골반이 먼저 열리고 윗몸통과 앞어깨는 앞발이 닿을 때까지 닫혀 있는 쪽을 가르쳐요. 한 곳의 동작 분석 182건에서 앞발이 닿는 순간 몸통은 평균 10도 닫혀 있었어요. 다만 같은 자료에서 그 순간의 몸통 각도는 구속과 관련이 없었어요. 그래서 더 닫으면 구속이 오른다고 말할 수는 없어요. 빠른 투수(14명)는 느린 투수(25명)보다 착지 무렵 골반이 더 열려 있었고 골반 회전이 더 일찍 정점에 닿았어요. 다만 더 큰 자료에서는 착지 때 골반 각도와 구속의 관계가 거의 없었어요. 일찍 열릴 때 생기는 일로는 팔이 지나갈 길이 없어져 팔을 밀어 던지게 되는 것을 들어요(지도 경험). 한 투수는 착지 때 몸통이 17도 열려 있던 것이 11도로 줄면서 팔이 뒤로 젖혀지는 범위가 늘었어요(한 명 사례). 몸통이 일찍 돌면 팔꿈치가 받는 힘이 커진다는 연구도 인용해요. 고치는 법으로는 느린 동작 반복과 제약을 둔 드릴을 써요. 한 곳은 수건 드릴과 앞으로 뻗으라는 지시가 앞쪽을 일찍 열게 한다고 봐요. 다른 곳도 투수가 홈 쪽으로 곧게 뻗어 나간다는 설명은 틀렸다고 해요.',
+    sources: ['DL07', 'DL09', 'DL10', 'DL04', 'DL08', 'TA04', 'TA01', 'TA05', 'TA06'],
     review: DRAFT,
   },
   {
     id: 'P03',
     topic: '앞다리 버티기',
     keys: ['앞다리', '앞무릎', '디딤발', '착지 다리', '무너져', '버티기', '리드 레그'],
-    body: '앞발이 닿은 뒤 공을 놓을 때까지 앞무릎이 펴지는 쪽일수록 구속이 높았어요(청소년 · 프로 연구). 착지하는 순간의 무릎 각도 자체는 구속과 관련이 없었어요. 앞다리가 땅을 미는 힘이 큰 투수가 더 빠른 공을 던졌어요(연구 둘, 표본은 작아요). 다만 차이는 작아요. 청소년 연구에서 무릎이 18도쯤 더 펴질 때 시속 1.6km쯤이었어요. 앞다리를 세게 버틴다고 팔이 편해지는 것은 아니에요. 고교 투수와 큰 표본에서는 무릎을 더 빨리 펴는 투수가 팔꿈치 부담도 더 컸어요(빠른 공 자체가 부담을 키워요). 관찰 연구라 앞다리를 고치면 구속이 오른다고 단정할 수는 없어요.',
-    sources: ['PM29910355', 'PM39157018', 'PM26402471', 'PM25435765', 'PM39906602'],
+    body: '앞발이 닿은 뒤 공을 놓을 때까지 앞무릎이 펴지는 쪽일수록 구속이 높았어요. 투구 훈련 기관의 자체 자료(고교부터 프로, 수천 개 투구)에서 상관은 0.27~0.29로 크지 않아요. 착지 뒤에도 무릎이 계속 굽는 투수가 고쳐서 얻을 것이 가장 많았어요. 무릎이 펴지는 속도(상관 0.20~0.25), 착지 뒤 앞으로 가던 몸을 멈추는 정도(0.20), 앞다리가 땅을 미는 힘(몸무게 영향을 빼고 0.19~0.25)도 약하게 관련됐어요. 힘의 방향은 구속과 뚜렷한 관련이 없었어요. 착지하는 순간의 무릎 · 발목 · 골반 자세는 버티기와 거의 관련이 없었어요. 그래서 자세가 아니라 익혀야 하는 기술로 봐요. 작은 비교(14명과 25명)에서 빠른 투수는 착지 순간 무릎이 굽기를 거의 멈춘 상태였고 느린 투수는 아직 굽는 중이었어요. 다만 더 큰 자료에서는 이 관계가 아주 약했어요. 다른 기관은 앞다리를 허벅지 힘으로 밀어 펴지 말고 골반이 돌면서 펴지게 하라고 가르쳐요(지도 경험). 다만 앞의 자료에서는 착지 뒤 골반 회전이 구속과 관련이 없었어요. 두 곳 모두 뒷다리로 세게 미는 것은 흔히 생각하는 것만큼 중요하지 않다고 봐요. 모두 관찰 자료라 앞다리를 고치면 구속이 오른다고 단정할 수는 없어요.',
+    sources: ['DL10', 'DL11', 'DL09', 'TA07', 'TA01', 'TA05'],
     review: DRAFT,
   },
   {
     id: 'P04',
     topic: '팔 타이밍',
     keys: ['팔이 늦게', '팔이 늦', '인버티드', '팔 스윙', '팔 타이밍', '암 액션'],
-    body: '팔 모양만 보고 다친다고 말할 근거는 약해요. 두 팔꿈치가 어깨보다 높이 올라가는 자세(흔히 인버티드 W)는 MLB 투수 연구에서 수술 위험과 뚜렷한 관련이 없었어요(연구 하나, 작은 위험까지 없다고는 못 해요). 앞발이 닿을 때 팔이 덜 젖혀져 있는 것(팔이 늦는 것)은 팔꿈치 부담이 큰 투수들에게서 보인 여러 특징 중 하나였어요. 그 투수들은 공도 더 빨랐고, 부상을 본 연구가 아니라 부담을 본 연구예요. 리뷰들은 골반 · 몸통 · 팔의 순서와 타이밍이 팔 부담과 구속 둘 다에 관련된다고 정리해요. 그래서 팔 모양 하나를 고치기보다 영상이나 3D 분석으로 순서를 확인하는 쪽이 근거에 맞아요.',
-    sources: ['PM26665056', 'PM39906602', 'PM23015888'],
+    body: '투구 훈련 기관 두 곳이 공통으로 가르치는 것은 앞발이 닿을 때 팔이 이미 올라와 있고, 팔꿈치가 어깨 선 가까이 있고, 날개뼈가 뒤로 모여 있는 것이에요. 한 곳은 여기에 팔에 힘을 빼고 뒤로 젖혀지게 두라는 것을 더해요. 한 곳의 측정에서 잘 던지는 투수는 앞발 착지부터 공을 놓을 때까지 팔 벌림 각도가 평균 90도쯤이었어요(평균이지 규칙은 아니에요). 앞발이 닿을 때 던지는 팔의 팔꿈치가 어깨 선보다 높이 올라가 있고 팔은 아직 젖혀지지 않은 자세(흔히 인버티드 W)는 그것 하나로 부상을 예측하지 못한다고 봐요. 자체 측정에서 이 자세의 투수는 평균 시속 1.8km쯤 느렸고 어깨에서 새는 에너지가 조금 더 컸어요(표본 수는 밝히지 않았어요). 팔이 늦게 올라오면 착지 뒤 팔뚝이 급하게 젖혀져 팔꿈치 안쪽에 부담이 간다고 설명해요(지도 견해이고 부상 자료는 없어요). 팔꿈치를 어깨 선 앞으로 내밀어 밀어 던지는 것은 너무 무거운 공, 몸이 일찍 열리는 것, 팔에 힘이 들어가는 것에서 온다고 봐요. 팔이 젖혀지는 범위는 프로도 160~185도로 다양하고, 더 크다고 누구에게나 좋은 것은 아니에요. 고치는 법으로는 제약을 둔 드릴과 느린 반복을 주로 써요. 두 곳 모두 팔 동작과 부상을 잇는 자체 자료는 내놓지 않았어요. 팔 모양은 영상이나 3D 분석으로 확인하는 쪽이 좋아요.',
+    sources: ['DL12', 'DL13', 'DL14', 'DL03', 'TA04', 'TA08', 'TA09', 'TA10', 'TA01'],
     review: DRAFT,
   },
   {
     id: 'P05',
     topic: '롱토스',
-    keys: ['롱토스', '롱 토스', '멀리 던지기', '원투', '캐치볼 거리'],
-    body: '평지에서 직선으로 세게 던지는 공은 55m쯤까지 어깨 · 팔꿈치 부담이 마운드 전력 투구와 비슷했어요(대학 투수 연구 둘). 거리 제한 없이 높게 띄워 가장 멀리 던지는 롱토스는 팔꿈치 · 어깨에 걸리는 힘이 가장 컸고 동작도 달라졌어요. 그 연구는 이런 던지기를 조심해서 쓰라고 해요. 고교 선수 연구에서는 거리가 늘수록 팔꿈치 부담이 커지다가 37m쯤부터 더 늘지 않았어요. 롱토스가 구속을 올린다거나 부상을 줄인다는 것을 직접 확인한 연구는 찾지 못했어요. 몇 미터를 몇 번 던지라는 검증된 기준은 없어요. 오늘 던질 양은 앱의 투구 계획을 따르면 돼요.',
-    sources: ['PM21212502', 'PM24664135', 'PM30215544'],
+    keys: ['롱토스', '롱 토스', '멀리 던지기', '원투', '캐치볼 거리', '풀다운'],
+    body: '롱토스는 거리와 세기를 조금씩 늘려 가는 캐치볼이에요. 투구 훈련 기관 두 곳 모두 쓸모 있는 도구로 보지만, 그것만으로 완성되는 훈련은 아니라고 해요. 매번 가장 멀리 던질 필요도 없어요. 한 곳은 높게 띄워 멀리 보내는 던지기는 롱토스 날마다 하고 가벼운 날에는 그것만 해요. 가까이 들어와 직선으로 세게 던지는 것(풀다운)은 세게 던지는 날에만 8~12개로 제한해요. 다른 곳은 그날 가장 먼 거리에서 5~10개, 풀다운도 5~10개면 충분하다고 해요. 풀다운은 마운드 투구보다 시속 9km쯤 빨랐고 팔꿈치 부담은 평균적으로 마운드 투구와 비슷했어요(25명 측정이고 사람마다 달랐어요). 그래서 풀다운도 마운드 투구만큼 부담되는 던지기로 세라고 해요. 높게 띄우는 던지기와 직선 던지기의 부담 차이는 아직 연구되지 않았다고 스스로 밝혀요. 가장 멀리 던지는 롱토스는 조심해서 쓰라는 연구도 인용해요. 롱토스 거리가 늘어난 만큼 마운드 구속이 오르지는 않아요. 옆으로 던지는 투수, 가라앉는 공이 무기인 투수, 팔꿈치가 낮게 끌리는 투수에게는 높게 띄우는 롱토스가 안 맞을 수 있어요(지도 경험). 거리와 개수는 지도 경험에서 나온 숫자예요. 오늘 던질 양은 앱의 투구 계획을 따르면 돼요.',
+    sources: ['DL15', 'DL16', 'DL17', 'DL18', 'TA01', 'TA11', 'TA08'],
     review: DRAFT,
   },
   {
@@ -394,8 +370,8 @@ export const KNOW_NOTES: readonly KnowNote[] = [
       '플라이오볼',
       '무게 공',
     ],
-    body: '무게가 다른 공으로 하는 훈련은 대부분의 연구에서 구속을 올렸어요. 다만 연구의 질이 매우 낮다고 평가돼요. 부상 위험은 아직 모르는 쪽이에요. 청소년 38명을 나눈 무작위 연구 하나에서 6주 훈련한 쪽의 24%(4명)가 팔꿈치를 다쳤고(둘은 다음 시즌) 안 한 쪽은 없었어요. 체계적 문헌고찰은 위험을 판단할 자료가 모자란다고 해요. 무거운 공을 던진 직후에는 어깨가 뒤로 젖혀지는 범위가 늘었어요(같은 연구진의 연구 둘). 안전하다고도 위험하다고도 증명되지 않았어요. 성장기에는 특히 조심하고 지도자와 상의해서 하는 쪽이 맞아요.',
-    sources: ['PM29882722', 'PM30800693', 'PM10783901', 'PM32598234'],
+    body: '무게가 다른 공 훈련에 대해 투구 훈련 기관 두 곳이 말하는 것이에요. 경기 공에 가까운 무게(85~200g쯤)에서는 한 곳의 동작 분석(26명)에서 무게에 따라 팔꿈치 · 어깨에 걸리는 힘이 뚜렷하게 달라지지 않았고 동작 차이도 작았어요. 다만 한 번 던질 때의 측정이에요. 훈련을 오래 했을 때의 영향은 훈련 연구가 더 필요하다고 스스로 밝혀요. 청소년 연구(13~18세, 6주)에서 훈련한 17명 중 4명이 다치고 안 한 쪽은 다친 사람이 없었던 결과도 다뤄요. 이 기관은 그 집단의 전체 던지기 양이 더 많았다고 반론하면서도, 무게 공으로 세게 던지는 날이 일주일에 두 번을 넘으면 많다는 데는 동의해요. 자체 6주 연구(17명)에서는 집단 전체의 구속 변화가 없었고 9명은 오르고 8명은 내렸어요. 두 곳 모두 서서히 늘리는 준비 기간(4주쯤)을 먼저 두라고 하고, 한 곳은 근력 바탕도 먼저 요구해요. 아주 무거운 공은 세게 던지는 용도가 아니라 힘을 낮춰 동작을 익히는 용도로 써요. 이곳은 2kg 공을 쓰다가 팔을 미는 동작과 불편함이 자주 보여서 뺐어요. 다른 곳은 만 14세 미만에게 가죽으로 된 무게 공을 쓰지 않아요. 뻐근함은 괜찮지만 찌릿하거나 날카롭거나 오래가는 통증은 멈추라는 신호예요. 세게 던지는 훈련은 어떤 공으로 하든 부상 위험이 따른다고 해요. 성장기에는 특히 조심하고 지도자와 상의해서 해요.',
+    sources: ['DL19', 'DL20', 'DL21', 'DL22', 'DL23', 'DL47', 'TA01', 'TA04'],
     review: DRAFT,
   },
   {
@@ -409,51 +385,24 @@ export const KNOW_NOTES: readonly KnowNote[] = [
       '빠르게 던지',
       '볼 스피드',
     ],
-    body: '연구에서 구속과 관련이 있다고 나온 것은 이래요. 관련이 있다는 것이지 그것을 하면 오른다는 보장은 아니에요. 몸무게가 많이 나가는 투수가 더 빠른 편이에요. 청소년기에는 나이와 키가 가장 크게 설명해요. 저항 운동(웨이트 · 밴드 · 점프 등)을 한 프로그램은 대체로 던지는 속도를 올렸어요(체계적 문헌고찰, 주로 청소년 · 대학). 대학 투수에서 하체가 내는 힘의 절대 크기가 구속과 관련됐는데, 몸무게를 빼고 나면 보탬이 작았어요. 골반 · 몸통 · 팔의 순서와 앞다리 버티기 같은 동작도 관련이 있지만 하나하나의 크기는 작아요. 빠른 공일수록 팔꿈치 부담과 팔꿈치 부상도 같이 늘어요. 구속만 보고 무리하면 안 되는 까닭이에요.',
-    sources: [
-      'PM18707902',
-      'PM32153984',
-      'PM25842029',
-      'PM38125451',
-      'PM39446825',
-      'PM26983459',
-      'PM20093420',
-    ],
+    body: '투구 훈련 기관 두 곳이 구속의 바탕으로 꼽는 것은 몸의 힘이에요. 한 곳은 점프와 근력 측정만으로 구속을 예측하는 식을 만들었는데, 구속 차이의 절반쯤을 설명했고 평균 오차는 시속 4km쯤이었어요. 크게 반영된 것은 점프의 파워와 탄력, 당기는 최대 힘이었어요. 예측보다 빠르게 던지는 선수는 근력과 파워를, 예측보다 느리게 던지는 선수는 던지는 기술을 먼저 보라고 해요. 다른 곳은 아마추어가 느린 가장 큰 까닭을 근육량과 힘 부족으로 봐요(지도 견해). 수직 점프의 힘은 구속과 거의 관련이 없었어요(29명 측정). 메디신볼 회전 던지기가 구속과 관련됐다는 연구를 인용하고, 옆으로 뛰는 점프는 연구마다 결과가 갈려요. 자세 하나가 구속을 정하지는 않아요. 동작 분석 182건에서 구속과 강하게 관련된 자세 지표는 없었고, 관련된 것은 움직임의 속도였어요. 오르는 폭도 크지 않아요. 훈련한 선수 자료에서 평균 시속 3km쯤 올랐고, 절반쯤이 시속 1.6km 넘게 올랐고, 다섯에 하나는 오히려 내렸어요. 200일 넘게 훈련한 35명은 평균 시속 5km쯤 올랐어요. 훈련받은 선수만의 자료이고 견줄 집단은 없어요. 세게 던지려는 마음만으로 구속이 생기지는 않고, 전력으로 던지는 개수를 늘린다고 더 오르지도 않는다고 해요. 같은 투수 안에서는 구속이 오를수록 팔꿈치 부담도 같이 커진다는 연구를 인용해요.',
+    sources: ['DL24', 'DL25', 'DL07', 'DL26', 'DL27', 'DL28', 'TA12', 'TA13', 'TA01'],
     review: DRAFT,
   },
   {
     id: 'P08',
     topic: '구종과 팔 부담',
     keys: ['커브', '슬라이더', '체인지업', '변화구', '구종', '직구', '그립'],
-    body: '실험실 연구에서 어깨 · 팔꿈치 부담은 직구가 가장 크거나 커브와 비슷했고 체인지업이 가장 작았어요(유소년 · 청소년 · 대학 · 프로 모두). 슬라이더는 자료가 가장 적어요. 프로에서는 직구와 비슷했고, 유소년 연구 하나에서는 팔꿈치 통증이 더 많았어요. 어린 선수의 커브가 부상을 늘리는지는 결과가 갈려요. 통증이 더 많았다는 설문 연구가 있지만, 10년 추적 연구와 문헌고찰은 큰 부상이 더 많다는 것을 확인하지 못했어요. 공식 지침은 직구와 체인지업을 먼저 익히고, 그 둘이 일정해진 뒤(만 13~14세쯤부터) 변화구를 더하라고 해요. 구종보다 많이 던지는 것과 지친 채 던지는 것이 더 뚜렷한 위험 요인이에요. 그립과 던지는 요령은 손 크기와 팔 각도에 따라 달라서 검증된 한 가지 방법이 없어요. 지도자와 직접 맞추는 것이 좋아요.',
-    sources: [
-      'PM18055920',
-      'PM19448049',
-      'PM16260466',
-      'PM28968139',
-      'PM12130397',
-      'PM21098816',
-      'PM25553209',
-      'PS13',
-      'PS09',
-      'AM02',
-    ],
+    body: '투구 훈련 기관의 센서 측정에서 팔꿈치에 걸리는 힘은 직구가 가장 컸고 커브 · 슬라이더 · 체인지업은 그보다 낮았어요. 다만 구속으로 나누어 보면 변화구 쪽이 더 높게 나왔고, 어느 숫자를 기준으로 삼아야 할지는 아직 모른다고 스스로 밝혀요. 대학 투수 연구에서는 체인지업이 가장 낮았고, 프로 투수 연구에서도 직구와 슬라이더가 체인지업보다 높았다고 인용해요. 커브가 어린 선수의 부상을 늘리는지는 연구가 엇갈린다고 봐요. 그래도 만 14세 미만에게는 커브와 슬라이더를 권하지 않아요. 부상이 증명돼서가 아니라 복잡한 동작을 매번 같게 되풀이할 조절 능력이 아직 덜 자랐기 때문이에요. 그 나이에는 좋은 몸 움직임과 직구 제구를 먼저 익히라고 해요. 구종을 만드는 일은 정해진 한 가지 그립을 배우는 것이 아니에요. 그립과 손 느낌을 바꿔 가며 측정으로 확인하는 과정이에요. 그립은 공의 움직임을 만드는 수단일 뿐이에요. 일반적인 기준으로 체인지업은 직구보다 시속 13~19km, 슬라이더는 10~16km, 커브는 16~24km 느려요. 같은 지시도 사람마다 다르게 받아들여요. 새 구종은 구속과 제구가 먼저 갖춰진 뒤에, 동작을 크게 고치는 중이 아닐 때 더하라고 해요. 팔 각도에 따라 맞는 구종이 달라서 지도자와 직접 맞추는 것이 좋아요.',
+    sources: ['DL32', 'DL33', 'DL34', 'DL35', 'DL36', 'DL37', 'DL38', 'DL39', 'TA15'],
     review: DRAFT,
   },
   {
     id: 'P09',
     topic: '제구',
     keys: ['제구', '컨트롤', '커맨드', '스트라이크', '로케이션', '볼넷'],
-    body: '투수의 제구 훈련법을 직접 비교한 연구는 찾지 못했어요. 아래는 관련해서 알려진 것이에요. 공이 가는 곳은 놓는 순간의 방향(위아래 · 좌우 각도)과 속도가 거의 정해요. 아주 작은 각도 차이가 위치를 바꿔요. 동작 앞부분(앞발 착지부터 팔이 가장 젖혀질 때까지)의 어깨 · 몸통 움직임이 매번 비슷한 투수가 위치도 더 일정했어요. 수준이 높은 투수일수록 동작이 덜 흔들려요. 프로 투수에서 볼과 스트라이크 사이에 동작 차이는 측정되지 않았어요(연구 하나). 빗나간 공이 곧 동작 결함은 아니에요. 운동 기술 전반에서는 몸의 부위보다 목표(미트 · 공이 갈 길)에 주의를 두는 쪽이 수행과 학습에 더 좋았어요(메타분석, 투구 연구는 아니에요). 핸드볼 연구 하나에서는 정확하게 던지라는 지시만으로 숙련 선수의 정확도가 늘지 않고 속도만 줄었어요.',
-    sources: [
-      'PM33345028',
-      'PM31449438',
-      'PM19391491',
-      'PM28968139',
-      'PM34843301',
-      'PM20078758',
-      'PM12776824',
-    ],
+    body: '투구 훈련 기관은 제구를 스트라이크 비율이 아니라 겨눈 곳에서 얼마나 빗나갔는지로 재요. MLB 투수도 직구가 겨눈 곳에서 평균 28~30cm 빗나가요. 제구가 가장 좋았던 투수도 겨눈 곳에 맞힌 공은 셋에 하나쯤이었어요. 힘을 빼고 던지면 스트라이크가 는다는 생각은 근거가 약하다고 봐요. 힘을 빼면 몸의 순서가 흐트러져 오히려 제구가 나빠질 수 있어서, 제구 연습도 체감 70%가 넘는 세기로 하라고 권해요. 연습 방법으로 두 곳 모두 공의 무게 · 크기 · 거리를 바꿔 가며 던지는 것을 권해요. 한 곳은 몸의 느낌을 살피기보다 공의 회전처럼 바깥에서 보이는 것에 주의를 두라고 해요. 두 곳 모두 동작을 계속 의식해서 고치게 하는 것은 도움이 안 된다고 봐요. 한 곳은 빗나간 방향을 적어 두라고 하고, 다른 곳은 그물만 보고 던지기보다 사람에게 던지라고 해요. 동작 분석(27명, 270구)에서는 앞발 착지 순간의 자세가 매번 비슷한 투수가 덜 빗나갔어요. 반대로 공을 놓기 직전의 미세한 조정은 더 다양한 투수가 덜 빗나갔어요. 똑같이 되풀이하는 것만이 답은 아니라는 뜻이에요. 다만 이 기관 스스로 검증된 제구 훈련법은 아직 없고 무게를 바꾼 공의 효과도 증명되지 않았다고 밝혀요. 나아진 숫자는 선수 두 명의 사례뿐이에요. 제구는 주마다 오르내리는 것에 매달리지 말고 긴 기간의 흐름으로 보라고 해요. 못 던진 날 화가 나서 더 던지는 것은 해롭다고 해요.',
+    sources: ['DL40', 'DL41', 'DL42', 'DL43', 'DL44', 'DL45', 'TA16', 'TA01', 'TA15'],
     review: DRAFT,
   },
   {
@@ -469,16 +418,8 @@ export const KNOW_NOTES: readonly KnowNote[] = [
       '혹사',
       '쇼케이스',
     ],
-    body: '청소년 투수에서 큰 팔 부상과 가장 강하게 관련된 것은 지친 채로 자주 던지는 것과 너무 많이 던지는 것이었어요(여러 연구가 같은 방향, 대부분 설문 · 관찰 연구). 한 해에 던지는 이닝과 한 경기 공 수가 많을수록 통증과 부상이 많았어요. 연속된 날 던지기, 여러 팀에서 겹쳐 뛰기, 하루 여러 경기도 팔 통증과 관련됐어요(전국 설문 하나). 청소년 공식 지침은 한 해에 적어도 넉 달은 경기 투구를 쉬고, 그중 두세 달은 머리 위로 던지는 것을 모두 쉬라고 해요. 한 경기 안에서 지치면 먼저 구속이 떨어지고 몸통이 서요. 팔 부담이 늘어나는지는 결과가 갈려요. 지쳤다고 느끼거나 그렇게 보이면 그날 던지기를 멈추는 것이 지침이에요.',
-    sources: [
-      'PM16452269',
-      'PM24627578',
-      'PM21098816',
-      'PM12130397',
-      'PM16973902',
-      'PS15',
-      'AM02',
-    ],
+    body: '투구 훈련 기관 두 곳 모두 던지는 부담을 경기 공 수만이 아니라 모든 던지기의 개수와 세기로 세라고 해요. 몸풀기, 캐치볼, 연습 투구도 들어가요. 부상은 시즌 초에 많고, 쉬다가 갑자기 많이 세게 던지는 것이 한 원인일 수 있다고 봐요(가설). 그래서 쉰 뒤에는 4주쯤 서서히 늘리고, 오래 쉬었을수록 그 기간도 길게 잡으라고 해요. 한 곳은 최근 9일의 부담을 지난 4주 평균과 견줘 0.7~1.3배 안에 두는 것을 기준으로 써요. 다만 이 범위는 주로 다른 종목 연구에서 왔고 야구 연구는 적다고 스스로 밝혀요. 다른 곳은 매일 팔 상태를 1~10으로 매겨 그날 세기를 정해요. 세게 던지는 날은 일주일에 두 번쯤, 한 번에 15~20개로 적게 잡아요. 성장기 선수에게는 한 해에 두 달은 이어서 머리 위로 던지는 것을 쉬고 공식 투구 수 지침을 따르라고 해요. 지친 채 던지는 것이 어린 선수의 어깨 · 팔꿈치 부상과 강하게 관련됐다는 연구도 인용해요. 하루에 두 번 던지기, 전날 마무리로 던지고 다음 날 선발로 나가기, 투수를 한 날 포수까지 보는 것은 피하라고 해요. 팔이 축 처지는 느낌과 들쭉날쭉한 구속이 보이면 던진 양 전체를 다시 살피라고 해요. 진통제나 얼음으로 뻐근함을 덮고 계속 던지지 말라고 해요. 쉬는 날과 공 수는 앱의 투구 계획을 따르면 돼요.',
+    sources: ['DL30', 'DL46', 'DL47', 'DL48', 'DL49', 'TA11', 'TA01', 'TA14', 'TA17'],
     review: DRAFT,
   },
   {
@@ -493,8 +434,8 @@ export const KNOW_NOTES: readonly KnowNote[] = [
       '강도 조절',
       '가볍게 던',
     ],
-    body: '평지에서 던지는 것이 마운드보다 팔에 편하다고 단정할 수 없어요. 연구마다 차이가 없거나, 마운드가 조금 더 크거나, 달려와 던지는 평지 투구가 더 크게 나왔어요. 힘을 빼고 던져도 팔 부담은 느낌만큼 줄지 않아요. 체감 강도를 25% 낮출 때 팔꿈치 부담은 7%, 구속은 11%만 줄었어요(고교 · 대학 투수 연구). 마운드에서 체감 60%로 던졌을 때도 힘은 최대의 76%쯤이었어요(대학 투수 연구). 그래서 가볍게 던지는 날도 공 수로 세어야 하고, 앱이 체감 강도와 공 수를 같이 적게 하는 까닭이에요.',
-    sources: ['PM24664135', 'PM24427428', 'PM30207787', 'PM27872403', 'PM31150269'],
+    body: '평지에서 가볍게 던지는 공도 팔에 공짜는 아니에요. 투구 훈련 기관의 센서 측정(대학 투수 25명)에서 평지 투구는 실전 투구보다 시속 16km쯤 느렸지만 팔꿈치에 걸리는 힘은 조금만 낮았어요. 25명 중 10명은 평지에서 오히려 더 높았어요. 힘을 빼는 것도 느낌만큼 되지 않아요. 70~80%로 던지라고 했을 때 선수들은 평균 최고 구속의 89%로 던졌고, 시킨 범위에 든 선수는 한 명뿐이었어요. 인용한 연구에서는 마운드에서 체감 60%로 던져도 팔에 걸리는 힘은 최대의 75%쯤이었어요. 그래서 체감 80%가 부담 80%는 아니라고 정리해요. 이 기관은 던지기 하나하나를 팔꿈치에 걸린 힘으로 무게를 매겨 하루 부담을 더하고, 센 공일수록 더 크게 쳐요. 다른 기관도 같은 쪽이에요. 몸풀기와 연습 투구까지 다 세고, 평지 투구는 한 번에 10~25개면 충분하다고 해요. 가벼운 날에 세기가 올라가는 것을 흔한 실수로 꼽아요. 그래서 가볍게 던지는 날도 공 수로 세어야 하고, 앱이 체감 강도와 공 수를 같이 적게 하는 까닭이에요.',
+    sources: ['DL29', 'DL30', 'DL31', 'TA14', 'TA11', 'TA01', 'TA17'],
     review: DRAFT,
   },
   {

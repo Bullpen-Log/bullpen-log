@@ -694,7 +694,8 @@ check(
   const sample: KnowNote = { id: 'x1', topic: '롱토스', keys: ['멀리 던지기', '롱 토스'], body: '시험 글이에요.', sources: [], review: { by: null, at: null } };
   const other: KnowNote = { ...sample, id: 'x2', topic: '아이싱', keys: ['얼음', '얼음찜질'], review: { by: '시험', at: '2026-11-23' } };
   check('㉒ 노트마다 출처 둘 넘게 · 출처 표에 있음 · id · 주제 겹침 없음', KNOW_NOTES.every((n) => n.sources.length >= 2 && n.sources.every((id) => id in NOTE_SOURCES)) && new Set(KNOW_NOTES.map((n) => n.id)).size === KNOW_NOTES.length && new Set(KNOW_NOTES.map((n) => n.topic)).size === KNOW_NOTES.length, KNOW_NOTES.filter((n) => n.sources.length < 2).map((n) => n.id).join());
-  check('㉒ 출처는 논문 · 기관 문서 주소(https)', Object.values(NOTE_SOURCES as Record<string, string>).every((v) => /https:\/\//.test(v)));
+  check('㉒ 출처는 논문 · 기관 문서 · 코칭 기관 공개 글 주소(https)', Object.values(NOTE_SOURCES as Record<string, string>).every((v) => /https:\/\//.test(v)));
+  check('㉒ 투구 노트(P)는 코칭 기관 두 곳의 글만 · 그 밖의 노트는 그 글을 안 쓴다', KNOW_NOTES.every((n) => n.sources.every((id) => /^(DL|TA)\d+$/.test(id) === n.id.startsWith('P'))), KNOW_NOTES.filter((n) => !n.sources.every((id) => /^(DL|TA)\d+$/.test(id) === n.id.startsWith('P'))).map((n) => n.id).join());
   check('㉒ 노트 글: 해요체 · 줄표 · 기관 이름 없음 · 1,200자 안', KNOW_NOTES.every((n) => !n.body.includes('—') && scrubNames(n.body) === n.body && n.body.length <= 1200 && /요\.$/.test(n.body.trim())), KNOW_NOTES.filter((n) => n.body.includes('—') || scrubNames(n.body) !== n.body || n.body.length > 1200 || !/요\.$/.test(n.body.trim())).map((n) => n.id).join());
   check('㉒ 검토자가 적힌 노트만 실린다', shippedNotes([sample, other]).length === 1 && shippedNotes().every((n) => n.review.by && n.review.at));
   check('㉒ 찾기: 주제 · 찾는 낱말 · 띄어쓰기 달라도 · 없으면 빈 목록', findNotes('롱 토스 얼마나 멀리', [sample, other])[0]?.id === 'x1' && findNotes('던지고 얼음 찜질 해야 돼?', [sample, other])[0]?.id === 'x2' && findNotes('슬라이더', [sample, other]).length === 0 && findNotes('', [sample, other]).length === 0);
