@@ -66,6 +66,7 @@ import {
 } from '@/lib/report/score';
 import { shiftDateKey } from '@/lib/pitch-stats';
 import { todayPrefsOf, type ReportFacts } from '@/lib/report/facts';
+import { pinsFor } from '@/lib/report/pin';
 import type { PitchPlan } from '@/lib/report/plan';
 import type { AutoCaution, AutoRecord } from '@/lib/report/auto-setup';
 import type { PlanSwap } from '@/lib/report/plan-swaps';
@@ -203,6 +204,11 @@ export type DailyPlan = {
    * 저장한 줄은 글(string)뿐이라 그대로 보인다(거를 항목을 모른다 — 타입은 지금 쓰는 모양이고, 읽는 planReasonLines 가 둘 다 받는다).
    */
   reasons?: PlanReason[];
+  /**
+   * 오늘 고정한 큰 운동(lib/report/pin.ts, 2026-11-23) — 뽑힌 것의 id 와 알리는 한 줄. 화면은 planReasonLines 가 까닭 줄 끝에 붙인다.
+   * 고정을 안 켠 날 · 고정할 운동이 없는 날에는 칸이 없다(version 그대로).
+   */
+  pinned?: { ids: string[]; line: string };
   /**
    * 근력 프로그램 날의 일정인가(2판 P6-3, 2026-10-13, 사용자 결정 D6) — 그날 매일 일정은 프로그램 운동 그대로라 picks 가 프로그램의 그날 운동이다
    * (buildDailyPlan 의 programToday). 읽는 쪽이 이 칸으로 가른다: 운동 시작(app/actions/workout.ts startWorkout)은 매일 판으로 열지 않고 프로그램
@@ -424,6 +430,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
   score,
   programToday = null,
   budget = null,
+  pin = false,
 }: {
   user: UserForPlan;
   facts: ReportFacts;
@@ -498,6 +505,11 @@ export function buildDailyPlan<T extends ExerciseLike>({
    * (안전 거르기를 지난 것만 — 무리인 것은 빼고 알린다). 안 주면(null) 예전과 글자까지 같다.
    */
   programToday?: ProgramTodayInput | null;
+  /**
+   * 큰 운동 고정(lib/report/pin.ts, 2026-11-23) — 켜면 근력 날 본운동 첫 칸에 같은 큰 운동을 세우고 일정에 pinned 를 싣는다.
+   * 근력 프로그램을 하는 사람(state.commitments.program)은 프로그램이 큰 운동을 맡으니 고정하지 않는다. 안 켜면 예전과 글자까지 같다.
+   */
+  pin?: boolean;
   /**
    * 중재의 하체 · 팔 예산(PlanBudgetInput, 2판 P6-3) — 프로그램이 있는 사람(매일 일정 길에서만 읽는다). 무거운 하체가 막혔으면 후보에서 빼고
    * 하체 날을 상체(되면) · 보조로 바꾼다('그래도 하기'면 그대로 두고 한 줄), 팔 예산을 다 썼으면 팔 플라이오를 뺀다('그래도 하기'로도).
@@ -717,6 +729,19 @@ export function buildDailyPlan<T extends ExerciseLike>({
   const orderRecentIds =
     swappedToday.size > 0 ? new Set([...recentIds, ...swappedToday]) : recentIds;
 
+  const pins =
+    pin && !dayState.commitments?.program
+      ? pinsFor({
+          theme: theme.key,
+          dateKey: facts.asOf,
+          usable: leveled.pool,
+          pool,
+          skipIds: orderRecentIds,
+          age: facts.profile.age,
+          level: user.trainingLevel,
+        })
+      : null;
+
   const themed = pickForTheme({
     /*
      * 목표에 맞춘 횟수로 시간을 센다 — 화면 · 운동 화면도 같은 값을 쓴다(처방 한 길, lib/report/volume.ts planPrescription).
@@ -746,6 +771,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
      * 뒀어요'라고 말하지 않게).
      */
     ...(scoreCtx ? { scoreOf: (ex: T) => scoreFor(ex, scoreCtx).total } : {}),
+    ...(pins ? { pinnedIds: pins.ids } : {}),
   });
   if (scoreCtx) {
     for (const ex of pool) {
@@ -867,6 +893,10 @@ export function buildDailyPlan<T extends ExerciseLike>({
     ...(volume ? { volume } : {}),
     ...(overrodeEffort ? { overrodeEffort: true as const } : {}),
     ...(reasons.length > 0 ? { reasons } : {}),
+    /* 실제로 뽑힌 고정 운동만 — 시간이 모자라 못 든 날은 알리지 않는다 */
+    ...(pins && pins.ids.some((id) => pickedIds.has(id))
+      ? { pinned: { ids: pins.ids.filter((id) => pickedIds.has(id)), line: pins.line } }
+      : {}),
     /* 프로그램 날이었는데 그날 프로그램 운동이 다 빠져 매일 일정으로 짰다 — 화면이 이 일정을 일정 카드로 쓴다(DailyPlan.programFallback) */
     ...(programToday ? { programFallback: true as const } : {}),
   };
@@ -1017,7 +1047,7 @@ export function readDailyPlan(value: unknown): DailyPlan | null {
  * (검토 전 일정)은 세지 않는다 — 운동 줄도 그런 운동엔 이유를 안 단다. 글만 저장한 옛 줄(string)은 거를 항목을 몰라 그대로 둔다.
  */
 export function planReasonLines(
-  plan: Pick<DailyPlan, 'reasons' | 'volume' | 'overrodeEffort'> & {
+  plan: Pick<DailyPlan, 'reasons' | 'volume' | 'overrodeEffort' | 'pinned'> & {
     picks?: readonly ReasonPick[];
   },
   {
@@ -1025,6 +1055,17 @@ export function planReasonLines(
     favoriteIds,
   }: { shown?: readonly ReasonPick[]; favoriteIds?: ReadonlySet<string> } = {}
 ): string[] {
+  /*
+   * 고정한 큰 운동의 한 줄(pin.ts)은 까닭 줄 끝에, 자리가 남을 때만 — 그날 몸 상태를 말하는 줄이 먼저다. 그 운동이 지금 목록에 없으면
+   * (바꾸거나 뺀 날) 말하지 않는다. 저장된 JSON 이라 모양을 본다.
+   */
+  const withPin = (lines: string[]): string[] => {
+    const pinned = plan.pinned;
+    if (!pinned || typeof pinned.line !== 'string' || !Array.isArray(pinned.ids)) return lines;
+    const list = shown ?? plan.picks;
+    if (list && !list.some((p) => pinned.ids.includes(p.exerciseId))) return lines;
+    return lines.length < PLAN_REASONS_MAX ? [...lines, pinned.line] : lines;
+  };
   if (Array.isArray(plan.reasons)) {
     const now = shown ?? plan.picks ?? [];
     const stillAhead = (key: ScoreKey) =>
@@ -1056,13 +1097,15 @@ export function planReasonLines(
         continue;
       out.push(line.text);
     }
-    return out.slice(0, PLAN_REASONS_MAX);
+    return withPin(out.slice(0, PLAN_REASONS_MAX));
   }
-  return planReasonItemsOf({
-    scored: [],
-    volume: readPlanVolume(plan.volume),
-    overrodeEffort: plan.overrodeEffort === true,
-  }).map((r) => r.text);
+  return withPin(
+    planReasonItemsOf({
+      scored: [],
+      volume: readPlanVolume(plan.volume),
+      overrodeEffort: plan.overrodeEffort === true,
+    }).map((r) => r.text)
+  );
 }
 
 /** 일정 까닭을 거를 때 보는 줄 — 운동과 저장한 점수(DailyPlan.picks · 화면의 보이는 줄 모두 넘길 수 있게 좁게) */

@@ -33422,5 +33422,135 @@ console.log('\n[통합 2026-10-16] 근육통 어림(sorenessFromParts) · 카드
   );
 }
 
+/*
+ * ── [큰 운동 고정] (2026-11-23, lib/report/pin.ts) — 근력 날 본운동 첫 칸에 같은 큰 운동을 세운다. 켜지 않으면 예전과 같다.
+ */
+{
+  const { PIN_NAMES, pinCycleOf, pinSlotsFor, pinsFor } = await import('@/lib/report/pin');
+  const byTitle = new Map(library.map((ex) => [ex.title, ex]));
+  const missing = Object.values(PIN_NAMES).flat().filter((t) => !byTitle.has(t));
+  check('[큰 운동 고정] 이름 차례표의 운동이 모두 라이브러리에 있다', missing.length === 0, missing.join(', '));
+  check(
+    '[큰 운동 고정] 4주 묶음 — 2026-01-05 부터 28일마다, 하체는 스쿼트 ↔ 런지 · 상체는 밀기 + 당기기 · 그 밖은 없음',
+    pinCycleOf('2026-01-05') === 0 &&
+      pinCycleOf('2026-02-01') === 0 &&
+      pinCycleOf('2026-02-02') === 1 &&
+      pinCycleOf('2026-01-04') === -1 &&
+      pinSlotsFor('lower', '2026-01-05').join() === 'squat' &&
+      pinSlotsFor('lower', '2026-02-02').join() === 'lunge' &&
+      pinSlotsFor('upper', '2026-02-02').join() === 'push,pull' &&
+      pinSlotsFor('recovery', '2026-02-02').length === 0 &&
+      pinSlotsFor('assist', '2026-02-02').length === 0
+  );
+  const squat = byTitle.get('바벨 백 스쿼트')!;
+  const goblet = byTitle.get('고블렛 스쿼트')!;
+  const lunge = byTitle.get('바벨 런지')!;
+  const bench = byTitle.get('벤치 프레스')!;
+  const row = byTitle.get('바벨 로우')!;
+  const base = { usable: library, pool: library, skipIds: new Set<string>(), age: 22, level: '중급' };
+  const squatDay = pinsFor({ ...base, theme: 'lower', dateKey: '2026-01-05' });
+  const lungeDay = pinsFor({ ...base, theme: 'lower', dateKey: '2026-02-02' });
+  const upperDay = pinsFor({ ...base, theme: 'upper', dateKey: '2026-02-02' });
+  check(
+    '[큰 운동 고정] 장비가 다 있으면 스쿼트 묶음은 바벨 백 스쿼트, 런지 묶음은 바벨 런지, 상체는 벤치 프레스 + 바벨 로우',
+    squatDay?.ids.join() === squat.id &&
+      lungeDay?.ids.join() === lunge.id &&
+      upperDay?.ids.join() === `${bench.id},${row.id}` &&
+      /하체 날마다/.test(squatDay!.line) &&
+      /상체 날마다/.test(upperDay!.line) &&
+      !/—/.test(squatDay!.line + upperDay!.line)
+  );
+  const noBarbell = library.filter((ex) => !ex.equipment.includes('바벨') && !ex.equipment.includes('머신'));
+  check(
+    '[큰 운동 고정] 바벨 · 머신이 없으면 차례표의 다음 운동(고블렛 스쿼트)',
+    pinsFor({ ...base, usable: noBarbell, pool: noBarbell, theme: 'lower', dateKey: '2026-01-05' })?.ids.join() === goblet.id
+  );
+  check(
+    '[큰 운동 고정] 오늘 안전 거르기에 빠졌으면 다른 운동으로 갈아 끼우지 않는다 · 최근 사흘에 했거나 오늘 뺐으면 고정 안 함',
+    pinsFor({ ...base, pool: library.filter((ex) => ex.id !== squat.id), theme: 'lower', dateKey: '2026-01-05' }) === null &&
+      pinsFor({ ...base, skipIds: new Set([squat.id]), theme: 'lower', dateKey: '2026-01-05' }) === null &&
+      pinsFor({ ...base, skipIds: new Set([bench.id]), theme: 'upper', dateKey: '2026-01-05' })?.ids.join() === row.id
+  );
+  check(
+    '[큰 운동 고정] 만 16세 미만 · 입문은 고정하지 않는다(나이를 모르면 고정)',
+    pinsFor({ ...base, age: 15, theme: 'lower', dateKey: '2026-01-05' }) === null &&
+      pinsFor({ ...base, level: '입문', theme: 'lower', dateKey: '2026-01-05' }) === null &&
+      pinsFor({ ...base, age: null, theme: 'lower', dateKey: '2026-01-05' }) !== null
+  );
+
+  /* 일정 만들기 — 켠 날만 pinned 가 실리고, 그 운동이 본운동에 든다. 날짜 씨앗을 바꿔도 같은 운동이 온다 */
+  const facts = buildFacts({
+    nickname: '시험',
+    age: 22,
+    heightCm: 180,
+    logs: [],
+    checkins: [],
+    memos: [],
+    today: TODAY,
+  });
+  const plan = buildPitchPlan(facts);
+  const make = (pin: boolean, seed: string, recent: string[] = [], last: 'lower' | 'upper' = 'upper') => {
+    const built = buildDailyPlan({
+      user: { ownedEquipment: [], trainingLevel: '중급' },
+      facts,
+      plan,
+      library,
+      availableToday: null,
+      requestedMinutes: 60,
+      trainingGoal: '근력 향상',
+      recentIds: new Set(recent),
+      rotationSeed: seed,
+      lastLowerKey: last === 'lower' ? '2026-06-13' : '2026-06-10',
+      lastUpperKey: last === 'upper' ? '2026-06-13' : '2026-06-10',
+      pin,
+    });
+    return 'halted' in built ? null : built;
+  };
+  const expectLower = pinsFor({ ...base, theme: 'lower', dateKey: facts.asOf })!;
+  const off = make(false, 'a');
+  const onA = make(true, 'a');
+  const onB = make(true, 'b');
+  const onC = make(true, 'c');
+  const upper = make(true, 'a', [], 'lower');
+  const idsOf = (p: typeof onA) => p!.picks.map((x) => x.exerciseId);
+  check(
+    '[큰 운동 고정] 일정 — 안 켜면 pinned 칸이 없고, 켜면 하체 날 일정에 그 묶음의 고정 운동이 씨앗과 상관없이 든다',
+    off != null &&
+      !('pinned' in off) &&
+      [onA, onB, onC].every(
+        (p) =>
+          p != null &&
+          p.theme.key === 'lower' &&
+          p.pinned?.ids.join() === expectLower.ids.join() &&
+          idsOf(p).includes(expectLower.ids[0])
+      ),
+    `${onA?.theme.key} ${onA?.pinned?.ids.join()} / ${expectLower.ids.join()}`
+  );
+  check(
+    '[큰 운동 고정] 일정 — 상체 날에는 벤치 프레스 · 바벨 로우가 같이 든다',
+    upper != null &&
+      upper.theme.key === 'upper' &&
+      upper.pinned?.ids.join() === `${bench.id},${row.id}` &&
+      idsOf(upper).includes(bench.id) &&
+      idsOf(upper).includes(row.id),
+    `${upper?.theme.key} ${upper?.pinned?.ids.join()}`
+  );
+  const recentOff = make(true, 'a', [expectLower.ids[0]]);
+  check(
+    '[큰 운동 고정] 일정 — 최근 사흘에 한 날은 고정하지 않는다(pinned 칸 없음)',
+    recentOff != null && !('pinned' in recentOff)
+  );
+  const lines = planReasonLines(onA!);
+  const linesGone = planReasonLines(onA!, { shown: onA!.picks.filter((p) => p.exerciseId !== expectLower.ids[0]) });
+  const full = planReasonLines({ ...onA!, reasons: [{ text: '가' }, { text: '나' }, { text: '다' }] });
+  check(
+    '[큰 운동 고정] 까닭 줄 — 끝에 한 줄, 그 운동을 목록에서 빼면 없고, 까닭이 세 줄이면 붙이지 않는다',
+    lines[lines.length - 1] === expectLower.line &&
+      !linesGone.includes(expectLower.line) &&
+      full.length === 3 &&
+      !full.includes(expectLower.line)
+  );
+}
+
 console.log(`\n${passed}개 통과, ${failed}개 실패`);
 process.exit(failed === 0 ? 0 : 1);

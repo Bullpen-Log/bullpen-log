@@ -1924,6 +1924,7 @@ export function pickForTheme<T extends ThemedExercise>({
   goal = null,
   focus = null,
   scoreOf,
+  pinnedIds,
 }: {
   candidates: T[];
   theme: ThemeKey;
@@ -1983,6 +1984,11 @@ export function pickForTheme<T extends ThemedExercise>({
    * 점수보다 위다. 빼는 일은 없다. 안 주면 예전 차례 그대로 — 모든 점수가 0 이어도 같다.
    */
   scoreOf?: (ex: T) => number;
+  /**
+   * 오늘 고정하는 큰 운동(lib/report/pin.ts, 2026-11-23) — 본운동 후보의 맨 앞에 이 차례로 세운다. 고르는 규칙(시간 · 계열 겹침 ·
+   * 파워 비중)은 그대로라 시간이 모자라면 안 들어갈 수 있다. 안 주면 예전 차례 그대로.
+   */
+  pinnedIds?: readonly string[];
 }): { picks: ThemedPick<T>[]; estimatedMinutes: number; notes: string[] } {
   /*
    * 목표를 안 준 날은 오늘 고른 운동 종류를 따른다 — 일정 만들기와 같은 규칙이다
@@ -2113,6 +2119,11 @@ export function pickForTheme<T extends ThemedExercise>({
     if (spec.slot === 'main' && mainFirst !== '파워' && goalName === '근력 향상') {
       const anchor = pool.find((ex) => isStrengthAnchor(ex, theme));
       if (anchor) pool = [anchor, ...pool.filter((ex) => ex !== anchor)];
+    }
+    /* 고정하는 큰 운동이 그 앞이다 — 날마다 다른 무거운 운동(위) 대신 같은 운동을 되풀이해 무게를 올린다(pin.ts) */
+    if (spec.slot === 'main' && pinnedIds && pinnedIds.length > 0) {
+      const pins = pinnedIds.flatMap((id) => pool.find((ex) => ex.id === id) ?? []);
+      if (pins.length > 0) pool = [...pins, ...pool.filter((ex) => !pins.includes(ex))];
     }
 
     /*

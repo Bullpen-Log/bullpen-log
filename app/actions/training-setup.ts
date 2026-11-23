@@ -463,6 +463,8 @@ export async function generateTodayPlan(formData: FormData) {
     rotationSeed,
     lastLowerKey: strengthDates.lower,
     lastUpperKey: strengthDates.upper,
+    /* 큰 운동 고정(lib/report/pin.ts, 2026-11-23) — 근력 날 첫 칸에 같은 큰 운동을 세워 무게를 올려 가게 한다 */
+    pin: true,
     /*
      * 고르기 점수의 재료(2판 P5-j) — 기준선 도구의 inputsOf 가 같은 칸을 같은 규칙으로 모은다. 오늘 뺀 운동은 '다시 만들기' 전 일정(before)에서
      * — 60일 셈은 두 번부터라 방금 한 번 뺀 운동을 못 잡는다. 2주 계열은 하체 · 상체 차례와 같은 조회(lastStrengthDates)에서.
