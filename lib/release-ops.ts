@@ -121,6 +121,7 @@ export const RPC_ACTION_CAPABILITY: Record<string, OpAccess> = {
   /* 트레이닝 화면 안의 것 — 오늘 하고 싶은 운동 카드 · 운동 즐겨찾기(2026-11-01 트레이닝 엶). 같은 모듈의 다른 함수(체크인 카드 · 드릴 즐겨찾기)는 잠김 */
   'day-cards.saveTrainingPrefs': { cap: 'training' },
   'favorite.setExerciseFavorite': { cap: 'training' },
+  'favorite.setExercisePref': { cap: 'training' },
   /* app 모듈의 다른 읽기 — 모듈 기본(records)이 아닌 기능의 것은 따로 */
   'app.loadAppTraining': { cap: 'training' },
   'app.loadAppNutrition': { cap: 'nutrition' },

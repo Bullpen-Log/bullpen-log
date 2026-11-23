@@ -20,6 +20,7 @@
  *   tired     주 부위가 덜 회복된(회복도 50% 밑 — lib/report/recovery.ts, 2026-11-23) '중간' 이상 운동                 −2
  *   program   다음 근력 프로그램 날이 내일 안(PROGRAM_NEAR_DAYS) — 그날 프로그램과 같은 동작 열쇠(movementKeyOf)       −3
  *   swapped   오늘 일정에서 뺀 운동 −3, 최근 60일에 두 번 이상 바꿔서 뺀 운동(plan-swaps.ts swappedOutCounts) −2
+ *   less      '덜 추천'으로 표시한 운동(UserExercisePref, 2026-11-23). '다시 추천 안 함'은 점수가 아니라 후보에서 빠진다      −2
  *   pattern   2주 동안 한 번도 안 한 큰 동작 계열(스쿼트 · 힌지 · 런지 · 밀기 · 당기기 · 회전 · 운반)의 무게 운동   +2
  *             밀기 · 당기기는 둘 다 했어도 짝보다 덜 한 쪽   +1(2026-10-14 — 1 대 1로 맞춘다)
  *   favorite  즐겨찾기한 운동                                                                                          +1
@@ -78,7 +79,7 @@ import type { ThemeKey } from '@/lib/report/theme';
 /* ─────────────────────────── 상수 ─────────────────────────── */
 
 export type ScoreKey =
-  'outing' | 'stiff' | 'arm' | 'tired' | 'program' | 'swapped' | 'pattern' | 'favorite';
+  'outing' | 'stiff' | 'arm' | 'tired' | 'program' | 'swapped' | 'less' | 'pattern' | 'favorite';
 
 /**
  * 항목 차례 — parts · detail 에 싣는 차례이자, 값의 크기가 같을 때 이유 글이 고르는 차례. 다음 날 몸에 남는 것(등판) → 오늘 몸이
@@ -91,6 +92,7 @@ export const SCORE_KEYS: readonly ScoreKey[] = [
   'tired',
   'program',
   'swapped',
+  'less',
   'pattern',
   'favorite',
 ];
@@ -106,6 +108,7 @@ export const PROTECT_KEYS: readonly ScoreKey[] = [
   'tired',
   'program',
   'swapped',
+  'less',
 ];
 
 /** 지키는 항목의 '−'가 걸렸나 — 저장된 JSON 도 넘어오니 숫자인지 본다 */
@@ -127,6 +130,7 @@ export const SCORE_POINTS = {
   program: -3,
   swapped: -2,
   swappedToday: -3,
+  less: -2,
   pattern: 2,
   /* 밀기 · 당기기 중 2주에 덜 한 쪽(2026-10-14 김민: 밀기 · 당기기를 1 대 1로) */
   patternBalance: 1,
@@ -226,6 +230,8 @@ export type ScoreContext = {
   favoriteIds: ReadonlySet<string>;
   /** 부위별 회복도(lib/report/recovery.ts partRecovery) — 안 넘기면(옛 부르는 쪽 · 기록 없음) 항목이 꺼진다 */
   recovery?: ReadonlyMap<string, number> | null;
+  /** '덜 추천'으로 표시한 운동(lib/exercise-prefs.ts) — 안 넘기면 항목이 꺼진다 */
+  lessIds?: ReadonlySet<string> | null;
 };
 
 /** 항목마다 왜 걸렸나 — 이유 글이 읽는다(값만 저장한 옛 줄이면 없을 수 있다) */
@@ -252,6 +258,7 @@ export type ScoreDetail = {
   tired?: { part: string; pct: number };
   program?: { key: string; inDays: number };
   swapped?: { today: boolean; count: number };
+  less?: true;
   pattern?: { pattern: string; /** 안 한 것이 아니라 짝보다 덜 한 것(밀기 · 당기기) */ balance?: true };
   favorite?: true;
 };
@@ -306,6 +313,7 @@ export function scoreContextOf({
   swappedOutToday = new Set(),
   favoriteIds = new Set(),
   recovery = null,
+  lessIds = null,
 }: {
   theme: ThemeKey;
   facts: ReportFacts;
@@ -317,6 +325,7 @@ export function scoreContextOf({
   swappedOutToday?: ReadonlySet<string>;
   favoriteIds?: ReadonlySet<string>;
   recovery?: ReadonlyMap<string, number> | null;
+  lessIds?: ReadonlySet<string> | null;
 }): ScoreContext {
   return {
     theme,
@@ -332,6 +341,7 @@ export function scoreContextOf({
     swappedOutToday,
     favoriteIds,
     ...(recovery ? { recovery } : {}),
+    ...(lessIds && lessIds.size > 0 ? { lessIds } : {}),
   };
 }
 
@@ -453,6 +463,12 @@ export function scoreOf(ex: ScorableExercise, ctx: ScoreContext): ExerciseScore 
       parts.tired = SCORE_POINTS.tired;
       detail.tired = tired;
     }
+  }
+
+  /* less — 사용자가 덜 받겠다고 한 운동 */
+  if (ctx.lessIds?.has(ex.id)) {
+    parts.less = SCORE_POINTS.less;
+    detail.less = true;
   }
 
   /* favorite */
@@ -582,6 +598,8 @@ function fallbackLine(
       return value <= SCORE_POINTS.swappedToday
         ? '오늘 뺀 운동이라 뒤로 뒀어요.'
         : '여러 번 뺀 운동이라 뒤로 뒀어요.';
+    case 'less':
+      return '덜 추천으로 표시한 운동이라 뒤로 뒀어요.';
     case 'pattern':
       if (value === SCORE_POINTS.patternBalance && ex.movementPattern)
         return `2주 동안 ${josa(ex.movementPattern, '을', '를')} 덜 해서 앞에 뒀어요.`;
@@ -874,6 +892,16 @@ export function planReasonItemsOf({
         text: today ? '오늘 뺀 운동은 뒤로 뒀어요.' : '여러 번 뺀 운동은 뒤로 뒀어요.',
       });
     }
+  }
+
+  /* less — 덜 추천으로 표시한 운동 */
+  if (pushedBack('less').length > 0) {
+    signals.push({
+      key: 'less',
+      sign: -1,
+      weight: Math.abs(SCORE_POINTS.less),
+      text: '덜 추천으로 표시한 운동은 뒤로 뒀어요.',
+    });
   }
 
   /* stiff(+) — 회복 날 푸는 운동, 뽑힌 것만 */

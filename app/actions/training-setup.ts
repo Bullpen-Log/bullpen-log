@@ -37,6 +37,7 @@ import { carrySwaps, swappedOutOf } from '@/lib/report/plan-swaps';
 import { fingerprintOf } from '@/lib/report/plan-fingerprint';
 import { visibleExercises, type CachedExercise } from '@/lib/library-cache';
 import { loadPartRecovery } from '@/lib/report/recovery-load';
+import { exercisePrefs } from '@/lib/exercise-prefs';
 import {
   gatherFactsAndPlan,
   lastStrengthDates,
@@ -323,6 +324,7 @@ export async function generateTodayPlan(formData: FormData) {
     programRow,
     typesToday,
     recovery,
+    prefs,
     coach,
   ] = await Promise.all([
     /* 누가 보든 같은 목록이라 캐시에서 꺼낸다 (lib/library-cache.ts) */
@@ -354,6 +356,8 @@ export async function generateTodayPlan(formData: FormData) {
     pitchTypesToday(user.id, toDateKey(today)),
     /* 부위별 회복도(2026-11-23, lib/report/recovery.ts) — 덜 회복된 부위가 주 부위인 운동을 뒤로 미는 점수 재료 */
     loadPartRecovery(user.id, today),
+    /* 운동 선호(2026-11-23) — '다시 추천 안 함'은 후보에서 빼고, '덜 추천'은 뒤로 민다 */
+    exercisePrefs(user.id),
     /*
      * 유료 코치 진행 중이면 이번 주 틀을 지금 상태로 맞춘 뒤 그날 칸(docs/designs/ai-coach.md 10-5) — 자동 맞춤의 기본 시간만 바꾼다(엔진 판정 · 줄이기는 그대로).
      * 위에서 읽은 facts 를 넘겨 같은 계산을 다시 안 한다.
@@ -469,6 +473,7 @@ export async function generateTodayPlan(formData: FormData) {
     lastUpperKey: strengthDates.upper,
     /* 큰 운동 고정(lib/report/pin.ts, 2026-11-23) — 근력 날 첫 칸에 같은 큰 운동을 세워 무게를 올려 가게 한다 */
     pin: true,
+    neverIds: new Set([...prefs].flatMap(([id, pref]) => (pref === 'never' ? [id] : []))),
     /*
      * 고르기 점수의 재료(2판 P5-j) — 기준선 도구의 inputsOf 가 같은 칸을 같은 규칙으로 모은다. 오늘 뺀 운동은 '다시 만들기' 전 일정(before)에서
      * — 60일 셈은 두 번부터라 방금 한 번 뺀 운동을 못 잡는다. 2주 계열은 하체 · 상체 차례와 같은 조회(lastStrengthDates)에서.
@@ -480,6 +485,7 @@ export async function generateTodayPlan(formData: FormData) {
       swappedOutToday: swappedOutOf(before?.plan),
       favoriteIds,
       recovery,
+      lessIds: new Set([...prefs].flatMap(([id, pref]) => (pref === 'less' ? [id] : []))),
     },
     /*
      * 최근 운동 힘듦 급증(2판 P5-e) — 직접 고르기는 본운동 세트를 한 개씩 줄이고, 폼의 '그래도 고른 대로'(overrideEffort)면 그 몫만

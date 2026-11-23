@@ -25126,9 +25126,12 @@ console.log(
             'tired',
             'program',
             'swapped',
+            /* 2026-11-23 운동 선호 — '덜 추천'으로 표시한 운동(UserExercisePref) */
+            'less',
             'pattern',
             'favorite',
           ]) &&
+        SCORE_POINTS.less === -2 &&
         SCORE_POINTS.tired === -2 &&
         PLAN_REASONS_MAX === 3 &&
         SCORE_POINTS.outing === -3 &&
@@ -25201,6 +25204,8 @@ console.log(
       swappedOutToday: new Set([library[1].id]),
       /* 2026-11-23 부위별 회복도 — 햄스트링 · 둔근이 덜 회복된 날 */
       recovery: new Map([['햄스트링·둔근', 30]]),
+      /* 2026-11-23 운동 선호 — 덜 추천으로 표시한 운동 하나 */
+      lessIds: new Set([library[5].id]),
       /*
        * P5 검토로 바뀜(2026-10-13) — 지키는 항목이 걸린 운동엔 즐겨찾기가 안 실린다. 앞 둘은 이 ctx 에서 모두 걸려(어깨 · 허리 · 등판 ·
        * 팔), 걸릴 일이 없는 가동성 하나를 더한다(푸는 카테고리 · 동작 열쇠 없음 · 뺀 기록 없음).
@@ -25247,7 +25252,8 @@ console.log(
       (movementKeyOf(e) != null && busy.programNext!.patterns.has(movementKeyOf(e)!)) ||
       (busy.swappedOut.get(e.id) ?? 0) >= SWAPPED_MIN ||
       busy.swappedOutToday.has(e.id) ||
-      tiredHit(e);
+      tiredHit(e) ||
+      e.id === library[5].id;
     const want: Record<string, (e: (typeof library)[number]) => boolean> = {
       outing: (e) => isLowerPower(e) || isLowerEccentric(e),
       arm: (e) =>
@@ -25267,6 +25273,7 @@ console.log(
         !protects(e),
       stiff: (e) => loads(e) && e.bodyParts.some((p) => busy.eased.has(p)),
       tired: tiredHit,
+      less: (e) => e.id === library[5].id,
       favorite: (e) => busy.favoriteIds.has(e.id) && !protects(e),
     };
     const mism = Object.entries(want).flatMap(([key, fn]) => {
@@ -26991,11 +26998,11 @@ console.log(
         /swappedOutRecently\(user\.id, today\),\s*favoriteExerciseIds\(user\.id\),\s*activeProgram\(user\.id\),\s*pitchTypesToday\(user\.id, toDateKey\(today\)\),[\s\S]*?currentCoachWeek\(user, facts\),\s*\]\);/.test(
           fn
         ) &&
-        /score: \{\s*programPatterns: program\.patterns,\s*patternsDone14d: strengthDates\.patternsDone14d,\s*swappedOut,\s*swappedOutToday: swappedOutOf\(before\?\.plan\),\s*favoriteIds,\s*recovery,\s*\},/.test(
+        /score: \{\s*programPatterns: program\.patterns,\s*patternsDone14d: strengthDates\.patternsDone14d,\s*swappedOut,\s*swappedOutToday: swappedOutOf\(before\?\.plan\),\s*favoriteIds,\s*recovery,\s*lessIds: [^\n]+\n\s*\},/.test(
           fn
         ) &&
         /* 2026-11-23 부위별 회복도 — 같은 Promise.all 에 넣어 왕복이 늘지 않는다 */
-        /pitchTypesToday\(user\.id, toDateKey\(today\)\),\s*loadPartRecovery\(user\.id, today\),/.test(fn)
+        /pitchTypesToday\(user\.id, toDateKey\(today\)\),\s*loadPartRecovery\(user\.id, today\),\s*exercisePrefs\(user\.id\),/.test(fn)
     );
     /*
      * P6 로 바뀜(P6-3) — 왜: buildDay 가 점수 재료 뒤에 프로그램 날의 운동(programToday — D6)과 중재의 예산(budget)을 같이 넘긴다(앱
@@ -33690,6 +33697,66 @@ console.log('\n[통합 2026-10-16] 근육통 어림(sorenessFromParts) · 카드
       (loose == null || scoreOf(loose, ctx).parts.tired == null) &&
       scoreOf(heavy, { ...ctx, recovery: null }).parts.tired == null,
     `${JSON.stringify(scored.parts)} ${reasonLineOf(heavy, scored)}`
+  );
+}
+
+/*
+ * ── [운동 선호] (2026-11-23, UserExercisePref) — '덜 추천'은 뒤로(점수 −2), '다시 추천 안 함'은 매일 일정 후보에서 빠진다.
+ */
+{
+  const facts = buildFacts({ nickname: '시험', age: 22, heightCm: 180, logs: [], checkins: [], memos: [], today: TODAY });
+  const plan = buildPitchPlan(facts);
+  const make = (neverIds: Set<string> | null) => {
+    const built = buildDailyPlan({
+      user: { ownedEquipment: [], trainingLevel: '중급' },
+      facts,
+      plan,
+      library,
+      availableToday: null,
+      requestedMinutes: 60,
+      trainingGoal: '근력 향상',
+      recentIds: new Set<string>(),
+      rotationSeed: 'pref',
+      lastLowerKey: '2026-06-10',
+      lastUpperKey: '2026-06-13',
+      neverIds,
+    });
+    return 'halted' in built ? null : built;
+  };
+  const base = make(null)!;
+  const dropped = new Set(base.picks.slice(0, 3).map((p) => p.exerciseId));
+  const without = make(dropped)!;
+  check(
+    '[운동 선호] 다시 추천 안 함 — 표시한 운동은 일정에 안 나오고 다른 운동이 채운다, 안 넘기면 예전과 같은 목록',
+    without.picks.length > 0 &&
+      without.picks.every((p) => !dropped.has(p.exerciseId)) &&
+      JSON.stringify(make(new Set())!.picks) === JSON.stringify(base.picks)
+  );
+  const ex = library.find((e) => e.title === '바벨 백 스쿼트')!;
+  const ctx = scoreContextOf({
+    theme: 'lower',
+    facts,
+    state: { outing: { daysUntilNext: null, nextSource: null }, arm: { fatigue: null } } as never,
+    lessIds: new Set([ex.id]),
+    favoriteIds: new Set([ex.id]),
+  });
+  const scored = scoreOf(ex, ctx);
+  check(
+    '[운동 선호] 덜 추천 — −2 로 뒤로, 별이 같이 있어도 덜 추천이 이긴다(지키는 항목), 이유 한 줄',
+    scored.parts.less === -2 &&
+      scored.parts.favorite == null &&
+      scored.total === -2 &&
+      reasonLineOf(ex, scored) === '덜 추천으로 표시한 운동이라 뒤로 뒀어요.',
+    `${JSON.stringify(scored.parts)} ${reasonLineOf(ex, scored)}`
+  );
+  const src = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf-8');
+  check(
+    '[운동 선호] 배선 — 서버 동작이 값을 가려 받고(less · never · null), 일정 만들기가 둘로 갈라 넘기고, 앱 운동 상세가 같은 동작을 부른다',
+    src('app/actions/favorite.ts').includes('pref !== null && !isExercisePref(pref)') &&
+      src('app/actions/training-setup.ts').includes("pref === 'never' ? [id] : []") &&
+      src('app/actions/training-setup.ts').includes("pref === 'less' ? [id] : []") &&
+      src('lib/release-ops.ts').includes("'favorite.setExercisePref': { cap: 'training' }") &&
+      src('native/src/app/library/exercise/[id].tsx').includes("'favorite.setExercisePref', item.id, next")
   );
 }
 

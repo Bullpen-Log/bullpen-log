@@ -393,6 +393,8 @@ export type PlanScoreInput = {
   favoriteIds?: ReadonlySet<string>;
   /** 부위별 회복도(lib/report/recovery.ts partRecovery — recovery-load.ts 가 읽는다). 없으면 '덜 회복된 부위 −2' 가 꺼진다 */
   recovery?: ReadonlyMap<string, number> | null;
+  /** '덜 추천'으로 표시한 운동(lib/exercise-prefs.ts). 없으면 그 항목이 꺼진다 */
+  lessIds?: ReadonlySet<string> | null;
 };
 
 /** 통증 등으로 일정을 만들지 않은 경우 */
@@ -433,6 +435,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
   programToday = null,
   budget = null,
   pin = false,
+  neverIds = null,
 }: {
   user: UserForPlan;
   facts: ReportFacts;
@@ -513,6 +516,11 @@ export function buildDailyPlan<T extends ExerciseLike>({
    */
   pin?: boolean;
   /**
+   * '다시 추천 안 함'으로 표시한 운동(lib/exercise-prefs.ts, 2026-11-23) — 매일 일정의 후보에서 뺀다. 근력 프로그램 날의 운동은
+   * 막지 않는다(위 programToday 길은 이 칸을 안 본다 — 프로그램은 사용자가 고른 약속이다). 안 주면 예전과 같다.
+   */
+  neverIds?: ReadonlySet<string> | null;
+  /**
    * 중재의 하체 · 팔 예산(PlanBudgetInput, 2판 P6-3) — 프로그램이 있는 사람(매일 일정 길에서만 읽는다). 무거운 하체가 막혔으면 후보에서 빼고
    * 하체 날을 상체(되면) · 보조로 바꾼다('그래도 하기'면 그대로 두고 한 줄), 팔 예산을 다 썼으면 팔 플라이오를 뺀다('그래도 하기'로도).
    * 안 주면(null) 예전과 글자까지 같다.
@@ -575,10 +583,14 @@ export function buildDailyPlan<T extends ExerciseLike>({
   /* 날 종류 — 등판 다음 날은 운동 날이지만 팔로 던지는 운동은 뺀다(2026-11-16, '그래도 하기'로도 안 풀린다 — 팔 예산과 같은 칸) */
   const dk = dayKindOf(facts);
   const dropArm = (budget != null && !budget.armPlyo) || dk.afterOuting;
+  const dropNever = neverIds != null && neverIds.size > 0;
   const pool =
-    dropLower || dropArm
+    dropLower || dropArm || dropNever
       ? picked.candidates.filter(
-          (ex) => !(dropLower && isHeavyLower(ex)) && !(dropArm && isArmPlyo(ex))
+          (ex) =>
+            !(dropLower && isHeavyLower(ex)) &&
+            !(dropArm && isArmPlyo(ex)) &&
+            !(dropNever && neverIds.has(ex.id))
         )
       : picked.candidates;
   const budgetExcluded: { rule: string; count: number }[] = [];
@@ -710,6 +722,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
       swappedOutToday: score.swappedOutToday,
       favoriteIds: score.favoriteIds,
       recovery: score.recovery ?? null,
+      lessIds: score.lessIds ?? null,
     });
   }
   const scores = new Map<string, ExerciseScore>();

@@ -151,6 +151,7 @@ model User {
   createdAt           DateTime  @default(now())
 
   exerciseFavorites UserExerciseFavorite[]
+  exercisePrefs     UserExercisePref[]
   exerciseNotes     UserExerciseNote[]
   drillFavorites    UserDrillFavorite[]
   drillLogs         UserDrillLog[]
@@ -734,6 +735,23 @@ model MechanicsProgram {
  * 나오면, 같은 운동만 반복하지 않게 텀을 두고 돌리기로 한 결정을 되돌리는 셈이다.
  * 이 표는 '찾기'에만 쓴다.
  */
+/// 운동을 덜 추천받거나 아예 안 받겠다는 표시(2026-11-23). '더 자주'는 즐겨찾기(UserExerciseFavorite)가 맡는다.
+/// 매일 일정 만들기가 읽는다 — 'less' 는 뒤로(고르기 점수), 'never' 는 후보에서 뺀다. 줄이 없으면 보통.
+model UserExercisePref {
+  userId     String
+  exerciseId String
+  /// 'less'(덜 추천) | 'never'(다시 추천 안 함)
+  pref       String
+  createdAt  DateTime @default(now())
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise ExerciseVideo @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@id([userId, exerciseId])
+  @@index([userId])
+  @@index([exerciseId])
+}
+
 model UserExerciseFavorite {
   userId     String
   exerciseId String
@@ -1236,6 +1254,7 @@ model ExerciseVideo {
   createdAt        DateTime               @default(now())
   userLogs         UserExerciseLog[]
   favorites        UserExerciseFavorite[]
+  prefs            UserExercisePref[]
   notes            UserExerciseNote[]
   warmupItems      WarmupRoutineItem[]
   workoutSets      UserExerciseSet[]

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { OLD_OWN_VIDEOS } from '@/lib/shoot/plan';
 import { allExercises, visibleGuides } from '@/lib/library-cache';
 import { favoriteDrillIds, favoriteExerciseIds } from '@/lib/favorites';
+import { exercisePrefs } from '@/lib/exercise-prefs';
 import { exerciseNotes } from '@/lib/exercise-notes';
 import { createPlaybackUrls } from '@/lib/storage';
 import { referenceThumbUrl } from '@/lib/reference-video';
@@ -42,8 +43,9 @@ export async function loadExerciseLibrary(
    */
   const exercises = [...rows].reverse();
 
-  const [favoriteIds, notes, routines, thumbUrls] = await Promise.all([
+  const [favoriteIds, prefs, notes, routines, thumbUrls] = await Promise.all([
     favoriteExerciseIds(userId),
+    exercisePrefs(userId),
     /* 메모는 운동 중에 쓴 것(app/(session)/workout/run/exercise-note.tsx) */
     exerciseNotes(userId),
     prisma.warmupRoutine.findMany({
@@ -96,6 +98,7 @@ export async function loadExerciseLibrary(
       : null,
     exercises: exercises.map((ex) => ({
       favorite: favoriteIds.has(ex.id),
+      pref: prefs.get(ex.id) ?? null,
       note: notes.get(ex.id) ?? null,
       id: ex.id,
       title: ex.title,

@@ -4,6 +4,7 @@ import { allowFeature } from '@/lib/release-gate';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
+import { isExercisePref, type ExercisePref } from '@/lib/exercise-prefs';
 
 /**
  * 즐겨찾기 — 운동과 드릴에 별을 달고 뗀다.
@@ -88,6 +89,40 @@ export async function setExerciseFavorite(
   revalidatePath('/library/training');
   revalidatePath('/training');
   return { favorite };
+}
+
+/**
+ * 운동 선호를 정한다(2026-11-23) — 'less' 덜 추천 · 'never' 다시 추천 안 함 · null 보통(표시를 지운다).
+ *
+ * 매일 일정 만들기가 읽는다(app/actions/training-setup.ts): 'never' 는 후보에서 빠지고, 'less' 는 뒤로 밀린다. 직접 더하는 것 ·
+ * 근력 프로그램의 운동은 막지 않는다 — 앱이 알아서 내보내는 것만 바꾼다. 바라는 값을 받아 몇 번을 보내도 같다.
+ */
+export async function setExercisePref(
+  exerciseId: string,
+  pref: unknown
+): Promise<{ pref: ExercisePref | null } | { error: string }> {
+  allowFeature('training');
+  const user = await requireUser();
+  if (typeof exerciseId !== 'string' || !exerciseId) return { error: '운동을 찾을 수 없어요.' };
+  if (pref !== null && !isExercisePref(pref)) return { error: '고를 수 없는 값이에요.' };
+
+  if (pref === null) {
+    await prisma.userExercisePref.deleteMany({ where: { userId: user.id, exerciseId } });
+  } else {
+    const exercise = await prisma.exerciseVideo.findFirst({
+      where: { id: exerciseId, hiddenAt: null },
+      select: { id: true },
+    });
+    if (!exercise) return { error: '운동을 찾을 수 없어요.' };
+    await prisma.userExercisePref.upsert({
+      where: { userId_exerciseId: { userId: user.id, exerciseId } },
+      create: { userId: user.id, exerciseId, pref },
+      update: { pref },
+    });
+  }
+  revalidatePath('/library/training');
+  revalidatePath('/training');
+  return { pref };
 }
 
 export async function toggleDrillFavorite(guideId: string): Promise<Result> {

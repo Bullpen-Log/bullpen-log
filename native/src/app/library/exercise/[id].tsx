@@ -1,4 +1,6 @@
 import { router, useLocalSearchParams, type Href } from 'expo-router';
+import { useState } from 'react';
+import { rpc } from '~/lib/rpc';
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePalette, type Palette } from '~/lib/ui';
@@ -90,6 +92,66 @@ function FromList({ id, entry, back, c }: { id: string; entry: DetailEntry; back
   );
 }
 
+type Pref = 'less' | 'never' | null;
+/* 이 화면에서 바꾼 값 — 목록이 쥔 줄(recall)은 옛 값이라, 다시 열어도 방금 고른 것이 보이게 */
+const chosenPref = new Map<string, Pref>();
+const PREFS: readonly { value: Pref; label: string }[] = [
+  { value: null, label: '보통' },
+  { value: 'less', label: '덜 추천' },
+  { value: 'never', label: '추천 안 함' },
+];
+
+/**
+ * 추천 빈도(2026-11-23) — 매일 일정이 이 운동을 얼마나 내보낼지. '덜 추천'은 뒤로 밀리고 '추천 안 함'은 일정에서 빠진다
+ * (favorite.setExercisePref). 더 자주 받고 싶으면 위의 별(즐겨찾기). 직접 더하는 것 · 근력 프로그램의 운동은 그대로다.
+ */
+function PrefRow({ item, c }: { item: Exercise; c: Palette }) {
+  const [pref, setPref] = useState<Pref>(chosenPref.has(item.id) ? chosenPref.get(item.id)! : (item.pref ?? null));
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const choose = async (next: Pref) => {
+    if (busy || next === pref) return;
+    const before = pref;
+    setPref(next);
+    setError(null);
+    setBusy(true);
+    try {
+      const r = await rpc<{ pref: Pref } | { error: string }>('favorite.setExercisePref', item.id, next);
+      if ('error' in r) throw new Error(r.error);
+      chosenPref.set(item.id, next);
+    } catch (e) {
+      setPref(before);
+      setError(e instanceof Error && e.message ? e.message : '저장하지 못했어요.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <View style={[s.box, { backgroundColor: c.card, gap: 10 }]}>
+      <Text style={[s.smallBold, { color: c.ink }]}>오늘 일정에 추천</Text>
+      <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', gap: 8 }}>
+        {PREFS.map((p) => {
+          const on = p.value === pref;
+          return (
+            <Press
+              key={p.label}
+              onPress={() => void choose(p.value)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: on, disabled: busy }}
+              style={{ flex: 1, minHeight: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? c.action : c.chip }}
+            >
+              <Text style={{ color: on ? c.onAction : c.ink, fontSize: 15, fontWeight: on ? '600' : '400' }}>{p.label}</Text>
+            </Press>
+          );
+        })}
+      </View>
+      <Text style={[s.small, { color: error ? c.danger : c.muted }]}>
+        {error ?? (pref === 'never' ? '매일 일정에 나오지 않아요. 직접 더할 수는 있어요.' : pref === 'less' ? '매일 일정에서 뒤로 밀려요.' : '더 자주 받으려면 위의 별을 눌러요.')}
+      </Text>
+    </View>
+  );
+}
+
 function Body({ item, entry, back, c }: { item: Exercise; entry: DetailEntry; back: string; c: Palette }) {
   const inset = useSafeAreaInsets();
   const star = useFav('exercise', item.id, item.favorite);
@@ -127,6 +189,7 @@ function Body({ item, entry, back, c }: { item: Exercise; entry: DetailEntry; ba
           </View>
         ) : null}
         <ExerciseDetail item={item} entry={entry} c={c} />
+        <PrefRow item={item} c={c} />
       </ScrollView>
     </>
   );

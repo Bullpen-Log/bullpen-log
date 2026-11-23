@@ -69,6 +69,8 @@ export type ExerciseItem = {
   aspectRatio: number | null;
   /** 이 사람이 별을 달아 뒀는가 */
   favorite: boolean;
+  /** 덜 추천 · 다시 추천 안 함(UserExercisePref, 2026-11-23). 표시가 없으면 null — 옛 서버 답에는 칸이 없다 */
+  pref?: 'less' | 'never' | null;
   /** 이 사람이 운동 중에 이 운동에 남긴 메모(운동마다 하나). 없으면 null */
   note: string | null;
 } & Prescription;
