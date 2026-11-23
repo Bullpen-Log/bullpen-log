@@ -33784,5 +33784,32 @@ console.log('\n[통합 2026-10-16] 근육통 어림(sorenessFromParts) · 카드
   );
 }
 
+/*
+ * ── [처음 하는 운동 시작 무게] (2026-11-23, free-weight.ts suggestFirstWeight) — 같은 동작의 다른 바벨 운동 무게의 70%, 바벨끼리만.
+ */
+{
+  const { suggestFirstWeight, FIRST_WEIGHT_RATIO } = await import('@/lib/workout/free-weight');
+  const src = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf-8');
+  const first = suggestFirstWeight({ equipment: ['바벨'], relative: { title: '바벨 백 스쿼트', kg: 100 } });
+  check(
+    '[처음 하는 운동 시작 무게] 바벨 100kg 을 본 운동은 70kg 에서 시작(까닭 한 줄) · 빈 바 밑으로 안 내려감 · 바벨이 아니거나 볼 운동이 없으면 없음',
+    FIRST_WEIGHT_RATIO === 0.7 &&
+      first?.kg === 70 &&
+      first.note === '처음 하는 운동이라 바벨 백 스쿼트 100kg 을 보고 가볍게 잡았어요. 쉬우면 올려 주세요' &&
+      suggestFirstWeight({ equipment: ['바벨'], relative: { title: '벤치 프레스', kg: 22.5 } })?.kg === 20 &&
+      suggestFirstWeight({ equipment: ['덤벨'], relative: { title: '벤치 프레스', kg: 60 } }) === null &&
+      suggestFirstWeight({ equipment: ['바벨'], relative: null }) === null,
+    `${first?.kg} ${first?.note}`
+  );
+  check(
+    '[처음 하는 운동 시작 무게] 배선 — 내 기록이 없을 때만(추천이 없을 때), 근력 본운동 · 바벨끼리 · 같은 분류 · 같은 동작 · 최근 60일',
+    /\}\) \?\? suggestFirstWeight\(\{ equipment: e\.equipment, relative: relatives\.get\(e\.id\) \?\? null \}\)/.test(
+      src('lib/workout/free-weight-load.ts')
+    ) &&
+      src('lib/workout/free-weight-load.ts').includes('const RELATIVE_WINDOW_DAYS = 60;') &&
+      src('lib/workout/free-weight-load.ts').includes("weightKindOf(ex.equipment) === 'barbell'")
+  );
+}
+
 console.log(`\n${passed}개 통과, ${failed}개 실패`);
 process.exit(failed === 0 ? 0 : 1);

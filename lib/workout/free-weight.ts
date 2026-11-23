@@ -278,6 +278,28 @@ export function suggestFreeWeight(input: {
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
+/** 처음 하는 바벨 운동의 시작 무게 — 같은 동작의 다른 바벨 운동에서 든 무게의 이만큼(2026-11-23). 일부러 가볍게 잡는다 */
+export const FIRST_WEIGHT_RATIO = 0.7;
+
+/**
+ * 처음 하는 운동의 시작 무게(2026-11-23) — 이 운동 기록은 없지만 같은 분류 · 같은 동작의 다른 바벨 운동을 최근에 했으면 그 무게의
+ * 70% 를 바벨 단위로. 바벨끼리만 본다 — 덤벨 · 머신은 기록한 kg 의 뜻이 운동마다 달라(한 손 · 양손 · 기구 설정) 옮기면 틀린 무게가 난다.
+ * 가볍게 잡는 까닭: 운동이 다르면 드는 무게도 다르다(백 스쿼트 100kg 인 사람의 프론트 스쿼트는 80kg 남짓). 낮게 시작해도
+ * '몇 개 더?' 답(③)으로 금방 따라온다. 빈 바 밑으로는 안 내려간다.
+ */
+export function suggestFirstWeight(input: {
+  equipment: readonly string[];
+  /** 같은 동작의 다른 바벨 운동 — 가장 최근에 한 것의 이름과 그날 가장 무거운 무게 */
+  relative: { title: string; kg: number } | null;
+}): FreeSuggestion | null {
+  if (!input.relative || input.relative.kg <= 0 || weightKindOf(input.equipment) !== 'barbell') return null;
+  const kg = Math.max(BAR_KG, roundToUnit(input.relative.kg * FIRST_WEIGHT_RATIO, 'barbell'));
+  return {
+    kg,
+    note: `처음 하는 운동이라 ${input.relative.title} ${input.relative.kg}kg 을 보고 가볍게 잡았어요. 쉬우면 올려 주세요`,
+  };
+}
+
 /** 워밍업 세트의 계단 — 작업 무게의 비율과 횟수(2026-11-23). 무거워질수록 횟수를 줄여 힘을 남긴다 */
 export const WARMUP_STEPS: readonly { ratio: number; reps: number }[] = [
   { ratio: 0.5, reps: 5 },

@@ -1,10 +1,13 @@
 import 'server-only';
 import { historyKgReader } from '@/lib/workout/load/server';
 import { prisma } from '@/lib/prisma';
+import { allExercises } from '@/lib/library-cache';
+import { weightKindOf } from '@/lib/program/next-weight';
 import { toDateKey } from '@/lib/pitch-stats';
 import { readFrozenPlan, type FrozenExercise } from '@/lib/workout/session-plan';
 import {
   cautiousPrescription,
+  suggestFirstWeight,
   suggestFreeWeight,
   warmupLineOf,
   type FreeLast,
@@ -49,6 +52,17 @@ export async function withFreeWeights(
     wanted.map((e) => e.id),
     todayKey
   );
+  /* 기록이 없는 바벨 근력 운동 — 같은 동작의 다른 바벨 운동에서 시작 무게를 가늠한다(free-weight.ts suggestFirstWeight) */
+  const relatives = await relativeTops(
+    userId,
+    wanted.filter(
+      (e) =>
+        (recent.get(e.id) ?? []).length === 0 &&
+        ASK_RESERVE_CATEGORIES.includes(e.category) &&
+        weightKindOf(e.equipment) === 'barbell'
+    ),
+    todayKey
+  );
   return exercises.map((e) => {
     if (!wanted.includes(e)) return e;
     const days = recent.get(e.id) ?? [];
@@ -63,7 +77,7 @@ export async function withFreeWeights(
       hold: opts.hold === true,
       cautious: opts.cautious === true,
       holdProgress: opts.holdProgress,
-    });
+    }) ?? suggestFirstWeight({ equipment: e.equipment, relative: relatives.get(e.id) ?? null });
     const cautioned = opts.cautious
       ? { ...e, prescription: cautiousPrescription(e.prescription) }
       : e;
@@ -76,6 +90,63 @@ export async function withFreeWeights(
     const warmup = shown.askReserve ? warmupLineOf(s.kg, e.equipment) : null;
     return { ...shown, suggestedKg: s.kg, suggestNote: s.note, ...(warmup ? { warmupNote: warmup } : {}) };
   });
+}
+
+/** 처음 하는 운동의 시작 무게를 가늠할 때 보는 기간 — 그보다 오래된 무게는 지금 힘을 말해 주지 못한다 */
+const RELATIVE_WINDOW_DAYS = 60;
+
+/**
+ * 처음 하는 바벨 운동마다 '같은 분류 · 같은 동작의 다른 바벨 운동' 가운데 가장 최근에 한 것의 이름과 그날 가장 무거운 무게.
+ * 없으면 지도에 없다. kg 은 지금 운동과 같은 뜻인 기록만(historyKgReader 'metric' — 확인 전 · 맞지 않는 kg 은 빠진다).
+ */
+async function relativeTops(
+  userId: string,
+  firsts: readonly FrozenExercise[],
+  todayKey: string
+): Promise<Map<string, { title: string; kg: number }>> {
+  const out = new Map<string, { title: string; kg: number }>();
+  if (firsts.length === 0) return out;
+  const library = await allExercises();
+  /* 판에는 동작 계열이 없어 라이브러리에서 읽는다 */
+  const patternOf = new Map(library.map((ex) => [ex.id, ex.movementPattern ?? null]));
+  const need = firsts.filter((e) => patternOf.get(e.id) != null);
+  const kin = library.filter(
+    (ex) =>
+      ex.movementPattern != null &&
+      weightKindOf(ex.equipment) === 'barbell' &&
+      need.some((e) => e.id !== ex.id && e.category === ex.category && patternOf.get(e.id) === ex.movementPattern)
+  );
+  if (kin.length === 0) return out;
+  const midnight = new Date(`${todayKey}T00:00:00.000Z`);
+  const from = new Date(midnight);
+  from.setUTCDate(from.getUTCDate() - RELATIVE_WINDOW_DAYS);
+  const rows = await prisma.userExerciseSet.findMany({
+    where: { userId, exerciseId: { in: kin.map((ex) => ex.id) }, date: { gte: from, lt: midnight } },
+    orderBy: { date: 'desc' },
+    select: { id: true, exerciseId: true, sessionId: true, date: true, weightKg: true },
+  });
+  if (rows.length === 0) return out;
+  const kgOf = await historyKgReader(rows, 'metric');
+  /* 운동마다 가장 최근 날의 가장 무거운 무게 */
+  const tops = new Map<string, { date: number; kg: number }>();
+  for (const r of rows) {
+    const kg = kgOf(r);
+    if (kg == null || kg <= 0) continue;
+    const got = tops.get(r.exerciseId);
+    const day = r.date.getTime();
+    if (!got || day > got.date) tops.set(r.exerciseId, { date: day, kg });
+    else if (day === got.date && kg > got.kg) got.kg = kg;
+  }
+  for (const e of need) {
+    let best: { title: string; kg: number; date: number } | null = null;
+    for (const ex of kin) {
+      if (ex.id === e.id || ex.category !== e.category || ex.movementPattern !== patternOf.get(e.id)) continue;
+      const top = tops.get(ex.id);
+      if (top && (!best || top.date > best.date)) best = { title: ex.title, kg: top.kg, date: top.date };
+    }
+    if (best) out.set(e.id, { title: best.title, kg: best.kg });
+  }
+  return out;
 }
 
 /**
