@@ -209,6 +209,7 @@ export async function ArmcareSection({
                 items,
                 recommended: data.routine.recommended,
                 off: data.routine.off,
+                length: data.routine.length,
               }
             : null
         }

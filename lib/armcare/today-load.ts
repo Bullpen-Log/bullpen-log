@@ -148,6 +148,8 @@ export type AppArmcareCustom =
         notes: string[];
         estimatedMinutes: number;
         items: AppArmcareItem[];
+        /** 짧게 짠 루틴이면 'quick'(2026-11-24). 옛 앱은 안 읽는다 */
+        length?: 'quick';
       } | null;
     };
 
@@ -298,6 +300,7 @@ export async function loadAppArmcareTab(
           reason: data.routine.reason,
           notes: data.routine.notes,
           estimatedMinutes: data.routine.estimatedMinutes,
+          ...(data.routine.length ? { length: data.routine.length } : {}),
           items: await toItems(
             data.routine.items.map((it) => ({ exerciseId: it.exerciseId, sets: it.sets, area: it.area })),
             (ex) => notAdvised(data, ex, false),

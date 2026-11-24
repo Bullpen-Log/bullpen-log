@@ -17,6 +17,7 @@ import {
   armcareChoices,
   buildArmcareRoutine,
   type ArmcareChoice,
+  type ArmcareLength,
   type ArmcareRoutine,
 } from '@/lib/armcare/routine';
 import { ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
@@ -39,9 +40,10 @@ import { createRoutineOnce, updateRoutine, type RoutineRefused, type RoutineSave
  *
  * choice(2026-11-24) — 권한 것 대신 고른 것. 권한 것보다 가벼운 쪽만 받는다(armcareChoices). 안 주면 권한 대로(옛 화면 · 옛 앱).
  * 'off' 는 쉬는 날로 남긴다(루틴 없음 — 다시 고르면 바뀐다).
+ * length(2026-11-24) — 'quick' 이면 짧게(앞 자리만, lib/armcare/routine.ts QUICK_SLOTS). 안 주면 보통.
  */
 export async function makeArmcareRoutine(
-  input?: { choice?: ArmcareChoice } | null
+  input?: { choice?: ArmcareChoice; length?: ArmcareLength } | null
 ): Promise<{ ok: true } | { error: string }> {
   const user = await requireUser();
   const today = await loadArmcareToday(user, appNow());
@@ -94,6 +96,7 @@ export async function makeArmcareRoutine(
       : today.todayKey,
     /* 통증 루틴의 아픈 자리 — 오늘 '통증'인 관절의 것만(lib/armcare/today.ts) */
     painSpots: today.armPain?.spots ?? [],
+    length: input?.length === 'quick' ? 'quick' : 'full',
   });
   const routine: ArmcareRoutine = chosen ? { ...built, recommended } : built;
 

@@ -67,6 +67,8 @@ export function ArmcareToday({
     recommended?: ArmcareKind;
     /** 쉬는 날로 고른 날 */
     off?: true;
+    /** 짧게 짠 루틴 */
+    length?: 'quick';
   } | null;
   /**
    * 오늘 팔 통증(어깨 · 팔꿈치가 '통증'인 날) — 통증 루틴 카드에 [통증 안내 보기]를 붙인다. 없으면 null.
@@ -100,13 +102,22 @@ export function ArmcareToday({
   const fits = routine != null && routineFits(routine, decision.kind);
   const current: ArmcareChoice | ArmcareKind =
     routine && fits && routine.recommended != null ? (routine.off ? 'off' : routine.kind) : decision.kind;
-  const make = (choice: ArmcareChoice | ArmcareKind = current) => {
+  /* 길이(2026-11-24) — 만든 루틴이 있으면 그 길이, 아직이면 고른 것. 다시 만들기도 이 길이 그대로 */
+  const [pickedLen, setPickedLen] = useState<'full' | 'quick'>('full');
+  const madeLen = routine && !routine.off ? (routine.length ?? 'full') : null;
+  const len = madeLen ?? pickedLen;
+  const make = (choice: ArmcareChoice | ArmcareKind = current, length: 'full' | 'quick' = len) => {
     setError(undefined);
     startMaking(async () => {
       /* 신호가 끊겨 못 보냈으면 알리기만 한다 — 오류가 화면 전체로 번지지 않게(2026-09-27 검토) */
       try {
         const res = await makeArmcareRoutine(
-          choice === decision.kind ? null : { choice: choice as ArmcareChoice }
+          choice === decision.kind && length === 'full'
+            ? null
+            : {
+                ...(choice === decision.kind ? {} : { choice: choice as ArmcareChoice }),
+                ...(length === 'quick' ? { length } : {}),
+              }
         );
         if ('error' in res) setError(res.error);
       } catch (err) {
@@ -145,6 +156,32 @@ export function ArmcareToday({
     </div>
   );
 
+  /* 보통 · 짧게 — 만든 뒤에 바꾸면 그 길이로 다시 짠다(체크한 것은 남는다). 통증 루틴은 이미 짧아 없다 */
+  const lengthRow = decision.kind !== 'pain' && (
+    <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="루틴 길이">
+      <span className="text-xs font-semibold text-muted">길이</span>
+      {(['full', 'quick'] as const).map((l) => (
+        <button
+          key={l}
+          type="button"
+          role="radio"
+          aria-checked={len === l}
+          disabled={making}
+          onClick={() => {
+            if (len === l) return;
+            if (madeLen) make(current, l);
+            else setPickedLen(l);
+          }}
+          className={`inline-flex min-h-10 items-center rounded-full border px-3 text-xs font-semibold transition-colors disabled:opacity-60 ${
+            len === l ? 'border-sky bg-sky text-white' : 'border-line-strong text-ink hover:border-sky hover:text-sky'
+          }`}
+        >
+          {l === 'full' ? '보통' : '짧게'}
+        </button>
+      ))}
+    </div>
+  );
+
   if (routine?.off && fits) {
     return (
       <section className="space-y-3 rounded-2xl border border-line bg-surface p-(--block-pad)">
@@ -168,6 +205,7 @@ export function ArmcareToday({
           </p>
           {afterThrowing}
           {guide}
+          {lengthRow}
           <Button
             type="button"
             onClick={() => make(decision.kind)}
@@ -260,6 +298,7 @@ export function ArmcareToday({
           </button>
           {error && <p className="text-xs text-danger">{error}</p>}
         </div>
+        {!routine.items.every((it) => it.done) && lengthRow}
         {!routine.items.every((it) => it.done) && choiceRow}
       </section>
 

@@ -5873,6 +5873,28 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
       JSON.stringify(armcareChoices('recovery')) === JSON.stringify(['off']) &&
       JSON.stringify(armcareChoices('pain')) === JSON.stringify(['off'])
   );
+  /* 2026-11-24 짧게(ArmCare 의 Quick) — 앞 자리만 · 보통보다 짧게, 통증 루틴은 그대로 */
+  const quickBad: string[] = [];
+  for (let d = 1; d <= 30; d++) {
+    const seed = `2026-06-${String(d).padStart(2, '0')}`;
+    for (const [kind, max, areas] of [
+      ['strength', 3, ['shoulder-back', 'scapula', 'elbow-inner']],
+      ['light', 2, ['shoulder-back', 'scapula']],
+      ['recovery', 2, ['scapula', 'shoulder-back']],
+    ] as const) {
+      const full = build(kind, { seed });
+      const q = build(kind, { seed, length: 'quick' });
+      if (q.length !== 'quick' || full.length != null) quickBad.push(`${d}일 ${kind}: 길이 표시`);
+      if (q.items.length === 0 || q.items.length > max) quickBad.push(`${d}일 ${kind}: ${q.items.length}개`);
+      if (q.items.some((it) => !(areas as readonly string[]).includes(it.area))) quickBad.push(`${d}일 ${kind}: 자리 ${q.items.map((it) => it.area)}`);
+      if (q.estimatedMinutes > full.estimatedMinutes) quickBad.push(`${d}일 ${kind}: ${q.estimatedMinutes}분 > ${full.estimatedMinutes}분`);
+    }
+  }
+  check(
+    '짧게 — 30일 · 세 종류 모두 앞 자리만(강화 3 · 가벼운 강화 2 · 정리 2) · 보통보다 길지 않음 · 길이 표시',
+    quickBad.length === 0,
+    quickBad.slice(0, 4).join(' · ')
+  );
   {
     /* 2026-11-25(수) — 이번 주 월요일 11-23. 지난주(11-16~22) 둘, 그 전 주 하나 */
     const past = ['2026-11-16', '2026-11-18', '2026-11-10'];

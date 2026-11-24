@@ -168,6 +168,11 @@ function ArmcareGuideNote({ c }: { c: Palette }) {
   );
 }
 
+/** 오늘 루틴 카드가 보는 루틴 종류 — 루틴 칸이 아니면 null */
+function decisionKindOf(custom: AppArmcareTodayTab['custom']) {
+  return custom.kind === 'routine' ? custom.decision.kind : null;
+}
+
 /* 오늘 루틴 카드 — 남색 판(라이트 · 다크 · 네이비 같게, 흰 글자 대비 12:1 넘음) */
 const HERO_BG = '#16314f';
 const HERO_SUB = '#c9d7e8';
@@ -206,11 +211,18 @@ function TodayCard({
    */
   const rec = custom.kind === 'routine' ? (custom.recommended?.kind ?? custom.decision.kind) : null;
   const current = custom.kind !== 'routine' ? null : custom.off ? 'off' : custom.decision.kind;
-  const make = async (choice: string | null = current) => {
+  /* 길이(2026-11-24) — 만든 루틴이 있으면 그 길이, 아직이면 고른 것(만들 때 보낸다). 다시 만들기도 이 길이 그대로 */
+  const [pickedLen, setPickedLen] = useState<'full' | 'quick'>('full');
+  const madeLen = custom.kind === 'routine' && custom.routine ? (custom.routine.length ?? 'full') : null;
+  const len = madeLen ?? pickedLen;
+  const make = async (choice: string | null = current, length: 'full' | 'quick' = len) => {
     if (making || !ready) return;
     setMaking(true);
     setError(null);
-    const res = await act<{ ok: true }>('armcare.makeArmcareRoutine', choice == null || choice === rec ? null : { choice });
+    const payload: { choice?: string; length?: 'quick' } = {};
+    if (choice != null && choice !== rec) payload.choice = choice;
+    if (length === 'quick') payload.length = 'quick';
+    const res = await act<{ ok: true }>('armcare.makeArmcareRoutine', Object.keys(payload).length > 0 ? payload : null);
     /* 실패하면 지금 루틴 · 체크는 그대로(서버가 아무것도 안 바꿨다) */
     if ('error' in res) setError(offlineAs(res.error, '루틴을 만들지 못했어요.'));
     else await reload();
@@ -313,6 +325,33 @@ function TodayCard({
       </View>
     ) : null;
 
+  /* 보통 · 짧게 — 만든 뒤에 바꾸면 그 길이로 다시 짠다(한 운동은 남는다). 통증 루틴은 이미 짧아 없다 */
+  const lengthRow =
+    ready && decisionKindOf(custom) !== 'pain' ? (
+      <View style={st.choices} accessibilityRole="radiogroup">
+        <Text style={[s.small, { color: HERO_SUB }]}>길이</Text>
+        {(['full', 'quick'] as const).map((l) => {
+          const on = len === l;
+          return (
+            <Press
+              key={l}
+              onPress={() => {
+                if (on) return;
+                if (madeLen) void make(current, l);
+                else setPickedLen(l);
+              }}
+              disabled={making}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: on }}
+              style={[st.choiceChip, on ? { backgroundColor: '#fff', borderColor: '#fff' } : null]}
+            >
+              <Text style={[s.smallBold, { color: on ? HERO_BG : '#fff' }]}>{l === 'full' ? '보통' : '짧게'}</Text>
+            </Press>
+          );
+        })}
+      </View>
+    ) : null;
+
   if (custom.off)
     return shell(
       <>
@@ -331,6 +370,7 @@ function TodayCard({
         {sub(decision.reason)}
         {extras}
         {staleLine}
+        {lengthRow}
         {main(making ? '만드는 중…' : '오늘 루틴 만들기', () => void make(rec), making || !ready)}
         {choiceRow}
         {errorLine}
@@ -386,6 +426,7 @@ function TodayCard({
               ? main(showList ? '구성을 확인하고 있어요' : '바뀐 구성 확인', () => setShowList(true), showList)
               : main(done > 0 ? '이어하기' : '시작하기', start, !ready, 'play.fill')}
           {changed ? <Text style={[s.small, { color: HERO_SUB }]}>이미 수행한 {done}개 운동은 그대로 남아요. 바뀐 구성은 다시 만든 뒤 적용돼요.</Text> : null}
+          {!allDone && !changed ? lengthRow : null}
           {!allDone && !changed ? choiceRow : null}
           {errorLine}
         </>

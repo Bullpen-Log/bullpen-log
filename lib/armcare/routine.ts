@@ -323,6 +323,8 @@ export type ArmcareRoutine = {
   recommended?: ArmcareKind;
   /** 쉬기를 고른 날 — items 는 비어 있다(kind 는 권한 종류 그대로) */
   off?: true;
+  /** 짧게 짠 루틴(ArmcareLength) — 없으면 보통 */
+  length?: 'quick';
   /** 무엇 때문에 무엇을 바꿨는지 — '어깨가 뻐근해 …' */
   notes: string[];
   items: ArmcareItem[];
@@ -361,6 +363,14 @@ const SLOT_SETS: Record<FixedKind, readonly number[]> = {
 };
 /** 필수 자리가 넘겨도 되는 시간 */
 const CORE_SLACK_MINUTES = 5;
+
+/**
+ * 짧게(2026-11-24, ArmCare 의 Full 30분 / Quick 15분) — 앞 자리만 남기고 시간 한도를 줄인다. 강화는 기본 세 자리(어깨 뒤 · 견갑 ·
+ * 팔꿈치 안), 가벼운 강화 · 정리는 앞 둘. 통증 루틴은 이미 짧아 그대로다.
+ */
+export type ArmcareLength = 'full' | 'quick';
+const QUICK_SLOTS: Record<FixedKind, number> = { strength: 3, light: 2, recovery: 2 };
+const QUICK_BUDGET_MINUTES: Record<FixedKind, number> = { strength: 9, light: 5, recovery: 5 };
 
 /** 짧은 정리와 강화의 시간 상한. 수행 완료를 위해 억지로 채우지 않는다. */
 const BUDGET_MINUTES: Record<ArmcareKind, number> = {
@@ -566,6 +576,7 @@ export function buildArmcareRoutine({
   previous = null,
   seed,
   painSpots = [],
+  length = 'full',
 }: {
   decision: Extract<ArmcareDecision, { kind: ArmcareKind }>;
   /** 장비·경력을 거른 암케어 운동 */
@@ -592,6 +603,8 @@ export function buildArmcareRoutine({
    * 다른 루틴은 보지 않는다.
    */
   painSpots?: readonly ArmcareAreaKey[];
+  /** 짧게면 앞 자리만 · 시간 한도를 줄여 짠다(QUICK_SLOTS). 통증 루틴은 보지 않는다 */
+  length?: ArmcareLength;
 }): ArmcareRoutine {
   const kind = decision.kind;
   const notes: string[] = [];
@@ -638,7 +651,8 @@ export function buildArmcareRoutine({
     };
 
   const sets = SETS[kind];
-  const budget = BUDGET_MINUTES[kind];
+  const quick = length === 'quick' && kind !== 'pain';
+  const budget = quick ? QUICK_BUDGET_MINUTES[kind] : BUDGET_MINUTES[kind];
   const items: ArmcareItem[] = [];
   const taken = new Set<string>();
   const usedMuscles = new Set<string>();
@@ -672,7 +686,7 @@ export function buildArmcareRoutine({
   const slots: Slot[] =
     kind === 'pain'
       ? painSlots(painSpots)
-      : SLOTS[kind].map((area, i) => ({
+      : SLOTS[kind].slice(0, quick ? QUICK_SLOTS[kind] : undefined).map((area, i) => ({
           area,
           core: i < CORE_SLOTS[kind],
           sets: SLOT_SETS[kind][i],
@@ -780,6 +794,7 @@ export function buildArmcareRoutine({
     notes,
     items,
     estimatedMinutes: Math.round(used),
+    ...(quick ? { length: 'quick' as const } : {}),
   };
 }
 
