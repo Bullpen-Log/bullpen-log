@@ -27,7 +27,42 @@ import {
  * 강화는 실제 수행한 웨이트와 합쳐 조절하고, 정리는 반복량을 늘려 회복을 약속하지 않는다.
  */
 
-export type ArmcareKind = 'recovery' | 'strength' | 'pain';
+/**
+ * 루틴 종류 — 'light'(가벼운 강화)는 2026-11-24 더함: ArmCare 의 Hybrid(근력과 회복 사이의 가벼운 날)를 옮겼다. 강화 자리를 1세트씩,
+ * 버티기는 '중간'까지 · 나머지는 '낮음'까지만 넣는다. 날 종류(lib/engine/microcycle.ts)의 'light' 날(내일 등판)에 권한다.
+ */
+export type ArmcareKind = 'recovery' | 'light' | 'strength' | 'pain';
+
+/**
+ * 사용자가 고를 수 있는 것 — 루틴 종류 셋과 쉬기(2026-11-24, ArmCare 의 '추천 하나 + 다른 선택 둘').
+ * 권한 것보다 가벼운 쪽만 고른다 — 몸 상태가 회복을 말하는 날에 강화를 고를 수는 없다(armcareChoices).
+ */
+export type ArmcareChoice = 'strength' | 'light' | 'recovery' | 'off';
+
+/**
+ * 권한 루틴 말고 고를 수 있는 것 — 한 단계 가벼운 루틴과 쉬기. 통증 루틴 날은 쉬기만, 쉬는 날(rest)은 고를 것이 없다.
+ */
+export function armcareChoices(kind: ArmcareKind): ArmcareChoice[] {
+  if (kind === 'strength') return ['light', 'off'];
+  if (kind === 'light') return ['recovery', 'off'];
+  return ['off'];
+}
+
+/**
+ * 저장한 루틴이 지금 권하는 것과 맞나 — 같은 종류이거나, 직접 고른 것이 지금도 고를 수 있는 것(더 가벼운 쪽 · 쉬기)이면 맞다.
+ * 아니면 화면이 '몸 상태가 바뀌었어요'를 알린다(맞춤 루틴 카드 · 따라 하기 · 앱이 같은 판단).
+ */
+export function routineFits(
+  routine: Pick<ArmcareRoutine, 'kind' | 'recommended' | 'off'>,
+  recommended: ArmcareKind
+): boolean {
+  if (routine.recommended == null) return routine.kind === recommended && !routine.off;
+  const chosen: ArmcareChoice | ArmcareKind = routine.off ? 'off' : routine.kind;
+  return chosen === recommended || armcareChoices(recommended).some((c) => c === chosen);
+}
+
+/** 쉬기를 고른 날의 말 — 화면과 따라 하기가 같은 말을 쓴다 */
+export const ARMCARE_OFF_TEXT = { label: '쉬는 날', reason: '오늘은 쉬는 날로 골랐어요.' };
 
 /** 자리가 정해진 루틴 — 통증 루틴은 아픈 자리에 따라 자리를 그때그때 만든다(painSlots) */
 type FixedKind = Exclude<ArmcareKind, 'pain'>;
@@ -134,9 +169,10 @@ export function decideArmcare({
   if (afterThrowing) signals.push('오늘 등판');
   /*
    * 내일 등판(못 박힌 날만 — 짐작한 날은 nextDay 가 null) — 등판 전날 회전근개를 세게 지치게 하지 않는다(2026-11-24, ArmCare 의
-   * '내일 등판이면 무거운 회전근개 운동 없음'). 날 종류(lib/engine/microcycle.ts)도 outingTomorrow 는 'light' 다.
+   * '내일 등판이면 무거운 회전근개 운동 없음'). 날 종류(lib/engine/microcycle.ts)도 outingTomorrow 는 'light' 라 가벼운 강화를 권한다.
+   * 회복 까닭이 따로 있으면 회복이 이긴다(아래).
    */
-  if (state?.outing.nextDay === 1) signals.push('내일 등판');
+  const tomorrowOuting = state?.outing.nextDay === 1;
   /*
    * 어제 팔 부담 — 근력 프로그램의 '경기 다음 날' · 매일 일정의 날 종류(R1 의 어제 쪽 · R2 · R3')와 같은 함수(2판 P4 커밋 F, D3).
    * 어제 던졌어도 가볍게만 던졌으면(캐치볼 20구 · 경기 15구) 여기서는 회복으로 안 간다 — 아래 휴식표가 아직 쉬라고 할 때만.
@@ -208,6 +244,7 @@ export function decideArmcare({
       ...(afterThrowing ? { afterThrowing: true as const } : {}),
     };
   }
+  if (tomorrowOuting) return { kind: 'light', reason: '내일 등판 → 가벼운 강화' };
   return {
     kind: 'strength',
     reason:
@@ -251,6 +288,13 @@ export type ArmcareRoutine = {
   version: 1 | 2;
   kind: ArmcareKind;
   reason: string;
+  /**
+   * 사용자가 권한 것과 다른 것을 골랐으면 그때 권한 종류(2026-11-24). 없으면 권한 대로 만든 루틴이다. 고른 것이 지금도 고를 수 있는
+   * 것이면(armcareChoices) 화면은 '구성이 바뀜'으로 보지 않는다.
+   */
+  recommended?: ArmcareKind;
+  /** 쉬기를 고른 날 — items 는 비어 있다(kind 는 권한 종류 그대로) */
+  off?: true;
   /** 무엇 때문에 무엇을 바꿨는지 — '어깨가 뻐근해 …' */
   notes: string[];
   items: ArmcareItem[];
@@ -262,6 +306,8 @@ export type ArmcareRoutine = {
 const SLOTS: Record<FixedKind, readonly ArmcareAreaKey[]> = {
   strength: ['shoulder-back', 'scapula', 'elbow-inner', 'shoulder-front', 'elbow-outer'],
   recovery: ['scapula', 'shoulder-back', 'elbow-inner'],
+  /* 가벼운 강화 — 강화의 앞 넷을 1세트씩. 팔꿈치 외측은 강화날에만 */
+  light: ['shoulder-back', 'scapula', 'elbow-inner', 'shoulder-front'],
 };
 
 /**
@@ -277,12 +323,13 @@ const SLOT_MUSCLES: Partial<Record<ArmcareAreaKey, readonly string[]>> = {
 };
 
 /** 강화의 기본 세 자리만 여유를 주고, 정리는 시간 한도 안에서만 한다. */
-const CORE_SLOTS: Record<FixedKind, number> = { strength: 3, recovery: 0 };
+const CORE_SLOTS: Record<FixedKind, number> = { strength: 3, light: 2, recovery: 0 };
 
 /** 개별 기관의 검증된 처방이 아닌 시작 예시. 정리는 한 세트씩만. */
 const SLOT_SETS: Record<FixedKind, readonly number[]> = {
   strength: [2, 2, 2, 1, 1],
   recovery: [1, 1, 1],
+  light: [1, 1, 1, 1],
 };
 /** 필수 자리가 넘겨도 되는 시간 */
 const CORE_SLACK_MINUTES = 5;
@@ -290,10 +337,11 @@ const CORE_SLACK_MINUTES = 5;
 /** 짧은 정리와 강화의 시간 상한. 수행 완료를 위해 억지로 채우지 않는다. */
 const BUDGET_MINUTES: Record<ArmcareKind, number> = {
   strength: 15,
+  light: 10,
   recovery: 8,
   pain: 10,
 };
-const SETS: Record<ArmcareKind, number> = { strength: 2, recovery: 1, pain: 1 };
+const SETS: Record<ArmcareKind, number> = { strength: 2, light: 1, recovery: 1, pain: 1 };
 /** 넘겨도 되는 시간 — 딱 맞아떨어지는 일이 거의 없다 */
 const SLACK_MINUTES = 2;
 /** 운동을 바꾸는 데 드는 시간. 밴드를 옮겨 거는 정도라 일정(3분)보다 짧다. */
@@ -395,6 +443,8 @@ export function bodyStateBlock(
     if (level > light) return 'intensity';
 
   }
+  /* 가벼운 강화 — 버티기는 '중간'까지(armcareBlock 의 강화 한도), 움직이는 운동은 '낮음'까지 */
+  if (kind === 'light' && level > light && !isHold(ex)) return 'intensity';
   /*
    * 통증 루틴 — 버티기이거나 '낮음' 이하, 그리고 무게를 싣는 장비 없음(2026-10-03 정함). 버티기의 위 한도
    * ('중간')는 armcareBlock 이 강화날과 같이 막는다.
@@ -542,7 +592,8 @@ export function buildArmcareRoutine({
    */
   const preferHold = (area: ArmcareAreaKey) =>
     kind === 'pain' ||
-    (SHOULDER_AREAS.includes(area) && (kind === 'recovery' || stiffShoulder));
+    (SHOULDER_AREAS.includes(area) &&
+      (kind === 'recovery' || kind === 'light' || stiffShoulder));
   const holds = (ex: ArmcareCandidate) =>
     kind === 'pain' ? isHold(ex) : ex.holdSeconds != null;
   const order =
@@ -677,6 +728,8 @@ export function buildArmcareRoutine({
     notes.push(
       kind === 'recovery'
         ? `정리에는 낮은 강도의 운동만 넣어서 ${list} 뺐어요.`
+        : kind === 'light'
+          ? `가벼운 강화에는 버티기와 낮은 강도의 운동만 넣어서 ${list} 뺐어요.`
         : kind === 'pain'
           ? `아픈 날에 맞는 버티기 · 가벼운 운동이 없어 ${list} 뺐어요.`
           : `오늘 몸 상태에 맞는 가벼운 운동이 없어 ${list} 뺐어요.`
@@ -712,6 +765,7 @@ export function readArmcareRoutine(value: unknown): ArmcareRoutine | null {
   if ((routine.version !== 1 && routine.version !== 2) || !Array.isArray(routine.items)) return null;
   if (
     routine.kind !== 'recovery' &&
+    routine.kind !== 'light' &&
     routine.kind !== 'strength' &&
     routine.kind !== 'pain'
   ) {
@@ -728,6 +782,7 @@ export function readArmcareRoutine(value: unknown): ArmcareRoutine | null {
  */
 export const ARMCARE_KIND_TEXT: Record<ArmcareKind, { label: string }> = {
   recovery: { label: '가벼운 정리' },
+  light: { label: '가벼운 강화' },
   strength: { label: '어깨·팔 강화' },
   pain: { label: '통증 루틴' },
 };

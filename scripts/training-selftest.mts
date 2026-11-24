@@ -395,8 +395,10 @@ import {
   SEVERE_ARM_FATIGUE as routineSevereArmFatigue,
   armcareBlock,
   bodyStateBlock,
+  armcareChoices,
   buildArmcareRoutine,
   decideArmcare,
+  routineFits,
   readArmcareRoutine,
   type ArmcareKind,
 } from '../lib/armcare/routine.ts';
@@ -5843,6 +5845,40 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
   check(
     '강화 — 같은 운동이 두 번 안 나온다',
     new Set(strength.items.map((it) => it.exerciseId)).size === strength.items.length
+  );
+  /* 2026-11-24 가벼운 강화(ArmCare 의 Hybrid) — 1세트씩, 버티기는 '중간'까지 · 움직이는 운동은 '낮음'까지, 강화보다 짧다 */
+  const lightBad: string[] = [];
+  for (let d = 1; d <= 30; d++) {
+    const r = build('light', { seed: `2026-06-${String(d).padStart(2, '0')}` });
+    if (r.items.length === 0 || r.items.length > 4) lightBad.push(`${d}일: ${r.items.length}개`);
+    if (r.estimatedMinutes > 14) lightBad.push(`${d}일: ${r.estimatedMinutes}분`);
+    for (const it of r.items) {
+      const ex = exOf.get(it.exerciseId)!;
+      const lv = intensityLevel(ex.intensity);
+      const hold = ex.holdSeconds != null && ex.reps == null;
+      if (it.sets !== 1) lightBad.push(`${titleOf(it.exerciseId)} ${it.sets}세트`);
+      if (lv > intensityLevel(hold ? '중간' : '낮음')) lightBad.push(`${titleOf(it.exerciseId)} ${ex.intensity}`);
+    }
+  }
+  check(
+    '가벼운 강화 — 30일 모두 1~4개 · 14분 이내 · 1세트 · 버티기 중간까지 / 움직임 낮음까지',
+    lightBad.length === 0,
+    lightBad.slice(0, 4).join(' · ') || ratio(build('light'))
+  );
+  check(
+    '고를 수 있는 것 — 강화 → 가벼운 강화 · 쉬기, 가벼운 강화 → 정리 · 쉬기, 정리 · 통증 → 쉬기만(더 무거운 쪽은 없음)',
+    JSON.stringify(armcareChoices('strength')) === JSON.stringify(['light', 'off']) &&
+      JSON.stringify(armcareChoices('light')) === JSON.stringify(['recovery', 'off']) &&
+      JSON.stringify(armcareChoices('recovery')) === JSON.stringify(['off']) &&
+      JSON.stringify(armcareChoices('pain')) === JSON.stringify(['off'])
+  );
+  check(
+    '고른 루틴 맞음 — 권한 강화에 직접 고른 가벼운 강화 · 쉬기는 맞고, 권한 것이 회복으로 바뀌면 고른 가벼운 강화는 안 맞음',
+    routineFits({ kind: 'light', recommended: 'strength' }, 'strength') &&
+      routineFits({ kind: 'strength', recommended: 'strength', off: true }, 'strength') &&
+      !routineFits({ kind: 'light', recommended: 'strength' }, 'recovery') &&
+      routineFits({ kind: 'recovery' }, 'recovery') &&
+      !routineFits({ kind: 'strength' }, 'recovery')
   );
   /*
    * 어깨 전방 자리는 외회전과 짝을 이루는 내회전 자리다. 전면 삼각근·대흉근을 더한 뒤로
@@ -14140,9 +14176,9 @@ console.log(
   const armTomorrow = armOf({ today: { throwPlan: '내일 등판' } });
   const armTomorrowFar = armOf({ today: { throwPlan: '2~3일 뒤' } });
   check(
-    "암케어 (2026-11-24) 오늘 '내일 등판' → 강화 없이 '내일 등판 → 회복 루틴', '2~3일 뒤'는 그대로 강화",
-    armTomorrow.kind !== 'strength' &&
-      armTomorrow.reason.startsWith('내일 등판') &&
+    "암케어 (2026-11-24) 오늘 '내일 등판' → 강화 없이 '내일 등판 → 가벼운 강화', '2~3일 뒤'는 그대로 강화",
+    armTomorrow.kind === 'light' &&
+      armTomorrow.reason === '내일 등판 → 가벼운 강화' &&
       armTomorrowFar.kind === 'strength',
     `${armTomorrow.kind} · ${armTomorrow.reason} / ${armTomorrowFar.kind}`
   );

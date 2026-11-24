@@ -5,7 +5,16 @@ import { toDateKey } from '@/lib/pitch-stats';
 import { visibleExercises, type CachedExercise } from '@/lib/library-cache';
 import { ARMCARE_AREAS, areasOf, ARMCARE_CATEGORY, findArmcareArea, primaryArea, type ArmcareAreaKey } from '@/lib/armcare/anatomy';
 import { loadArmcareToday, notAdvised, type ArmcareTodayData } from '@/lib/armcare/today';
-import { AFTER_THROWING_TEXT, ARMCARE_KIND_TEXT, armcareMinutes, type ArmcareKind } from '@/lib/armcare/routine';
+import {
+  AFTER_THROWING_TEXT,
+  ARMCARE_KIND_TEXT,
+  ARMCARE_OFF_TEXT,
+  armcareChoices,
+  armcareMinutes,
+  routineFits,
+  type ArmcareChoice,
+  type ArmcareKind,
+} from '@/lib/armcare/routine';
 import { loadArmcareCoverage, type ArmPainLine } from '@/lib/armcare/coverage-load';
 import { loadMyRoutines } from '@/lib/armcare/my-routines-store';
 import { MY_ROUTINE_MAX } from '@/lib/armcare/my-routines';
@@ -123,6 +132,15 @@ export type AppArmcareCustom =
       afterThrowing: string | null;
       /** 오늘 팔 통증(통증 루틴 날) — 웹은 [통증 안내 보기]를 붙인다 */
       pain: boolean;
+      /**
+       * 지금 고를 수 있는 다른 것(2026-11-24) — 권한 것보다 가벼운 루틴 · 쉬기, 그리고 직접 고른 날엔 '권한 대로'. 옛 앱은 안 읽는다.
+       * decision 은 지금 하는 것(직접 골라 만든 날은 고른 종류)이고, 권한 것은 recommended 에 있다.
+       */
+      choices?: { choice: ArmcareChoice; label: string; recommended: boolean }[];
+      /** 권한 종류 — 직접 고르지 않았으면 decision 과 같다 */
+      recommended?: { kind: ArmcareKind; label: string; reason: string };
+      /** 쉬는 날로 고른 날 — routine 은 null(옛 앱은 만들기 전 화면을 보인다) */
+      off?: { label: string; reason: string };
       routine: {
         kind: ArmcareKind;
         label: string;
@@ -256,7 +274,22 @@ export async function loadAppArmcareTab(
     custom = { kind: 'rest', reason: data.decision.reason, pain: data.armPain != null };
   } else {
     const decision = data.decision;
-    const routine = data.routine
+    /*
+     * 직접 고른 루틴 — 고른 것이 지금도 고를 수 있는 것이면(권한 것이 그대로이거나 더 가벼운 쪽) 그 종류를 오늘 할 것으로 보인다. 아니면
+     * (오후에 던져 권한 것이 회복으로 바뀜) 권한 것을 보이고 화면이 '구성이 바뀜'을 알린다 — 옛 앱도 decision 만 보면 같은 판단을 한다.
+     */
+    const saved = data.routine;
+    const chosenKind: ArmcareKind | 'off' | null = saved?.recommended != null ? (saved.off ? 'off' : saved.kind) : null;
+    const chosenOk = saved != null && chosenKind != null && routineFits(saved, decision.kind);
+    const off = saved?.off && chosenOk ? ARMCARE_OFF_TEXT : undefined;
+    const doing: ArmcareKind = chosenOk && chosenKind !== 'off' ? chosenKind : decision.kind;
+    const choices = [
+      ...(chosenOk ? [{ choice: decision.kind as ArmcareChoice, label: ARMCARE_KIND_TEXT[decision.kind].label, recommended: true }] : []),
+      ...armcareChoices(decision.kind)
+        .filter((c) => c !== chosenKind)
+        .map((c) => ({ choice: c, label: c === 'off' ? ARMCARE_OFF_TEXT.label : ARMCARE_KIND_TEXT[c].label, recommended: false })),
+    ];
+    const routine = data.routine && !data.routine.off
       ? {
           kind: data.routine.kind,
           label: ARMCARE_KIND_TEXT[data.routine.kind].label,
@@ -273,10 +306,17 @@ export async function loadAppArmcareTab(
       : null;
     custom = {
       kind: 'routine',
-      decision: { kind: decision.kind, label: ARMCARE_KIND_TEXT[decision.kind].label, reason: decision.reason },
+      decision: {
+        kind: doing,
+        label: ARMCARE_KIND_TEXT[doing].label,
+        reason: doing === decision.kind ? decision.reason : (saved?.reason ?? decision.reason),
+      },
       afterThrowing: decision.afterThrowing ? AFTER_THROWING_TEXT : null,
       pain: data.armPain != null && (decision.kind === 'pain' || data.routine?.kind === 'pain'),
       routine,
+      choices,
+      recommended: { kind: decision.kind, label: ARMCARE_KIND_TEXT[decision.kind].label, reason: decision.reason },
+      ...(off ? { off } : {}),
     };
   }
 

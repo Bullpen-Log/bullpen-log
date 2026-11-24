@@ -197,7 +197,8 @@ export async function loadArmcareToday(user: UserForArmcare, today: Date) {
       (key, i) =>
         key !== todayKey &&
         doneDates.has(key) &&
-        readArmcareRoutine(routines[i].plan)?.kind === 'strength'
+        readArmcareRoutine(routines[i].plan)?.kind === 'strength' &&
+        !readArmcareRoutine(routines[i].plan)?.off
     );
   const actualStrength = strengthLogs.filter((l) => intensityLevel(l.exercise.intensity) >= intensityLevel('중간') &&
     (l.exercise.targetMuscles.length > 0 || l.exercise.bodyParts.some((p) => ['어깨', '팔'].includes(p))));

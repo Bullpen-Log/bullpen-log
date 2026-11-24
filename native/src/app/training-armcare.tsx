@@ -199,11 +199,17 @@ function TodayCard({
   const [error, setError] = useState<string | null>(null);
   const [showList, setShowList] = useState(false);
   const intents = useCheckIntents(dateKey);
-  const make = async () => {
+  /*
+   * 지금 고른 것 — 직접 고른 날(decision 이 권한 것과 다름 · 쉬는 날)엔 그것, 아니면 권한 것. 안 주고 만들면(다시 만들기) 이것 그대로라
+   * 직접 고른 날의 다시 만들기가 권한 대로 돌아가지 않는다. 권한 것은 recommended(옛 서버엔 없음 — 그때는 decision).
+   */
+  const rec = custom.kind === 'routine' ? (custom.recommended?.kind ?? custom.decision.kind) : null;
+  const current = custom.kind !== 'routine' ? null : custom.off ? 'off' : custom.decision.kind;
+  const make = async (choice: string | null = current) => {
     if (making || !ready) return;
     setMaking(true);
     setError(null);
-    const res = await act<{ ok: true }>('armcare.makeArmcareRoutine');
+    const res = await act<{ ok: true }>('armcare.makeArmcareRoutine', choice == null || choice === rec ? null : { choice });
     /* 실패하면 지금 루틴 · 체크는 그대로(서버가 아무것도 안 바꿨다) */
     if ('error' in res) setError(offlineAs(res.error, '루틴을 만들지 못했어요.'));
     else await reload();
@@ -286,6 +292,36 @@ function TodayCard({
     </>
   );
   const errorLine = error ? <Text style={[s.small, st.errorBox, { color: c.danger, backgroundColor: c.dangerBg }]}>{error}</Text> : null;
+  /* 다른 걸 할까요(2026-11-24) — 권한 것보다 가벼운 루틴 · 쉬기, 직접 고른 날엔 '권한 대로'. 옛 서버엔 choices 가 없어 안 그린다 */
+  const choiceRow =
+    ready && (custom.choices?.length ?? 0) > 0 ? (
+      <View style={st.choices}>
+        <Text style={[s.small, { color: HERO_SUB }]}>다른 걸 할까요?</Text>
+        {custom.choices!.map((o) => (
+          <Press
+            key={o.choice}
+            onPress={() => void make(o.choice)}
+            disabled={making}
+            accessibilityRole="button"
+            accessibilityLabel={o.recommended ? `권한 대로 ${o.label} 하기` : `${o.label}로 바꾸기`}
+            style={[st.choiceChip, { opacity: making ? 0.55 : 1 }]}
+          >
+            <Text style={[s.smallBold, { color: '#fff' }]}>{o.recommended ? `권한 대로 · ${o.label}` : o.label}</Text>
+          </Press>
+        ))}
+      </View>
+    ) : null;
+
+  if (custom.off)
+    return shell(
+      <>
+        {title(`오늘은 ${custom.off.label}`)}
+        {sub(custom.off.reason)}
+        {staleLine}
+        {choiceRow}
+        {errorLine}
+      </>
+    );
 
   if (!routine)
     return shell(
@@ -294,7 +330,8 @@ function TodayCard({
         {sub(decision.reason)}
         {extras}
         {staleLine}
-        {main(making ? '만드는 중…' : '오늘 루틴 만들기', () => void make(), making || !ready)}
+        {main(making ? '만드는 중…' : '오늘 루틴 만들기', () => void make(rec), making || !ready)}
+        {choiceRow}
         {errorLine}
       </>
     );
@@ -348,6 +385,7 @@ function TodayCard({
               ? main(showList ? '구성을 확인하고 있어요' : '바뀐 구성 확인', () => setShowList(true), showList)
               : main(done > 0 ? '이어하기' : '시작하기', start, !ready, 'play.fill')}
           {changed ? <Text style={[s.small, { color: HERO_SUB }]}>이미 수행한 {done}개 운동은 그대로 남아요. 바뀐 구성은 다시 만든 뒤 적용돼요.</Text> : null}
+          {!allDone && !changed ? choiceRow : null}
           {errorLine}
         </>
       )}
@@ -482,4 +520,6 @@ const st = StyleSheet.create({
   errorBox: { borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, overflow: 'hidden' },
   compo: { borderRadius: 20, paddingHorizontal: 16 },
   compoHead: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  choices: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, paddingTop: 2 },
+  choiceChip: { minHeight: 44, borderRadius: 22, paddingHorizontal: 14, justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)' },
 });

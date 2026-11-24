@@ -4,13 +4,21 @@ import { appendToOwnedRoutine } from '@/lib/armcare/routine-add';
 import { loadMyRoutines } from '@/lib/armcare/my-routines-store';
 import { type AddRoutineResult, type RoutineChoice } from '@/lib/armcare/routine-target';
 import { appNow } from '@/lib/clock';
+import { withJosa } from '@/lib/korean';
 import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { loadArmcareToday } from '@/lib/armcare/today';
-import { buildArmcareRoutine } from '@/lib/armcare/routine';
+import {
+  ARMCARE_KIND_TEXT,
+  ARMCARE_OFF_TEXT,
+  armcareChoices,
+  buildArmcareRoutine,
+  type ArmcareChoice,
+  type ArmcareRoutine,
+} from '@/lib/armcare/routine';
 import { ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
 import { visibleExercises } from '@/lib/library-cache';
 import {
@@ -28,8 +36,13 @@ import { createRoutineOnce, updateRoutine, type RoutineRefused, type RoutineSave
  *
  * 다시 만들면 순서를 섞는 씨앗에 지금 목록을 넣는다. 날짜만 씨앗으로 쓰면 같은
  * 날에는 몇 번을 눌러도 똑같은 루틴이 나와, 누른 보람이 없다.
+ *
+ * choice(2026-11-24) — 권한 것 대신 고른 것. 권한 것보다 가벼운 쪽만 받는다(armcareChoices). 안 주면 권한 대로(옛 화면 · 옛 앱).
+ * 'off' 는 쉬는 날로 남긴다(루틴 없음 — 다시 고르면 바뀐다).
  */
-export async function makeArmcareRoutine(): Promise<{ ok: true } | { error: string }> {
+export async function makeArmcareRoutine(
+  input?: { choice?: ArmcareChoice } | null
+): Promise<{ ok: true } | { error: string }> {
   const user = await requireUser();
   const today = await loadArmcareToday(user, appNow());
 
@@ -44,8 +57,31 @@ export async function makeArmcareRoutine(): Promise<{ ok: true } | { error: stri
     return { error: '재활 중에는 맞춤 루틴 대신 오늘 재활을 해요.' };
   }
 
-  const routine = buildArmcareRoutine({
-    decision: today.decision,
+  const recommended = today.decision.kind;
+  const choice = input?.choice ?? recommended;
+  if (choice !== recommended && !armcareChoices(recommended).some((c) => c === choice)) {
+    return { error: '지금 몸 상태로는 고를 수 없는 루틴이에요. 화면을 새로 불러와 주세요.' };
+  }
+  if (choice === 'off') {
+    const off: ArmcareRoutine = {
+      version: 2,
+      kind: recommended,
+      reason: ARMCARE_OFF_TEXT.reason,
+      notes: [],
+      items: [],
+      estimatedMinutes: 0,
+      recommended,
+      off: true,
+    };
+    await saveRoutine(user.id, today.midnight, off);
+    return { ok: true };
+  }
+  const chosen = choice !== recommended;
+
+  const built = buildArmcareRoutine({
+    decision: chosen
+      ? { kind: choice, reason: `${withJosa(ARMCARE_KIND_TEXT[choice].label, '을/를')} 직접 골랐어요.` }
+      : today.decision,
     candidates: today.candidates,
     facts: today.facts,
     lastDone: today.lastDone,
@@ -59,6 +95,7 @@ export async function makeArmcareRoutine(): Promise<{ ok: true } | { error: stri
     /* 통증 루틴의 아픈 자리 — 오늘 '통증'인 관절의 것만(lib/armcare/today.ts) */
     painSpots: today.armPain?.spots ?? [],
   });
+  const routine: ArmcareRoutine = chosen ? { ...built, recommended } : built;
 
   if (routine.items.length === 0) {
     return {
@@ -69,15 +106,18 @@ export async function makeArmcareRoutine(): Promise<{ ok: true } | { error: stri
     };
   }
 
+  await saveRoutine(user.id, today.midnight, routine);
+  return { ok: true };
+}
+
+async function saveRoutine(userId: string, date: Date, routine: ArmcareRoutine) {
   const plan = routine as unknown as Prisma.InputJsonValue;
   await prisma.dailyArmcare.upsert({
-    where: { userId_date: { userId: user.id, date: today.midnight } },
-    create: { userId: user.id, date: today.midnight, plan },
+    where: { userId_date: { userId, date } },
+    create: { userId, date, plan },
     update: { plan },
   });
-
   revalidatePath('/training');
-  return { ok: true };
 }
 
 /* ── 내 루틴 ─────────────────────────────────────────────────────────── */

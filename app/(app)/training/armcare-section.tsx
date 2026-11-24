@@ -207,6 +207,8 @@ export async function ArmcareSection({
                 notes: data.routine.notes,
                 estimatedMinutes: data.routine.estimatedMinutes,
                 items,
+                recommended: data.routine.recommended,
+                off: data.routine.off,
               }
             : null
         }

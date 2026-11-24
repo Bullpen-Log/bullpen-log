@@ -11,6 +11,10 @@ import { findArmcareArea, type ArmcareAreaKey } from '@/lib/armcare/anatomy';
 import {
   AFTER_THROWING_TEXT,
   ARMCARE_KIND_TEXT,
+  ARMCARE_OFF_TEXT,
+  armcareChoices,
+  routineFits,
+  type ArmcareChoice,
   type ArmcareKind,
 } from '@/lib/armcare/routine';
 import { MuscleChips } from '@/components/muscle-chips';
@@ -18,6 +22,7 @@ import { ExerciseMedia, type ArmcareExerciseView } from './armcare-media';
 import { ArmPainGuideButton, type ArmPainView } from './arm-pain-guide';
 import { CheckRow } from './check-row';
 import { buzz } from '@/lib/haptics';
+import { withJosa } from '@/lib/korean';
 import { Button, ButtonLink } from '@/components/ui';
 
 export type ArmcareTodayItem = {
@@ -58,6 +63,10 @@ export function ArmcareToday({
     notes: string[];
     estimatedMinutes: number;
     items: ArmcareTodayItem[];
+    /** 직접 골라 만들었으면 그때 권한 종류(lib/armcare/routine.ts ArmcareRoutine.recommended) */
+    recommended?: ArmcareKind;
+    /** 쉬는 날로 고른 날 */
+    off?: true;
   } | null;
   /**
    * 오늘 팔 통증(어깨 · 팔꿈치가 '통증'인 날) — 통증 루틴 카드에 [통증 안내 보기]를 붙인다. 없으면 null.
@@ -87,12 +96,18 @@ export function ArmcareToday({
     <p className="text-sm font-semibold break-keep text-ink">{AFTER_THROWING_TEXT}</p>
   ) : null;
 
-  const make = () => {
+  /* choice 를 안 주면 지금 고른 것 그대로 다시 만든다(직접 고른 날의 '다시 만들기'가 권한 대로 돌아가지 않게) */
+  const fits = routine != null && routineFits(routine, decision.kind);
+  const current: ArmcareChoice | ArmcareKind =
+    routine && fits && routine.recommended != null ? (routine.off ? 'off' : routine.kind) : decision.kind;
+  const make = (choice: ArmcareChoice | ArmcareKind = current) => {
     setError(undefined);
     startMaking(async () => {
       /* 신호가 끊겨 못 보냈으면 알리기만 한다 — 오류가 화면 전체로 번지지 않게(2026-09-27 검토) */
       try {
-        const res = await makeArmcareRoutine();
+        const res = await makeArmcareRoutine(
+          choice === decision.kind ? null : { choice: choice as ArmcareChoice }
+        );
         if ('error' in res) setError(res.error);
       } catch (err) {
         unstable_rethrow(err);
@@ -103,12 +118,50 @@ export function ArmcareToday({
 
   const suggested = ARMCARE_KIND_TEXT[decision.kind];
 
-  if (!routine) {
+  /*
+   * 다른 걸 할까요(2026-11-24, ArmCare 의 '추천 하나 + 다른 선택') — 권한 것보다 가벼운 루틴과 쉬기, 직접 고른 날엔 '권한 대로'.
+   * 몸 상태가 회복을 말하는 날에 강화를 고를 수는 없다(armcareChoices).
+   */
+  const others: { choice: ArmcareChoice | ArmcareKind; label: string }[] = [
+    ...(current !== decision.kind ? [{ choice: decision.kind, label: `권한 대로(${suggested.label})` }] : []),
+    ...armcareChoices(decision.kind)
+      .filter((c) => c !== current)
+      .map((c) => ({ choice: c, label: c === 'off' ? ARMCARE_OFF_TEXT.label : ARMCARE_KIND_TEXT[c].label })),
+  ];
+  const choiceRow = others.length > 0 && (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-xs font-semibold text-muted">다른 걸 할까요?</span>
+      {others.map((o) => (
+        <button
+          key={o.choice}
+          type="button"
+          onClick={() => make(o.choice)}
+          disabled={making}
+          className="inline-flex min-h-10 items-center rounded-full border border-line-strong px-3 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky disabled:opacity-60"
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (routine?.off && fits) {
+    return (
+      <section className="space-y-3 rounded-2xl border border-line bg-surface p-(--block-pad)">
+        <p className="text-heading text-xl text-ink">오늘은 {ARMCARE_OFF_TEXT.label}</p>
+        <p className="text-sm break-keep text-muted">{ARMCARE_OFF_TEXT.reason}</p>
+        {choiceRow}
+        {error && <p className="text-sm text-danger">{error}</p>}
+      </section>
+    );
+  }
+
+  if (!routine || routine.off) {
     return (
       <div className="space-y-3">
         <section className="space-y-3 rounded-2xl border border-sky-soft/40 bg-gradient-to-br from-sky/[0.07] via-surface to-surface p-(--block-pad)">
           <p className="text-heading text-xl text-ink">
-            오늘은 {suggested.label}을 권해요
+            오늘은 {withJosa(suggested.label, '을/를')} 권해요
           </p>
           <p className="text-sm font-semibold break-keep text-sky-strong">
             {decision.reason}
@@ -117,11 +170,12 @@ export function ArmcareToday({
           {guide}
           <Button
             type="button"
-            onClick={make}
+            onClick={() => make(decision.kind)}
             disabled={making}
           >
             {making ? '만드는 중…' : '맞춤 루틴 만들기'}
           </Button>
+          {choiceRow}
           {error && <p className="text-sm text-danger">{error}</p>}
         </section>
       </div>
@@ -135,7 +189,7 @@ export function ArmcareToday({
    * 권하지 않는다(unsafe). 말없이 바꾸지 않는다(한 것을 지우지 않으려고). 알리고,
    * 다시 만들지는 본인이 정한다.
    */
-  const kindChanged = routine.kind !== decision.kind;
+  const kindChanged = !fits;
   const unsafeCount = routine.items.filter((it) => it.unsafe).length;
 
   return (
@@ -197,7 +251,7 @@ export function ArmcareToday({
           </ButtonLink>
           <button
             type="button"
-            onClick={make}
+            onClick={() => make()}
             disabled={making}
             className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-line-strong px-3 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky disabled:opacity-60"
           >
@@ -206,6 +260,7 @@ export function ArmcareToday({
           </button>
           {error && <p className="text-xs text-danger">{error}</p>}
         </div>
+        {!routine.items.every((it) => it.done) && choiceRow}
       </section>
 
       <Checklist items={routine.items} dateKey={dateKey} />

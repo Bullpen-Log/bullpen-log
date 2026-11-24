@@ -9,7 +9,7 @@ import { ARMCARE_AREAS, ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
 import { buildFocusRoutine, parseAreas } from '@/lib/armcare/coverage';
 import { filterByEquipment } from '@/lib/report/equipment';
 import { prisma } from '@/lib/prisma';
-import { AFTER_THROWING_TEXT, ARMCARE_KIND_TEXT } from '@/lib/armcare/routine';
+import { AFTER_THROWING_TEXT, ARMCARE_KIND_TEXT, routineFits } from '@/lib/armcare/routine';
 import { REHAB_ENABLED, REHAB_STAGES } from '@/lib/armcare/rehab';
 import { loadArmcareToday, notAdvised } from '@/lib/armcare/today';
 import { isRoutineId } from '@/lib/armcare/my-routines';
@@ -183,10 +183,10 @@ export async function loadArmcarePlay(
     if (data.decision.kind === 'rest') notice = '오늘 통증을 남기셨어요. 쉬는 걸 권해요.';
   } else if (!mine) {
     /* 아직 안 만들었거나 통증인 날 — 루틴 칸이 그 까닭을 보여 준다 */
-    if (!data.routine || data.decision.kind === 'rest') return { ok: false, to: ARMCARE_BACK };
+    if (!data.routine || data.routine.off || data.decision.kind === 'rest') return { ok: false, to: ARMCARE_BACK };
     title = `오늘의 ${ARMCARE_KIND_TEXT[data.routine.kind].label}`;
     picks = data.routine.items.map((it) => ({ exerciseId: it.exerciseId, sets: it.sets }));
-    if (data.routine.kind !== data.decision.kind) {
+    if (!routineFits(data.routine, data.decision.kind)) {
       notice = `몸 상태가 바뀌었어요. ${data.decision.reason}`;
     }
   } else {
