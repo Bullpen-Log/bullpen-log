@@ -12,6 +12,8 @@ import {
   bodyStateBlock,
   decideArmcare,
   readArmcareRoutine,
+  STRENGTH_STREAK_WEEKS,
+  strengthWeekOf,
 } from '@/lib/armcare/routine';
 import {
   REHAB_ENABLED,
@@ -52,6 +54,8 @@ export type UserForArmcare = {
 
 /** 오래 안 한 것부터 돌리려고 보는 기간(일) */
 const HISTORY_DAYS = 45;
+/** 연속 주를 세려고 읽는 기간 — 지난 STRENGTH_STREAK_WEEKS 주 + 이번 주 월요일까지(최대 6일). 강화 루틴을 '한' 날은 HISTORY_DAYS 안의 기록으로 안다 */
+const STREAK_LOOKBACK_DAYS = 7 * STRENGTH_STREAK_WEEKS + 6;
 
 /**
  * 진행 중인 재활의 오늘 — 재활 중이면 맞춤 루틴을 짜지 않고 이것을 낸다(재활 2편). 내 루틴은 그대로다.
@@ -117,12 +121,12 @@ export async function loadArmcareToday(user: UserForArmcare, today: Date) {
   const [gathered, library, routines, logs, rehab, strengthLogs] = await Promise.all([
     gatherFactsAndPlan(user, today),
     visibleExercises(),
-    /* 오늘 루틴 + 지난 7일 루틴(강화를 몇 번 했나 — STRENGTH_PER_WEEK) */
+    /* 오늘 루틴 + 지난 루틴(강화를 몇 번 했나 — 최근 7일 STRENGTH_PER_WEEK · 이번 주 n/3 · 연속 주 strengthWeekOf) */
     prisma.dailyArmcare.findMany({
       where: {
         userId: user.id,
         date: {
-          gte: new Date(`${shiftDateKey(todayKey, -7)}T00:00:00.000Z`),
+          gte: new Date(`${shiftDateKey(todayKey, -STREAK_LOOKBACK_DAYS)}T00:00:00.000Z`),
           lte: midnight,
         },
       },
@@ -143,7 +147,7 @@ export async function loadArmcareToday(user: UserForArmcare, today: Date) {
     }),
     visibleExercises().then((all) => loadRehabToday(user, todayKey, all)),
     prisma.userExerciseLog.findMany({
-      where: { userId: user.id, completed: true, date: { gte: new Date(`${shiftDateKey(todayKey, -6)}T00:00:00.000Z`), lte: midnight } },
+      where: { userId: user.id, completed: true, date: { gte: new Date(`${shiftDateKey(todayKey, -STREAK_LOOKBACK_DAYS)}T00:00:00.000Z`), lte: midnight } },
       select: { date: true, exercise: { select: { intensity: true, targetMuscles: true, bodyParts: true } } },
     }),
   ]);
@@ -191,18 +195,25 @@ export async function loadArmcareToday(user: UserForArmcare, today: Date) {
    * ponytail: 내 루틴으로 세게 한 날은 안 센다 — 내 루틴 운동 강도를 읽어 세면 된다(내 루틴을 쓰는 사람이 생기면).
    */
   const saved = routines.find((r) => toDateKey(r.date) === todayKey) ?? null;
-  const strengthDays = routines
+  /* 강화 루틴을 한 날 — 오늘 것까지(이번 주 n/3). 최근 7일 셈(아래 recentStrength)은 예전처럼 어제까지 7일만 본다 */
+  const routineStrengthDays = routines
     .map((r) => toDateKey(r.date))
     .filter(
       (key, i) =>
-        key !== todayKey &&
         doneDates.has(key) &&
         readArmcareRoutine(routines[i].plan)?.kind === 'strength' &&
         !readArmcareRoutine(routines[i].plan)?.off
     );
-  const actualStrength = strengthLogs.filter((l) => intensityLevel(l.exercise.intensity) >= intensityLevel('중간') &&
+  const weekAgo = shiftDateKey(todayKey, -7);
+  const strengthDays = routineStrengthDays.filter((key) => key !== todayKey && key >= weekAgo);
+  const actualStrengthAll = strengthLogs.filter((l) => intensityLevel(l.exercise.intensity) >= intensityLevel('중간') &&
     (l.exercise.targetMuscles.length > 0 || l.exercise.bodyParts.some((p) => ['어깨', '팔'].includes(p))));
+  const actualStrength = actualStrengthAll.filter((l) => toDateKey(l.date) >= shiftDateKey(todayKey, -6));
   const strengthDates = new Set([...strengthDays, ...actualStrength.map((l) => toDateKey(l.date))]);
+  const strengthWeek = strengthWeekOf(
+    [...routineStrengthDays, ...actualStrengthAll.map((l) => toDateKey(l.date))],
+    todayKey
+  );
   const trainedToday = new Set(actualStrength.filter((l) => toDateKey(l.date) === todayKey).flatMap((l) => l.exercise.targetMuscles));
   const recentStrength = {
     today: strengthDates.has(todayKey),
@@ -245,6 +256,8 @@ export async function loadArmcareToday(user: UserForArmcare, today: Date) {
     week,
     /** 진행 중인 재활의 오늘 — 있으면 맞춤 루틴 자리에 재활 카드가 선다. 없으면 null */
     rehab,
+    /** 이번 주 강화 n/3 · 연속 주(strengthWeekOf) — 맞춤 강화 루틴을 한 날 + 웨이트에서 어깨 · 팔을 '중간' 넘게 한 날 */
+    strengthWeek,
   };
 }
 

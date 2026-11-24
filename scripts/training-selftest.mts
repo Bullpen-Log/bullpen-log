@@ -399,6 +399,7 @@ import {
   buildArmcareRoutine,
   decideArmcare,
   routineFits,
+  strengthWeekOf,
   readArmcareRoutine,
   type ArmcareKind,
 } from '../lib/armcare/routine.ts';
@@ -5872,6 +5873,20 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
       JSON.stringify(armcareChoices('recovery')) === JSON.stringify(['off']) &&
       JSON.stringify(armcareChoices('pain')) === JSON.stringify(['off'])
   );
+  {
+    /* 2026-11-25(수) — 이번 주 월요일 11-23. 지난주(11-16~22) 둘, 그 전 주 하나 */
+    const past = ['2026-11-16', '2026-11-18', '2026-11-10'];
+    const w1 = strengthWeekOf([...past, '2026-11-23'], '2026-11-25');
+    const w2 = strengthWeekOf([...past, '2026-11-23', '2026-11-25', '2026-11-25'], '2026-11-25');
+    const w0 = strengthWeekOf(['2026-11-22'], '2026-11-25');
+    check(
+      '이번 주 강화 — 월요일부터 센다 · 목표 3 · 연속 주는 2번 넘은 주가 지난주부터 이어진 수(이번 주가 2번이면 이번 주도) · 같은 날은 한 번',
+      w1.done === 1 && w1.target === 3 && w1.streak === 1 &&
+        w2.done === 2 && w2.streak === 2 &&
+        w0.done === 0 && w0.streak === 0,
+      `${JSON.stringify(w1)} ${JSON.stringify(w2)} ${JSON.stringify(w0)}`
+    );
+  }
   check(
     '고른 루틴 맞음 — 권한 강화에 직접 고른 가벼운 강화 · 쉬기는 맞고, 권한 것이 회복으로 바뀌면 고른 가벼운 강화는 안 맞음',
     routineFits({ kind: 'light', recommended: 'strength' }, 'strength') &&

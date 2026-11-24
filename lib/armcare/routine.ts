@@ -13,6 +13,7 @@ import { todayPrefsOf, type ReportFacts } from '@/lib/report/facts';
 import { pendingOuting, type PitchPlan } from '@/lib/report/plan';
 import type { DayState } from '@/lib/engine/day-state';
 import { withJosa } from '@/lib/korean';
+import { shiftDateKey, weekStartKey } from '@/lib/pitch-stats';
 import {
   ARMCARE_AREAS,
   ARMCARE_CATEGORY,
@@ -100,6 +101,33 @@ const LOW_CONDITION = LOW_CONDITION_THRESHOLD;
  * 나머지 날은 회복 루틴으로". 회전근개 근력 운동은 48시간 쉬어야 다시 세게 할 수 있다(투수 표준 프로그램도 주 3번).
  */
 export const STRENGTH_PER_WEEK = 3;
+
+/**
+ * 이번 주 강화 n/3 · 연속 주(2026-11-24, ArmCare 의 주간 목표 막대 · Week Streak) — 주는 월요일부터(weekStartKey, 투구 탭 '이번 주'와 같다).
+ * 목표는 STRENGTH_PER_WEEK(3). 연속 주는 강화를 2번 이상 한 주가 지난주부터 거꾸로 몇 주 이어졌나(이번 주가 이미 2번이면 이번 주도 센다).
+ * 2번인 까닭 — 회전근개 강화는 주 2~3번이면 된다(ArmCare · 투수 표준 프로그램). 3번을 못 채운 주를 끊으면 연속이 너무 쉽게 끊긴다.
+ */
+export const STREAK_STRENGTH_MIN = 2;
+/** 연속 주를 몇 주 전까지 보나 — 불러오는 쪽(lib/armcare/today.ts)이 이만큼(+ 이번 주 6일) 읽는다 */
+export const STRENGTH_STREAK_WEEKS = 5;
+
+export function strengthWeekOf(
+  dates: Iterable<string>,
+  todayKey: string
+): { done: number; target: number; streak: number } {
+  const days = [...new Set(dates)];
+  const countIn = (from: string, to: string) => days.filter((d) => d >= from && d <= to).length;
+  const monday = weekStartKey(todayKey);
+  const done = countIn(monday, todayKey);
+  let streak = 0;
+  for (let w = 1; w <= STRENGTH_STREAK_WEEKS; w++) {
+    const start = shiftDateKey(monday, -7 * w);
+    if (countIn(start, shiftDateKey(start, 6)) < STREAK_STRENGTH_MIN) break;
+    streak++;
+  }
+  if (done >= STREAK_STRENGTH_MIN) streak++;
+  return { done, target: STRENGTH_PER_WEEK, streak };
+}
 
 /** 최근 강화 루틴을 한 날 — 맞춤 루틴이 강화였고 암케어를 하나라도 체크한 날(lib/armcare/today.ts 가 센다) */
 export type RecentStrength = { yesterday: boolean; last7: number; today?: boolean };

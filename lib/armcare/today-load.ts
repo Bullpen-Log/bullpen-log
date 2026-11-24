@@ -178,6 +178,8 @@ export type AppArmcareTodayTab = {
   routineMax: number;
   painToday: boolean;
   week: { key: string; done: boolean }[];
+  /** 이번 주 강화 n/3 · 연속 주(2026-11-24, lib/armcare/routine.ts strengthWeekOf). 옛 앱은 안 읽는다 */
+  strengthWeek?: { done: number; target: number; streak: number };
 };
 
 export type AppArmcareGuideTab = {
@@ -357,6 +359,7 @@ export async function loadAppArmcareTab(
     routineMax: MY_ROUTINE_MAX,
     painToday: data.decision.kind === 'rest',
     week: data.week,
+    strengthWeek: data.strengthWeek,
   };
 }
 

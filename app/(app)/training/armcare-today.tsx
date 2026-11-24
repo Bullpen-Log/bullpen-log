@@ -281,6 +281,31 @@ const monthDay = (key: string) => {
 };
 
 /**
+ * 이번 주 강화 n/3 · 연속 주(2026-11-24, ArmCare 의 주간 목표 막대 · Week Streak) — 셈은 lib/armcare/routine.ts strengthWeekOf.
+ * 3을 넘긴 주도 있다(웨이트에서 어깨 · 팔을 세게 한 날까지 센다) — 칸은 목표까지만 채운다.
+ */
+export function StrengthWeek({ week }: { week: { done: number; target: number; streak: number } }) {
+  return (
+    <div className="rounded-2xl border border-line bg-surface px-4 py-3.5">
+      <p className="flex items-baseline justify-between text-sm">
+        <span className="font-semibold text-ink">이번 주 강화</span>
+        <span className="text-muted">
+          <b className="text-numeric text-base text-ink tabular-nums">{week.done}</b>/{week.target}번
+        </span>
+      </p>
+      <div className="mt-2.5 flex gap-1" aria-hidden>
+        {Array.from({ length: week.target }, (_, i) => (
+          <span key={i} className={`h-1.5 flex-1 rounded-full ${i < week.done ? 'bg-sky' : 'bg-surface-2'}`} />
+        ))}
+      </div>
+      <p className="mt-2 text-xs break-keep text-muted">
+        {week.streak >= 2 ? `${week.streak}주 연속으로 주 2번 넘게 했어요.` : '강화는 주 2~3번, 이틀 잇지 않고 해요.'}
+      </p>
+    </div>
+  );
+}
+
+/**
  * 이번 주 암케어 — 최근 7일(오늘 포함)을 점 7개로.
  *
  * 예전에는 '최근 7일 중 암케어를 한 날 N일'이라는 글 한 줄이었다. 매일 하는 것이

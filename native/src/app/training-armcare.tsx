@@ -12,7 +12,7 @@ import { sendCheck } from '~/armcare/send';
 import { act, leave, offlineAs } from '~/mechanics/parts';
 import { usePalette, type Palette } from '~/lib/ui';
 import { openCheckin } from '~/shell/web-nav';
-import { Checklist, RehabCard, RoutineCard, WeekDots, doneWith, openPlay, useCheckIntents } from '~/training/armcare-parts';
+import { Checklist, RehabCard, RoutineCard, StrengthWeek, WeekDots, doneWith, openPlay, useCheckIntents } from '~/training/armcare-parts';
 import { FavButton } from '~/training/fav-button';
 import { Fold, Screen, SectionHead, s, useScreenData } from '~/training/screen';
 import { useRememberPart } from '~/training/remember';
@@ -138,6 +138,7 @@ function TodayTab({ data, fresh, failed, reload, c }: { data: AppArmcareTodayTab
         )}
       </View>
 
+      {data.strengthWeek ? <StrengthWeek week={data.strengthWeek} c={c} /> : null}
       <WeekDots week={data.week} c={c} />
       <ArmcareGuideNote c={c} />
     </View>

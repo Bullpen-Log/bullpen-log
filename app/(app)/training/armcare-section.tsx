@@ -33,7 +33,7 @@ import { loadRehabThrows } from '@/lib/armcare/rehab-store';
 import type { RehabToday } from '@/lib/armcare/today';
 import { Card } from '@/components/ui';
 import { OpenCheckinButton } from '@/components/notice-bell';
-import { ArmcareToday, WeekDots, type ArmcareTodayItem } from './armcare-today';
+import { ArmcareToday, StrengthWeek, WeekDots, type ArmcareTodayItem } from './armcare-today';
 import { ArmPainGuideButton } from './arm-pain-guide';
 import { ArmcareGuide } from './armcare-guide';
 import { ArmcareInfoProvider } from './armcare-info';
@@ -306,6 +306,7 @@ export async function ArmcareSection({
           />
         </section>
 
+        <StrengthWeek week={data.strengthWeek} />
         <WeekDots week={data.week} />
       </div>
     </ArmcareInfoProvider>

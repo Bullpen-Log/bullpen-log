@@ -249,6 +249,35 @@ export function Checklist({
 }
 
 /** 최근 7일(오늘 포함) — 기록한 날(서버에 저장된 체크가 있는 날). 루틴 완료율 · 연속 출석 · 회복이 아니다(2026-10-30 시안 01) */
+/**
+ * 이번 주 강화 n/3 · 연속 주(2026-11-24, ArmCare 의 주간 목표 막대 · Week Streak) — 셈은 서버(lib/armcare/routine.ts strengthWeekOf).
+ * 3을 넘긴 주도 있다(웨이트에서 어깨 · 팔을 세게 한 날까지 센다) — 칸은 목표까지만 채운다.
+ */
+export function StrengthWeek({ week, c }: { week: { done: number; target: number; streak: number }; c: Palette }) {
+  return (
+    <View
+      style={[st.routine, { backgroundColor: c.card, boxShadow: c.float, borderColor: c.line, paddingVertical: 14, gap: 10 }]}
+      accessible
+      accessibilityLabel={`이번 주 강화 ${week.target}번 중 ${week.done}번${week.streak >= 2 ? `, ${week.streak}주 연속` : ''}`}
+    >
+      <View style={s.between}>
+        <Text style={[s.bodyBold, { color: c.ink }]}>이번 주 강화</Text>
+        <Text style={[s.small, { color: c.muted }]}>
+          <Text style={{ color: c.ink, fontWeight: '700' }}>{week.done}</Text>/{week.target}번
+        </Text>
+      </View>
+      <View style={{ flexDirection: 'row', gap: 4 }}>
+        {Array.from({ length: week.target }, (_, i) => (
+          <View key={i} style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: i < week.done ? c.sky : c.chip }} />
+        ))}
+      </View>
+      <Text style={[s.small, { color: c.muted }]}>
+        {week.streak >= 2 ? `${week.streak}주 연속으로 주 2번 넘게 했어요.` : '강화는 주 2~3번, 이틀 잇지 않고 해요.'}
+      </Text>
+    </View>
+  );
+}
+
 export function WeekDots({ week, c }: { week: { key: string; done: boolean }[]; c: Palette }) {
   return <Week days={week} c={c} />;
 }
