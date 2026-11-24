@@ -5,7 +5,7 @@
   "scope": "메커니즘 투구 드릴 전체 — 직접 촬영/참고/나중에 촬영 포함",
   "catalog_url": "https://dugout-baseball.com/library/mechanics",
   "base_ref": "aa9d89848bd2ee182ed2151653466c83ed3a9010",
-  "state": "10번 사용자 확인 대기",
+  "state": "11번 사용자 확인 대기",
   "source_last_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
   "source_modified_time_semantics": "로컬 파일 실제 mtime. 이후 운영 공지 갱신을 포함할 수 있으며 영상 관찰/사용자 판정 시각이 아님.",
   "catalog_snapshot": {
@@ -49,21 +49,12 @@
     "identity_rule": "review_id는 로컬 검수 ID이며 DB ID가 아님. drill_id=null은 미확인. asset_id/path는 서명 없는 안전 식별자. 같은 영상의 다른 도구 드릴도 별개 항목."
   },
   "current": {
-    "number": 10,
-    "review_id": "mv-fdb0fc2936315a11",
-    "title": "스위치 풋 드롭 힌지 스로우 (작은 메디신볼)",
-    "drill_id": "e759318e-e89c-426b-a3d9-b41ea412be90",
-    "category": "드롭",
+    "number": 11,
+    "review_id": "mv-c28b562cd61ef448",
+    "title": "힌지 홉 스로우 (작은 메디신볼)",
+    "drill_id": "e0ad14f2-4545-4d17-9c44-6211951aced9",
     "kind": "직접 촬영 영상",
-    "status": "사전 수정·저장·재확인 완료 · 사용자 검수 대기",
-    "focusPoints": [
-      "드롭",
-      "몸통 회전"
-    ],
-    "stage": "연결",
-    "equipment": [
-      "메디신볼"
-    ]
+    "status": "제목·설명 수정 저장, 사용자 확인 대기"
   },
   "completed": [
     {
@@ -159,7 +150,7 @@
       }
     }
   ],
-  "completed_count": 9,
+  "completed_count": 10,
   "user_change_requests": [
     {
       "at": "2026-11-16T18:18:52.578870+09:00",
@@ -707,17 +698,16 @@
   ],
   "user_change_request_count": 32,
   "last_user_video_decision": {
-    "at": "2026-11-17T18:54:49.188808+09:00",
+    "at": "2026-11-24T21:18:17.045640+09:00",
     "original": "다음",
-    "meaning": "9번 워킹 와인드업 검수 종료 및 10번 이동 승인. 촬영 필요와 기존 기술 미확인 기록은 보존.",
-    "time_semantics": "time recorded by assistant after receiving instruction"
+    "meaning": "10번에서 11번 이동 승인; 세부 미확인 사항은 보존"
   },
   "last_user_video_change_request": null,
   "user_decision_event_timestamps_available": false,
   "next": {
-    "number": 11,
-    "review_id": "mv-c28b562cd61ef448",
-    "title": "힌지 홉 스로우 (작은 공)",
+    "number": 12,
+    "review_id": "mv-2686d434280137be",
+    "title": "뎁스 드롭 힌지 스로우 (작은 공)",
     "drill_id": null,
     "category": "드롭",
     "kind": "참고 영상",
@@ -980,7 +970,8 @@
     "7번 사용자 확인·다음 지시 대기",
     "7번 제목의 레그 리프트와 시범의 낮게 든 발 동작이 의도에 맞는지 확인 필요",
     "7번 빠른 동작의 좌우 발 구분 및 전체 연속 구간 미확인",
-    "기존 기록 및 미확인 사항 보존"
+    "기존 기록 및 미확인 사항 보존",
+    "11번 도약·착지 발, 이동 방향 및 목적 분류와 썸네일 확인 필요"
   ],
   "approval_rules": {
     "advance": "Only explicit user OK/next authorizes advancement; setup does not.",
