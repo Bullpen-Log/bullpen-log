@@ -3,8 +3,10 @@
  * 자료를 바탕으로") — 투구 · 근력 · 컨디셔닝 · 회복 · 잠 · 영양의 일반 지식을 주제별 짧은 글로. AI 가 일반 질문에 답하기 전에 read_knowledge 로 읽는다.
  *
  * 약속(자체 시험 coach:ai-test 가 지킨다)
- *   - 노트의 주장마다 출처가 둘 넘게(NOTE_SOURCES). 근력 · 회복 · 잠 · 영양 노트(S · R)는 동료 평가 논문 · 학회 · 기관 공식 문서만 쓴다
- *     (훈련 회사 · 블로그 · 영상은 안 쓴다). 출처가 하나뿐이거나 근거가 약하면 글에 그렇게 적는다('연구가 적어요' · '결과가 갈려요').
+ *   - 노트의 주장마다 출처가 둘 넘게(NOTE_SOURCES). 근력 · 회복 · 잠 · 영양 노트(S · R)는 동료 평가 논문 · 학회 · 기관 공식 문서를 쓴다.
+ *     다만 시즌 중 웨이트(S03) · 러닝과 유산소(S04) · 코어(S12) · 암케어 시점(R08)은 두 코칭 기관 글을 먼저, 논문은 보조로 쓴다
+ *     (2026-11-24 김민: "드라이브라인, 트레드 우선으로 심도 있게"). 그 밖의 S · R 노트는 훈련 회사 · 블로그 · 영상을 안 쓴다.
+ *     출처가 하나뿐이거나 근거가 약하면 글에 그렇게 적는다('연구가 적어요' · '결과가 갈려요').
  *   - 투구 노트(P01~P11)는 투구 코칭 기관 두 곳(Driveline · Tread)의 공개 글만 쓴다(2026-11-23 김민: "투구에 관한 건 전부 두 곳에서 · 두 곳만으로").
  *     유료 강좌 · 제품 쪽 · 영상 · 댓글은 안 쓴다. 자체 측정인지(표본 수) · 인용한 연구인지 · 지도 경험인지 · 한 명 사례인지를 글에 그대로 적는다.
  *     자료끼리 엇갈리면 둘 다 적지 않고 더 큰 측정 자료 하나로 통일한다(2026-11-23 김민: "하나로 통일하는 게 일관성이 있다", D8).
@@ -53,18 +55,10 @@ export const NOTE_SOURCES = {
     '근력 운동 동작과 어깨 불안정 징후(Kolber 2013, J Strength Cond Res) — https://pubmed.ncbi.nlm.nih.gov/22836608/',
   PM21873897:
     '시즌 중 주 1회 근력 유지(Ronnestad 2011, J Strength Cond Res) — https://pubmed.ncbi.nlm.nih.gov/21873897/',
-  PM33629972:
-    '체력 유지에 필요한 최소 운동량 리뷰(Spiering 2021, J Strength Cond Res) — https://pubmed.ncbi.nlm.nih.gov/33629972/',
   PM16937969:
     '시즌 중 근력 운동 중단과 던지기 속도(Marques 2006, J Strength Cond Res) — https://pubmed.ncbi.nlm.nih.gov/16937969/',
-  PM18296980:
-    '야구 선수 지구력 · 스피드 훈련과 파워(Rhea 2008, J Strength Cond Res) — https://pubmed.ncbi.nlm.nih.gov/18296980/',
-  PM29910262:
-    'MLB 투수 유산소 능력과 성적(Gillett 2016, Sports) — https://pubmed.ncbi.nlm.nih.gov/29910262/',
   PM34757594:
     '유산소 · 근력 병행 메타분석(Schumann 2022, Sports Med) — https://pubmed.ncbi.nlm.nih.gov/34757594/',
-  PM33751469:
-    '병행 훈련 간섭 메타분석(Petre 2021, Sports Med) — https://pubmed.ncbi.nlm.nih.gov/33751469/',
   PM17685676:
     '고교 선수 메디신볼 회전 훈련(Szymanski 2007, J Strength Cond Res) — https://pubmed.ncbi.nlm.nih.gov/17685676/',
   PM26102258:
@@ -115,12 +109,8 @@ export const NOTE_SOURCES = {
     '근육통 중 다시 운동(Chen 2006, J Strength Cond Res) — https://pubmed.ncbi.nlm.nih.gov/16503669/',
   PM27409551:
     '젖산과 지연성 근육통(Schwane 1983, Phys Sportsmed) — https://pubmed.ncbi.nlm.nih.gov/27409551/',
-  PM22784233:
-    '코어 안정성 훈련 체계적 문헌고찰(Reed 2012, Sports Med) — https://pubmed.ncbi.nlm.nih.gov/22784233/',
   PM35061213:
     '몸통 근육 훈련 메타분석(Saeterbakken 2022, Sports Med) — https://pubmed.ncbi.nlm.nih.gov/35061213/',
-  PM25159541:
-    '프로 투수 허리 · 골반 조절과 결장(Chaudhari 2014, Am J Sports Med) — https://pubmed.ncbi.nlm.nih.gov/25159541/',
   AM02: '청소년 투수 입장문(ASMI) — https://asmi.org/position-statement-for-adolescent-baseball-pitchers/',
   NS03: '쉬다가 운동 재개 합의 지침(CSCCa · NSCA 2019) — https://www.nsca.com/contentassets/202023e9d6c440dab582d9d87c0f3729/cscca_and_nsca_joint_consensus_guidelines_for.1.pdf',
   PM22336838:
@@ -212,14 +202,8 @@ export const NOTE_SOURCES = {
     '투구 뒤 근력 피로(Mullaney 2005, Am J Sports Med) — https://pubmed.ncbi.nlm.nih.gov/15611006/',
   PM35286185:
     '투구 뒤 어깨 회복 시간(Mirabito 2022, Am J Sports Med) — https://pubmed.ncbi.nlm.nih.gov/35286185/',
-  PM21831667:
-    '고교 투수 경기 뒤 근육 활성(Gandhi 2012, J Shoulder Elbow Surg) — https://pubmed.ncbi.nlm.nih.gov/21831667/',
   PM18668167:
     '회전근개 피로와 어깨 관절 움직임(Teyhen 2008, J Athl Train) — https://pubmed.ncbi.nlm.nih.gov/18668167/',
-  PM17597949:
-    '던지기 피로와 팔 위치 감각(Tripp 2007, J Athl Train) — https://pubmed.ncbi.nlm.nih.gov/17597949/',
-  PM25694615:
-    '상체 준비 운동 체계적 문헌고찰(McCrary 2015, Br J Sports Med) — https://pubmed.ncbi.nlm.nih.gov/25694615/',
   PMC3070508:
     '소아 과사용 부상 예방 입장문(Valovich McLeod 2011, J Athl Train) — https://pmc.ncbi.nlm.nih.gov/articles/PMC3070508/',
   PM29630388:
@@ -313,6 +297,27 @@ export const NOTE_SOURCES = {
   TA15: '구종 설계로 경기 성적 올리기(Tread 2026) — https://treadathletics.com/using-pitch-design-to-improve-in-game-performance/',
   TA16: '입스의 이론(Tread 2019) — https://treadathletics.com/yips/',
   TA17: '회복에서 할 것과 말 것 열 가지(Tread 2019) — https://treadathletics.com/recovery-top-10/',
+  DL50: '시즌 중 선발 투수 일과 만들기 1부(Driveline 2016) — https://www.drivelinebaseball.com/2016/09/building-season-training-routine-starting-pitchers-part/',
+  DL51: '시즌 중 선발 투수 일과 만들기 2부(Driveline 2016) — https://drivelinebaseball.com/blogs/blog/building-season-training-routine-starting-pitchers-part-ii',
+  DL52: '시즌 중 웨이트의 양 · 강도 · 피로 관리(Driveline 2017) — https://www.drivelinebaseball.com/2017/03/season-lifting-managing-volume-intensity-fatigue/',
+  DL53: '시즌 중 훈련이 중요한 까닭 사례(Driveline 2021) — https://drivelinebaseball.com/blogs/blog/case-study-the-importance-of-in-season-training',
+  DL54: '팀 시즌 중 훈련 계획 1부(Driveline 2017) — https://www.drivelinebaseball.com/2017/01/building-teams-season-training-plan-part/',
+  DL55: '팀 시즌 중 훈련 계획 2부(Driveline 2017) — https://drivelinebaseball.com/blogs/blog/building-teams-season-training-plan-part-ii',
+  DL56: '팀 시즌 중 훈련 계획 3부(Driveline 2017) — https://www.drivelinebaseball.com/2017/01/developing-season-training-routine-part-iii/',
+  DL57: '코어 훈련과 올리는 법 1부(Driveline 2016) — https://drivelinebaseball.com/2016/11/core-training-progress-part',
+  DL58: '코어 훈련과 올리는 법 2부(Driveline 2016) — https://drivelinebaseball.com/2016/11/core-training-progress-part-ii',
+  DL59: '코어 훈련과 올리는 법 3부(Driveline 2016) — https://drivelinebaseball.com/2016/11/core-training-progress-part-iii',
+  DL60: '안정성과 투구 동작(Driveline 2017) — https://www.drivelinebaseball.com/2017/05/stability-pitching-mechanics/',
+  DL61: '머리 위 메디신볼 던지기(Driveline 2014) — https://www.drivelinebaseball.com/2014/12/velocity-training-perfecting-overhead-medball-throw/',
+  DL63: '투수 장거리 달리기의 사실과 대안 둘(Driveline 2016) — https://www.drivelinebaseball.com/2016/09/facts-behind-long-distance-running-pitchers-two-alternatives/',
+  DL64: '알맞은 에너지 시스템 훈련(Driveline 2010) — https://www.drivelinebaseball.com/2010/03/appropriate-energy-system-development/',
+  DL65: '준비 운동으로 동작 · 체력 · 회복 챙기기(Driveline 2016) — https://drivelinebaseball.com/2016/10/using-warm-movement-quality-conditioning-recovery',
+  DL66: '야구 선수 스피드 훈련(Driveline 2021) — https://drivelinebaseball.com/blogs/blog/speed-training-for-baseball-players',
+  DL67: '운동 회복의 기초(Driveline 2021) — https://drivelinebaseball.com/blogs/blog/the-basics-of-recovery-for-athletic-performance',
+  DL68: '회복 방법을 바꾸는 까닭(Driveline 2020) — https://www.drivelinebaseball.com/2020/10/why-we-are-changing-our-recovery-protocols/',
+  DL69: '야구 동적 준비 운동(Driveline 2022) — https://drivelinebaseball.com/blogs/blog/baseball-dynamic-warm-up',
+  DL70: '선발 투수의 경기 전 일과(Driveline 2016) — https://www.drivelinebaseball.com/2016/08/starting-pitchers-developing-pre-game-routine/',
+  TA18: '시즌 중 훈련 청사진(Tread, 공개 PDF) — https://treadathletics.com/wp-content/uploads/2016/04/In-Season-Training-BluePrint-5.pdf',
 } as const satisfies Record<string, string>;
 
 /** 검토 전 — 검토자가 이름 · 날짜를 적으면 AI 에 실린다 */
@@ -472,8 +477,20 @@ export const KNOW_NOTES: readonly KnowNote[] = [
     id: 'S03',
     topic: '시즌 중 웨이트',
     keys: ['시즌 중', '시즌중', '인시즌', '경기 기간', '유지'],
-    body: '시즌 중에도 근력 운동을 이어 가면 근력을 지킬 수 있어요. 프로 축구 선수 연구에서 무거운 근력 운동을 주 1번만 해도 12주 동안 근력이 유지됐고, 2주에 1번으로는 유지되지 않았어요. 리뷰는 유지에 가장 중요한 것이 강도(무게)이고, 횟수와 양은 꽤 줄여도 된다고 정리해요. 다만 선수에게 딱 맞는 최소량은 아직 자료가 모자라요. 시즌 중 근력 운동을 끊은 프로 핸드볼 선수는 7주 뒤 던지는 속도가 떨어졌어요(연구 하나). 야구 투수를 직접 본 연구는 아니에요. 등판 앞뒤로 언제 얼마나 할지는 앱이 등판 일정에 맞춰 정해요.',
-    sources: ['PM21873897', 'PM33629972', 'PM16937969'],
+    body: '투구 훈련 기관 두 곳 모두 시즌 중에도 웨이트를 이어 가라고 해요. 시즌 중에는 오프시즌에 만든 힘을 잃지 않는 것이 먼저이고, 어린 선수일수록 시즌 중에도 조금씩 늘 수 있다고 봐요. 한 기관 사례에서 시즌 중 일주일에 하체 운동 하나만 한 대학 투수는 근력 · 파워가 떨어졌고, 12월 측정 때 시속 145km이던 구속이 시즌 뒤 137km쯤으로 내려갔어요(한 명 사례). 횟수는 일주일에 1~4번이고, 한 곳은 경기가 많은 주에 횟수를 줄여요. 두 곳 모두 무게는 크게 낮추지 않고 세트와 횟수를 줄여요. 평소 무게의 85~100%를 쓰고 양은 절반쯤으로 줄이는 식이에요. 실패할 때까지 하지 않고 2~4회쯤 남기고 끝내요. 다음 날 근육통을 크게 만드는 천천히 내리는 동작은 줄이고, 오프시즌에 해 보지 않은 새 운동은 시즌 중에 시작하지 않아요. 한 곳은 시즌 중 위험에 비해 보탬이 작은 운동으로 클린 · 바벨 스내치 · 높은 박스 점프 · 딥스를 들고 비슷한 다른 운동으로 바꾸라고 해요. 선발은 등판 직후나 다음 날 운동을 시작하고 등판 전날에는 무거운 운동을 하지 않아요(쉬거나 양을 적게). 많이 던진 주나 몸이 무거운 날은 세트를 한두 개 빼요. 연구로는 다른 종목에서 근력 운동을 주 1번만 해도 12주 동안 근력이 유지됐고, 시즌 중 근력 운동을 끊은 핸드볼 선수는 던지는 속도가 떨어졌어요. 여기 든 자료 가운데 투수를 직접 본 통제된 연구는 없어요. 언제 얼마나 할지는 앱이 등판 일정에 맞춰 정해요.',
+    sources: [
+      'DL50',
+      'DL51',
+      'DL52',
+      'DL53',
+      'DL54',
+      'DL55',
+      'DL56',
+      'TA18',
+      'TA14',
+      'PM21873897',
+      'PM16937969',
+    ],
     review: DRAFT,
   },
   {
@@ -489,8 +506,18 @@ export const KNOW_NOTES: readonly KnowNote[] = [
       '조깅',
       '인터벌',
     ],
-    body: '장거리 달리기와 스프린트 중 무엇이 투수에게 더 좋은지 구속이나 등판 사이 회복으로 직접 비교한 연구는 찾지 못했어요. 대학 야구 선수 16명 연구에서 시즌 중 지구력 달리기를 한 쪽은 하체 파워가 줄고 스피드 · 인터벌을 한 쪽은 늘었어요(작은 연구 하나). 반대로 MLB 선발 투수에서는 유산소 능력이 높을수록 시즌 성적이 좋은 경향이 있었어요(연구 하나). 유산소가 쓸모없다고도 말할 수 없어요. 메타분석으로는 유산소와 근력 운동을 같이 해도 최대 근력과 근육량은 평균적으로 줄지 않지만 순발력은 덜 늘어요. 같은 시간에 붙여 할 때 더 그래요. 그래서 유산소는 하되 파워 운동과 시간을 떼어 놓는 쪽이 근거에 맞아요. 달리기로 젖산을 빼야 근육통이 풀린다는 말은 근거가 없어요.',
-    sources: ['PM18296980', 'PM29910262', 'PM34757594', 'PM33751469', 'PM27409551'],
+    body: '투구 훈련 기관 두 곳 모두 투수에게 장거리 달리기나 폴 러닝을 권하지 않아요. 투구는 짧게 힘을 쓰고 쉬는 일이라 오래 달리는 힘과는 다르다고 봐요. 달려서 젖산을 빼야 근육통이 풀린다는 말은 두 곳 모두 틀렸다고 해요. 다만 등판 다음 날 달리면 덜 뻐근한 느낌은 실제로 있다는 말과, 낮은 강도의 유산소가 몸을 쉬는 상태로 돌려 회복을 돕는다는 설명은 있어요. 그래서 오래 달리기 대신 짧은 인터벌과 템포 달리기를 써요. 한 곳은 40~60야드를 최고 속도의 70~80%로 달리고 걸어 돌아오기를 15~30분 해요. 다른 곳은 20초 운동하고 20초 쉬기 12~16번(70%쯤)과 8초 전력, 52초 쉬기 8~12번을 나눠 써요. 이곳은 평지 스프린트, 특히 내리막 달리기가 근육통을 크게 만든다며 썰매 밀기 · 자전거 · 계단을 권해요. 회복을 위해 가볍게 움직이는 것은 두 곳 모두 좋다고 봐요. 자전거 · 걷기 · 가벼운 순환 운동을 8~25분쯤, 다음 날 다리가 무겁지 않을 만큼 해요. 30분씩 세게 타는 자전거처럼 회복이라고 부르지만 피로를 더하는 운동은 피하라고 해요. 한 곳은 유산소를 어중간한 강도로 하면 힘과 파워가 덜 는다는 연구를 인용해요. 메타분석으로는 같이 해도 최대 근력은 평균적으로 줄지 않았지만 순발력은 덜 늘었고, 같은 날 붙여 할 때 더 그랬어요. 팀에서 이미 많이 뛰면 따로 더하지 말라고 해요. 여기 든 두 곳의 글에는 달리기가 투수의 구속이나 회복에 주는 효과를 잰 자체 자료가 없어요.',
+    sources: [
+      'DL63',
+      'DL64',
+      'DL65',
+      'DL66',
+      'DL67',
+      'TA17',
+      'TA18',
+      'TA01',
+      'PM34757594',
+    ],
     review: DRAFT,
   },
   {
@@ -569,8 +596,21 @@ export const KNOW_NOTES: readonly KnowNote[] = [
     id: 'S12',
     topic: '코어 운동',
     keys: ['코어', '복근', '몸통 근력', '플랭크', '허리 힘'],
-    body: '코어만 따로 훈련하면 경기력이 오르는지는 결과가 갈려요. 예전 문헌고찰은 보탬이 작다고 했고, 더 최근 메타분석은 선수에게 중간 정도 효과가 있다고 했어요. 프로 투수 추적 연구에서는 한 발로 서서 허리 · 골반을 가누는 검사 점수가 나쁜 투수가 부상으로 오래 빠질 위험이 더 컸어요(관련만 본 연구). 코어 훈련이 구속을 올리는지 야구 투수로 확인한 연구는 찾지 못했어요. 그래서 코어는 다른 훈련과 같이 꾸준히 하는 기본으로 보는 쪽이 맞고, 코어만으로 구속이 오른다고 말할 근거는 없어요.',
-    sources: ['PM22784233', 'PM35061213', 'PM25159541'],
+    body: '투구 훈련 기관 두 곳 모두 몸통을 다리에서 만든 힘을 팔로 넘기는 연결 고리로 봐요. 골반이 먼저 돌 때 윗몸통이 버티며 닫혀 있어야 한다고 해요. 한 곳은 회전이 허리가 아니라 등에서 나와야 한다고 봐요. 한 곳의 동작 분석 182건에서 빠른 투수일수록 몸통 회전 속도가 빨랐어요. 몸통이 옆으로 많이 기울수록 팔꿈치 · 어깨 부담이 컸고 구속과는 관련이 없었어요. 다른 곳은 허리와 배에 미리 힘을 주면 오히려 힘 전달이 막힌다고 보고, 힘을 줄 때와 뺄 때의 타이밍을 강조해요(지도 경험). 운동의 바탕은 버티기예요. 플랭크 · 데드버그 · 롤아웃처럼 허리가 젖혀지지 않게 버티는 것, 팔로프 프레스 · 촙처럼 몸이 돌아가지 않게 버티는 것, 사이드 플랭크, 무거운 것을 들고 걷기를 써요. 한 곳은 오프시즌 동안 안정(9~12주), 움직이며 안정(8~12주), 파워(4~8주) 순으로 올리라고 해요(지도 경험). 다른 곳의 시즌 중 처방은 앞 · 옆 코어 8~12회 또는 30초, 회전 코어 양쪽 8~12회씩, 각 2세트예요. 파워 쪽은 메디신볼 던지기예요. 회전 메디신볼 던지기 속도가 구속과 관련됐다는 연구(대학 한 팀, 상관 0.62)를 인용하고, 다음 날 덜 뻐근해 시즌 중에도 쓰기 좋다고 해요. 머리 위로 던지는 공은 2kg쯤이고 3kg를 넘기지 않으며 어린 선수는 1~2kg예요(한 곳). 메디신볼은 던지기를 대신하지 않고, 공을 더 던질 수 없을 때 동작 반복을 보태는 운동으로 봐요. 두 곳 모두 코어 운동만으로 구속이 오른다는 자료는 내놓지 않았어요. 몸통 근육 훈련 메타분석(대조 연구 31개)에서는 종목 기술 수행에 중간 정도의 효과가 있었지만, 투수의 구속을 본 연구는 아니에요. 그래서 코어는 다른 훈련과 같이 꾸준히 하는 기본으로 보는 쪽이 맞아요.',
+    sources: [
+      'DL57',
+      'DL58',
+      'DL59',
+      'DL60',
+      'DL07',
+      'DL01',
+      'DL61',
+      'TA01',
+      'TA03',
+      'TA13',
+      'TA18',
+      'PM35061213',
+    ],
     review: DRAFT,
   },
   {
@@ -726,14 +766,19 @@ export const KNOW_NOTES: readonly KnowNote[] = [
       '후에 해',
       '어깨 피로',
     ],
-    body: '한 번 던지고 나면 어깨 힘이 바로 떨어져요. 투수 13명을 본 연구에서 경기 뒤 어깨 안쪽 돌림 힘이 18% 줄었어요. 다른 작은 연구에서는 바깥 돌림 힘이 사흘째에, 안쪽 돌림 범위는 나흘째에 돌아왔어요. 암케어를 던지기 전에 할지 뒤에 할지 직접 견준 연구는 찾지 못했어요. 회전근개가 지치면 팔을 들 때 어깨 관절 움직임이 달라졌어요(실험). 던지기 전에 보강 운동으로 어깨를 미리 지치게 하면 좋지 않을 수 있다는 뜻이에요. 그래서 던지기 전에는 지치지 않을 만큼 가볍게 하고, 힘든 보강은 던진 뒤나 안 던지는 날에 하는 것이 무난한 관례예요. 증명된 규칙은 아니에요. 상체 준비 운동은 움직이며 하는 강한 준비가 파워와 근력 발휘에 도움이 됐어요(체계적 문헌고찰). 준비 운동이 상체 부상을 줄이는지 본 연구는 그 문헌고찰에 없었어요.',
+    body: '투구 훈련 기관 두 곳 모두 던지기 전 암케어는 짧고 가볍게, 몸을 깨우는 정도로만 하라고 해요. 던지기 전에 회전근개를 지치게 하면 안 된다고 봐요. 한 곳은 지친 회전근개가 팔뼈 머리를 위로 밀려 올라가게 해 어깨가 끼일 위험을 키운다고 설명해요. 이곳의 순서는 동적 준비 운동, 밴드, 플라이오볼 드릴이고, 던지면서 몸을 푸는 것이 아니라 몸을 푼 뒤에 던지라고 해요. 다른 곳은 그 앞에 몸 풀기와 교정 운동을 두고 밴드를 운동마다 10회씩 해요. 이곳은 아주 낮은 힘(20%)으로 6초씩 버티기를 더하지만 효과는 경험담이라고 밝혀요. 두 곳 모두 암케어를 많이 하는 것은 필요 없다고 봐요. 한 곳은 밴드 운동을 지나치게 하면 오히려 해로울 수 있다고 하고, 다른 곳은 던지기 전후에 운동 10개를 10회 3세트씩 하는 것은 양이 너무 많고, 회복이라고 부른다고 회복이 되는 것은 아니라고 해요. 두 곳 모두 힘을 키우는 회전근개 · 날개뼈 운동은 웨이트 시간에 넣어요. 한 곳은 2020년에 던진 직후 가벼운 운동(밴드 · 리바운더 · 웨이터 워크)을 많이 하던 방식을 바꿔, 중간 이상으로 던진 날에는 전신 가동성 정리 운동만 하고 어깨 강화는 웨이트로 옮겨 강도는 높게, 양은 적게 했어요. 가벼운 회복 운동은 가볍게 던진 날에만 남겼어요. 두 곳 모두 던진 다음에 웨이트를 해요. 다른 곳의 시즌 중 처방은 상체 날 두 번(A · B)에 회전근개 8~12회 2~3세트, 날개뼈 15회 2~3세트예요. 시즌 중에는 천천히 내리는 동작이 많은 운동과 팔뚝 운동을 많이 하는 것을 줄여요. 이곳은 팔이 축 처지거나 아프면 그날은 던지지 않고 준비 운동과 암케어만 하라고 해요. 연구로는 경기 뒤 어깨 힘이 바로 떨어졌어요(투수 13명, 안쪽 돌림 힘 18%). 다른 연구(대학 투수 10명)에서는 바깥 돌림 힘이 사흘째, 안쪽 돌림 범위는 나흘째에 돌아왔어요. 두 곳 모두 암케어 시점을 직접 견준 자료는 내놓지 않았어요.',
     sources: [
+      'DL60',
+      'DL68',
+      'DL69',
+      'DL70',
+      'TA05',
+      'TA01',
+      'TA18',
+      'TA11',
       'PM15611006',
       'PM35286185',
-      'PM21831667',
       'PM18668167',
-      'PM17597949',
-      'PM25694615',
     ],
     review: DRAFT,
   },
