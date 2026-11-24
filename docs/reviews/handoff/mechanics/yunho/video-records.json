@@ -1602,7 +1602,20 @@
         "ready_state": 4,
         "repeat_cycle_tested": false
       },
-      "review_advance_authorized": false
+      "review_advance_authorized": false,
+      "user_revision_20261124": {
+        "at": "2026-11-24T21:03:19.843695+09:00",
+        "request": "편하게 서기, 스위치 풋·힌지 용어 설명 삭제, 3번 엉덩이만 뒤로 빠지는 표현 수정, 4번 체중 이동 중 회전 설명 간결화, 전반적 군더더기 축소. 앞으로 용어 풀이는 정말 어려운 야구 용어만.",
+        "applied": "시작을 목표를 왼쪽에 두고 편하게 서기로 수정; 용어 풀이 삭제; 3번 오른발로 체중을 받으며 오른쪽 무릎과 고관절을 굽히기; 4번 왼발을 목표 쪽으로 내딛으며 체중을 옮기고 그 흐름에 맞춰 골반과 몸통을 돌려 던지기로 수정. 필요성과 강도도 간결하게 정리.",
+        "verification": "운영 편집 저장 후 상세 화면에서 수정 문구 확인. 사용자 최종 확인 대기.",
+        "evidence": {
+          "url": "https://drivelinebaseball.com/blogs/blog/making-movement-changes-weight-room",
+          "consulted_date": "2026-11-24",
+          "application": "체중을 받는 움직임과 회전 연결의 일반적 맥락 참고",
+          "limit": "개별 선수 사례이며 이 드릴의 직접 지침은 아님"
+        },
+        "advance_authorized": false
+      }
     },
     {
       "number": 11,
