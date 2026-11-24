@@ -23,7 +23,7 @@ export type ReleaseStage = 'restricted_beta' | 'released';
 export const RELEASE_STAGE_DEFAULT: ReleaseStage = 'restricted_beta';
 
 /** 정책 판 — 허용 목록 · 경로 표를 바꾸면 올린다. 앱이 들고 있는 정책을 이 값으로 갈라 버린다(계정 · 판이 다르면 다시 묻는다) */
-export const RELEASE_POLICY_VERSION = '2026-11-16.1';
+export const RELEASE_POLICY_VERSION = '2026-11-24.1';
 
 /**
  * 기능(사용자가 쓰는 한 덩어리 일). 경로 · 서버 동작 · API 가 모두 이 이름으로 묶인다.
@@ -69,7 +69,8 @@ export type Capability =
  * 고객센터(support)도 잠근다(2026-10-29 금윤호: "3D 분석을 제외한 모든 기능(설정 및 프로필, 홈 화면 제외)"). 문의는 설정의 메일로.
  */
 /* 2026-11-01 금윤호: "트레이닝과 기록은 막을 필요가 없으니까 열어둬" · "알림과 고객센터도 열어둬" */
-export const BETA_ALLOWED: ReadonlySet<Capability> = new Set(['home', 'pitch3d', 'account', 'appInfra', 'legal', 'training', 'records', 'notifications', 'support']);
+export const BETA_ALLOWED: ReadonlySet<Capability> = new Set(['home', 'pitch3d', 'account', 'appInfra', 'legal', 'training', 'records', 'notifications', 'support', 'checkin']);
+/* checkin(2026-11-24 김민): 트레이닝의 '오늘 운동 만들기'가 체크인을 먼저 요구해, 베타에 트레이닝만 열고 체크인을 잠가 두면 막다른 길이었다 */
 
 /**
  * 사람 — 로그인하지 않았으면 null.

@@ -8,6 +8,7 @@ import { prisma } from '@/lib/prisma';
 import { appNow } from '@/lib/clock';
 import { toDateKey } from '@/lib/pitch-stats';
 import { getCurrentUser } from '@/lib/dal';
+import { allowFeature } from '@/lib/release-gate';
 import {
   CHECKIN_NOTE_MAX,
   CHECKIN_PARTS,
@@ -48,6 +49,7 @@ export async function saveCheckin(
   _prev: CheckinState,
   formData: FormData
 ): Promise<CheckinState> {
+  allowFeature('checkin');
   // 오류로 끝나면 고른 것들을 돌려준다.
   return withInput(await trySaveCheckin(formData), formData);
 }
@@ -180,6 +182,7 @@ export async function saveAppCheckin(input: {
   armLevel: unknown;
   note: unknown;
 }): Promise<CheckinState> {
+  allowFeature('checkin');
   const fd = new FormData();
   fd.set('flow', '3');
   fd.set('date', String(input?.date ?? ''));

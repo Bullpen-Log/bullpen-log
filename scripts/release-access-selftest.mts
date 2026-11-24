@@ -43,7 +43,7 @@ const MANAGER_MASTER = { role: 'MANAGER', accountType: 'MASTER' };
 /* ── 1. 역할 × 기능 ── */
 const LOCKED: Capability[] = [
   'pitchLog', 'velocity', 'abs', 'pitchReading', 'hitting', 'swing3d', 'armcare', 'mechanics', 'nutrition',
-  'analysis', 'library', 'myVideos', 'checkin', 'calendar', 'board', 'dugout', 'chat', 'org', 'unclassified',
+  'analysis', 'library', 'myVideos', 'calendar', 'board', 'dugout', 'chat', 'org', 'unclassified',
 ];
 for (const who of [USER, USER_MASTER]) {
   for (const c of BETA_ALLOWED) ok(decideAccess(who, c, BETA).allowed, `일반(${JSON.stringify(who)}) 베타 허용: ${c}`);
@@ -274,6 +274,7 @@ const OPEN_MODULES: Record<string, string> = {
   'sinker-log': "allowFeature('records')",
   'onboarding-state': "allowFeature('records')",
   support: "allowFeature('support')",
+  checkin: "allowFeature('checkin')",
   velocity: "allowFeature('velocity')",
   abs: "allowFeature('abs')",
 };
@@ -292,7 +293,7 @@ for (const [mod, line] of Object.entries({
 }))
   ok(readFileSync(`app/actions/${mod}.ts`, 'utf8').includes(line), `${mod} 권한 헬퍼 밝힘 줄`);
 for (const [a, acc] of Object.entries(RPC_ACTION_CAPABILITY).filter(([a, acc]) => a.startsWith('app.') || acc.cap === 'home')) {
-  if (!['appInfra', 'home', 'training', 'records'].includes(acc.cap)) continue;
+  if (!['appInfra', 'home', 'training', 'records', 'checkin'].includes(acc.cap)) continue;
   const [mod, fn] = a.split('.');
   ok(bodyOf(readFileSync(`app/actions/${mod}.ts`, 'utf8'), fn).includes(`allowFeature('${acc.cap}')`), `${a} 밝힘 줄`);
 }
@@ -304,8 +305,8 @@ for (const mod of ['day-cards', 'favorite']) {
     ok(acc ? bodyOf(src, fn).includes(`allowFeature('${acc.cap}')`) : !/allowFeature\(/.test(bodyOf(src, fn)), `${mod}.${fn} 밝힘 줄 ${acc ? '있음' : '없음'}`);
   }
 }
-/* app 모듈에서 잠긴 기능의 읽기(영양 · 체크인 · 달력 · 구속)는 밝힘 줄이 없어야 한다 */
-for (const fn of ['loadAppNutrition', 'loadAppCheckin', 'loadAppDayEvents', 'loadAppVelocityDay'])
+/* app 모듈에서 잠긴 기능의 읽기(영양 · 달력 · 구속)는 밝힘 줄이 없어야 한다 — 체크인은 2026-11-24 베타에 열었다 */
+for (const fn of ['loadAppNutrition', 'loadAppDayEvents', 'loadAppVelocityDay'])
   ok(!/allowFeature\(/.test(bodyOf(readFileSync('app/actions/app.ts', 'utf8'), fn)), `app.${fn} 은 잠긴 채`);
 for (const f of ['app/api/pitch-log/route.ts', 'app/api/day-detail/route.ts']) {
   const src = readFileSync(f, 'utf8');

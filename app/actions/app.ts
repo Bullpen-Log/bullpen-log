@@ -533,6 +533,7 @@ export async function loadAppCheckin(date: string): Promise<
     }
   | { ok: false; error: string }
 > {
+  allowFeature('checkin');
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   if (!validateCheckinDate(String(date))) return { ok: false, error: '날짜가 올바르지 않아요.' };

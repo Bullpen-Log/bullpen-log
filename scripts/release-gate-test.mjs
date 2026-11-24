@@ -338,8 +338,11 @@ check(!locked(r), '파일럿: 체크인 읽기 RPC 열림');
 r = await rpc('app-admin.loadAppAdmin');
 check(r.body.result?.ok !== true && sideEffects() === 0, '파일럿 일반 사용자: 관리 첫 화면은 그대로 거부');
 as('USER');
+r = await rpc('app.loadAppNutrition');
+check(locked(r), '권한이 안 켜진 일반 사용자: 영양 읽기는 그대로 잠김');
+/* 체크인은 2026-11-24 베타에 열었다 — 트레이닝 '오늘 운동 만들기'가 체크인을 먼저 요구한다 */
 r = await rpc('app.loadAppCheckin');
-check(locked(r), '권한이 안 켜진 일반 사용자: 체크인 읽기는 그대로 잠김');
+check(!locked(r), '일반 사용자: 체크인 읽기 열림');
 
 as('ADMIN');
 for (const a of ['nutrition.setWeight', 'swing-lab.saveSwingSample', 'app.loadAppHome', 'velocity.loadVelocityStart'])
