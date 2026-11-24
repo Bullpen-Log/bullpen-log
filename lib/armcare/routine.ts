@@ -133,6 +133,11 @@ export function decideArmcare({
     state?.outing.role === 'game' && !(pitches > 0 && p.restDays === 0);
   if (afterThrowing) signals.push('오늘 등판');
   /*
+   * 내일 등판(못 박힌 날만 — 짐작한 날은 nextDay 가 null) — 등판 전날 회전근개를 세게 지치게 하지 않는다(2026-11-24, ArmCare 의
+   * '내일 등판이면 무거운 회전근개 운동 없음'). 날 종류(lib/engine/microcycle.ts)도 outingTomorrow 는 'light' 다.
+   */
+  if (state?.outing.nextDay === 1) signals.push('내일 등판');
+  /*
    * 어제 팔 부담 — 근력 프로그램의 '경기 다음 날' · 매일 일정의 날 종류(R1 의 어제 쪽 · R2 · R3')와 같은 함수(2판 P4 커밋 F, D3).
    * 어제 던졌어도 가볍게만 던졌으면(캐치볼 20구 · 경기 15구) 여기서는 회복으로 안 간다 — 아래 휴식표가 아직 쉬라고 할 때만.
    */

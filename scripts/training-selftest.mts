@@ -14057,7 +14057,11 @@ console.log(
                   !armOld.reason.includes('어제 등판');
             if (!okClaimed) miss.armOld.push(`${name}(기록 없는 등판)`);
           } else if (json(armNoState) !== json(armOld)) miss.armOld.push(name);
-          if (role !== 'game' && json(armWithState) !== json(armNoState))
+          /* 2026-11-24 로 바뀜 — 왜: 내일 등판(못 박힌 날)이면 암케어도 강화하지 않는다. 그날은 강화가 없는지만 본다 */
+          const tomorrowOuting = state.outing.nextDay === 1;
+          if (tomorrowOuting && armWithState.kind === 'strength')
+            miss.armSame.push(`${name}(내일 등판인데 강화)`);
+          if (role !== 'game' && !tomorrowOuting && json(armWithState) !== json(armNoState))
             miss.armSame.push(name);
           if (role === 'game') {
             const threwRecord =
@@ -14132,6 +14136,15 @@ console.log(
       armC1.reason === '오늘 등판 → 회복 루틴' &&
       armOf({ today: { throwPlan: '오늘 등판' } }, null, false).kind === 'strength',
     armC1.reason
+  );
+  const armTomorrow = armOf({ today: { throwPlan: '내일 등판' } });
+  const armTomorrowFar = armOf({ today: { throwPlan: '2~3일 뒤' } });
+  check(
+    "암케어 (2026-11-24) 오늘 '내일 등판' → 강화 없이 '내일 등판 → 회복 루틴', '2~3일 뒤'는 그대로 강화",
+    armTomorrow.kind !== 'strength' &&
+      armTomorrow.reason.startsWith('내일 등판') &&
+      armTomorrowFar.kind === 'strength',
+    `${armTomorrow.kind} · ${armTomorrow.reason} / ${armTomorrowFar.kind}`
   );
   const armThrew = armOf({
     today: { throwPlan: '오늘 등판' },
