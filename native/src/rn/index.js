@@ -21,9 +21,25 @@ function TextInput({ style, ...rest }) {
   return React.createElement(RN.TextInput, { ...rest, style: [FONT, style] });
 }
 
+/*
+ * 굴리는 판의 keyboardShouldPersistTaps 기본값을 'handled' 로(2026-11-24 시뮬레이터 점검). RN 기본 'never' 는 자판이 떠 있으면 판 안의 첫 누름을
+ * 자판 닫기에만 써서, 찾기 · 메모를 치던 중 누른 단추 · 칩 · 보내기가 두 번 눌러야 먹었다. 화면 65곳이 손으로 'handled' 를 달았고 다른 값은 없다 —
+ * 빠뜨린 곳(투구 찾기 · 내 영상 · 팀 말 쓰기 …)까지 한곳에서. 빈 곳을 누르면 자판은 그대로 닫힌다. 값을 준 곳은 그 값이 이긴다.
+ */
+function withHandledTaps(Real, name) {
+  const C = React.forwardRef(function Scroll(props, ref) {
+    return React.createElement(Real, { keyboardShouldPersistTaps: 'handled', ...props, ref });
+  });
+  C.displayName = name;
+  return C;
+}
+
 Object.defineProperty(exports, '__esModule', { value: true });
 exports.Text = Text;
 exports.TextInput = TextInput;
+exports.ScrollView = withHandledTaps(RN.ScrollView, 'ScrollView');
+exports.FlatList = withHandledTaps(RN.FlatList, 'FlatList');
+exports.SectionList = withHandledTaps(RN.SectionList, 'SectionList');
 for (const key of Object.keys(RN)) {
   if (key in exports) continue;
   /* 안 보이게(enumerable: false) — 개발 모드의 Fast Refresh 가 src/ 파일의 내보낸 이름을 하나하나 읽어(registerExportsForReactRefresh) 게터를 다 깨웠다.

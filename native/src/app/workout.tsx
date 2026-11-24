@@ -701,7 +701,7 @@ function Run({
 
   /* 큰 단추 연타 — 입력 없는 운동은 빠른 두 탭이 세트 둘이 되고 마지막이면 둘째 탭이 마치기 창을 열었다. 0.45초 안의 둘째 탭은 버린다 */
   const lastTap = useRef(0);
-  const tapOnce = (fn: () => void) => () => {
+  const tapOnce = (fn: () => void) => {
     const now = Date.now();
     if (now - lastTap.current < 450) return;
     lastTap.current = now;
@@ -980,8 +980,13 @@ function Run({
     void AsyncStorage.removeItem(draftKey).catch(() => undefined);
     closeSheet();
     prefetchWorkoutDone(receipt.sessionId);
-    router.replace(`/workout-done?id=${receipt.sessionId}&fresh=1` as Href);
+    /* 바꿔 넣기는 메모 막기가 풀린 뒤(아래 효과) — 적던 메모가 있으면 '작성 중' 창이 떠 끝난 판 위에 남았다 */
+    setDoneId(receipt.sessionId);
   };
+  const [doneId, setDoneId] = useState<string | null>(null);
+  useEffect(() => {
+    if (doneId) router.replace(`/workout-done?id=${doneId}&fresh=1` as Href);
+  }, [doneId]);
 
   /** 판 상태부터 본다(답을 못 받았을 때) — 마쳤으면 완료로, 아직 열려 있으면 같은 제출로 다시 마칠 수 있게, 못 물으면 미확인 그대로 */
   const checkFinish = async () => {
@@ -1277,6 +1282,7 @@ function Run({
 
           {/* 내 메모 — 할 때마다 떠올려야 하는 것이라 이름 바로 밑에 */}
           <NoteBox
+            leaving={doneId != null}
             exerciseId={ex.id}
             note={notes[ex.id] ?? null}
             onSaved={(id, note) =>
@@ -1615,7 +1621,7 @@ function Run({
 
                 {/* 서버를 기다리지 않는다 — 폰에 담는 순간 끝난다 */}
                 <Pressable
-                  onPress={targetMet && !allDone ? nextExercise : tapOnce(allDone ? openFinish : save)}
+                  onPress={() => tapOnce(targetMet && !allDone ? nextExercise : allDone ? openFinish : save)}
                   disabled={allDone && ending}
                   accessibilityRole="button"
                   style={({ pressed }) => [s.big, { height: pad && short ? 64 : 72, backgroundColor: c.action, opacity: pressed ? 0.85 : 1 }]}

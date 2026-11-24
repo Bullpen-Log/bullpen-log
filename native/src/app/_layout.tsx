@@ -8,11 +8,12 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { Appearance } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { FullWindowOverlay } from 'react-native-screens';
 import { currentPrefs, prefsReady, usePrefs } from '~/lib/prefs';
 import { BullpenNative } from '../../modules/bullpen-native';
 import { useTheme } from '~/lib/ui';
 import { useAppUpdateOnReturn } from '~/shell/app-update';
-import { canOpen, noticeLocked, useRelease, useReleaseDecided } from '~/shell/release';
+import { canOpen, decidedNow, noticeLocked, useRelease, useReleaseDecided } from '~/shell/release';
 import { SessionGate } from '~/account/session-gate';
 
 /** 사이트 첫 화면이 그려질 때까지 시작 화면을 둔다(index.tsx 가 걷는다) — 흰 화면이 번쩍이지 않게 */
@@ -35,6 +36,10 @@ function useSinglePush() {
       const key = JSON.stringify(href);
       const now = Date.now();
       if (key === last.key && now - last.at < 700) return;
+      /* 잠긴 화면은 열지 않고 안내만 — 그냥 밀면 화면이 붙은 뒤 useReleaseGuard 가 dismissAll 로 쌓인 화면(진행 중인 운동까지)을 다 걷었다.
+       * 정책을 모르는 동안은 막지 않는다(가드도 그때는 안 닫는다) */
+      const path = typeof href === 'string' ? href : String((href as { pathname?: unknown }).pathname ?? '');
+      if (decidedNow() && !canOpen(path)) return noticeLocked();
       last = { key, at: now };
       real(href, options);
     }) as typeof router.push;
@@ -147,7 +152,10 @@ export default function RootLayout() {
         />
       </Stack></SessionGate>
       {/* '저장했어요' 같은 잠깐 알림(웹 Toaster) — 쌓인 화면 위, 시계 밑 */}
-      <Toaster />
+      {/* 창(modal · formSheet) 위에서도 보이게 — 뿌리 뷰 안에 두면 iOS 창이 덮어, 창 안의 저장 실패 · 잠김 안내가 안 보여 '안 눌린다'로 보였다 */}
+      <FullWindowOverlay>
+        <Toaster />
+      </FullWindowOverlay>
       {/* 시작 연출 — 로고 → SINKER, 2026-10-27 승인 2.20초(shell/intro-timeline.ts). 사이트가 늦으면 index.tsx 의 첫 불러오기 판이 이어 받는다 */}
       <Intro />
     </GestureHandlerRootView>

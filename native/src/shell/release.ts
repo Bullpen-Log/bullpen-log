@@ -84,7 +84,7 @@ export function resetRelease() {
 export const releaseNow = (): ReleaseAccess | null => known?.access ?? null;
 export const useRelease = () => useSyncExternalStore(subscribe, releaseNow);
 /** 정책이 정해졌나 — 서버 답(또는 같은 계정 · 판의 저장값)을 받았거나, 묻다 실패해 막힌 쪽으로 정했다 */
-const decidedNow = () => known != null || lookupFailed;
+export const decidedNow = () => known != null || lookupFailed;
 export const useReleaseDecided = () => useSyncExternalStore(subscribe, decidedNow);
 
 /** 지금 베타 화면을 그려야 하나 — 모르면 그린다(막힌 쪽) */

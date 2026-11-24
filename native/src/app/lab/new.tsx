@@ -237,7 +237,7 @@ function Flow({ heightCm, defaultHand, isAdmin, c }: { heightCm: number | null; 
       shown.kind === 'upload-failed'
         ? { label: '영상 다시 고르기', onPress: () => (setPhase(null), setStep('pick')) }
         : shown.kind === 'request-failed' || shown.kind === 'offline'
-          ? { label: '목록으로', onPress: () => router.replace('/lab' as Href) }
+          ? { label: '목록으로', onPress: () => router.dismissTo('/lab' as Href) }
           : null;
     const info: [string, string][] = [
       ['옆 영상', sentSummary(up.picked.side) ?? '보냈어요'],
@@ -250,7 +250,7 @@ function Flow({ heightCm, defaultHand, isAdmin, c }: { heightCm: number | null; 
     return (
       <View style={{ flex: 1 }}>
         <Stack.Screen options={{ gestureEnabled: !busy }} />
-        <Head title="3D 동작 분석" onBack={busy ? null : () => router.replace('/lab' as Href)} c={c} />
+        <Head title="3D 동작 분석" onBack={busy ? null : () => router.dismissTo('/lab' as Href)} c={c} />
         <LabProgress
           c={c}
           phase={shown}

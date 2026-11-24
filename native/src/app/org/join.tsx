@@ -36,7 +36,7 @@ export default function JoinOrgScreen() {
       await refreshSpaces();
       const key = spaceKeyOf({ orgId: r.orgId, role: r.role });
       Alert.alert(staff ? '코치 공간으로 옮길까요?' : '그 공간으로 옮길까요?', '내 싱커는 그대로 있고, 위의 공간 고르개로 언제든 오가요.', [
-        { text: '나중에', style: 'cancel', onPress: () => router.replace('/org' as Href) },
+        { text: '나중에', style: 'cancel', onPress: () => router.dismissTo('/org' as Href) },
         {
           text: '옮기기',
           isPreferred: true,

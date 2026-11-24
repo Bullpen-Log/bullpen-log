@@ -62,7 +62,12 @@ export function Sheet({
     if (!fit) return onClose();
     if (leaving) return;
     setLeaving(true);
-    setTimeout(onClose, SHEET_OUT_MS);
+    /* 부르는 쪽이 닫기를 거절하면(저장 중 · '계속 수정') open 이 참으로 남아 내용 없는 투명 창이 모든 눌림을 삼켰다 — 닫기를 부른 뒤 늘 내용을 되살린다.
+     * 닫혔으면 같은 묶음에서 open 이 거짓이 돼 보이지 않는다 */
+    setTimeout(() => {
+      onClose();
+      setLeaving(false);
+    }, SHEET_OUT_MS);
   };
   const head = (
     <View style={st.head}>

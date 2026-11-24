@@ -325,7 +325,7 @@ function ProgressView({
                 : { label: phase.kind === 'failed' ? '분석 다시 요청' : '분석 시작', onPress: request, busy }
               : null;
   const secondary: LabAction | null =
-    phase.kind === 'failed' || phase.kind === 'request-failed' || phase.kind === 'offline' ? { label: '목록으로', onPress: () => router.replace('/lab' as Href) } : null;
+    phase.kind === 'failed' || phase.kind === 'request-failed' || phase.kind === 'offline' ? { label: '목록으로', onPress: () => router.dismissTo('/lab' as Href) } : null;
   const consentText =
     mode === 'stored' && consent?.state.current
       ? '동의 완료'

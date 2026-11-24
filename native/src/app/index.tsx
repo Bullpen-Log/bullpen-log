@@ -483,10 +483,12 @@ export default function SiteScreen() {
   const [webFront, setWebFront] = useState(false);
   const pitchTab = tabs.find((t) => t.href === '/videos');
   /* 투구 탭의 첫 화면일 때만 앱 화면 — 잠겼으면 웹의 첫 설정 화면(주소가 /videos/setup)으로 간다 */
-  const showPitch = barOn && path === '/videos' && !!today && !pitchTab?.locked && !webFront && open(search ? `/videos?${search}` : '/videos');
+  /* 웹을 못 불러와도(failed) 탭 막대는 보이니 앱 판도 연다 — barOn 만 보면 막대는 떠 있는데 탭을 눌러도 판이 안 바뀌었다 */
+  const webOk = barOn || failed;
+  const showPitch = webOk && path === '/videos' && !!today && !pitchTab?.locked && !webFront && open(search ? `/videos?${search}` : '/videos');
   /* 홈 첫 화면도 앱 화면 — '웹 홈에서' 를 누르면 홈 탭을 다시 누를 때까지 웹 홈(일정 · 자세한 그날 칸) */
   const [webHome, setWebHome] = useState(false);
-  const showHome = barOn && path === '/today' && !!today && !webHome && !webFront;
+  const showHome = webOk && path === '/today' && !!today && !webHome && !webFront;
   const menu = useMenu();
   /* 영양 첫 화면도 앱 화면(오늘 먹은 것 · 담기 · 체중) — '식단 · 목표 · 통계'를 누르면 영양을 다시 열 때까지 웹 영양 */
   const [webNutrition, setWebNutrition] = useState(false);
@@ -497,17 +499,17 @@ export default function SiteScreen() {
   /* undefined = 아직 모름(메뉴가 오기 전) */
   const nutritionLocked = nutritionTab?.locked;
   const showNutrition =
-    barOn && path === '/nutrition' && hasNutrition(country) && !!today && !webNutrition && !nutritionTab?.locked && !webFront && open('/nutrition');
+    webOk && path === '/nutrition' && hasNutrition(country) && !!today && !webNutrition && !nutritionTab?.locked && !webFront && open('/nutrition');
   /* 트레이닝 첫 화면(앱 카드 셋)도 앱 화면 — 카드를 누르면(암케어 · 메카닉 · 운동 전체) 주소가 ?view=… 로 바뀌어 웹이 보인다 */
   /* 2026-10-29 트레이닝은 다시 하단 탭(넷째 → 셋째) — 잠김은 그 칸에서, 옛 탭 목록(사이트가 아직 옛 탭을 보냄)이면 투구 종목 바에서 읽는다 */
   const trainingTab = tabs.find((t) => t.href.startsWith('/training')) ?? sportBars.pitch.find((t) => t.href.startsWith('/training?sport='));
   const trainingView = new URLSearchParams(search).get('view');
   const showTraining =
-    barOn && path === '/training' && (trainingView === 'home' || trainingView === 'last') && !!today && !trainingTab?.locked && !webFront && open(TRAINING_HOME_HREF);
+    webOk && path === '/training' && (trainingView === 'home' || trainingView === 'last') && !!today && !trainingTab?.locked && !webFront && open(TRAINING_HOME_HREF);
   /* 기록(2026-10-29) — 앱 화면만(웹으로 안 보낸다, pressTab · goTab). 2026-11-01 부터 탭이 아니라 투구 탭 고르개의 둘째(pitch/seg.tsx) */
-  const showRecords = barOn && path === RECORDS_PATH && !!today && !webFront && open(RECORDS_PATH);
+  const showRecords = webOk && path === RECORDS_PATH && !!today && !webFront && open(RECORDS_PATH);
   /* 코치(2026-11-01) — 앱 화면만 있는 탭(웹 /coach 는 PC 분석 · 소개). 베타 잠김은 open 이 막는다 */
-  const showCoach = barOn && path === COACH_PATH && !!today && !webFront && open(COACH_PATH);
+  const showCoach = webOk && path === COACH_PATH && !!today && !webFront && open(COACH_PATH);
   /*
    * 덕아웃 첫 화면(2026-10-29 매치 카드) — 앱 화면. 글 · 연습장 자세히 같은 덕아웃 웹 화면은 그대로 웹(주소가 '/' 밖이면 웹이 앞).
    * barOn 은 안 본다 — 웹이 (app) 틀에서 덕아웃 틀로 옮겨 가는 동안 막대 알림이 잠깐 꺼졌다 켜져, 그때마다 앱 판이 깜빡였다
@@ -818,6 +820,8 @@ export default function SiteScreen() {
     setSeen(UNSEEN);
     setWebHome(false);
     setWebNutrition(false);
+    /* 웹 창(설정 · 내 정보)을 연 채 로그아웃하면 웹이 webfront:false 를 안 보내, 다시 로그인해도 탭 막대 · 앱 판이 숨은 채였다 */
+    setWebFront(false);
     setTabs(DEFAULT_TABS);
     setSportBars(DEFAULT_SPORT_BARS);
   }, []);

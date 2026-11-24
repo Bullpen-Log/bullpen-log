@@ -205,9 +205,12 @@ export function NoteBox({
   exerciseId,
   note: given,
   onSaved,
+  leaving = false,
   c,
 }: {
   exerciseId: string;
+  /** 운동을 마쳐 화면을 바꿔 넣는 중 — 적던 메모가 '운동 마치기'의 화면 바꿈까지 막지 않게 */
+  leaving?: boolean;
   /** 화면이 받은 서버 메모 — 다른 화면(운동 영상 상세 · 운동 진행)에서 저장한 것이 있으면 그것을 보인다(~/library/sync) */
   note: string | null;
   onSaved?: (exerciseId: string, note: string | null) => void;
@@ -219,7 +222,7 @@ export function NoteBox({
   const writing = draft?.exerciseId === exerciseId ? draft : null;
   const dirty = (d: Draft | null) => !!d && cleanExerciseNote(d.text) !== d.base;
   /* 고치던 메모가 있으면(다른 운동 것이어도) 화면을 나가기 전에 묻는다 */
-  useDraftGuard(dirty(draft));
+  useDraftGuard(dirty(draft) && !leaving);
   /* [취소] — 고친 글이 있으면 버릴지 묻는다(계속 쓰면 초안 그대로) */
   const cancel = () => {
     if (!dirty(writing)) return setDraft(null);

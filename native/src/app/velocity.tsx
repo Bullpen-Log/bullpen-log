@@ -893,7 +893,15 @@ export default function VelocityScreen() {
       note = '거리는 투수판부터 공이 실제로 멈추는 곳까지예요.';
       actions = (
         <>
-          <FlowButton kind="secondary" label="촬영 방법" onPress={() => setHelp('howto')} />
+          <FlowButton
+            kind="secondary"
+            label="촬영 방법"
+            onPress={() => {
+              /* iOS 는 닫히는 창 위에 새 창을 못 띄운다 — 같은 순간에 바꾸면 'howto' 상태인데 창이 없어 다시 눌러도 반응이 없었다 */
+              setHelp(null);
+              setTimeout(() => setHelp('howto'), 350);
+            }}
+          />
           <FlowButton label="거리 설정" onPress={() => setDistSheet(true)} />
         </>
       );
