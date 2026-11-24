@@ -1615,6 +1615,15 @@
           "limit": "개별 선수 사례이며 이 드릴의 직접 지침은 아님"
         },
         "advance_authorized": false
+      },
+      "user_revision_20261124_followup": {
+        "at": "2026-11-24T21:12:39.680522+09:00",
+        "request": "5번 균형 잡기 삭제, 체중을 받고 목표쪽 이동하는 이유 설명, 강도에서 균형과 무게 선택 문구 삭제",
+        "applied": "5번 팔과 오른쪽 다리가 자연스럽게 따라 나오도록 안내. 체중을 받은 뒤 오래 머무르지 않고 이동과 회전으로 이어가는 타이밍을 연습한다고 설명. 강도의 균형과 무게 문구 삭제.",
+        "verification": "운영 화면에서 저장 문장 확인; 사용자 확인 대기",
+        "source": "https://edu.drivelinebaseball.com/courses/mb-for-baseball",
+        "source_limit": "회전 훈련의 일반적 목적; 이 영상의 특정 동작이나 효과에 대한 직접 검증 아님",
+        "advance_authorized": false
       }
     },
     {
