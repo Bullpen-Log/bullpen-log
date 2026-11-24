@@ -1,5 +1,5 @@
 import { SymbolView } from 'expo-symbols';
-import { type Href, router, useFocusEffect } from 'expo-router';
+import { type Href, router, useFocusEffect, useNavigation, useRoute } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, type NativeScrollEvent, type NativeSyntheticEvent, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -148,6 +148,17 @@ export async function call<T extends { ok: boolean }>(action: string, ...args: u
   }
 }
 
+/** 창(presentation: 'modal')으로 뜨는 화면 — app/_layout.tsx 의 Stack.Screen 과 같게 */
+const SHEET_ROUTES = new Set(['settings', 'profile', 'coach-chat', 'coach-settings', 'pitch/[date]', 'pitch/edit', 'nutrition/add', 'my-videos/new']);
+
+/** 이 화면이 창 안에 있나 — 창 위에서 민 화면(내 정보 → 계정)도 같은 창 안에 그려진다(2026-11-24 시뮬레이터: 계정 화면 위가 59pt 비었다) */
+function useInSheet(): boolean {
+  const key = useRoute().key;
+  const routes = useNavigation().getState()?.routes ?? [];
+  const at = routes.findIndex((r) => r.key === key);
+  return routes.slice(0, at < 0 ? 0 : at + 1).some((r) => SHEET_ROUTES.has(r.name));
+}
+
 /** 위 막대 — 왼쪽 ‹ 뒤로(이름), 가운데 제목, 오른쪽 동작 하나 */
 /** modal = 아래에서 올라온 창(설정 · 내 정보) — 창은 시계 자리 밑에서 시작해 위 여백을 또 넣으면 80pt 가 비었다 */
 /** shown — 본문에 큰 제목(PageHead)을 둔 화면: 큰 제목이 막대 밑으로 굴러 가면 막대 제목이 옅게 뜬다(useTitleCollapse, 웹 NavTitle) */
@@ -170,6 +181,7 @@ export function Bar({
   onBack?: () => void;
 }) {
   const inset = useSafeAreaInsets();
+  const inSheet = useInSheet();
   const reduce = useReducedMotion();
   const o = useSharedValue(shown === false ? 0 : 1);
   useEffect(() => {
@@ -177,7 +189,7 @@ export function Bar({
   }, [shown, reduce, o]);
   const fade = useAnimatedStyle(() => ({ opacity: o.value }));
   return (
-    <View style={[s.bar, { paddingTop: modal ? 12 : inset.top, backgroundColor: c.page }]}>
+    <View style={[s.bar, { paddingTop: modal || inSheet ? 12 : inset.top, backgroundColor: c.page }]}>
       {/* 웹 위 막대의 뒤로(back-link.tsx): 화살표 그림 24 + 글 17, 하늘색 */}
       {/* back 이 없으면(커뮤니티 하단바의 ← 가 대신) 자리만 비운다 */}
       {back ? (
@@ -190,7 +202,7 @@ export function Bar({
       ) : (
         <View style={s.side} />
       )}
-      <Animated.View style={[{ flex: 1 }, fade]} accessibilityElementsHidden={shown === false}>
+      <Animated.View style={[{ flex: 1, alignSelf: 'stretch', justifyContent: 'center' }, fade]} accessibilityElementsHidden={shown === false}>
         <Text style={[s.barTitle, { color: c.ink }]} numberOfLines={1}>
           {title ?? ''}
         </Text>
@@ -356,7 +368,7 @@ export const s = StyleSheet.create({
   backRow: { flexDirection: 'row', alignItems: 'center', gap: 0, marginLeft: -6 },
   /* 가운데 제목이 없으면 뒤로 글이 제 길이만큼(‘워밍업 루틴’ · 루틴 이름이 잘리지 않게) */
   backWide: { width: 'auto', maxWidth: '70%' },
-  barTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '600' },
+  barTitle: { textAlign: 'center', fontSize: 17, lineHeight: 22, fontWeight: '600' },
   pill: { minHeight: 44, paddingHorizontal: 24, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   badge: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2, alignSelf: 'flex-start' },
   chip: { minHeight: 40, paddingHorizontal: 14, borderRadius: 20, justifyContent: 'center' },
