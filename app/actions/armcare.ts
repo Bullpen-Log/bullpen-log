@@ -97,6 +97,7 @@ export async function makeArmcareRoutine(
     /* 통증 루틴의 아픈 자리 — 오늘 '통증'인 관절의 것만(lib/armcare/today.ts) */
     painSpots: today.armPain?.spots ?? [],
     length: input?.length === 'quick' ? 'quick' : 'full',
+    mobility: today.mobility,
   });
   const routine: ArmcareRoutine = chosen ? { ...built, recommended } : built;
 

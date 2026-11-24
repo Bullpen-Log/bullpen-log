@@ -12,6 +12,7 @@ import {
   bodyStateBlock,
   decideArmcare,
   readArmcareRoutine,
+  POST_THROW_MOBILITY_TITLES,
   STRENGTH_STREAK_WEEKS,
   strengthWeekOf,
 } from '@/lib/armcare/routine';
@@ -140,7 +141,11 @@ export async function loadArmcareToday(user: UserForArmcare, today: Date) {
           gte: new Date(`${shiftDateKey(todayKey, -HISTORY_DAYS)}T00:00:00.000Z`),
           lte: midnight,
         },
-        exercise: { category: ARMCARE_CATEGORY },
+        /* 던진 뒤 어깨 뒤 풀기(모빌리티 분류)도 맞춤 루틴에 들어가므로 같이 읽는다 — 체크 · 오래 안 한 차례 */
+        OR: [
+          { exercise: { category: ARMCARE_CATEGORY } },
+          { exercise: { title: { in: [...POST_THROW_MOBILITY_TITLES] } } },
+        ],
       },
       select: { exerciseId: true, date: true },
       orderBy: { date: 'desc' },
@@ -249,6 +254,13 @@ export async function loadArmcareToday(user: UserForArmcare, today: Date) {
     candidates: leveled.pool.filter((ex) => !(ex.targetMuscles ?? []).some((m) => trainedToday.has(m))),
     /** 보이는 암케어 운동 전체 — 오늘 체크한 것을 찾을 때 (장비가 바뀌었어도) */
     library: armcare,
+    /** 던진 뒤 어깨 뒤 풀기(POST_THROW_MOBILITY_TITLES 차례) — 보이는 것만, 가진 장비로 할 수 있는 것만 */
+    mobility: POST_THROW_MOBILITY_TITLES.flatMap((title) =>
+      filterByEquipment(
+        library.filter((ex) => ex.title === title),
+        user.ownedEquipment
+      ).pool.map((ex) => ({ ...ex, targetMuscles: ex.targetMuscles ?? [] }))
+    ),
     /** 장비 하나만 더 있으면 가장 많이 늘어나는 것 */
     bestAddition: usable.bestAddition,
     lastDone,

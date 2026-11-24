@@ -395,9 +395,11 @@ import {
   SEVERE_ARM_FATIGUE as routineSevereArmFatigue,
   armcareBlock,
   bodyStateBlock,
+  POST_THROW_MOBILITY_TITLES,
   armcareChoices,
   buildArmcareRoutine,
   decideArmcare,
+  isPostThrowMobility,
   routineFits,
   strengthWeekOf,
   readArmcareRoutine,
@@ -5126,6 +5128,8 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
     }));
   const exOf = new Map(armcareLib.map((ex) => [ex.id, ex]));
   const titleOf = (id: string) => exOf.get(id)?.title ?? id;
+  /* 암케어 밖(던진 뒤 어깨 뒤 풀기 — 모빌리티)까지 찾는 표 */
+  const exOfAll = new Map(library.map((ex) => [ex.id, ex]));
 
   /* 1) 이름이 서로 맞는가 */
   check(
@@ -5873,6 +5877,37 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
       JSON.stringify(armcareChoices('recovery')) === JSON.stringify(['off']) &&
       JSON.stringify(armcareChoices('pain')) === JSON.stringify(['off'])
   );
+  /* 2026-11-24 던진 뒤 며칠 어깨 뒤 풀기 — 모빌리티 분류의 크로스바디 스트레치를 맨 앞에(1세트), 통증 루틴 · 4일 넘음 · 가벼운 캐치볼은 안 넣음 */
+  {
+    const mobility = library
+      .filter((e) => isPostThrowMobility(e))
+      .sort((a, b) => POST_THROW_MOBILITY_TITLES.indexOf(a.title as never) - POST_THROW_MOBILITY_TITLES.indexOf(b.title as never))
+      .map((e) => ({ ...e, targetMuscles: e.targetMuscles ?? [] }));
+    const thrown = (restDays: number, adjusted: number) => ({
+      ...factsCalm,
+      patterns: { ...factsCalm.patterns, restDays, lastOutingPitches: adjusted, lastOutingAdjusted: adjusted },
+    });
+    const has = (r: ReturnType<typeof build>) => r.items.some((it) => isPostThrowMobility(exOfAll.get(it.exerciseId) ?? {}));
+    const r1 = build('strength', { facts: thrown(1, 60), mobility });
+    const first = r1.items.find((it) => isPostThrowMobility(exOfAll.get(it.exerciseId) ?? {}));
+    check(
+      '던진 뒤 어깨 뒤 풀기 — 1일 전 60구면 강화 · 가벼운 강화 · 정리 모두 크로스바디 스트레치 1세트(어깨 뒤), 안내 한 줄',
+      mobility.length === 2 &&
+        exOfAll.get(first?.exerciseId ?? '')?.title === '크로스바디 스트레치' &&
+        first?.sets === 1 && first?.area === 'shoulder-back' &&
+        r1.notes.some((n) => n.startsWith('1일 전 던져서')) &&
+        has(build('light', { facts: thrown(1, 60), mobility })) &&
+        has(build('recovery', { facts: thrown(0, 80), mobility })),
+      `${mobility.map((m) => m.title)} / ${r1.items.map((it) => exOfAll.get(it.exerciseId)?.title)}`
+    );
+    check(
+      '던진 뒤 어깨 뒤 풀기 — 4일 전 · 가벼운 캐치볼(환산 20) · 통증 루틴 · 운동을 안 넘기면 안 넣는다',
+      !has(build('strength', { facts: thrown(4, 60), mobility })) &&
+        !has(build('strength', { facts: thrown(1, 20), mobility })) &&
+        !has(build('pain', { facts: thrown(1, 60), mobility, painSpots: ['shoulder-back'] })) &&
+        !has(build('strength', { facts: thrown(1, 60) }))
+    );
+  }
   /* 2026-11-24 짧게(ArmCare 의 Quick) — 앞 자리만 · 보통보다 짧게, 통증 루틴은 그대로 */
   const quickBad: string[] = [];
   for (let d = 1; d <= 30; d++) {

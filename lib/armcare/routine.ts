@@ -287,10 +287,35 @@ export function decideArmcare({
 
 /* --------------------------------- 루틴 짜기 --------------------------------- */
 
+/**
+ * 던진 뒤 며칠 어깨 뒤 풀기(2026-11-24, ArmCare — 던진 다음 며칠은 안쪽 회전 범위를 되찾는 운동을 넣는다). 던지는 팔은 감속을
+ * 되풀이하며 어깨 뒤가 굳어 안쪽으로 덜 돈다(lib/armcare/anatomy.ts 의 '어깨 후방' 설명). 운동은 '모빌리티' 분류에 있는 둘 —
+ * 크로스바디 스트레치를 먼저 쓴다(어깨를 덜 비트는 쪽). 이름으로 찾는다(재활 표 rehab-regions.ts 와 같은 방식).
+ */
+export const POST_THROW_MOBILITY_TITLES = ['크로스바디 스트레치', '슬리퍼 스트레치'] as const;
+/** 던진 날부터 며칠까지 넣나(0 = 오늘 던짐) */
+export const POST_THROW_MOBILITY_DAYS = 3;
+/** 이만큼(전력 환산 투구수) 넘게 던진 날만 — 가벼운 캐치볼 다음 날까지 넣지 않는다 */
+export const POST_THROW_MOBILITY_MIN_PITCHES = 30;
+
+export function isPostThrowMobility(ex: { title?: string | null }): boolean {
+  return (POST_THROW_MOBILITY_TITLES as readonly string[]).includes(ex.title ?? '');
+}
+
+/** 던진 뒤 어깨 뒤 풀기를 넣을 날인가 — 넣을 날이면 던진 지 며칠(0~3), 아니면 null */
+export function postThrowMobilityDays(facts: ReportFacts): number | null {
+  const p = facts.patterns;
+  const pitches = p.lastOutingAdjusted ?? p.lastOutingPitches ?? 0;
+  if (p.restDays == null || p.restDays > POST_THROW_MOBILITY_DAYS) return null;
+  return pitches >= POST_THROW_MOBILITY_MIN_PITCHES ? p.restDays : null;
+}
+
 /** 루틴에 넣을 수 있는 운동 — 라이브러리 줄에서 이만큼만 본다 */
 export type ArmcareCandidate = {
   id: string;
   category: string;
+  /** 이름 — 던진 뒤 어깨 뒤 풀기(isPostThrowMobility)를 알아볼 때만 본다 */
+  title?: string;
   intensity: string;
   equipment: string[];
   /** 키우는 근육, 크게 쓰는 차례로 (lib/armcare/anatomy.ts) */
@@ -444,7 +469,7 @@ export function armcareBlock(
   kind: ArmcareKind,
   today: TodayParts
 ): 'not-armcare' | 'arm-strength' | 'intensity' | 'heavy' | 'stiff' | null {
-  if (ex.category !== ARMCARE_CATEGORY) return 'not-armcare';
+  if (ex.category !== ARMCARE_CATEGORY && !isPostThrowMobility(ex)) return 'not-armcare';
   if (ARM_STRENGTH_MUSCLES.includes(ex.targetMuscles[0] ?? '')) return 'arm-strength';
   /* 강화날에도 '높음'은 넣지 않는다 — 몸 상태가 아니라 맞춤 루틴이 정한 한도다 */
   if (kind !== 'recovery' && intensityLevel(ex.intensity) > intensityLevel('중간')) {
@@ -577,6 +602,7 @@ export function buildArmcareRoutine({
   seed,
   painSpots = [],
   length = 'full',
+  mobility = [],
 }: {
   decision: Extract<ArmcareDecision, { kind: ArmcareKind }>;
   /** 장비·경력을 거른 암케어 운동 */
@@ -605,6 +631,8 @@ export function buildArmcareRoutine({
   painSpots?: readonly ArmcareAreaKey[];
   /** 짧게면 앞 자리만 · 시간 한도를 줄여 짠다(QUICK_SLOTS). 통증 루틴은 보지 않는다 */
   length?: ArmcareLength;
+  /** 던진 뒤 어깨 뒤 풀기 운동(POST_THROW_MOBILITY_TITLES 차례). 던진 지 3일 안이면 하나를 맨 앞에 넣는다 */
+  mobility?: ArmcareCandidate[];
 }): ArmcareRoutine {
   const kind = decision.kind;
   const notes: string[] = [];
@@ -699,6 +727,22 @@ export function buildArmcareRoutine({
     const at = fitsSlot(ex, area) ? slots.findIndex((s) => s.area === area) : -1;
     if (at >= 0) slots.splice(at, 1);
     put(ex, area);
+  }
+
+  /*
+   * 던진 뒤 며칠 — 어깨 뒤 풀기 하나를 맨 앞에(1세트, 어깨 뒤 자리를 차지하지 않는다). 오늘 이미 한 것이 있으면 그것을 남긴다.
+   * 통증 루틴은 아픈 자리를 늘이지 않게 넣지 않는다.
+   */
+  const thrownDays = kind === 'pain' ? null : postThrowMobilityDays(facts);
+  if (thrownDays != null) {
+    const usable = mobility.filter((ex) => isPostThrowMobility(ex) && allowed(ex));
+    const pick = usable.find((ex) => doneToday.has(ex.id)) ?? usable[0];
+    if (pick && !taken.has(pick.id)) {
+      put(pick, 'shoulder-back', 1);
+      notes.push(
+        `${thrownDays === 0 ? '오늘' : `${thrownDays}일 전`} 던져서 어깨 뒤를 푸는 스트레치를 넣었어요. 안쪽으로 도는 범위를 되찾아요.`
+      );
+    }
   }
 
   /*
