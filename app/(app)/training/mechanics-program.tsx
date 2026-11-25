@@ -1,5 +1,6 @@
 'use client';
 
+import { focusPointLabel } from '@/lib/exercise-meta';
 import { FocusReview, FocusHistory } from './focus-review';
 import { FocusProgress, MechanicsEquipment } from './focus-progress';
 import { useState, useTransition, type CSSProperties } from 'react';
@@ -246,7 +247,7 @@ function SessionCard({
                     {item.title}
                   </span>
                   <span className="block text-xs break-keep text-muted">
-                    {item.required === false ? '보조 · 선택' : '필수'} · {item.element} · {item.stage} · {item.tool} · {item.dose}
+                    {item.required === false ? '보조 · 선택' : '필수'} · {focusPointLabel(item.element)} · {item.stage} · {item.tool} · {item.dose}
                   </span>
                   {item.gearNote?.replaced && (
                     <span className="block text-xs break-keep text-muted">
@@ -649,7 +650,7 @@ function FilmHistory({ films }: { films: FilmNote[] }) {
 export function RxTag({ rx }: { rx: { element: string; level: 'improve' | 'edge' } }) {
   return (
     <span className="mr-1.5 inline-flex translate-y-[-1px] items-center rounded-full bg-sky px-2 py-0.5 align-middle text-caption font-bold text-white">
-      처방 · {rx.element}
+      처방 · {focusPointLabel(rx.element)}
     </span>
   );
 }
@@ -665,7 +666,7 @@ function RxChips({ rx }: { rx: { element: string; level: 'improve' | 'edge' }[] 
             r.level === 'improve' ? 'bg-sky text-white' : 'bg-sky-tint text-sky-strong'
           }`}
         >
-          {r.element} {RX_LEVEL_TEXT[r.level]}
+          {focusPointLabel(r.element)} {RX_LEVEL_TEXT[r.level]}
         </span>
       ))}
     </div>
@@ -807,7 +808,7 @@ function FocusStartSheet({ offer, level, current }: { offer: FocusOfferView; lev
       </Modal>
     );
   }
-  const what = offer.rx.map((r) => `${r.element} ${RX_LEVEL_TEXT[r.level]}`).join(' · ');
+  const what = offer.rx.map((r) => `${focusPointLabel(r.element)} ${RX_LEVEL_TEXT[r.level]}`).join(' · ');
   const start = () =>
     startTransition(async () => {
       setError(null);
@@ -830,7 +831,7 @@ function FocusStartSheet({ offer, level, current }: { offer: FocusOfferView; lev
         </p>
         {running && (
           <p className="rounded-xl bg-warn-bg px-3.5 py-2.5 text-sm font-semibold break-keep text-warn">
-            진행 중인 처방({running.rx[0]?.element} {running.done}/{running.total})은 새 처방으로 바뀌어요.
+            진행 중인 처방({focusPointLabel(running.rx[0]?.element ?? '')} {running.done}/{running.total})은 새 처방으로 바뀌어요.
           </p>
         )}
         {!level && (

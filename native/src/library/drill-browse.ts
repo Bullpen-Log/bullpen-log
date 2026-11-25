@@ -1,6 +1,6 @@
 import { focusPriority } from '@/lib/mechanics/focus-priority';
 import { LATER_CATEGORY } from '@/lib/categories';
-import { DRILL_STAGE_NAMES } from '@/lib/exercise-meta';
+import { DRILL_STAGE_NAMES, focusPointLabel } from '@/lib/exercise-meta';
 import { searchKey } from '@/lib/korean';
 import { searchTerms, type Scope } from '~/library/browse';
 
@@ -37,7 +37,7 @@ export const shortDrillCategory = (name: string) => (name === LATER_CATEGORY ? n
 
 export function matchesDrillQuery(g: DrillItem, terms: readonly string[]) {
   if (terms.length === 0) return true;
-  const hay = [g.title, g.category, shortDrillCategory(g.category), ...g.focusPoints, ...g.equipment, ...(g.stage ? [g.stage] : [])].map(searchKey);
+  const hay = [g.title, g.category, shortDrillCategory(g.category), ...g.focusPoints, ...g.focusPoints.map(focusPointLabel), ...g.equipment, ...(g.stage ? [g.stage] : [])].map(searchKey);
   return terms.every((t) => hay.some((h) => h.includes(t)));
 }
 

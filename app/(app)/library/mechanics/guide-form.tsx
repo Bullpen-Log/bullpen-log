@@ -16,6 +16,7 @@ import {
   DRILL_STAGES,
   FOCUS_POINT_DESC,
   FOCUS_POINTS,
+  focusPointLabel,
 } from '@/lib/exercise-meta';
 
 /** 주 요소 고르기 칸 — 요소마다 한 줄 뜻을 붙인다 */
@@ -51,12 +52,12 @@ function RankedFocusPicker({ initial }: { initial: string[] }) {
     <input type="hidden" name="focusMain" value={points[0] ?? ''} />
     {points.slice(1).map((point) => <input key={point} type="hidden" name="focusPoints" value={point} />)}
     <div className="flex flex-wrap gap-2">{FOCUS_OPTIONS.map(({ name, desc }) => <label key={name} className="rounded-lg border border-line p-2 text-sm">
-      <input type="checkbox" checked={points.includes(name)} onChange={(event) => setPoints((current) => event.target.checked ? [...current, name] : current.filter((point) => point !== name))} /> {name}<span className="block text-xs text-muted">{desc}</span>
+      <input type="checkbox" checked={points.includes(name)} onChange={(event) => setPoints((current) => event.target.checked ? [...current, name] : current.filter((point) => point !== name))} /> {focusPointLabel(name)}<span className="block text-xs text-muted">{desc}</span>
     </label>)}</div>
     <ol className="space-y-2">{points.map((point, index) => <li key={point} className="flex items-center gap-2 rounded-lg bg-surface-2 p-2 text-sm">
-      <span className="flex-1">{index + 1}순위 · {point}{index === 0 ? ' · 핵심 목적' : ''}</span>
-      <button type="button" disabled={index === 0} aria-label={`${point} 우선순위 올리기`} onClick={() => move(index, -1)}>위로</button>
-      <button type="button" disabled={index === points.length - 1} aria-label={`${point} 우선순위 내리기`} onClick={() => move(index, 1)}>아래로</button>
+      <span className="flex-1">{index + 1}순위 · {focusPointLabel(point)}{index === 0 ? ' · 핵심 목적' : ''}</span>
+      <button type="button" disabled={index === 0} aria-label={`${focusPointLabel(point)} 우선순위 올리기`} onClick={() => move(index, -1)}>위로</button>
+      <button type="button" disabled={index === points.length - 1} aria-label={`${focusPointLabel(point)} 우선순위 내리기`} onClick={() => move(index, 1)}>아래로</button>
     </li>)}</ol>
     {!points.length && <p className="text-sm text-muted">훈련 목적을 하나 이상 선택하세요.</p>}
   </fieldset>;

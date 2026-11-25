@@ -9,7 +9,7 @@ import { deleteGuide, setGuideThumbnail } from '@/app/actions/content';
 import { toggleDrillFavorite } from '@/app/actions/favorite';
 import { FavoriteButton } from '@/components/favorite-button';
 import { LATER_CATEGORY, MECHANICS_CATEGORY_NAMES } from '@/lib/categories';
-import { DRILL_EQUIPMENT, DRILL_STAGE_NAMES, FOCUS_POINTS } from '@/lib/exercise-meta';
+import { DRILL_EQUIPMENT, DRILL_STAGE_NAMES, FOCUS_POINTS, focusPointLabel } from '@/lib/exercise-meta';
 import { CategorySection } from '@/components/category-section';
 import { CategoryBadge } from '@/components/category-badge';
 import type { ReviewSelection } from '@/lib/exercise-video-review';
@@ -52,7 +52,7 @@ export type GuideItem = {
  * 앞다리를 함께 쓰는 드릴이 같이 나온다. 주 요소인 드릴을 앞에 세운다(MechanicsClient 의 matched).
  */
 const FILTER_GROUPS = [
-  { key: 'focusPoints', label: '요소', options: FOCUS_POINTS },
+  { key: 'focusPoints', label: '요소', options: FOCUS_POINTS, optionLabel: focusPointLabel },
   { key: 'stage', label: '단계', options: DRILL_STAGE_NAMES },
   { key: 'category', label: '종류', options: MECHANICS_CATEGORY_NAMES.filter((c) => c !== LATER_CATEGORY) },
   { key: 'equipment', label: '장비', options: DRILL_EQUIPMENT },
@@ -440,7 +440,7 @@ function MechanicsBrowse({
             return (
               <CategorySection
                 key={section}
-                name={section}
+                name={isFocus ? focusPointLabel(section) : section}
                 count={items.length}
                 isAdmin={isAdmin}
                 form={

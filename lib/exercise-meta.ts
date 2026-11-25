@@ -449,6 +449,19 @@ export const FOCUS_POINTS = [
   '스로잉',
 ] as const;
 
+const FOCUS_POINT_LABELS: Partial<Record<(typeof FOCUS_POINTS)[number], string>> = {
+  '상하체 분리': '세퍼레이션',
+  '몸통 회전': '로테이션',
+  브레이크: '블록',
+};
+
+/** 화면에 쓰는 이름. 저장·추천·필터 값은 FOCUS_POINTS를 사용한다. */
+export function focusPointLabel(point: string): string {
+  return Object.prototype.hasOwnProperty.call(FOCUS_POINT_LABELS, point)
+    ? FOCUS_POINT_LABELS[point as keyof typeof FOCUS_POINT_LABELS] ?? point
+    : point;
+}
+
 /** 요소마다 한 줄 — 관리자 등록 화면 · 거르기에서 무엇을 뜻하는지 보인다 */
 export const FOCUS_POINT_DESC: Record<(typeof FOCUS_POINTS)[number], string> = {
   드리프트: '다리를 들고 홈 쪽으로 나가는 힘을 만든다',

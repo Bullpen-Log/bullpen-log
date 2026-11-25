@@ -170,7 +170,7 @@ const st = StyleSheet.create({
 
 /* ----------------------------- 필터(웹 components/meta-filter.tsx) ----------------------------- */
 
-export type FilterGroup = { key: string; label: string; options: readonly string[] };
+export type FilterGroup = { key: string; label: string; options: readonly string[]; optionLabel?: (option: string) => string };
 export type FilterState = Record<string, string[]>;
 const filterCount = (f: FilterState) => Object.values(f).reduce((n, v) => n + v.length, 0);
 /** 조건 고르기 시트 — 묶음마다 칩, 아래 [모두 지우기][N개 보기] */
@@ -241,7 +241,7 @@ export function FilterSheet({
                   onPress={() => toggle(g.key, v)}
                   style={[st.opt, { backgroundColor: on ? c.sky : c.chip }]}
                 >
-                  <Text style={{ color: on ? '#fff' : c.ink, fontSize: 15, fontWeight: '600' }}>{g.key === 'equipment' ? equipmentName(v) : v}</Text>
+                  <Text style={{ color: on ? '#fff' : c.ink, fontSize: 15, fontWeight: '600' }}>{g.optionLabel?.(v) ?? (g.key === 'equipment' ? equipmentName(v) : v)}</Text>
                 </Press>
               );
             })}

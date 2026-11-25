@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronRight } from '@/components/icon';
 import { Modal, useModalState } from '@/components/modal';
-import { DRILL_STAGES } from '@/lib/exercise-meta';
+import { DRILL_STAGES, focusPointLabel } from '@/lib/exercise-meta';
 import {
   MECHANICS_ELEMENTS,
   MECHANICS_OVERVIEW,
@@ -185,7 +185,7 @@ function ElementChain({
             >
               {el.order}
             </span>
-            <span className="text-sm font-bold break-keep">{el.name}</span>
+            <span className="text-sm font-bold break-keep">{focusPointLabel(el.name)}</span>
             {(() => {
               const r = report?.find((x) => x.element === el.name);
               return r ? (
@@ -259,7 +259,7 @@ function ElementCard({
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-baseline gap-x-2">
-            <span className="text-base font-bold text-ink">{el.name}</span>
+            <span className="text-base font-bold text-ink">{focusPointLabel(el.name)}</span>
             <span className="text-xs text-muted">드릴 {count}개</span>
           </span>
           <span className="mt-0.5 block text-xs break-keep text-muted">{el.line}</span>
@@ -308,7 +308,7 @@ function ElementCard({
           )}
           {via && via.also.length > 0 && (
             <p className="rounded-xl bg-sky-tint/60 px-3.5 py-2.5 text-xs leading-relaxed break-keep text-ink/85">
-              ‘{via.text}’라면 {el.name}부터 보고, 함께{' '}
+              ‘{via.text}’라면 {focusPointLabel(el.name)}부터 보고, 함께{' '}
               {via.also.map((name, i) => (
                 <span key={name}>
                   {i > 0 && ' · '}
@@ -317,7 +317,7 @@ function ElementCard({
                     onClick={() => onElement(name)}
                     className="font-semibold text-sky-strong"
                   >
-                    {name}
+                    {focusPointLabel(name)}
                   </button>
                 </span>
               ))}
@@ -338,7 +338,7 @@ function ElementCard({
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={onInfo} className={INFO_PILL}>
-              {el.name} 자세히 보기
+              {focusPointLabel(el.name)} 자세히 보기
               <ChevronRight aria-hidden className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -455,7 +455,7 @@ export function OverviewDetail() {
               {el.order}
             </span>
             <span>
-              <span className="font-bold text-ink">{el.name}</span>{' '}
+              <span className="font-bold text-ink">{focusPointLabel(el.name)}</span>{' '}
               <span className="text-muted">{el.line}</span>
             </span>
           </li>

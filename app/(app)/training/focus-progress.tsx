@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { DRILL_EQUIPMENT } from '@/lib/exercise-meta';
+import { DRILL_EQUIPMENT, focusPointLabel } from '@/lib/exercise-meta';
 import type { FocusView } from '@/lib/mechanics/program';
 import { SKILL_STAGES } from '@/lib/mechanics/progression';
 import { saveMechanicsEquipment, convertMechanicsFocus, recordMechanicsNextDay, advanceMechanicsStage } from '@/app/actions/mechanics';
@@ -90,7 +90,7 @@ export function FocusProgress({ focus }: { focus: FocusView }) {
       {skill.elements.map((e) => (
         <div key={e.fault} className="space-y-2 border-t border-line pt-3">
           <h3 className="font-semibold">
-            {e.element} · {e.stage}
+            {focusPointLabel(e.element)} · {e.stage}
             {e.finished ? ' 자가 확인 완료' : ' 연습 중'}
           </h3>
           <p className="text-sm">동작 목표: {e.cue}</p>

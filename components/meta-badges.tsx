@@ -1,5 +1,6 @@
 'use client';
 
+import { focusPointLabel } from '@/lib/exercise-meta';
 import { Dumbbell, Flame, Target } from '@/components/icon';
 import { isBodyPart, useBodyParts } from '@/components/body-parts-context';
 
@@ -116,7 +117,7 @@ export function DrillBadges({
           title={`${i + 1}순위 훈련 목적${i === 0 ? ' · 핵심 목적' : ''}`}
         >
           {i === 0 && <Target aria-hidden className="h-3 w-3" />}
-          {i + 1}순위 · {point}
+          {i + 1}순위 · {focusPointLabel(point)}
         </span>
       ))}
 

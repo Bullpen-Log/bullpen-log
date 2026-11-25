@@ -9,6 +9,7 @@ type FilterGroup = {
   key: string;
   label: string;
   options: readonly string[];
+  optionLabel?: (option: string) => string;
 };
 
 export type FilterState = Record<string, string[]>;
@@ -75,7 +76,7 @@ export function MetaFilter({
                       : 'border-transparent bg-ink/6 text-ink/80 desk:border-line desk:bg-surface-2 desk:text-muted desk:hover:border-sky-soft desk:hover:text-ink'
                   }`}
                 >
-                  {group.key === 'equipment' ? equipmentName(option) : option}
+                  {group.optionLabel?.(option) ?? (group.key === 'equipment' ? equipmentName(option) : option)}
                 </button>
               );
             })}

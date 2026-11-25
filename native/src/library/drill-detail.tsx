@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Alert, Linking, StyleSheet, Text, View } from 'react-native';
-import { DRILL_STAGES, FOCUS_POINT_DESC } from '@/lib/exercise-meta';
+import { DRILL_STAGES, FOCUS_POINT_DESC, focusPointLabel } from '@/lib/exercise-meta';
 import { mechanicsElement } from '@/lib/mechanics/elements';
 import { instagramReferenceLabel, splitInstagramReference } from '@/lib/mechanics/reference-draft';
 import type { Palette } from '~/lib/ui';
@@ -68,7 +68,7 @@ export function DrillDetail({ item, entry, onReturn, c }: { item: Drill; entry: 
                 </Text>
               ) : null
             ) : entry.el ? (
-              <Text style={[s.small, { color: c.ink }]}>연결된 요소 · {entry.el}</Text>
+              <Text style={[s.small, { color: c.ink }]}>연결된 요소 · {focusPointLabel(entry.el)}</Text>
             ) : null}
           </View>
         </View>
@@ -87,7 +87,7 @@ export function DrillDetail({ item, entry, onReturn, c }: { item: Drill; entry: 
         <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
           {linkedAlong ? (
             <View style={[st.along, { backgroundColor: c.skyTint }]}>
-              <Text style={[s.smallBold, { color: c.link }]}>{linkedAlong}</Text>
+              <Text style={[s.smallBold, { color: c.link }]}>{focusPointLabel(linkedAlong)}</Text>
               <Text style={[s.small, { color: c.link }]}>· 함께 쓰는 요소로 연결</Text>
             </View>
           ) : null}
@@ -97,8 +97,8 @@ export function DrillDetail({ item, entry, onReturn, c }: { item: Drill; entry: 
             </View>
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={[s.small, { color: c.muted }]}>훈련 목적 · 1순위</Text>
-              <Press onPress={() => setOpen({ kind: 'element', name: main })} accessibilityRole="button" accessibilityLabel={`주 요소 ${main}, 설명 보기`} style={st.elName}>
-                <Text style={[st.elText, { color: c.link }]}>{main}</Text>
+              <Press onPress={() => setOpen({ kind: 'element', name: main })} accessibilityRole="button" accessibilityLabel={`주 요소 ${focusPointLabel(main)}, 설명 보기`} style={st.elName}>
+                <Text style={[st.elText, { color: c.link }]}>{focusPointLabel(main)}</Text>
                 <Icon name="chevron-right" size={16} color={c.link} />
               </Press>
             </View>
@@ -109,8 +109,8 @@ export function DrillDetail({ item, entry, onReturn, c }: { item: Drill; entry: 
               <Text style={[s.small, { color: c.muted }]}>훈련 목적 · 우선순위</Text>
               <View style={[s.row, { gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end', flex: 1 }]}>
                 {more.map((x, index) => (
-                  <Press key={x} onPress={() => setOpen({ kind: 'element', name: x })} accessibilityRole="button" accessibilityLabel={`함께 쓰는 요소 ${x}, 설명 보기`} style={st.elName}>
-                    <Text style={[s.smallBold, { color: c.link }]}>{index + 2}순위 · {x}</Text>
+                  <Press key={x} onPress={() => setOpen({ kind: 'element', name: x })} accessibilityRole="button" accessibilityLabel={`함께 쓰는 요소 ${focusPointLabel(x)}, 설명 보기`} style={st.elName}>
+                    <Text style={[s.smallBold, { color: c.link }]}>{index + 2}순위 · {focusPointLabel(x)}</Text>
                     <Icon name="chevron-right" size={14} color={c.link} />
                   </Press>
                 ))}
@@ -152,7 +152,7 @@ export function DrillDetail({ item, entry, onReturn, c }: { item: Drill; entry: 
         {onReturn ? <LinkRow label={entry.from === 'mechanics' ? '하던 훈련으로' : '분석 결과로'} onPress={onReturn} c={c} /> : null}
       </View>
 
-      <Sheet fit open={open?.kind === 'element'} onClose={() => setOpen(null)} title={open?.kind === 'element' ? open.name : '투구 요소'} c={c}>
+      <Sheet fit open={open?.kind === 'element'} onClose={() => setOpen(null)} title={open?.kind === 'element' ? focusPointLabel(open.name) : '투구 요소'} c={c}>
         {open?.kind === 'element' ? <ElementInfo name={open.name} role={open.name === main ? '이 드릴의 주 요소예요.' : '이 드릴에서 함께 쓰는 요소예요.'} c={c} /> : null}
       </Sheet>
       <Sheet fit open={open?.kind === 'stage'} onClose={() => setOpen(null)} title="드릴 단계" description="드릴의 난이도 분류예요. 내 학습 단계 · 진도와는 따로예요." c={c}>

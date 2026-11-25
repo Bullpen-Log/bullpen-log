@@ -1,3 +1,4 @@
+import { focusPointLabel } from '@/lib/exercise-meta';
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
@@ -211,7 +212,7 @@ export function MechanicsTraining({
     m = {
       eyebrow: '지난 훈련 확인',
       title: '다음 날 반응을 남겨 주세요',
-      sub: `${pending.element} · ${pending.stage} 단계`,
+      sub: `${focusPointLabel(pending.element)} · ${pending.stage} 단계`,
       primary: { label: '반응 확인', onPress: () => setRespondOpen(true) },
       secondary: { label: '오늘 훈련 시작하기', onPress: () => go(startHref) },
     };
@@ -335,8 +336,8 @@ export function MechanicsTraining({
         <View style={[st.card, { backgroundColor: c.card, boxShadow: c.float }]}>
           {skill.elements.map((e) => (
             <View key={e.fault} style={{ gap: 8 }}>
-              <Text style={[st.bodyBold, { color: c.ink }]}>{e.element} 학습 단계</Text>
-              <View style={st.stages} accessibilityLabel={`${e.element} 지금 ${e.stage} 단계${e.finished ? ', 자가 확인 완료' : ''}`}>
+              <Text style={[st.bodyBold, { color: c.ink }]}>{focusPointLabel(e.element)} 학습 단계</Text>
+              <View style={st.stages} accessibilityLabel={`${focusPointLabel(e.element)} 지금 ${e.stage} 단계${e.finished ? ', 자가 확인 완료' : ''}`}>
                 {SKILL_STAGES.map((sg) => {
                   const on = sg === e.stage;
                   return (
@@ -401,7 +402,7 @@ function DrillDetailSheet({ drill: d, onClose, c }: { drill: AppSessionDrill; on
             {(
               [
                 ['목표 수행량', doseLabel(d.dose)],
-                ['분류', `${d.element} · ${d.stage} · ${d.required === false ? '선택' : '필수'}`],
+                ['분류', `${focusPointLabel(d.element)} · ${d.stage} · ${d.required === false ? '선택' : '필수'}`],
                 ['장비', d.tool],
               ] as const
             ).map(([k, v]) => (
@@ -467,7 +468,7 @@ function RespondSheet({
       open
       onClose={onClose}
       title="다음 날 반응"
-      description={`${element.practiceOn ? `${Number(element.practiceOn.slice(5, 7))}월 ${Number(element.practiceOn.slice(8, 10))}일 · ` : ''}${element.element}`}
+      description={`${element.practiceOn ? `${Number(element.practiceOn.slice(5, 7))}월 ${Number(element.practiceOn.slice(8, 10))}일 · ` : ''}${focusPointLabel(element.element)}`}
       c={c}
     >
       <View style={{ gap: 10 }}>

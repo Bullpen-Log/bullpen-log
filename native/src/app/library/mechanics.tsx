@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActionSheetIOS, FlatList, Pressable, RefreshControl, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MECHANICS_CATEGORY_NAMES } from '@/lib/categories';
-import { DRILL_EQUIPMENT, DRILL_STAGES, DRILL_STAGE_NAMES, FOCUS_POINTS, FOCUS_POINT_DESC } from '@/lib/exercise-meta';
+import { DRILL_EQUIPMENT, DRILL_STAGES, DRILL_STAGE_NAMES, FOCUS_POINTS, FOCUS_POINT_DESC, focusPointLabel } from '@/lib/exercise-meta';
 import { splitInstagramReference } from '@/lib/mechanics/reference-draft';
 import { Bar, leave } from '~/community/parts';
 import { useMenu } from '~/shell/menu-store';
@@ -89,7 +89,7 @@ export default function DrillLibraryScreen() {
   /* 고를 칸 — 정해 둔 차례대로, 실제 있는 새 값도 숨기지 않는다 */
   const filterGroups = useMemo(
     () => [
-      { key: 'focusPoints', label: '투구 요소', options: FOCUS_POINTS },
+      { key: 'focusPoints', label: '투구 요소', options: FOCUS_POINTS, optionLabel: focusPointLabel },
       { key: 'stage', label: '드릴 단계', options: DRILL_STAGE_NAMES },
       { key: 'category', label: '종류', options: optionsOf(MECHANICS_CATEGORY_NAMES, drills.map((g) => g.category)) },
       { key: 'equipment', label: '장비', options: optionsOf(DRILL_EQUIPMENT, drills.flatMap((g) => g.equipment)) },
@@ -153,7 +153,7 @@ export default function DrillLibraryScreen() {
   const onlyFocus = oneFocus && nFilters === 1;
   const onlyStage = f.stage.length === 1 && nFilters === 1;
   const heading =
-    view.scope === 'fav' ? '즐겨찾기' : query || (nFilters > 0 && !onlyFocus && !onlyStage) ? '검색 결과' : onlyFocus ? `${oneFocus} 드릴` : onlyStage ? `${f.stage[0]} 단계 드릴` : '전체 드릴';
+    view.scope === 'fav' ? '즐겨찾기' : query || (nFilters > 0 && !onlyFocus && !onlyStage) ? '검색 결과' : onlyFocus ? `${focusPointLabel(oneFocus)} 드릴` : onlyStage ? `${f.stage[0]} 단계 드릴` : '전체 드릴';
   /* 빠른 고르기가 보여 주는 값은 다시 칩으로 늘어놓지 않는다 — 둘 이상 고른 요소 · 단계와 종류 · 장비만 지울 수 있는 칩으로 */
   const tokens = [
     ...(f.focusPoints.length > 1 ? f.focusPoints.map((v) => ['focusPoints', v] as const) : []),
@@ -163,7 +163,7 @@ export default function DrillLibraryScreen() {
   ];
   const quick = (key: Pick, label: string) => {
     const chosen = f[key];
-    const value = chosen.length === 0 ? '전체' : chosen.length === 1 ? chosen[0] : `${chosen.length}개`;
+    const value = chosen.length === 0 ? '전체' : chosen.length === 1 ? (key === 'focusPoints' ? focusPointLabel(chosen[0]) : chosen[0]) : `${chosen.length}개`;
     return (
       <Press
         onPress={() => setPick(key)}
@@ -195,7 +195,7 @@ export default function DrillLibraryScreen() {
           <Icon name="focus" size={18} color={c.link} />
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={[st.bold, { color: c.link }]}>3D 분석 결과에서 이동</Text>
-            {entry.el ? <Text style={[st.small, { color: c.ink }]}>선택한 요소 · {entry.el}</Text> : null}
+            {entry.el ? <Text style={[st.small, { color: c.ink }]}>선택한 요소 · {focusPointLabel(entry.el)}</Text> : null}
           </View>
         </View>
       ) : null}
@@ -230,7 +230,7 @@ export default function DrillLibraryScreen() {
       </View>
       {oneFocus ? (
         <View style={st.row}>
-          <Text style={[st.small, { color: c.muted, flex: 1 }]}>{FOCUS_POINT_DESC[oneFocus as keyof typeof FOCUS_POINT_DESC] ?? oneFocus}</Text>
+          <Text style={[st.small, { color: c.muted, flex: 1 }]}>{FOCUS_POINT_DESC[oneFocus as keyof typeof FOCUS_POINT_DESC] ?? focusPointLabel(oneFocus)}</Text>
           <Press onPress={() => setFilters({ focusPoints: [] })} accessibilityRole="button" accessibilityLabel="투구 요소 해제" style={st.iconBtn}>
             <Icon name="x" size={16} color={c.link} />
           </Press>
@@ -243,10 +243,10 @@ export default function DrillLibraryScreen() {
               key={`${key}:${v}`}
               onPress={() => setFilters({ [key]: f[key].filter((x) => x !== v) })}
               accessibilityRole="button"
-              accessibilityLabel={`${v} 필터 해제`}
+              accessibilityLabel={`${key === 'focusPoints' ? focusPointLabel(v) : v} 필터 해제`}
               style={[st.token, { backgroundColor: c.skyTint }]}
             >
-              <Text style={[st.bold, { color: c.link }]}>{key === 'category' ? shortDrillCategory(v) : v}</Text>
+              <Text style={[st.bold, { color: c.link }]}>{key === 'category' ? shortDrillCategory(v) : key === 'focusPoints' ? focusPointLabel(v) : v}</Text>
               <Icon name="x" size={13} color={c.link} />
             </Press>
           ))}
@@ -393,7 +393,7 @@ function DrillCard({ g, focus, entry, wide, c }: { g: Drill; focus: readonly str
   const video = hasVideo(g);
   const main = g.focusPoints[0] ?? null;
   const along = secondaryMatch(g, focus);
-  const label = [g.title, g.stage ?? '단계 미등록', main ? `주 요소 ${main}` : '요소 미등록', ...(along ? [`${along} 함께 사용`] : []), ...g.equipment, ...(video ? [] : ['영상 준비 중'])].join(', ');
+  const label = [g.title, g.stage ?? '단계 미등록', main ? `주 요소 ${focusPointLabel(main)}` : '요소 미등록', ...(along ? [`${focusPointLabel(along)} 함께 사용`] : []), ...g.equipment, ...(video ? [] : ['영상 준비 중'])].join(', ');
   return (
     <View style={[st.card, { backgroundColor: c.card, boxShadow: c.float }]}>
       <Pressable
@@ -430,14 +430,14 @@ function DrillCard({ g, focus, entry, wide, c }: { g: Drill; focus: readonly str
             ) : (
               <Text style={[st.tiny, { color: c.muted }]}>단계 미등록</Text>
             )}
-            <Text style={[st.tiny, { color: main ? c.link : c.muted, fontWeight: main ? '700' : '400' }]}>{main ?? '요소 미등록'}</Text>
+            <Text style={[st.tiny, { color: main ? c.link : c.muted, fontWeight: main ? '700' : '400' }]}>{main ? focusPointLabel(main) : '요소 미등록'}</Text>
           </View>
           {g.equipment.length > 0 ? (
             <Text numberOfLines={wide ? undefined : 1} style={[st.small, { color: c.muted }]}>
               {g.equipment.join(' · ')}
             </Text>
           ) : null}
-          {along ? <Text style={[st.small, { color: c.muted }]}>{along} 함께 사용</Text> : null}
+          {along ? <Text style={[st.small, { color: c.muted }]}>{focusPointLabel(along)} 함께 사용</Text> : null}
         </View>
       </Pressable>
       <Press
@@ -505,7 +505,7 @@ function PickSheet({ pick, chosen, onPick, onClose, c }: { pick: Pick | null; ch
     >
       <View style={{ gap: 8 }}>
         {row(null, pick === 'stage' ? '전체 단계' : '전체 요소', null)}
-        {rows.map((x) => row(x.v, x.v, x.desc))}
+        {rows.map((x) => row(x.v, pick === 'stage' ? x.v : focusPointLabel(x.v), x.desc))}
       </View>
     </Sheet>
   );

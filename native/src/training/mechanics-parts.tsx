@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { Thumb } from '~/lib/thumb';
 import { josa } from '@/lib/korean';
-import { DRILL_STAGES } from '@/lib/exercise-meta';
+import { DRILL_STAGES, focusPointLabel } from '@/lib/exercise-meta';
 import { MECHANICS_ELEMENTS, MECHANICS_OVERVIEW, MECHANICS_SOURCE_NOTE, MECHANICS_SYMPTOMS, sideText, type MechanicsElement } from '@/lib/mechanics/elements';
 import { MECHANICS_LEVELS, PER_WEEK, WEEKS, mechanicsLevel, type LevelKey, type MechanicsLevel } from '@/lib/mechanics/levels';
 import {
@@ -96,7 +96,7 @@ export function OverviewDetail({ c }: { c: Palette }) {
           <View key={el.key} style={[s.row, { gap: 8, alignItems: 'flex-start' }]}>
             <Num n={el.order} c={c} />
             <Text style={[TYPE.reading, { color: c.ink, flex: 1 }]}>
-              <Text style={{ color: c.ink, fontWeight: '700' }}>{el.name}</Text> {el.line}
+              <Text style={{ color: c.ink, fontWeight: '700' }}>{focusPointLabel(el.name)}</Text> {el.line}
             </Text>
           </View>
         ))}
@@ -205,7 +205,7 @@ function RxChips({ rx, c }: { rx: FocusOffer['rx']; c: Palette }) {
           key={r.element}
           style={[s.smallBold, s.tag, { color: r.level === 'improve' ? '#fff' : c.sky, backgroundColor: r.level === 'improve' ? c.sky : c.sky + '1a' }]}
         >
-          {r.element} {RX_LEVEL_TEXT[r.level]}
+          {focusPointLabel(r.element)} {RX_LEVEL_TEXT[r.level]}
         </Text>
       ))}
     </View>
@@ -351,7 +351,7 @@ export function FocusStartSheet({
       </Sheet>
     );
   }
-  const what = offer ? offer.rx.map((r) => `${r.element} ${RX_LEVEL_TEXT[r.level]}`).join(' · ') : '';
+  const what = offer ? offer.rx.map((r) => `${focusPointLabel(r.element)} ${RX_LEVEL_TEXT[r.level]}`).join(' · ') : '';
   return (
     <Sheet
       fit
@@ -381,7 +381,7 @@ export function FocusStartSheet({
           </Text>
           {running ? (
             <Text style={[s.bodyBold, s.box, { color: c.warn, backgroundColor: c.warnBg }]}>
-              진행 중인 처방({running.rx[0]?.element} {running.done}/{running.total})은 새 처방으로 바뀌어요.
+              진행 중인 처방({focusPointLabel(running.rx[0]?.element ?? '')} {running.done}/{running.total})은 새 처방으로 바뀌어요.
             </Text>
           ) : null}
           {!level ? (
@@ -572,14 +572,14 @@ export function ElementChain({
             key={el.key}
             onPress={() => onPick(el.name)}
             accessibilityRole="button"
-            accessibilityLabel={r ? `${el.name}, 내 리포트 ${RX_REPORT_TEXT[r.level]}` : undefined}
+            accessibilityLabel={r ? `${focusPointLabel(el.name)}, 내 리포트 ${RX_REPORT_TEXT[r.level]}` : undefined}
             accessibilityState={{ selected: on }}
             style={[st.chainItem, { backgroundColor: on ? c.sky : c.card }]}
           >
             <View style={[st.num, { backgroundColor: on ? 'rgba(255,255,255,0.25)' : c.sky + '1a' }]}>
               <Text style={[s.smallBold, { color: on ? '#fff' : c.sky }]}>{el.order}</Text>
             </View>
-            <Text style={[s.bodyBold, { color: on ? '#fff' : c.ink, flexShrink: 1 }]}>{el.name}</Text>
+            <Text style={[s.bodyBold, { color: on ? '#fff' : c.ink, flexShrink: 1 }]}>{focusPointLabel(el.name)}</Text>
             {r ? (
               <View
                 style={[st.dot, { marginLeft: 'auto', backgroundColor: on ? '#fff' : c.warn, opacity: r.level === 'improve' ? 1 : 0.45 }]}
@@ -674,7 +674,7 @@ export function ElementCard({
         </View>
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={[s.bodyBold, { color: c.ink, fontSize: 17 }]}>
-            {el.name} <Text style={[s.small, { color: c.muted, fontWeight: '400' }]}>드릴 {count}개</Text>
+            {focusPointLabel(el.name)} <Text style={[s.small, { color: c.muted, fontWeight: '400' }]}>드릴 {count}개</Text>
           </Text>
           <Text style={[s.small, { color: c.muted }]}>{el.line}</Text>
         </View>
@@ -707,12 +707,12 @@ export function ElementCard({
           ) : null}
           {via && via.also.length > 0 ? (
             <Text style={[s.small, s.box, { color: c.ink, backgroundColor: c.sky + '14' }]}>
-              ‘{via.text}’라면 {el.name}부터 보고, 함께{' '}
+              ‘{via.text}’라면 {focusPointLabel(el.name)}부터 보고, 함께{' '}
               {via.also.map((name, i) => (
                 <Text key={name}>
                   {i > 0 ? ' · ' : ''}
                   <Text onPress={() => onElement(name)} style={{ color: c.link, fontWeight: '700' }}>
-                    {name}
+                    {focusPointLabel(name)}
                   </Text>
                 </Text>
               ))}
@@ -726,7 +726,7 @@ export function ElementCard({
               </Text>
             ))}
           </View>
-          <Fold label={`${el.name} 자세히 보기`} c={c}>
+          <Fold label={`${focusPointLabel(el.name)} 자세히 보기`} c={c}>
             <ElementDetail el={el} hand={hand} c={c} />
           </Fold>
           {stages.map(({ stage, primary, secondary }) =>
