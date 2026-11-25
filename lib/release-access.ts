@@ -185,6 +185,8 @@ const PATH_RULES: PathRule[] = [
   { prefix: '/embed/abs', cap: 'abs' },
 
   /* 트레이닝 · 암케어 · 메커니즘 */
+  { prefix: '/training/wiki', cap: 'training' },
+  { prefix: '/board/wiki', cap: 'training' }, // 이전 위키 링크만 새 주소로 넘긴다.
   { prefix: '/training/armcare-area', cap: 'armcare' },
   {
     prefix: '/training',

@@ -9,6 +9,7 @@ import { useEffect } from 'react';
 import { Appearance } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { FullWindowOverlay } from 'react-native-screens';
+import { WIKI_BASE } from '@/lib/wiki/categories';
 import { currentPrefs, prefsReady, usePrefs } from '~/lib/prefs';
 import { BullpenNative } from '../../modules/bullpen-native';
 import { useTheme } from '~/lib/ui';
@@ -58,7 +59,8 @@ function useReleaseGuard(path: string) {
   const release = useRelease();
   const decided = useReleaseDecided();
   useEffect(() => {
-    if (!decided || path === '/' || path === '/intake' || canOpen(path, release)) return;
+    // Wiki checks the current session before it mounts anything, including on cold links.
+    if (!decided || path === '/' || path === '/intake' || path === WIKI_BASE || canOpen(path, release)) return;
     noticeLocked();
     if (router.canDismiss()) router.dismissAll();
     else router.replace('/');

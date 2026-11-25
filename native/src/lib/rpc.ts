@@ -30,6 +30,8 @@ const sessions = createSessionLifecycle(async () => {
   await BullpenNative.mirror(HOST);
 });
 export const sessionEpoch = sessions.epoch;
+export const sessionRevision = sessions.revision;
+export const subscribeToSession = sessions.subscribe;
 export const sessionChanging = sessions.pending;
 export const changeSession = <T>(run: (version: number) => Promise<T>) => sessions.change(run);
 

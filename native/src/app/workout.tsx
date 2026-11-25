@@ -79,6 +79,7 @@ import { useWeightUnit } from '~/lib/weight-unit';
 import { READABLE, useBarSide } from '~/lib/layout';
 import { Press } from '~/shell/press';
 import { Icon } from '~/shell/icon';
+import { WorkoutWikiDescription } from '~/wiki/workout-description';
 
 /**
  * 운동 진행(앱 화면) — 웹 app/(session)/workout/run/session-client.tsx 를 옮겼다. 사이트의 운동 화면이 앱(BullpenNative/2 부터)이면 이 화면을
@@ -1321,7 +1322,8 @@ function Run({
             <View style={[s.formBox, { backgroundColor: c.card, boxShadow: c.float }]}>
               {/* 운동마다 새 재생기 — 같은 자리라 앞 운동의 영상이 다음 운동에서도 돌지 않게. 웹 LibraryVideo 처럼 미리보기 그림 → 눌러 재생 */}
               <ExerciseMedia key={ex.id} path={ex.videoPath} referenceVideoId={ex.referenceVideoId} thumbUrl={ex.thumbUrl} aspectRatio={ex.aspectRatio} />
-              {ex.description ? <Text style={[TYPE.reading, { color: c.ink }]}>{ex.description}</Text> : null}
+              {/* 싱커위키 낱말(SINKER-WIKI01) — 설명 글자는 그대로, 아는 말만 눌러 뜻 창(같은 화면 위 Modal)을 연다. 이 판의 세트 값 · 시계 · 영상은 그대로 */}
+              {ex.description ? <WorkoutWikiDescription key={ex.id} text={ex.description} c={c} /> : null}
               {/* 운동 상세 — 위에 쌓여 이 판(입력 중인 세트 · 쉬는 시계 · 지금 운동)은 그대로. 오늘 배정된 구성을 같이 넘긴다 */}
               <Press
                 onPress={() =>

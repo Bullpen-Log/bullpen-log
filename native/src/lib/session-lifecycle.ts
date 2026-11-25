@@ -4,8 +4,19 @@ export function createSessionLifecycle(hydrate: () => Promise<unknown>) {
   let epoch = 0;
   let tail: Promise<unknown> = Promise.resolve();
   let pending = 0;
+  let revision = 0;
+  const listeners = new Set<() => void>();
+  const notify = () => {
+    revision++;
+    for (const listener of listeners) listener();
+  };
   return {
     epoch: () => epoch,
+    revision: () => revision,
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      return () => { listeners.delete(listener); };
+    },
     pending: () => pending > 0,
     idle: () => tail,
     ready() {
@@ -21,8 +32,12 @@ export function createSessionLifecycle(hydrate: () => Promise<unknown>) {
       // Invalidate immediately, even while a previous login/password request is finishing.
       const version = ++epoch;
       pending++;
-      const result = tail.then(() => run(version)).finally(() => { pending--; });
+      const result = tail.then(() => run(version)).finally(() => {
+        pending--;
+        notify();
+      });
       tail = result.catch(() => undefined);
+      notify();
       return result;
     },
   };

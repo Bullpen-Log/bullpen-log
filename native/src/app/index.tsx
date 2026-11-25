@@ -99,6 +99,7 @@ const NATIVE_ROUTES = [
   /^\/(mechanics|analysis)(\?[\w=&%.-]*)?$/,
   /^\/support(\/notices(\/[\w-]+)?|\/inquiries(\/[\w-]+)?)?$/,
   /^\/library\/(training|mechanics|warmup)$/,
+  /^\/training\/wiki(\/[a-z0-9-]+)?$/,
   /^\/board(\/[\w-]+)?$/,
   /^\/warmup$/,
   /^\/workout-done\?id=[\w-]+$/,

@@ -104,6 +104,7 @@ import {
 } from '@/lib/program/program';
 import { UNIT_KG, UNIT_LB, roundForDisplay, weightKindOf } from '@/lib/program/next-weight';
 import { displayKg } from '@/lib/workout/target-override';
+import { WorkoutWikiDescription } from '@/components/wiki/workout-wiki-description';
 
 /**
  * 운동하는 동안의 화면.
@@ -1666,10 +1667,9 @@ export function SessionClient({
                 aspectRatio={ex.aspectRatio}
               />
             )}
+            {/* 싱커위키 낱말(SINKER-WIKI01) — 설명 글자는 그대로, 아는 말만 눌러 뜻을 본다. 창은 이 화면 위에만 떠서 세트 값 · 시계 · 영상이 그대로다 */}
             {ex.description && (
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink/85">
-                {ex.description}
-              </p>
+              <WorkoutWikiDescription key={ownerId} text={ex.description} ownerId={ownerId} />
             )}
           </div>
         )}

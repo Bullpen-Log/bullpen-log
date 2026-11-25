@@ -288,6 +288,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: '라이브러리',
     items: [
+      { href: '/training/wiki', label: '싱커위키', icon: 'book' },
       {
         href: '/library/training',
         label: '운동 영상',
