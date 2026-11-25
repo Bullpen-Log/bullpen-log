@@ -97,7 +97,7 @@ export async function loadWarmup(
         {
           id: r?.id ?? `named-${kind}`,
           name: r?.name || WARMUP_ROUTINE_LABEL[kind],
-          description: '영상은 준비 중이에요. 이름과 횟수만 보고 풀어요.',
+          description: '',
           forToday: kind !== COMMON_WARMUP_KIND,
           items: named.map<WarmupItem>((w) => ({
             id: w.id,

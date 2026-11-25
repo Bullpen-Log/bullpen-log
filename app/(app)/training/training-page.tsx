@@ -12,7 +12,6 @@ import { createPlaybackUrls } from '@/lib/storage';
 import { referenceThumbUrl } from '@/lib/reference-video';
 import { formatPrescription } from '@/lib/exercise-meta';
 import { planPrescription } from '@/lib/report/volume';
-import { planReasonLines } from '@/lib/report/daily-plan';
 import { pickReasonLineOf } from '@/lib/report/score';
 import { loadTodayCore } from '@/lib/report/today-data';
 import { toDateKey } from '@/lib/pitch-stats';
@@ -374,7 +373,7 @@ export default async function TrainingPage({
   /*
    * 상태 바뀜 띠(2판 P6-6, lib/report/state-notice.ts) — 일정을 만든 뒤 판단 입력이 바뀌었으면 일정 카드 위에 바뀐 줄 · '지금 상태로 다시 만들기'.
    * 일정 카드를 쓰는 날(screen.usesPlan — 멈춤 · 프로그램 주인 · 스러진 프로그램 날 일정이 아닌 날)만 그린다. 아픈 부위만 바뀌어 이미 뺀 날은 띠 대신
-   * 카드 안의 '무리인 운동 N개를 뺐어요' 한 줄만(두 알림이 겹치지 않게), 마친 날은 띄우지 않고, 운동 중 · 체크인 없는 날은 단추 없이 까닭 한 줄.
+   * '무리인 운동 N개를 뺐어요' 한 줄만(두 알림이 겹치지 않게), 마친 날은 띄우지 않고, 운동 중 · 체크인 없는 날은 단추 없이 까닭 한 줄.
    */
   const notice = stateNoticeOf(core.stateChanges, {
     programOwns: screen.programOwns,
@@ -522,7 +521,7 @@ export default async function TrainingPage({
       unsafe,
       /*
        * 왜 이 운동인지 한 줄(2판 P5-k) — 오늘 상태로 앞에 당긴 것만(lib/report/score.ts pickReasonLineOf: 2주 안 한 동작 · 뻐근한 곳
-       * 풀기 · 즐겨찾기). 뒤로 민 신호는 위 '오늘 이렇게 짰어요'가 한 번 말한다. 권하지 않는 운동이면 경고 한 줄만 둔다(둘이 엇갈려 읽힌다).
+       * 풀기 · 즐겨찾기). 권하지 않는 운동이면 경고 한 줄만 둔다(둘이 엇갈려 읽힌다).
        */
       reason: unsafe
         ? null
@@ -538,14 +537,6 @@ export default async function TrainingPage({
       past: pastAmounts.get(ex.id) ?? [],
     })
   );
-  /*
-   * 일정 카드의 '오늘 이렇게 짰어요'(2판 P5-k) — 저장한 까닭, 옛 줄은 양 조절 · 힘듦 넘김만. 앞으로 당긴 줄은 지금 보이는 줄과 지금 별로
-   * 거른다(2판 P5 검토) — 그 운동을 빼거나 안전 재확인으로 빠지거나 별을 떼면 '앞에 뒀어요'가 거짓이 된다(운동 줄의 이유와 같은 원칙).
-   */
-  const planReasons = savedPlan
-    ? planReasonLines(savedPlan, { shown: shownPicks, favoriteIds: favExercises })
-    : [];
-
   /*
    * 목록에 더할 수 있는 운동.
    *
@@ -736,95 +727,37 @@ export default async function TrainingPage({
           </Card>
         ) : (
           <>
-            {/*
-            오늘의 일정 — 무엇을 위한 하루인지 먼저 말한다.
-
-            이 화면에서 가장 위에 오는 카드인데 운동 한 줄과 똑같은 흰 상자였다.
-            엷은 하늘색 바탕을 깔고 제목을 키워, 훑어봤을 때 여기가 머리라는
-            것이 보이게 한다.
-          */}
-            <Card className="space-y-3 border-sky-soft/40 bg-gradient-to-br from-sky/[0.07] via-surface to-surface">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                <p className="text-heading text-xl text-ink sm:text-2xl">
-                  오늘은 {savedPlan.theme.label}
-                </p>
-                <p className="text-sm text-muted">
-                  {/*
-                  시간은 만들 때 찍어 둔 값이 아니라 지금 목록에서 센다 —
-                  운동을 빼도 "약 50분"이 그대로 남으면 안 된다. 홈도 같은
-                  값을 쓴다(lib/report/today-data.ts).
-                */}
-                  <span className="text-numeric text-base text-ink">
-                    {exercises.length}
-                  </span>
-                  종목 · 약{' '}
-                  <span className="text-numeric text-base text-ink">
-                    {core.shownMinutes}
-                  </span>
-                  분
-                </p>
-              </div>
-              {/*
-                오늘 목표와 까닭 — 2026-10-12 사용자: "필요한 오늘의 운동목표와 설정이유만, 보기 간편하게". 자동 맞춤이면 그
-                까닭(auto.reason)이 테마 까닭보다 구체적이라 그것 하나만, 아니면 테마 까닭.
-              */}
-              {savedPlan.goal && (
-                <p className="text-sm font-semibold text-ink">
-                  목표 · {savedPlan.goal}
-                </p>
-              )}
-              <p className="text-sm leading-relaxed break-keep text-muted">
-                {savedPlan.auto?.reason ?? savedPlan.theme.reason}
+            <Card className="border-sky-soft/40 bg-gradient-to-br from-sky/[0.07] via-surface to-surface">
+              <p className="text-heading text-xl text-ink sm:text-2xl">
+                {savedPlan.theme.label}
               </p>
-              {/*
-                '오늘 이렇게 짰어요' — 일정 까닭 최대 3줄(2판 P5-k, lib/report/daily-plan.ts planReasonLines). 하는 양이 바뀐 까닭(세트
-                줄임 · 힘듦 경고 넘김)이 먼저, 그다음 오늘 상태로 운동 차례를 바꾼 까닭(score.ts planReasonItemsOf). 만들 때 저장한 글이라
-                다시 셈하지 않고, 앞으로 당긴 줄만 지금 보이는 줄 · 지금 별로 거른다(위 planReasons). 목표 · 까닭이 먼저 읽히게 한 단 작은
-                글로 덧붙인다.
-              */}
-              {planReasons.length > 0 && (
-                <div className="space-y-1">
-                  <p className="text-xs font-semibold text-ink/80">
-                    오늘 이렇게 짰어요
-                  </p>
-                  <ul className="list-disc space-y-0.5 pl-4 text-xs leading-relaxed break-keep text-muted marker:text-sky">
-                    {planReasons.map((line) => (
-                      <li key={line}>{line}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {savedPlan.auto?.painSuspected && <AutoNote auto={savedPlan.auto} />}
-              {savedPlan.minutes < savedPlan.requestedMinutes && (
-                <p className="text-xs text-warn">
-                  {cutLabelOf(savedPlan.theme.key)} {savedPlan.requestedMinutes}분 → {savedPlan.minutes}분
-                </p>
-              )}
-
-              {/*
-              만든 뒤에 몸 상태가 나빠졌으면 그만큼 빠졌다고 말한다.
-              말없이 줄어들면 앱이 잘못된 것으로 보인다.
-            */}
-              {droppedForSafety > 0 && (
-                <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-xs text-warn">
-                  몸 상태가 바뀌어 무리인 운동 {droppedForSafety}개를 뺐어요.
-                </p>
-              )}
-
-              {/* 조건을 바꿔 다시 만들기 — 접어 둔다(펴야 시간 · 장비 고르개가 보인다) */}
-              <details className="group border-t border-sky-soft/30 pt-3">
-                <summary className="flex cursor-pointer list-none items-center gap-1 text-sm font-semibold text-sky-strong">
-                  조건 바꿔 다시 만들기
-                  <ChevronDown
-                    aria-hidden
-                    className="h-4 w-4 transition-transform group-open:rotate-180"
-                  />
-                </summary>
-                <div className="pt-3">
-                  {planBlock(true)}
-                </div>
-              </details>
             </Card>
+
+            {savedPlan.auto?.painSuspected && <AutoNote auto={savedPlan.auto} />}
+            {savedPlan.minutes < savedPlan.requestedMinutes && (
+              <p className="text-xs text-warn">
+                {cutLabelOf(savedPlan.theme.key)} {savedPlan.requestedMinutes}분 → {savedPlan.minutes}분
+              </p>
+            )}
+
+            {droppedForSafety > 0 && (
+              <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-xs text-warn">
+                몸 상태가 바뀌어 무리인 운동 {droppedForSafety}개를 뺐어요.
+              </p>
+            )}
+
+            <details className="group">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1 px-1 text-sm font-semibold text-sky-strong">
+                조건 바꿔 다시 만들기
+                <ChevronDown
+                  aria-hidden
+                  className="h-4 w-4 transition-transform group-open:rotate-180"
+                />
+              </summary>
+              <div className="pt-3">
+                {planBlock(true)}
+              </div>
+            </details>
 
             <DoneFold folded={done != null} count={exercises.length}>
               <ExerciseChecklist exercises={exercises} dateKey={core.todayKey}>

@@ -304,8 +304,8 @@ type Local = { done: Record<string, boolean>; gone: string[] };
 const EMPTY: Local = { done: {}, gone: [] };
 
 /**
- * 만든 날 — 일정 머리(목표 · 까닭) · 체크 목록 · 오늘 운동 메모(웹 training-page 의 일정 갈래). 체크 · 별 · 빼기는 화면을 먼저 바꾸고 서버에
- * 보낸다(웹 exercise-list 와 같은 길 — 실패하면 서버가 마지막으로 확인해 준 값으로 되돌림). 빼기 · 메모 뒤에는 화면을 다시 읽는다(시간 · 개수가 바뀐다).
+ * 만든 날 — 일정 제목 · 체크 목록 · 오늘 운동 메모(웹 training-page 의 일정 갈래). 체크 · 별 · 빼기는 화면을 먼저 바꾸고 서버에
+ * 보낸다(웹 exercise-list 와 같은 길 — 실패하면 서버가 마지막으로 확인해 준 값으로 되돌림). 빼기 · 메모 뒤에는 화면을 다시 읽는다.
  */
 export function PlanBody({
   plan,
@@ -402,7 +402,7 @@ export function PlanBody({
       {groups.map((g) => (
         <View key={g.slot} style={{ gap: 8 }}>
           <Text style={[s.bodyBold, { color: c.ink, paddingHorizontal: 4 }]}>
-            {g.label} <Text style={[s.tiny, { color: c.muted }]}>{g.hint}</Text>
+            {g.label}
           </Text>
           {g.items.map((r) => (
             <ExerciseRow key={r.id} r={r} unit={unit} c={c} onToggle={() => void toggle(r)} onStar={() => void star(r)} onRemove={() => void remove(r)} />
@@ -424,52 +424,38 @@ export function PlanBody({
   return (
     <>
       <Card c={c}>
-        <View style={s.between}>
-          <Text style={[s.title, { color: c.ink, flex: 1 }]}>{plan.title}</Text>
-          <Text style={[s.small, { color: c.muted }]}>
-            <Text style={[s.bodyBold, s.num, { color: c.ink }]}>{all.length}</Text>종목 · 약{' '}
-            <Text style={[s.bodyBold, s.num, { color: c.ink }]}>{plan.minutes}</Text>분
-          </Text>
-        </View>
-        {plan.goal ? <Text style={[s.bodyBold, { color: c.ink }]}>목표 · {plan.goal}</Text> : null}
-        <Text style={[s.body, { color: c.muted }]}>{plan.reason}</Text>
-        {plan.reasons.length > 0 ? (
-          <View style={{ gap: 2 }}>
-            <Text style={[s.smallBold, { color: c.ink }]}>오늘 이렇게 짰어요</Text>
-            {plan.reasons.map((line) => (
-              <Text key={line} style={[s.small, { color: c.muted }]}>
-                · {line}
-              </Text>
-            ))}
-          </View>
-        ) : null}
-        {plan.autoPain ? (
-          <View style={[s.box, { backgroundColor: c.page, gap: 6 }]}>
-            <Text style={[s.smallBold, { color: c.link }]}>
-              자동 맞춤 <Text style={{ color: c.muted, fontWeight: '400' }}>{plan.autoPain.summary}</Text>
-            </Text>
-            <Text style={[s.body, { color: c.ink }]}>{plan.autoPain.reason}</Text>
-            {plan.autoPain.caution ? <Text style={[s.body, { color: c.warn }]}>메모를 보고 조심한 곳: {plan.autoPain.caution}</Text> : null}
-            <Text style={[s.small, { color: c.warn }]}>메모에 통증 같은 말이 있어요.</Text>
-            <LinkRow c={c} label="통증이면 체크인 고치기" onPress={a.checkin} />
-          </View>
-        ) : null}
-        {plan.cut ? (
-          <Text style={[s.tiny, { color: c.warn }]}>
-            {plan.cut.label ?? '회복 데이라'} {plan.cut.requested}분 → {plan.cut.minutes}분
-          </Text>
-        ) : null}
-        {plan.droppedForSafety > 0 ? (
-          <Text style={[s.small, s.box, { color: c.warn, backgroundColor: c.warnBg }]}>
-            몸 상태가 바뀌어 무리인 운동 {plan.droppedForSafety}개를 뺐어요.
-          </Text>
-        ) : null}
-        <View style={[s.divider, { borderTopColor: c.line }]}>
-          <LinkRow c={c} label="조건 바꿔 다시 만들기" onPress={() => setRemake(true)} />
-        </View>
+        <Text style={[s.title, { color: c.ink }]}>{plan.title.replace(/^오늘은 /, '')}</Text>
       </Card>
+      {plan.autoPain || plan.cut || plan.droppedForSafety > 0 ? (
+        <Card c={c}>
+          {plan.autoPain ? (
+            <View style={[s.box, { backgroundColor: c.page, gap: 6 }]}>
+              <Text style={[s.smallBold, { color: c.link }]}>
+                자동 맞춤 <Text style={{ color: c.muted, fontWeight: '400' }}>{plan.autoPain.summary}</Text>
+              </Text>
+              <Text style={[s.body, { color: c.ink }]}>{plan.autoPain.reason}</Text>
+              {plan.autoPain.caution ? <Text style={[s.body, { color: c.warn }]}>메모를 보고 조심한 곳: {plan.autoPain.caution}</Text> : null}
+              <Text style={[s.small, { color: c.warn }]}>메모에 통증 같은 말이 있어요.</Text>
+              <LinkRow c={c} label="통증이면 체크인 고치기" onPress={a.checkin} />
+            </View>
+          ) : null}
+          {plan.cut ? (
+            <Text style={[s.tiny, { color: c.warn }]}>
+              {plan.cut.label ?? '회복 데이라'} {plan.cut.requested}분 → {plan.cut.minutes}분
+            </Text>
+          ) : null}
+          {plan.droppedForSafety > 0 ? (
+            <Text style={[s.small, s.box, { color: c.warn, backgroundColor: c.warnBg }]}>
+              몸 상태가 바뀌어 무리인 운동 {plan.droppedForSafety}개를 뺐어요.
+            </Text>
+          ) : null}
+        </Card>
+      ) : null}
+      <View style={{ paddingHorizontal: 4 }}>
+        <LinkRow c={c} label="조건 바꿔 다시 만들기" onPress={() => setRemake(true)} />
+      </View>
 
-      {/* 조건 바꿔 다시 만들기 — 웹은 카드 안 접이, 앱은 시트. 웹처럼 '오늘 하고 싶은 운동' 카드가 폼 위에 선다 */}
+      {/* 조건 바꿔 다시 만들기 — 웹은 접이, 앱은 시트. 웹처럼 '오늘 하고 싶은 운동' 카드가 폼 위에 선다 */}
       {remake ? (
         <Sheet open onClose={() => setRemake(false)} title="조건 바꿔 다시 만들기" c={c}>
           <Card c={c}>
@@ -617,12 +603,7 @@ function NoteView({ note, anyDone, today, c, a }: { note: TrainingToday['note'];
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!saved && !anyDone)
-    return (
-      <Text style={[s.body, s.box, { color: c.muted, backgroundColor: c.card }]}>
-        운동을 하나라도 마치면 여기에 오늘 운동이 어땠는지 남길 수 있어요.
-      </Text>
-    );
+  if (!saved && !anyDone) return null;
 
   if (saved && !editing)
     return (

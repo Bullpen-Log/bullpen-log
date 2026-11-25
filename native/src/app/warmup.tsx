@@ -22,7 +22,7 @@ import { Icon } from '~/shell/icon';
  * 워밍업(2026-10-30 확정 시안 06) — [운동 시작]과 본운동 사이에 한 번 지난다. 재료는 웹과 같은 곳(app-workout.loadAppWarmup → lib/workout/warmup-load.ts —
  * 공통 루틴 다음에 그날 본운동 계열로 고른 루틴, 개수 · 순서 · 수행량 글 그대로).
  *
- * 차례: 진행 카드(완료 n/N · 다음 동작) → 공통 워밍업(처음엔 펼침) → 오늘 맞춤 루틴(처음엔 접힘) → [본운동 시작] · 워밍업 건너뛰기.
+ * 차례: 진행 카드(완료 n/N · 다음 동작) → 공통 워밍업(처음엔 펼침) → 운동별 루틴(처음엔 접힘) → [본운동 시작] · 워밍업 건너뛰기.
  *   - 체크와 설명 · 영상은 따로 누른다. 영상을 봐도 체크되지 않는다. 체크했다고 접히거나 다음으로 넘어가지 않는다.
  *   - 모두 체크하지 않아도 시작 · 건너뛰기를 할 수 있다(체크한 것만 보낸다). 나가기는 건너뛰기가 아니다.
  *   - 수행량('10초 · 제자리', '10m 오가기' …)은 글 그대로 — 타이머로 바꾸지 않는다.
@@ -194,11 +194,6 @@ export default function WarmupScreen() {
     <View style={{ flex: 1, backgroundColor: c.page }}>
       <Bar back="트레이닝" title="워밍업" c={c} />
       <ScrollView contentContainerStyle={[{ padding: 16, gap: 14, paddingBottom: 24 }, READABLE]}>
-        <View style={{ gap: 2 }}>
-          <Text style={[st.small, { color: c.muted }]}>{data.themeLabel}</Text>
-          <Text style={[st.title, { color: c.ink }]}>본운동 전에 몸을 풀어요</Text>
-        </View>
-
         {total > 0 ? (
           <View style={[st.card, { backgroundColor: c.card, boxShadow: c.float }]} accessible accessibilityLabel={`워밍업 ${total}개 중 ${count}개 완료${next ? `, 다음 ${next.ex.title}` : ''}`}>
             <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
@@ -233,12 +228,8 @@ export default function WarmupScreen() {
           return (
             <View key={card.id} style={[st.group, { backgroundColor: c.card, boxShadow: c.float }]}>
               <Press accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => toggleCard(card)} style={st.groupHead}>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={[st.bodyBold, { color: c.ink }]}>{card.forToday ? '오늘 맞춤 루틴' : '공통 워밍업'}</Text>
-                  <Text style={[st.small, { color: c.muted }]} numberOfLines={1}>
-                    {card.name} · {k}/{card.items.length}
-                  </Text>
-                </View>
+                <Text style={[st.bodyBold, { color: c.ink, flex: 1 }]}>{card.name}</Text>
+                <Text style={[st.small, { color: c.muted }]}>{k}/{card.items.length}</Text>
                 <Icon name={open ? 'chevron-up' : 'chevron-down'} size={18} color={c.muted} />
               </Press>
               {open ? (
@@ -286,7 +277,6 @@ export default function WarmupScreen() {
         <Press accessibilityRole="button" onPress={() => void finish(true)} disabled={locked} style={[st.textBtn, { alignSelf: 'center' }]}>
           <Text style={{ color: c.muted, fontSize: 15 }}>워밍업 건너뛰기</Text>
         </Press>
-        <Text style={[st.small, { color: c.muted, textAlign: 'center' }]}>운동 시간은 본운동부터 재요.</Text>
       </View>
 
       {/* 설명 · 영상 — 누를 때 하나만 띄우고, 닫으면 멈춘다(창이 내려가며 재생기가 빠진다). 영상이 없거나 안 되어도 완료 표시는 따로 */}
@@ -375,7 +365,6 @@ function Row({
 }
 
 const st = StyleSheet.create({
-  title: { fontSize: 24, fontWeight: '700', letterSpacing: -0.4 },
   card: { borderRadius: 18, padding: 16, gap: 10 },
   big: { fontSize: 34, fontWeight: '700', fontVariant: ['tabular-nums'] },
   progress: { flexDirection: 'row', gap: 4, height: 6 },

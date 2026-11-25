@@ -13,5 +13,5 @@ export default async function WarmupPage() {
   if (expoLevel((await headers()).get('user-agent')) >= 7) return <OpenNative path="/warmup" cover={false} />;
   const got = await loadWarmup(user);
   if ('to' in got) redirect(got.to);
-  return <WarmupClient themeLabel={got.themeLabel} cards={got.cards} />;
+  return <WarmupClient cards={got.cards} />;
 }

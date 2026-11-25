@@ -39,13 +39,7 @@ export type WarmupCard = {
  * 건너뛰기를 눈에 띄게 둔다. 시간이 없거나 이미 몸을 푼 날에 빠져나갈 길이
  * 없으면, 다음부터는 아예 [운동 시작]을 안 누르게 된다.
  */
-export function WarmupClient({
-  themeLabel,
-  cards,
-}: {
-  themeLabel: string;
-  cards: WarmupCard[];
-}) {
+export function WarmupClient({ cards }: { cards: WarmupCard[] }) {
   /* 바닥에서 몸을 푸는 동안에도 화면이 꺼지면 안 된다 — 본운동과 같은 이유 */
   useWakeLock();
 
@@ -84,19 +78,12 @@ export function WarmupClient({
       {/* ─────────── 위: 보는 곳 ─────────── */}
       {/* 앱에서는 시계 자리만큼 내려서 시작한다 — 굴러가는 칸이 시계 밑으로 지나가지 않게 */}
       <div className="mt-[env(safe-area-inset-top)] flex-1 overflow-y-auto px-4 pt-4 pb-5">
-        <p className="text-xs text-muted">{themeLabel}</p>
-        <h1 className="mt-1 text-xl font-bold text-ink">워밍업</h1>
-        <p className="mt-1.5 text-xs leading-relaxed text-muted">
-          본운동 전에 몸을 풀어요. 운동 시간은 여기를 지난 뒤부터 재요.
-          {total > 0 && (
-            <>
-              {' '}
-              <span className="tabular-nums text-sky-strong">
-                {done.size}/{total}
-              </span>
-            </>
-          )}
-        </p>
+        <h1 className="text-xl font-bold text-ink">워밍업</h1>
+        {total > 0 && (
+          <p className="mt-1.5 text-xs tabular-nums text-sky-strong">
+            {done.size}/{total} 완료
+          </p>
+        )}
 
         {total === 0 && (
           <p className="mt-5 rounded-xl empty-well px-4 py-6 text-center text-xs leading-relaxed text-muted">
@@ -109,16 +96,7 @@ export function WarmupClient({
         <div className="mt-4 space-y-4">
           {cards.map((card) => (
             <section key={card.id}>
-              <div className="flex flex-wrap items-baseline gap-x-2 px-1">
-                <h2 className="text-heading text-subhead text-ink">{card.name}</h2>
-                {card.forToday ? (
-                  <span className="rounded-lg bg-sky/10 px-1.5 py-0.5 text-[10px] font-semibold text-sky-strong">
-                    오늘 맞춤
-                  </span>
-                ) : (
-                  <span className="text-[10px] font-medium text-muted">공통</span>
-                )}
-              </div>
+              <h2 className="px-1 text-heading text-subhead text-ink">{card.name}</h2>
               {card.description && (
                 <p className="mt-0.5 px-1 text-xs text-muted">{card.description}</p>
               )}

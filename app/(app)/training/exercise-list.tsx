@@ -227,14 +227,11 @@ export function ExerciseChecklist({
       {SLOT_ORDER.map((slot) => {
         const group = items.filter((ex) => ex.slot === slot);
         if (group.length === 0) return null;
-        const { label, hint } = SLOT_LABELS[slot];
+        const { label } = SLOT_LABELS[slot];
 
         return (
           <section key={slot} className="space-y-2.5">
-            <div className="flex flex-wrap items-baseline gap-x-2 px-1">
-              <h2 className="text-heading text-subhead text-ink">{label}</h2>
-              <span className="text-xs text-muted">{hint}</span>
-            </div>
+            <h2 className="px-1 text-heading text-subhead text-ink">{label}</h2>
             <ExerciseList items={group} onToggle={toggle} onRemove={remove} />
           </section>
         );
