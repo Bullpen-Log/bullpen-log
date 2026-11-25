@@ -1635,8 +1635,8 @@
       "kind_evidence": "운영 DB OWN 및 실제 영상 재생 확인",
       "status": "제목·설명 수정 저장, 사용자 확인 대기",
       "drill_id": "e0ad14f2-4545-4d17-9c44-6211951aced9",
-      "user_decision": null,
-      "user_decided_at": null,
+      "user_decision": "다음 검수하자",
+      "user_decided_at": "2026-11-25T19:06:03.245569+09:00",
       "user_change_requests": [],
       "assistant_findings": [],
       "source": {
@@ -1692,11 +1692,11 @@
       "number": 12,
       "review_id": "mv-2686d434280137be",
       "category": "드롭",
-      "title": "뎁스 드롭 힌지 스로우 (작은 공)",
+      "title": "뎁스 드롭 힌지 스로우 (작은 메디신볼)",
       "kind": "참고 영상",
       "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
-      "status": "미검수",
-      "drill_id": null,
+      "status": "제목과 설명 사전 수정 · 사용자 검수 대기",
+      "drill_id": "0bb098cf-3120-4118-acb8-18221493c447",
       "user_decision": null,
       "user_decided_at": null,
       "user_change_requests": [],
@@ -1708,11 +1708,21 @@
       "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
       "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
       "filming_needed": {
-        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
-        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+        "status": "촬영 필요",
+        "reason": "참고 영상만 등록"
       },
       "content_change_approved": false,
-      "deployment_approved": false
+      "deployment_approved": false,
+      "pre_review_20261125": {
+        "at": "2026-11-25T19:06:03.245569+09:00",
+        "summary": "제목의 공을 메디신볼로 통일. 과도한 중량 효과 단정을 삭제하고 동작, 목적, 안전과 공 무게 기준을 간결하게 수정.",
+        "observation": "참고 영상에서 낮은 박스 위와 내려와 던지는 일부 장면 및 재생 확인. 정확한 도약·착지 발과 방향은 확인 부족으로 특정하지 않음.",
+        "focus": "기존 드롭·브레이크 유지; 정확한 시범과 훈련 목적에 맞는 분류 추가 검토 필요.",
+        "evidence": "https://edu.drivelinebaseball.com/courses/mb-for-baseball",
+        "evidence_limit": "일반 메디신볼 회전훈련 소개; 이 영상의 직접 지침 아님",
+        "verification": "실제 DB 저장 후 값 읽기 확인. 화면 최신 표시 재확인 필요.",
+        "human_review": "대기"
+      }
     },
     {
       "number": 13,
