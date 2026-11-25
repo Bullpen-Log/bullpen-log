@@ -11,12 +11,14 @@ import { CategoryIcon } from './category-badge';
  */
 export function CategorySection({
   name,
+  label = name,
   count,
   isAdmin,
   form,
   children,
 }: {
   name: string;
+  label?: string;
   count: number;
   isAdmin: boolean;
   form: ReactNode;
@@ -39,7 +41,7 @@ export function CategorySection({
           <CategoryIcon name={name} className="h-11 w-11" />
 
           <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1">
-            <span className="text-heading text-lg text-ink">{name}</span>
+            <span className="text-heading text-lg text-ink">{label}</span>
             <span className="text-xs text-muted">{count}개</span>
           </span>
 

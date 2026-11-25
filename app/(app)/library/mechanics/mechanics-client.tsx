@@ -440,7 +440,8 @@ function MechanicsBrowse({
             return (
               <CategorySection
                 key={section}
-                name={isFocus ? focusPointLabel(section) : section}
+                name={section}
+                label={isFocus ? focusPointLabel(section) : undefined}
                 count={items.length}
                 isAdmin={isAdmin}
                 form={
