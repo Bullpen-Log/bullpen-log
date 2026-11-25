@@ -1787,6 +1787,19 @@
         "applied": "어떤 운동인가에 오른손 투수 기준 오른발 착지·왼발 내딛기 명시. 투수에게 왜 필요한가를 목표 방향 이동 흐름과 골반·몸통 회전 타이밍으로 수정해 DB 재확인.",
         "pending": "사용자 표시 용어 전반의 시스템 변경 및 검증 필요.",
         "advance_authorized": false
+      },
+      "drop_to_throw_explanation_20261125": {
+        "at": "2026-11-25T19:57:23+09:00",
+        "instruction": "박스에서 떨어지는 동작을 투구와 연결하고, 하강에서 받은 힘을 빠르고 힘 있는 움직임으로 잇는 연습이라는 점을 설명한다.",
+        "section": "투수에게 왜 필요한가",
+        "applied": "박스에서 떨어져 뒷발로 착지하며 내려오는 힘을 받습니다.\n받은 힘을 앞발 내딛기와 골반·몸통 회전으로 곧바로 이어갑니다.\n투구에서도 몸이 낮아지는 흐름을 살려 빠르고 힘 있게 던지는 감각을 익힙니다.",
+        "sources": [
+          "https://drivelinebaseball.com/blogs/blog/making-movement-changes-weight-room",
+          "https://treadathletics.com/energy-flow/"
+        ],
+        "evidence_limit": "투구에서의 힘 전달과 메디신볼 패턴 연습에 관한 일반 근거. 해당 드릴의 구속 향상 효과가 직접 측정된 자료는 아님.",
+        "verification": "대상 ID의 설명 저장값과 운영 웹 검수 화면을 다시 읽어 확인.",
+        "advance_authorized": false
       }
     },
     {
