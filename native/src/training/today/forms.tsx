@@ -80,7 +80,6 @@ export function PlanForm({
 
   return (
     <View style={{ gap: 14 }}>
-      <Text style={[s.small, { color: c.muted }]}>목표 · 시간은 앱이 정해요.</Text>
       {clash ? (
         <View style={[s.box, { backgroundColor: c.warnBg, gap: 4 }]}>
           <Text style={[s.bodyBold, { color: c.warn }]}>
@@ -91,7 +90,7 @@ export function PlanForm({
       ) : null}
 
       {make.equipment.length > 0 ? (
-        <Field c={c} label="오늘 쓸 수 있는 장비" hint="없는 것은 꺼 주세요. 다 끄면 맨몸 운동만 나와요.">
+        <Field c={c} label="오늘 쓸 수 있는 장비">
           <View style={s.chips}>
             {make.equipment.map((n) => (
               <Chip

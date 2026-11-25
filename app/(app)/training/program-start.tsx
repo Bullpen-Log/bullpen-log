@@ -112,7 +112,6 @@ export function ProgramStart({ props }: { props: ProgramStartProps }) {
     setOpen(true);
   };
   const basicsChoice = props.programs.find((p) => p.audience === 'basics') ?? null;
-  const adultCount = props.programs.filter((p) => p.audience === 'adult').length;
   /*
    * 만 12세 이하는 기본기도 못 한다 — 카드를 안 그린다(시트 목록에는 남아 누르면 까닭을 본다).
    * 기본기는 웨이트 경력이 입문인 사람에게만 권한다(2026-10-16 김민 — 10-12 의 '입문 · 초급'에서 줄임). 카드 · 시트 목록 둘 다.
@@ -158,11 +157,9 @@ export function ProgramStart({ props }: { props: ProgramStartProps }) {
           <span className="block text-subhead font-semibold text-ink">
             근력 · 파워 프로그램
           </span>
-          <span className="block text-xs text-muted break-keep">
-            {props.blocked
-              ? props.blocked.reason
-              : `${adultCount}개 중에 골라요 · 모두 ${props.programs[0]?.weeks.length ?? 4}주`}
-          </span>
+          {props.blocked && (
+            <span className="block text-xs text-muted break-keep">{props.blocked.reason}</span>
+          )}
         </span>
         <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
       </button>

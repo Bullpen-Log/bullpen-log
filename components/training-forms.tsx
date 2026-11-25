@@ -152,8 +152,6 @@ export function PlanForm({
       <input type="hidden" name="returnTo" value={returnTo} />
       <input type="hidden" name="mode" value="auto" />
 
-      <p className="text-footnote leading-relaxed text-muted">목표 · 시간은 앱이 정해요.</p>
-
       {/* 체크인 · 카드에서 고른 운동이 몸 상태와 부딪히는 날 — 몸 상태에 맞춰 가고 까닭을 말한다 */}
       {clash && (
         <div className="space-y-1 rounded-xl border border-warn-line bg-warn-bg px-4 py-3">
@@ -169,7 +167,6 @@ export function PlanForm({
       <CheckboxGroup
         name="availableEquipment"
         label="오늘 쓸 수 있는 장비"
-        hint="없는 것은 꺼 주세요. 다 끄면 맨몸 운동만 나와요."
         options={SELECTABLE_EQUIPMENT}
         selected={equipmentSelected}
       />
