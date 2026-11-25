@@ -7,6 +7,7 @@ import { PRESSED, SPACE, TYPE, usePalette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { PageHead, Segmented } from '~/shell/heading';
 import { PitchSeg } from '~/pitch/seg';
+import { recordsHref } from '~/records/intent';
 import { ComparePickBar, LogList } from './log-list';
 import { MonthGrid } from './month-grid';
 import { PitchDayPanel } from './day-panel';
@@ -28,7 +29,8 @@ import { LockedBlock } from '~/shell/locked';
  * 투구 탭(앱 화면) — 첫 화면과 투구 기록이 이 판 하나를 나눠 쓴다(2026-10-20 김민: 종목 홈 추가).
  * 홈('투구', /videos): 2026-10-29 확정 디자인 '소프트 솔리드 툴 도크' — 제목 · 메뉴, 오늘 날짜 · 팔 상태, 도구 도크(3D 동작 분석 · 구속 측정 · ABS),
  * 오늘 투구 카드(투구 · 휴식 기록), 최근 투구. 트레이닝 · 암케어 · 메카닉은 트레이닝 탭, 운동 영상 · 투구 드릴은 트레이닝 탭 · 더보기로 옮겼다.
- * 기록(/videos?view=log): 찾기 · 달력(그날 공 수 · 영상 점) + 목록 · 지난 영상 가져오기. 날짜를 누르면 그날 화면(/pitch/[date]).
+ * 투구 영상(/videos?view=videos, 웹이 스스로 연 옛 ?view=log 도): 찾기 · 달력(그날 공 수 · 영상 점) + 목록(2분할 비교) · 지난 영상 가져오기 ·
+ * 구속 측정 관리자. 날짜를 누르면 그날 화면(/pitch/[date]). 남긴 기록 읽기(오늘 기록 보기 · 최근 투구 · 전체)는 기록 탭으로(PITCH-RECORDS-MINIMAL01 R2).
  * 웹 투구 탭(app/(app)/videos)과 같은 규칙.
  */
 export function PitchTab({
@@ -37,12 +39,15 @@ export function PitchTab({
   onWeb,
   onTab,
   log = false,
+  recordsTab = false,
 }: {
   today: string;
   bottom: number;
   onWeb: (href: string) => void;
   onTab: (href: string) => void;
   log?: boolean;
+  /** 하단 탭에 기록이 따로 있는가(판 15 사이트 탭) — 있으면 옛 [투구 | 기록] 고르개를 숨긴다 */
+  recordsTab?: boolean;
 }) {
   const c = usePalette();
   const inset = useSafeAreaInsets();
@@ -146,7 +151,17 @@ export function PitchTab({
             <Text style={{ color: c.link, fontSize: 17 }}>투구</Text>
           </Pressable>
           {/* 지난 영상 가져오기는 드물게 쓰여 머리 오른쪽 작은 알약으로(2026-10-21 김민: 달력 위 큰 칸이 첫 시야를 차지했다) */}
-          <PageHead title="투구 기록">
+          <PageHead title="투구 영상">
+            {/* 내 영상(즐겨찾기 · 비교 재료) — 기록 탭 아래 바로가기 카드를 걷어 투구 영상 머리로(PITCH-RECORDS-MINIMAL01 R2) */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="내 영상"
+              onPress={() => pushOpen('/my-videos' as Href)}
+              hitSlop={4}
+              style={({ pressed }) => [styles.iconPill, { backgroundColor: c.chip }, pressed && PRESSED]}
+            >
+              <Icon name="clapperboard" size={18} color={c.link} />
+            </Pressable>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="지난 영상 가져오기"
@@ -227,9 +242,19 @@ export function PitchTab({
         <>
           {/* 머리 — 제목 · 전체 메뉴(☰), 그 밑 오늘 날짜 · 팔 상태 알약(2026-10-29 확정 디자인) */}
           <PageHead title="투구">
+            {/* 투구 영상 달력 · 목록(가져오기 · 2분할 비교 · 구속 측정 관리자) — 남긴 기록 읽기는 기록 탭으로 옮겨 머리 작은 알약으로 */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="투구 영상 · 가져오기 · 비교"
+              onPress={() => onWeb('/videos?view=videos')}
+              style={({ pressed }) => [styles.importBtn, { backgroundColor: c.chip }, pressed && PRESSED]}
+            >
+              <Icon name="film" size={16} color={c.link} />
+              <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>영상</Text>
+            </Pressable>
             <MenuButton />
           </PageHead>
-          <PitchSeg value="/videos" onTab={onTab} />
+          {recordsTab ? null : <PitchSeg value="/videos" onTab={onTab} />}
           <View style={styles.dateRow}>
             <View style={styles.date} accessible accessibilityLabel={`오늘 ${Number(today.slice(5, 7))}월 ${Number(today.slice(8, 10))}일 ${weekdayKo(today)}요일`}>
               <Text style={[TYPE.num, { color: c.ink, fontSize: 28, lineHeight: 32 }]}>{Number(today.slice(8, 10))}</Text>
@@ -245,7 +270,7 @@ export function PitchTab({
           <TwoColumns ratio={[1, 1]} gap={20} left={
             <View style={{ gap: 14 }}>
               <ToolDock canAbs={canAbs} />
-              <PitchTodayCard today={today} logs={home.logs} state={todayState} />
+              <PitchTodayCard today={today} logs={home.logs} state={todayState} onRecords={() => onWeb(recordsHref({ date: today, category: 'pitch' }))} />
             </View>
           } right={
             <RecentPitches
@@ -253,7 +278,8 @@ export function PitchTab({
               logs={[...(home.logs ?? []), ...(all.logs ?? [])]}
               loading={home.logs === null || (needHomeHistory && all.logs === null)}
               error={home.error || (needHomeHistory ? all.error : null)}
-              onAll={() => onWeb('/videos?view=log')}
+              onAll={() => onWeb(recordsHref({ category: 'pitch', recent: true }))}
+              onOpen={(l) => onWeb(recordsHref({ date: l.date.slice(0, 10), category: 'pitch', recordId: `pitch:${l.id}` }))}
               onRetry={() => void home.reload()}
             />
           } />
@@ -370,5 +396,6 @@ const styles = StyleSheet.create({
   toolBig: { fontSize: 20, fontWeight: '700', letterSpacing: -0.6, textAlign: 'center' },
   toolLabel: { fontSize: 15, fontWeight: '600', letterSpacing: -0.3, textAlign: 'center' },
   /* 머리 오른쪽 '가져오기' 알약 — '분석' 알약(AnalysisPill)과 같은 44 */
+  iconPill: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   importBtn: { minHeight: 44, borderRadius: 22, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16 },
 });

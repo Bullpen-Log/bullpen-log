@@ -21,6 +21,7 @@ export function RecentPitches({
   loading,
   error,
   onAll,
+  onOpen,
   onRetry,
 }: {
   logs: readonly PitchLog[];
@@ -28,6 +29,8 @@ export function RecentPitches({
   loading: boolean;
   error: string | null;
   onAll: () => void;
+  /** 줄을 누르면 — 기록 탭(그날 · 그 기록)으로(PITCH-RECORDS-MINIMAL01 R2). 안 주면 그날 투구 화면 */
+  onOpen?: (log: PitchLog) => void;
   onRetry: () => void;
 }) {
   const c = usePalette();
@@ -57,7 +60,7 @@ export function RecentPitches({
               key={l.id}
               accessibilityRole="button"
               accessibilityLabel={`${l.sessionType}, ${sub}, ${rest ? '휴식' : `${l.pitchCount}구`}`}
-              onPress={() => pushOpen(`/pitch/${key}` as Href)}
+              onPress={() => (onOpen ? onOpen(l) : pushOpen(`/pitch/${key}` as Href))}
               style={[styles.row, { borderTopColor: c.line }]}
             >
               <View style={{ flex: 1, minWidth: 0, gap: 4 }}>

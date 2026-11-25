@@ -11,11 +11,15 @@ import { loadMe } from '~/pitch/api';
 import { measuredFrom, type EntrySource } from '~/pitch/entry-model';
 import { QuickStepEntry } from '~/pitch/quick-step';
 import { monthOf, useMonth } from '~/pitch/store';
+import { recordsIntent } from '~/records/intent';
+import { openRecordsAt } from '~/shell/tab-intent';
 
 /**
  * 투구 기록 남기기 · 고치기 창(앱) — 그날 화면 밖에서 여는 입구: 트레이닝의 '드릴로 던진 공'(drill · pct), 지난 영상 가져오기(videos · importKey),
  * 코치 대화의 투구 기록 초안 · 정한 목표 카드(type · count),
  * 기록 고치기(id), 옛 판의 구속 측정 링크(vsids). 입력은 그날 화면과 같은 퀵스텝(pitch/quick-step.tsx).
+ * 기록 탭(PITCH-RECORDS-MINIMAL01 R2)은 compact=1 로 한 장(종류 · 투구수 · 팔 피로 · 저장)을 열고, 한 날을 보던 중이면 그 묶음(cat)을 함께 보낸다 —
+ * 저장하면 기록 탭이 같은 날 · 같은 묶음에서 저장한 줄을 가리킨다.
  * 저장하면 연 곳으로 돌아간다 — 가져오기는 그 목록으로 돌아가 다음 묶음을 이어 간다.
  */
 const okDate = (d: string | undefined): d is string => !!d && /^\d{4}-\d{2}-\d{2}$/.test(d) && Number.isFinite(new Date(`${d}T00:00:00.000Z`).getTime()) && new Date(`${d}T00:00:00.000Z`).toISOString().slice(0, 10) === d;
@@ -31,7 +35,21 @@ function parseList(raw?: string): string[] {
   }
 }
 
-type Params = { date: string; id?: string; videos?: string; importKey?: string; drill?: string; pct?: string; vsids?: string; type?: string; count?: string };
+type Params = {
+  date: string;
+  id?: string;
+  videos?: string;
+  importKey?: string;
+  drill?: string;
+  pct?: string;
+  vsids?: string;
+  type?: string;
+  count?: string;
+  /** '1' — 기록 탭의 한 장 입력 */
+  compact?: string;
+  /** 기록 탭이 보던 묶음(한 날을 볼 때만) — 저장한 줄을 그 묶음 그대로 가리킨다 */
+  cat?: string;
+};
 
 export default function PitchEditScreen() {
   const p = useLocalSearchParams<Params>();
@@ -39,7 +57,7 @@ export default function PitchEditScreen() {
   return <Entry {...p} />;
 }
 
-function Entry({ date, id, videos, importKey, drill, pct, vsids, type, count }: Params) {
+function Entry({ date, id, videos, importKey, drill, pct, vsids, type, count, compact, cat }: Params) {
   const { logs, error, loading, reload } = useMonth(monthOf(date));
   /* 이 화면에서 그 달을 한 번 다 받았는가 — 받아 둔 옛 달만 보고 '못 찾음'을 내지 않게 */
   const [fetched, setFetched] = useState(false);
@@ -99,9 +117,12 @@ function Entry({ date, id, videos, importKey, drill, pct, vsids, type, count }: 
       key={`${source.kind}:${id ?? ''}`}
       date={date}
       source={source}
+      compact={compact === '1'}
       onDone={(r) => {
         toast(r.created ? '기록했어요' : '고쳤어요');
         router.back();
+        /* 기록 탭에서 한 날을 보다 연 한 장 — 같은 날 · 같은 묶음에서 저장한 줄로(기록 탭은 돌아오면 새로 받는다) */
+        if (compact === '1' && cat != null) openRecordsAt(recordsIntent({ date, category: cat, recordId: `pitch:${r.log.id}` }));
       }}
       onCancel={close}
     />

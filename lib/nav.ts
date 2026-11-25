@@ -582,6 +582,19 @@ export const APP_TABS: NavItem[] = [
   { href: TRAINING_HOME_HREF, label: '트레이닝', icon: 'dumbbell', lock: 'training' },
   { href: DUGOUT_HREF, label: '덕아웃', icon: 'users' },
 ];
+/**
+ * 판 15 부터(2026-11-25, PITCH-RECORDS-MINIMAL01 R2 — 사용자 확정 차례) — 홈 · 코치 · 기록 · 투구 · 트레이닝 · 덕아웃. 기록이 다시 제 탭이고 투구 바로 왼쪽이다.
+ * 투구 탭의 [투구 | 기록] 고르개는 이 목록을 받은 앱에서 빠진다(native/src/pitch/seg.tsx). 기록은 앱 화면만 있다(웹 '/records' 는 없다).
+ */
+export const APP_RECORDS_LEVEL = 15;
+export const APP_TABS_V15: NavItem[] = [
+  { href: '/today', label: '홈', icon: 'home' },
+  { href: COACH_HREF, label: '코치', icon: 'coach' },
+  { href: RECORDS_HREF, label: '기록', icon: 'records' },
+  { href: '/videos', label: '투구', icon: 'baseball', lock: 'pitch' },
+  { href: TRAINING_HOME_HREF, label: '트레이닝', icon: 'dumbbell', lock: 'training' },
+  { href: DUGOUT_HREF, label: '덕아웃', icon: 'users' },
+];
 
 /** applyLocks 가 곁 항목(탭의 첫 화면이 아닌 잠긴 항목)의 주소에 붙이는 칸 이름 — isLockSideHref 가 같은 이름을 본다 */
 const LOCK_FROM_PARAM = 'from';

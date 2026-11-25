@@ -18,7 +18,7 @@ import {
   type Capability,
 } from '../lib/release-access.ts';
 import { RPC_ACTION_CAPABILITY, RPC_MODULE_CAPABILITY, rpcAccessOf } from '../lib/release-ops.ts';
-import { applyBetaLocks, betaGroups, APP_TABS, APP_TABS_V13, MOBILE_TABS } from '../lib/nav.ts';
+import { applyBetaLocks, betaGroups, APP_TABS, APP_TABS_V13, APP_TABS_V15, MOBILE_TABS } from '../lib/nav.ts';
 import { can } from '../lib/permissions.ts';
 
 let n = 0;
@@ -201,6 +201,10 @@ eq(appTabs.map((t) => t.href), APP_TABS.map((t) => t.href), '앱 탭 순서 · �
 eq(appTabs.map((t) => !!t.locked), [false, true, false, false, true], '홈 · 투구 · 트레이닝 열림(코치 · 덕아웃 잠김, 2026-11-01 판 14)');
 eq(applyBetaLocks(APP_TABS, ma, { keepHref: true, surface: 'native' }).map((t) => !!t.locked), [false, true, false, false, true], '준관리자 앱 탭도 같다');
 eq(applyBetaLocks(APP_TABS_V13, ua, { keepHref: true, surface: 'native' }).map((t) => !!t.locked), [false, false, false, false, true], '판 13 앱 탭 — 홈 · 투구 · 트레이닝 · 기록 열림(덕아웃 잠김)');
+/* 판 15(2026-11-25, PITCH-RECORDS-MINIMAL01 R2) — 기록이 제 탭(투구 바로 왼쪽). 기록 탭을 열려고 정책을 넓히지 않는다: 잠김은 판 14 와 같은 칸끼리 같다 */
+eq(applyBetaLocks(APP_TABS_V15, ua, { keepHref: true, surface: 'native' }).map((t) => !!t.locked), [false, true, false, false, false, true], '판 15 앱 탭 — 홈 · 기록 · 투구 · 트레이닝 열림(코치 · 덕아웃 잠김)');
+eq(applyBetaLocks(APP_TABS_V15, ma, { keepHref: true, surface: 'native' }).map((t) => !!t.locked), [false, true, false, false, false, true], '준관리자 판 15 도 같다');
+ok(!accessAllowsPath(ua, '/pitch/edit', 'native') && accessAllowsPath(ua, '/records', 'native'), '베타: 기록 탭 읽기는 열리고 투구 입력 창(기록 탭의 + 투구 기록)은 그대로 잠김');
 ok(appTabs.filter((t) => t.locked).every((t) => t.lockReason === 'beta'), '잠김 까닭은 beta(첫 설정과 섞지 않음)');
 const webTabs = applyBetaLocks(MOBILE_TABS, ua);
 ok(webTabs.filter((t) => t.locked).every((t) => t.href === '/today'), '웹의 잠긴 칸은 베타 홈을 가리킨다');

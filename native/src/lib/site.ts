@@ -21,8 +21,9 @@ export const SITE_HOST = new URL(SITE_URL).host;
  * 11 3D 스윙 분석(/swing · /swing/guide · /swing/<id>) · 3D 개발 관리자(/swing/samples).
  * 13 하단 탭 다섯(홈 · 투구 · 트레이닝 · 기록 · 덕아웃 — 더보기는 탭 위 메뉴, 사이트 lib/nav.ts APP_TABS_V13, 2026-10-29).
  * 14 하단 탭 홈 · 코치 · 투구 · 트레이닝 · 덕아웃(기록은 투구 탭 고르개 — 사이트 lib/nav.ts APP_TABS, 2026-11-01).
+ * 15 하단 탭 홈 · 코치 · 기록 · 투구 · 트레이닝 · 덕아웃(기록이 제 탭, 투구 바로 왼쪽 — 사이트 lib/nav.ts APP_TABS_V15, 2026-11-25).
  */
-export const APP_UA = `BullpenLogApp/2.0 BullpenNative/14 ${SINKER_THEME_UA_MARK}`;
+export const APP_UA = `BullpenLogApp/2.0 BullpenNative/15 ${SINKER_THEME_UA_MARK}`;
 
 /** 앱을 켜면 처음 여는 사이트 화면 — Capacitor 껍데기와 같다(mobile/capacitor.config.json server.url) */
 export const START_PATH = '/today';

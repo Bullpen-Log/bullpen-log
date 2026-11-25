@@ -40,6 +40,24 @@ export function valueOf(r: RecordItem): { n: string; unit: string } | null {
   return null;
 }
 
+/**
+ * 기록 탭 한 줄(PITCH-RECORDS-MINIMAL01 R2) — 작은 묶음 이름 · 제목 · 실제 값 하나. '불펜 · 35구' · '근력 · 42분' · '암케어 · 5동작' · '체크인 · 7/10'.
+ * 값을 모르면 비운다(0 으로 채우지 않는다). 쉰 날은 제목 '휴식'(기록 없는 날과 다르다).
+ */
+export type RecordRow = { label: string; title: string; metric: string | null };
+export const CATEGORY_LABEL: Record<Exclude<RecordFilter, 'all'>, string> = { pitch: '투구', training: '트레이닝', condition: '컨디션' };
+export function rowOf(r: RecordItem): RecordRow {
+  const label = CATEGORY_LABEL[filterOf(r)];
+  if (r.kind === 'pitch') return r.rested ? { label, title: '휴식', metric: null } : { label, title: r.title, metric: `${r.pitches}구` };
+  if (r.kind === 'training') {
+    const metric = r.minutes != null ? `${r.minutes}분` : r.active ? '진행 중' : r.count > 0 ? `${r.count}종목` : null;
+    return { label, title: r.title, metric };
+  }
+  if (r.kind === 'armcare') return { label, title: '암케어', metric: r.count > 0 ? `${r.count}동작` : null };
+  if (r.kind === 'drill') return { label, title: '메커니즘', metric: r.count > 0 ? `드릴 ${r.count}개` : null };
+  return { label, title: '체크인', metric: `${r.condition}/10` };
+}
+
 /** 간단 카드의 밑 한 줄 */
 export function noteOf(r: RecordItem): string | null {
   if (r.kind === 'training') return r.count > 0 ? `${r.count}종목 완료` : r.active ? '이어서 할 수 있어요' : null;

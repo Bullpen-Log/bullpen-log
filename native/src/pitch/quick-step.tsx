@@ -86,6 +86,7 @@ export function QuickStepEntry({
   date,
   source,
   convertRest = false,
+  compact = false,
   onDone,
   onCancel,
 }: {
@@ -93,6 +94,11 @@ export function QuickStepEntry({
   source: EntrySource;
   /** 쉬는 날 기록을 투구로 바꿀 때 — 종류부터 다시 고른다(같은 기록을 고친다) */
   convertRest?: boolean;
+  /**
+   * 한 장(기록 탭의 '+ 투구 기록' · 투구 줄 고치기, PITCH-RECORDS-MINIMAL01 R2) — 종류 · 투구수 · 팔 피로 · 저장을 한 화면에, 메모 · 영상 · 구속은 '자세히' 안에.
+   * 저장 · 확인 · 초안 · 캐시는 단계 화면과 같은 길(아래 save) 그대로. 새로 남기기 · 고치기만(측정 · 드릴 · 가져오기는 단계 화면)
+   */
+  compact?: boolean;
   onDone: (r: EntryDone) => void;
   onCancel: () => void;
 }) {
@@ -145,6 +151,8 @@ export function QuickStepEntry({
   const owner = useRef<string | null>(null);
 
   const rest = isRestSession(form.type);
+  const oneSheet = compact && (source.kind === 'new' || source.kind === 'edit') && !convertRest;
+  const [moreOpen, setMoreOpen] = useState(false);
   const busy = phase !== 'idle' || attaching != null;
   const dayLogs = (monthLogs ?? []).filter((l) => l.date.slice(0, 10) === date && l.id !== editingId);
   /* 휴식은 그날 다른 기록이 없을 때만 — 투구가 있는 날 휴식이 같이 쌓이지 않게, 쉬는 날이 두 줄 생기지 않게 */
@@ -220,7 +228,7 @@ export function QuickStepEntry({
     if (sheet) return closeSheet(), true;
     if (busy) return true;
     if (rest) return leaveRest(), true;
-    if (step > 0) return go((step - 1) as Step), true;
+    if (!oneSheet && step > 0) return go((step - 1) as Step), true;
     cancel();
     return true;
   };
@@ -398,7 +406,10 @@ export function QuickStepEntry({
     if (p) {
       setProblem(p);
       if (p.step !== 'extra') go(p.step);
-      else openSheet('speed', null);
+      else {
+        if (oneSheet) setMoreOpen(true);
+        openSheet('speed', null);
+      }
       announce(p.message);
       return;
     }
@@ -477,14 +488,14 @@ export function QuickStepEntry({
   const ctaLabel = phase === 'saving' ? '저장 중…' : phase === 'checking' ? '확인 중…' : banner?.action === 'check' ? '저장 확인' : banner?.action === 'retry' ? '다시 저장' : null;
   const onPrimary = () => {
     if (banner?.action === 'check') return void save('check');
-    if (rest || step === 2 || banner?.action === 'retry') return void save('save');
+    if (oneSheet || rest || step === 2 || banner?.action === 'retry') return void save('save');
     next();
   };
-  const primaryLabel = ctaLabel ?? (rest ? (editingId ? '수정 저장' : '휴식 기록 저장') : step < 2 ? '다음' : editingId ? '수정 저장' : '기록 저장');
+  const primaryLabel = ctaLabel ?? (rest ? (editingId ? '수정 저장' : '휴식 기록 저장') : oneSheet ? '저장' : step < 2 ? '다음' : editingId ? '수정 저장' : '기록 저장');
 
   const at = new Date(`${date}T00:00:00.000Z`);
   const dateText = `${at.getUTCMonth() + 1}월 ${at.getUTCDate()}일 ${WEEKDAYS[at.getUTCDay()]}요일`;
-  const summary = step === 2 && !rest ? summaryLine(form) : null;
+  const summary = step === 2 && !rest && !oneSheet ? summaryLine(form) : null;
 
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
@@ -496,7 +507,7 @@ export function QuickStepEntry({
             <Text style={[TYPE.body, { fontSize: 17, color: busy ? c.muted : c.link }]}>취소</Text>
           </Press>
           <Text accessibilityRole="header" style={[TYPE.card, { color: c.ink }]}>
-            {editingId ? '기록 수정' : '투구 기록'}
+            {oneSheet ? (editingId ? '투구 기록 수정' : '투구 기록') : editingId ? '기록 수정' : '투구 기록'}
           </Text>
           <View style={styles.barSide} />
         </View>
@@ -508,7 +519,7 @@ export function QuickStepEntry({
             </View>
           </View>
 
-          {!rest ? <StepTabs c={c} form={form} step={step} onGo={(s) => !busy && !pending.current && go(s)} /> : null}
+          {!rest && !oneSheet ? <StepTabs c={c} form={form} step={step} onGo={(s) => !busy && !pending.current && go(s)} /> : null}
 
           {banner ? (
             <View accessibilityRole="alert" style={[styles.banner, { backgroundColor: banner.tone === 'error' ? c.dangerBg : c.skyTint, borderColor: banner.tone === 'error' ? c.dangerLine : 'transparent' }]}>
@@ -538,6 +549,18 @@ export function QuickStepEntry({
           <View pointerEvents={busy || pending.current ? 'none' : 'auto'} accessibilityElementsHidden={busy || !!pending.current} style={{ gap: 14 }}>
           {rest ? (
             <RestCard c={c} form={form} editing={!!editingId} hasVideos={videos.some(isReady)} onMemo={(memo) => set({ memo })} onBack={leaveRest} disabled={busy} />
+          ) : oneSheet ? (
+            <OneSheetForm
+              c={c}
+              form={form}
+              restAllowed={restAllowed}
+              onRest={goRest}
+              onType={(type) => (setProblem(null), set({ type }))}
+              onCount={(count) => (setProblem(null), set({ count }))}
+              onFatigue={(effortPct) => (setProblem(null), set({ effortPct }))}
+              problem={problem}
+              onGuide={(el) => openSheet('guide', el)}
+            />
           ) : (
             <Animated.View layout={LinearTransition.duration(220)} style={[styles.card, { backgroundColor: c.card, boxShadow: c.floatHero }]}>
               <Animated.View key={step} entering={(back.current > 0 ? FadeInRight : FadeInLeft).duration(220).withInitialValues({ opacity: 0, transform: [{ translateX: 14 * back.current }] })} style={{ gap: 16 }}>
@@ -559,7 +582,10 @@ export function QuickStepEntry({
             </Animated.View>
           )}
 
-          {!rest && step === 2 ? (
+          {!rest && oneSheet ? (
+            <MoreToggle c={c} open={moreOpen} filled={extrasFilled(form, videos)} onToggle={() => setMoreOpen((o) => !o)} />
+          ) : null}
+          {!rest && (oneSheet ? moreOpen : step === 2) ? (
             <Extras
               c={c}
               form={form}
@@ -580,7 +606,7 @@ export function QuickStepEntry({
               </Text>
             ) : null}
             <View style={styles.footerRow}>
-              {!rest && step > 0 ? (
+              {!rest && !oneSheet && step > 0 ? (
                 <Press accessibilityRole="button" onPress={() => go((step - 1) as Step)} disabled={busy || !!pending.current} style={styles.prev}>
                   <Icon name="chevron-left" size={18} color={busy ? c.muted : c.link} />
                   <Text style={[TYPE.buttonCompact, { color: busy ? c.muted : c.link }]}>이전</Text>
@@ -588,7 +614,7 @@ export function QuickStepEntry({
               ) : null}
               <ActionButton
                 label={primaryLabel}
-                icon={!ctaLabel && !rest && step < 2 ? 'arrow-right' : undefined}
+                icon={!ctaLabel && !rest && !oneSheet && step < 2 ? 'arrow-right' : undefined}
                 onPress={onPrimary}
                 disabled={busy}
                 busy={phase !== 'idle'}
@@ -961,6 +987,174 @@ function Extras({
   );
 }
 
+/** 선택 기록이 적혀 있는가 — '자세히'를 접어 둬도 적은 게 있다고 알린다 */
+function extrasFilled(form: EntryForm, videos: VideoItem[]): boolean {
+  return videos.length > 0 || form.memo.trim() !== '' || form.max.kmh != null || !!form.max.typed?.trim() || form.avg.kmh != null || !!form.avg.typed?.trim() || form.satisfaction != null || form.good.length + form.bad.length > 0;
+}
+
+/**
+ * 한 장 입력(compact) — 종류 · 투구수 · 팔 피로를 한 카드에. 값은 단계 화면과 같은 폼 칸(form.type · count · effortPct) · 같은 검사(saveProblem).
+ * 처음 값은 비어 있다(지어내지 않는다). 옛 85% 같은 칸 밖 값은 그대로 보이고, 고르지 않으면 지킨다.
+ */
+function OneSheetForm({
+  c,
+  form,
+  restAllowed,
+  onRest,
+  onType,
+  onCount,
+  onFatigue,
+  problem,
+  onGuide,
+}: {
+  c: Palette;
+  form: EntryForm;
+  restAllowed: boolean;
+  onRest: () => void;
+  onType: (t: string) => void;
+  onCount: (s: string) => void;
+  onFatigue: (pct: number) => void;
+  problem: Problem | null;
+  onGuide: (el: ComponentRef<typeof Pressable> | null) => void;
+}) {
+  const pct = form.effortPct;
+  const offChip = pct != null && pct % 10 !== 0;
+  const guideRef = useRef<ComponentRef<typeof Pressable>>(null);
+  return (
+    <View style={[styles.card, { backgroundColor: c.card, boxShadow: c.floatHero, gap: 20 }]}>
+      <View style={{ gap: 10 }}>
+        <View style={styles.titleRow}>
+          <Text accessibilityRole="header" style={[TYPE.card, { color: c.ink }]}>
+            종류
+          </Text>
+          {restAllowed ? (
+            <Press accessibilityRole="button" onPress={onRest} style={styles.restBtn}>
+              <Icon name="moon" size={16} color={c.muted} />
+              <Text style={[TYPE.sub, { color: c.muted }]}>휴식</Text>
+            </Press>
+          ) : null}
+        </View>
+        <View accessibilityRole="radiogroup" accessibilityLabel="종류" style={styles.oneTypes}>
+          {THROW_TYPES.map((t) => {
+            const on = form.type === t;
+            return (
+              <Press
+                key={t}
+                select
+                selected={on}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: on }}
+                accessibilityLabel={t}
+                onPress={() => onType(t)}
+                style={[styles.oneType, { backgroundColor: on ? c.action : withAlpha(c.ink, 0.06) }]}
+              >
+                <Text style={[TYPE.body, { color: on ? c.onAction : c.ink, fontWeight: on ? '700' : '600' }]}>{t}</Text>
+              </Press>
+            );
+          })}
+        </View>
+        <ProblemLine c={c} text={problem?.field === 'type' ? problem.message : null} />
+      </View>
+
+      <View style={{ gap: 10 }}>
+        <Text accessibilityRole="header" style={[TYPE.card, { color: c.ink }]}>
+          투구수
+        </Text>
+        <View style={styles.oneCount}>
+          <Press accessibilityRole="button" accessibilityLabel="투구수 1구 줄이기" onPress={() => onCount(bumpCount(form.count, -1))} style={[styles.oneStep, { backgroundColor: withAlpha(c.ink, 0.06) }]}>
+            <Icon name="minus" size={20} color={c.ink} />
+          </Press>
+          <View style={[styles.countBox, { minHeight: 52 }]}>
+            <TextInput
+              value={form.count}
+              onChangeText={onCount}
+              keyboardType="number-pad"
+              inputMode="numeric"
+              maxLength={4}
+              accessibilityLabel="투구수"
+              accessibilityHint="1구에서 500구 사이 정수"
+              placeholder="—"
+              placeholderTextColor={c.lineStrong}
+              style={[TYPE.num, styles.oneCountInput, { color: c.ink }]}
+            />
+            <Text style={[TYPE.body, { color: c.muted }]}>구</Text>
+          </View>
+          <Press accessibilityRole="button" accessibilityLabel="투구수 1구 늘리기" onPress={() => onCount(bumpCount(form.count, 1))} style={[styles.oneStep, { backgroundColor: withAlpha(c.ink, 0.06) }]}>
+            <Icon name="plus" size={20} color={c.ink} />
+          </Press>
+        </View>
+        <ProblemLine c={c} text={problem?.field === 'count' ? problem.message : null} />
+      </View>
+
+      <View style={{ gap: 10 }}>
+        <View style={styles.titleRow}>
+          <Text accessibilityRole="header" style={[TYPE.card, { color: c.ink }]}>
+            팔 피로
+          </Text>
+          <Pressable
+            ref={guideRef}
+            accessibilityRole="button"
+            accessibilityLabel="팔의 피로 기준 보기"
+            onPress={() => onGuide(guideRef.current)}
+            hitSlop={6}
+            style={({ pressed }) => [styles.restBtn, pressed && { opacity: 0.6 }]}
+          >
+            <Icon name="info" size={16} color={c.link} />
+            <Text style={[TYPE.sub, { color: c.link }]}>기준</Text>
+          </Pressable>
+        </View>
+        <View accessibilityRole="radiogroup" accessibilityLabel="팔 피로 1부터 10" style={styles.fatigueGrid}>
+          {FATIGUE_LEVELS.map((v) => {
+            const on = pct === v * 10;
+            return (
+              <Press
+                key={v}
+                select
+                selected={on}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: on }}
+                accessibilityLabel={`팔 피로 ${v}점, ${fatigueLabel(v * 10).split(' · ')[1]}`}
+                onPress={() => onFatigue(v * 10)}
+                style={[styles.oneFatigue, { backgroundColor: on ? c.action : withAlpha(c.ink, 0.06) }]}
+              >
+                <Text style={[TYPE.num, { fontSize: 17, color: on ? c.onAction : c.ink }]}>{v}</Text>
+              </Press>
+            );
+          })}
+        </View>
+        <View style={styles.titleRow}>
+          <Text style={[TYPE.sub, { color: c.muted }]}>1 거의 부담 없음</Text>
+          <Text style={[TYPE.sub, { color: c.muted }]}>다 씀 10</Text>
+        </View>
+        {pct != null ? (
+          <Text accessibilityLiveRegion="polite" style={[TYPE.sub, { color: c.ink, fontWeight: '600' }]}>
+            {fatigueLabel(pct)}
+          </Text>
+        ) : null}
+        {offChip ? <Text style={[TYPE.sub, { color: c.muted }]}>지금 {effortScaleText(pct!)} · 칸을 고르면 바뀌어요. 그대로 두면 지금 값을 지켜요.</Text> : null}
+        <ProblemLine c={c} text={problem?.field === 'effort' ? problem.message : null} />
+      </View>
+    </View>
+  );
+}
+
+/** 한 장 입력의 '자세히' — 메모 · 영상 · 구속(선택). 접어 둬도 적은 게 있으면 알린다 */
+function MoreToggle({ c, open, filled, onToggle }: { c: Palette; open: boolean; filled: boolean; onToggle: () => void }) {
+  return (
+    <Press
+      accessibilityRole="button"
+      accessibilityState={{ expanded: open }}
+      accessibilityLabel={`자세히, 메모 · 영상 · 구속${filled ? ', 적은 것 있음' : ''}`}
+      onPress={onToggle}
+      style={styles.moreToggle}
+    >
+      <Text style={[TYPE.buttonCompact, { color: c.link }]}>자세히</Text>
+      <Text style={[TYPE.sub, { color: c.muted, flex: 1 }]}>{filled ? '메모 · 영상 · 구속 · 적은 것 있음' : '메모 · 영상 · 구속'}</Text>
+      <Icon name={open ? 'chevron-up' : 'chevron-down'} size={16} color={c.link} />
+    </Press>
+  );
+}
+
 function RestCard({
   c,
   form,
@@ -1052,5 +1246,12 @@ const styles = StyleSheet.create({
   footerRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   prev: { flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: 48, paddingHorizontal: 10 },
   restEmblem: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
+  oneTypes: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  oneType: { flexGrow: 1, flexBasis: '22%', minWidth: 64, minHeight: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+  oneCount: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  oneStep: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  oneCountInput: { fontSize: 36, minWidth: 72, textAlign: 'center', paddingVertical: 2 },
+  oneFatigue: { flexGrow: 1, flexBasis: '17%', minWidth: 44, minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  moreToggle: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
   memo: { minHeight: 96, borderRadius: 12, paddingHorizontal: 14, paddingTop: 12, fontSize: 17, textAlignVertical: 'top' },
 });

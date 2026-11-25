@@ -16,6 +16,7 @@ import { rpc, RpcError } from '~/lib/rpc';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
 import { RADIUS, SPACE, TYPE, usePalette, useTheme, withAlpha } from '~/lib/ui';
 import { fromApp, openCheckin } from '~/shell/web-nav';
+import { recordsHref } from '~/records/intent';
 import { READABLE } from '~/lib/layout';
 import { useFocusRefresh, useOnTabActive, useRetapTop } from '~/shell/tab-pager';
 import { PageHead } from '~/shell/heading';
@@ -172,7 +173,13 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
       <RecoveryNotice />
 
       {todayCard ? (
-        <TodayHero card={todayCard} today={day} onOpen={() => openPart('today')} onWorkout={startWorkout} />
+        <TodayHero
+          card={todayCard}
+          today={day}
+          onOpen={() => openPart('today')}
+          onWorkout={startWorkout}
+          onRecord={() => onWeb(recordsHref({ date: day, category: 'training' }))}
+        />
       ) : !error ? (
         <Pulse style={[styles.skel, { height: 236, backgroundColor: c.line }]} />
       ) : null}
@@ -246,11 +253,14 @@ function TodayHero({
   today,
   onOpen,
   onWorkout,
+  onRecord,
 }: {
   card: TrainingCard;
   today: string;
   onOpen: () => void;
   onWorkout: (a: Extract<CardAction, { kind: 'workout' }>) => void;
+  /** '운동 기록 보기'(마친 운동 읽기) — 기록 탭 그날 · 트레이닝으로(PITCH-RECORDS-MINIMAL01 R2) */
+  onRecord: () => void;
 }) {
   const c = usePalette();
   const dark = useTheme() !== 'light';
@@ -268,7 +278,7 @@ function TodayHero({
   const workout = card.action?.kind === 'workout' ? card.action : null;
   const button: { label: string; icon: IconName; go: () => void } =
     state === 'done'
-      ? { label: '운동 기록 보기', icon: 'chevron-right', go: () => router.push(`/training/day/${today}` as Href) }
+      ? { label: '운동 기록 보기', icon: 'chevron-right', go: onRecord }
       : state === 'active' && workout
         ? { label: '이어서 하기', icon: 'play', go: () => onWorkout(workout) }
         : state === 'planned' && workout

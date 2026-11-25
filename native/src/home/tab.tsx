@@ -29,7 +29,7 @@ import { useBallRotation } from './ball/ball';
 import { HomeHero } from './hero';
 import { nextAction, todayCount, type NextAction } from './plan-model';
 import { WeekCard } from './week-card';
-import { openTabAt } from '~/shell/tab-intent';
+import { recordsHref } from '~/records/intent';
 import { TodayPlan } from './today-plan';
 import { CoachHomeCard } from '~/coach/home-card';
 
@@ -204,14 +204,12 @@ export function HomeTab({
   const openWorkout = () => {
     if (home?.trainingLocked) return go('/setup/training');
     const w = home?.workout;
-    if (w && w.total > 0 && w.done >= w.total) return go(`/training/day/${today}`);
+    /* 다 마친 오늘 운동 읽기는 기록 탭 오늘 · 트레이닝으로(PITCH-RECORDS-MINIMAL01 R2) — 시작 · 이어서는 트레이닝 화면 그대로 */
+    if (w && w.total > 0 && w.done >= w.total) return onTab(recordsHref({ date: today, category: 'training' }));
     pushOpen({ pathname: '/training-today' as Href as never, params: { today } });
   };
-  /* 기록 탭의 그날로 — 탭 판이 늘 붙어 있어 주소 대신 부탁(shell/tab-intent)을 남기고 탭을 옮긴다 */
-  const openRecords = (date: string) => {
-    openTabAt('records', date);
-    onTab('/records');
-  };
+  /* 기록 탭의 그날 · 전체로 — 껍데기가 주소를 기록 탭 부탁(shell/tab-intent)으로 바꿔 넘기고 기록 탭을 연다 */
+  const openRecords = (date: string) => onTab(recordsHref({ date }));
   const runAction = (a: NextAction) => {
     if (a.key === 'painCheck' || a.key === 'checkin') return openCheckin();
     if (a.key === 'pitchSetup' || a.key === 'pitch') return openPitch();

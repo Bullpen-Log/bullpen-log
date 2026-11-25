@@ -22,6 +22,7 @@ import { DayEvents, useDayEventCount } from './events';
 import { PitchVideo } from '~/pitch/video';
 import { VelocityClips } from './velocity-clips';
 import { openTabAt } from '~/shell/tab-intent';
+import { recordsHref } from '~/records/intent';
 import { useFeatured, useVelocityDays } from '~/pitch/store';
 
 /**
@@ -297,12 +298,17 @@ export function DayCards({
   );
 }
 
-/** 탭으로 가는 길 — 웹 day-detail.tsx tabLink 와 같은 글 */
+/**
+ * 탭으로 가는 길 — 웹 day-detail.tsx tabLink 와 같은 글. 남긴 투구 · 운동 읽기는 기록 탭 그날 · 그 묶음으로(PITCH-RECORDS-MINIMAL01 R2),
+ * 빈 날의 남기기 · 운동하러 가기는 그 흐름(그날 투구 화면 · 트레이닝) 그대로
+ */
 function tabLink(focus: Focus, date: string, today: string, empty: boolean, clipsOnly = false): { href: string; label: string } | null {
   const isToday = date === today;
-  if (focus === 'pitch') return { href: `/pitch/${date}`, label: empty ? '이 날 투구 남기기' : '투구 탭에서 자세히' };
+  if (focus === 'pitch') return empty ? { href: `/pitch/${date}`, label: '이 날 투구 남기기' } : { href: recordsHref({ date, category: 'pitch' }), label: '기록에서 자세히' };
   if (focus === 'training')
-    return { href: isToday ? '/training' : `/training/day/${date}`, label: empty ? (isToday ? '오늘 운동하러 가기' : '이 날 운동 채우기') : '트레이닝에서 자세히' };
+    return empty
+      ? { href: isToday ? '/training' : `/training/day/${date}`, label: isToday ? '오늘 운동하러 가기' : '이 날 운동 채우기' }
+      : { href: recordsHref({ date, category: 'training' }), label: '기록에서 자세히' };
   if (focus === 'nutrition') return { href: isToday ? '/nutrition' : `/nutrition?date=${date}`, label: empty ? '식단 기록하러 가기' : '영양 탭에서 자세히' };
   /* 구속 측정 클립만 있는 날은 공마다 보는 그날 화면, 아니면 투구 달력이 그날을 연 채로(웹 /videos?date=) */
   if (focus === 'video') return clipsOnly ? { href: `/pitch/${date}`, label: '그날 화면에서 공마다 보기' } : { href: `/videos?date=${date}`, label: empty ? '투구 탭으로' : '투구 탭에서 보기' };
@@ -310,12 +316,14 @@ function tabLink(focus: Focus, date: string, today: string, empty: boolean, clip
 }
 function go(href: string, onTab: (href: string) => void) {
   if (href.startsWith('/pitch/') || href.startsWith('/training/day/')) return pushOpen(href as Href);
+  /* 기록 탭 — 날짜 · 묶음이 주소에 실려 있다(껍데기가 부탁으로 바꾼다) */
+  if (href.startsWith('/records')) return onTab(href);
   const [path, query] = href.split('?');
   const date = new URLSearchParams(query ?? '').get('date');
   if (date && path === '/nutrition') openTabAt('nutrition', date);
   if (date && path === '/videos') openTabAt('pitch', date);
-  /* 투구 달력은 종목 바의 '기록'(?view=log) — 투구 홈에는 달력이 없다 */
-  onTab(date && path === '/videos' ? '/videos?view=log' : path);
+  /* 투구 영상 달력(?view=videos — 옛 ?view=log 는 기록 탭으로 간다) — 투구 홈에는 달력이 없다 */
+  onTab(date && path === '/videos' ? '/videos?view=videos' : path);
 }
 
 function TrainingDetail({ d, c }: { d: DayDetail; c: Palette }) {

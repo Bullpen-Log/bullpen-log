@@ -25,7 +25,7 @@ import { usePalette, withAlpha, type Palette } from '~/lib/ui';
 import { homeSnapshot } from '~/home/tab';
 import { syncCalendarAlarm, useEventAlarmIssues } from '~/home/events';
 import { dayRecords } from '~/records/model';
-import { openTabAt } from '~/shell/tab-intent';
+import { recordsHref } from '~/records/intent';
 import { Icon, type IconName } from '~/shell/icon';
 import { leaveTo } from '~/shell/web-nav';
 import { Press } from '~/shell/press';
@@ -442,10 +442,7 @@ export default function CalendarScreen() {
         </Animated.View>
         <Press
           accessibilityRole="button"
-          onPress={() => {
-            openTabAt('records', selected);
-            leaveTo('/records');
-          }}
+          onPress={() => leaveTo(recordsHref({ date: selected }))}
           style={[s.more, { marginTop: 10 }]}
         >
           <Text style={{ color: c.link, fontSize: 13 }}>기록에서 보기</Text>

@@ -15,6 +15,7 @@ import { Icon, type IconName } from '~/shell/icon';
 import { canOpen } from '~/shell/release';
 import { Press } from '~/shell/press';
 import { leaveTo, openCheckin } from '~/shell/web-nav';
+import { recordsHref } from '~/records/intent';
 import { InboxList } from './list';
 import { inboxIcon, inboxKind, safeInboxPath } from './model';
 import { INBOX_WIDTH, InboxLink, InboxNotice, InboxSheet, InboxTile } from './parts';
@@ -303,7 +304,11 @@ export default function NoticeScreen() {
                 {pitchDone ? (
                   <InboxLink
                     label="투구 기록 보기"
-                    onPress={() => go(`/pitch/${date}`)}
+                    onPress={() => {
+                      /* 남긴 투구 읽기 — 기록 탭 그날 · 투구로(PITCH-RECORDS-MINIMAL01 R2) */
+                      setSheet(null);
+                      leaveTo(recordsHref({ date, category: 'pitch' }));
+                    }}
                     c={c}
                   />
                 ) : null}

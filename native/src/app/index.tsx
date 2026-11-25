@@ -42,6 +42,8 @@ import { drainVideos } from '~/videos/outbox';
 import { NutritionTab } from '~/nutrition/tab';
 import { TrainingTab, resetTrainingCache } from '~/training/tab';
 import { RECORDS_PATH, RecordsTab, resetRecordsCache } from '~/records/tab';
+import { recordsIntentOfHref } from '~/records/intent';
+import { clearTabIntents, openRecordsAt } from '~/shell/tab-intent';
 import { COACH_PATH, CoachMainTab } from '~/coach/tab';
 import { DugoutTab, isDugoutHome, resetDugoutCache } from '~/dugout/home-tab';
 import { resetPitchTodayCache } from '~/pitch/today-card';
@@ -168,11 +170,13 @@ function openNative(path: string) {
 
 /** 사이트 주소 → 그 주소가 속한 탭(웹 lib/nav.ts NAV_ALSO 와 같은 묶음) */
 function tabOf(path: string, tabs: ShellTab[]): string | null {
+  /* 기록이 제 탭이면(판 15 탭, 2026-11-25) 기록 주소는 기록 탭, 아니면(옛 사이트 탭) 투구 탭 고르개 안 */
+  const recordsTab = tabs.some((t) => t.href === RECORDS_PATH);
   const group: Record<string, string[]> = {
     '/today': ['/today'],
-    /* 코치 탭(2026-11-01) — 웹 /coach(분석 · 소개)도 이 탭. 기록(앱 화면)은 투구 탭 고르개 안 */
+    /* 코치 탭(2026-11-01) — 웹 /coach(분석 · 소개)도 이 탭 */
     '/coach': ['/coach'],
-    '/videos': ['/videos', '/pitch-log', '/admin/velocity', RECORDS_PATH],
+    '/videos': ['/videos', '/pitch-log', '/admin/velocity', ...(recordsTab ? [] : [RECORDS_PATH])],
     '/training': ['/training'],
     '/nutrition': ['/nutrition'],
     /* 덕아웃 탭(/?dugout=1) — 덕아웃 틀의 화면들(장터 · 커뮤니티 · 레슨 …)도 이 탭이다 */
@@ -226,6 +230,8 @@ function isAppPage(href: string): boolean {
  */
 setDestinationOf((href) => {
   if (href.startsWith('#')) return 'now';
+  /* 기록 탭으로 가는 주소(기록 탭 부탁 · 옛 투구 기록 달력 · 그날 투구 읽기)는 앱 판 — 웹을 안 기다린다 */
+  if (recordsIntentOfHref(href)) return 'now';
   if (nativeOfWeb(href) != null) return 'native';
   return isAppPage(href) || route.at(href) ? 'now' : 'web';
 });
@@ -294,6 +300,8 @@ function resetAccount() {
   setMenuTabs(DEFAULT_TABS);
   /* 지금 공간(팀 · 레슨장) — 메모리만, 폰의 열쇠는 사람마다(org/space-store) */
   resetSpace();
+  /* 앞사람이 남긴 다른 탭 부탁(기록 탭 날짜 · 묶음 · 기록 하나) — 다음 사람 화면을 옮기지 않게 */
+  clearTabIntents();
   void cacheClear();
   /*
    * 저장 안 한 구속 세션(폰에 맡김)은 여기서 지우지 않는다 — 로그인 화면에 왔다고 지우면 같은 사람이 다시 로그인해도 잰 공이 사라졌다(2026-10-21).
@@ -326,10 +334,10 @@ const untilMidnight = () => {
 };
 const UNSEEN = { home: false, coach: false, pitch: false, records: false, training: false, dugout: false, nutrition: false };
 /*
- * 판 차례 = 하단 탭 차례(홈 · 코치 · 투구 · 트레이닝 · 덕아웃, 2026-11-01) — 기록은 투구 탭 고르개의 둘째라 투구 바로 옆(고르면 옆으로 미끄러진다),
- * 영양은 탭이 아니라 맨 끝(더보기에서 연다)
+ * 판 차례 = 하단 탭 차례(홈 · 코치 · 기록 · 투구 · 트레이닝 · 덕아웃, 2026-11-25 사용자 확정) — 기록은 투구 바로 왼쪽(옛 사이트 탭이면 투구 탭
+ * 고르개라 역시 투구 옆에 미끄러진다), 영양은 탭이 아니라 맨 끝(더보기에서 연다)
  */
-const PAGER_KEYS = ['home', 'coach', 'pitch', 'records', 'training', 'dugout', 'nutrition'] as const;
+const PAGER_KEYS = ['home', 'coach', 'records', 'pitch', 'training', 'dugout', 'nutrition'] as const;
 
 /** 폰에 남은 운동 세트 · 암케어 체크를 보낸다 — 체크를 하나라도 보냈으면 사이트의 트레이닝 목록 · 홈을 새로 그리게(따라 하기 화면과 같다) */
 function drainQueues() {
@@ -507,7 +515,13 @@ export default function SiteScreen() {
   const trainingView = new URLSearchParams(search).get('view');
   const showTraining =
     webOk && path === '/training' && (trainingView === 'home' || trainingView === 'last') && !!today && !trainingTab?.locked && !webFront && open(TRAINING_HOME_HREF);
-  /* 기록(2026-10-29) — 앱 화면만(웹으로 안 보낸다, pressTab · goTab). 2026-11-01 부터 탭이 아니라 투구 탭 고르개의 둘째(pitch/seg.tsx) */
+  /*
+   * 기록(2026-10-29) — 앱 화면만(웹으로 안 보낸다, pressTab · goTab). 판 15 사이트 탭이면 제 탭(홈 · 코치 · 기록 · 투구 …, 2026-11-25),
+   * 옛 사이트 탭(판 14)이면 투구 탭 고르개의 둘째(pitch/seg.tsx)
+   */
+  const recordsTab = tabs.some((t) => t.href === RECORDS_PATH);
+  /* 투구 첫 설정 전(사이트가 투구 탭 주소를 첫 설정으로 바꿔 보냄, lib/nav.ts applyLocks) — 기록 탭의 '+ 투구 기록'은 첫 설정으로 */
+  const pitchSetup = tabs.some((t) => t.locked && t.lockReason === 'setup' && t.href.split('?')[0] === '/videos/setup');
   const showRecords = webOk && path === RECORDS_PATH && !!today && !webFront && open(RECORDS_PATH);
   /* 코치(2026-11-01) — 앱 화면만 있는 탭(웹 /coach 는 PC 분석 · 소개). 베타 잠김은 open 이 막는다 */
   const showCoach = webOk && path === COACH_PATH && !!today && !webFront && open(COACH_PATH);
@@ -519,7 +533,7 @@ export default function SiteScreen() {
   /* 판 넘기기 — 지금 보일 앱 판(없으면 웹이 앞)과 한 번이라도 열린 판(붙여 둠) */
   const pagerOn = showHome || showCoach || showPitch || showTraining || showRecords || showDugout || showNutrition;
   /* PAGER_KEYS 차례 */
-  const nowIndex = showHome ? 0 : showCoach ? 1 : showPitch ? 2 : showRecords ? 3 : showTraining ? 4 : showDugout ? 5 : showNutrition ? 6 : -1;
+  const nowIndex = showHome ? 0 : showCoach ? 1 : showRecords ? 2 : showPitch ? 3 : showTraining ? 4 : showDugout ? 5 : showNutrition ? 6 : -1;
   const [pagerIndex, setPagerIndex] = useState(0);
   if (nowIndex >= 0 && nowIndex !== pagerIndex) setPagerIndex(nowIndex);
   const [seen, setSeen] = useState(UNSEEN);
@@ -632,6 +646,25 @@ export default function SiteScreen() {
       stop?.();
     };
   }, [pagerOn, pressed, pagerIndex, seen, pitchTab?.locked, trainingTab?.locked, nutritionLocked, open]);
+  /*
+   * 기록 탭으로 가는 하나의 길(PITCH-RECORDS-MINIMAL01 R2) — '/records?date=…&cat=…&id=…' · 옛 '/videos?view=log' · 쿼리 없는 '/pitch-log/<날짜>'.
+   * 부탁을 걸러(records/intent.ts) 기록 탭에 남기고 그 판을 연다. 쿼리 없는 '/records'(뒤로 갈 곳 · 탭 누름과 같은 뜻)는 부탁 없이 판만 — 보던 날짜 ·
+   * 묶음 · 자리를 그대로 둔다. 잠겼으면(출시 정책) 안내만. 기록으로 갈 주소가 아니면 false(원래 길).
+   */
+  const goRecords = (href: string): boolean => {
+    const intent = recordsIntentOfHref(href);
+    if (!intent) return false;
+    arrived();
+    if (!open(RECORDS_PATH)) {
+      noticeLocked();
+      return true;
+    }
+    setWebFront(false);
+    if (href !== RECORDS_PATH) openRecordsAt(intent);
+    setPath(RECORDS_PATH);
+    setSearch('');
+    return true;
+  };
   const pressTab = (t: ShellTab) => {
     /* 앞서 누른 웹 칸을 기다리던 것은 버린다 — 안 그러면 옛 칸으로 되돌아가고 렌즈도 그 칸에 남았다(2026-10-24 검토) */
     arrived();
@@ -673,6 +706,7 @@ export default function SiteScreen() {
   /* 투구 탭(앱 화면)에서 아직 웹인 화면(투구 분석 · 3D 동작 분석)으로 — 앱 화면을 바로 걷고 웹이 그 주소로 간다 */
   const openWeb = (href: string) => {
     arrived();
+    if (goRecords(href)) return;
     if (!open(href) && !nativeOfWeb(href)) return noticeLocked();
     const native = nativeOfWeb(href);
     if (native && isNativePath(native)) return openNative(native);
@@ -692,6 +726,7 @@ export default function SiteScreen() {
     } else showWeb(href, waits);
   };
   const goTab = (href: string) => {
+    if (goRecords(href)) return;
     if (!open(href)) return noticeLocked();
     /*
      * 운동을 마치거나 트레이닝 첫 설정을 끝낸 뒤의 '/training' — 2026-10-21 트레이닝이 종목 바 안으로 들어가 하단 탭에서 못 찾고 웹 '오늘 운동'이 열렸다.
@@ -709,8 +744,6 @@ export default function SiteScreen() {
      */
     const t = tabs.find((x) => x.href === href) ?? (href.includes('?') ? undefined : tabs.find((x) => x.href.split('?')[0] === href));
     if (t) pressTab(t);
-    /* 기록은 2026-11-01 부터 탭이 아니다(투구 탭 고르개 · 홈 '이번 주') — 탭으로 못 찾아도 앱 화면으로(웹 '/records' 는 없다) */
-    else if (href === RECORDS_PATH) pressTab({ href, label: '기록', icon: 'records' });
     else openWeb(href);
   };
   /*
@@ -722,6 +755,11 @@ export default function SiteScreen() {
     navTo.current = (href) => {
       /* 그 나라에 없는 곳(미국 · 일본의 타격 · 영양)으로 가는 이동은 홈으로 */
       if (!href.startsWith('#') && hiddenIn(countryNow(), href)) return goTab('/today');
+      /* 기록 탭(알림 · 앱 화면이 끝난 뒤 · 옛 투구 기록 주소) — 조직 공간이면 내 싱커로 옮긴 뒤(기록은 내 싱커 것) */
+      if (!href.startsWith('#') && recordsIntentOfHref(href)) {
+        if (spaceNow().key !== ME && spaceNow().hasSinker) setSpace(ME);
+        return void goRecords(href);
+      }
       /* 출시 전 베타 — 잠긴 곳(알림 · 웹 링크 · 앱 화면이 끝난 뒤의 이동)은 안내만, 지금 자리에 둔다 */
       if (!href.startsWith('#') && !open(href) && !nativeOfWeb(href)) return noticeLocked();
       /* 조직 권한 없음 · 조직 알림 — 웹으로 보내지 않고 앱이 받는다(계약 8-4 · 8-5) */
@@ -918,7 +956,9 @@ export default function SiteScreen() {
    * 판 넷 — 하나씩 따로 만들어 둔다. 한 덩어리로 쓰면 컴파일러가 판 넷을 한 묶음으로 기억해, 탭을 옮길 때(pagerIndex) · 판 하나가 붙을 때마다
    * 붙어 있는 판이 모두 다시 그려졌다(2026-10-25 화면 전환 점검). 따로 두면 바뀐 판만 새로 만든다
    */
-  const pitchLog = showPitch && new URLSearchParams(search).get('view') === 'log';
+  /* 투구 영상 달력(가져오기 · 2분할 비교 · 구속 측정 관리자) — 앱이 여는 이름은 ?view=videos, 웹이 스스로 옛 ?view=log 로 와도 같은 판 */
+  const pitchView = new URLSearchParams(search).get('view');
+  const pitchLog = showPitch && (pitchView === 'videos' || pitchView === 'log');
   /* 탭 판 넷의 본문 끝 여백 — 막대가 실제로 가리는 높이(바닥 안전 영역 포함, 2026-10-26). 예전 TAB_BAR_HEIGHT(49)는 안전 영역을 안 넣어 끝이 막대 밑에 깔렸다 */
   const tabBottom = useTabBarOcclusion();
   const { home: seenHome, coach: seenCoach, pitch: seenPitch, training: seenTraining, records: seenRecords, nutrition: seenNutrition } = seen;
@@ -929,9 +969,14 @@ export default function SiteScreen() {
   const homeSlot = today && seenHome ? <HomeTab key="home" today={today} bottom={tabBottom} onWeb={openWeb} onTab={goTab} /> : null;
   const coachSlot = today && seenCoach && open(COACH_PATH) ? <CoachMainTab key="coach" bottom={tabBottom} /> : null;
   const pitchSlot =
-    today && seenPitch && open('/videos') ? <PitchTab key="pitch" today={today} bottom={tabBottom} onWeb={openWeb} onTab={goTab} log={pitchLog} /> : null;
+    today && seenPitch && open('/videos') ? (
+      <PitchTab key="pitch" today={today} bottom={tabBottom} onWeb={openWeb} onTab={goTab} log={pitchLog} recordsTab={recordsTab} />
+    ) : null;
   const trainingSlot = today && seenTraining && open(TRAINING_HOME_HREF) ? <TrainingTab key="training" today={today} bottom={tabBottom} onWeb={openWeb} /> : null;
-  const recordsSlot = today && seenRecords && open(RECORDS_PATH) ? <RecordsTab key="records" today={today} bottom={tabBottom} onTab={goTab} /> : null;
+  const recordsSlot =
+    today && seenRecords && open(RECORDS_PATH) ? (
+      <RecordsTab key="records" today={today} bottom={tabBottom} onTab={goTab} standalone={recordsTab} pitchSetup={pitchSetup} />
+    ) : null;
   const dugoutSlot = today && seen.dugout && open('/?dugout=1') ? <DugoutTab key="dugout" bottom={tabBottom} onWeb={openWeb} /> : null;
   const nutritionSlot =
     today && seenNutrition && open('/nutrition') ? <NutritionTab key="nutrition" today={today} bottom={tabBottom} onWebNutrition={openWebNutrition} /> : null;
@@ -1027,7 +1072,7 @@ export default function SiteScreen() {
         </View>
       ) : null}
       {/* 탭 넷 — 나란히 두고 240ms 에 미끄러진다(웹 tab-pager). 한 번 연 판은 붙여 둬서 굴린 자리가 남는다 */}
-      {today ? <TabPager index={pagerIndex} visible={pagerOn && !inOrg} slots={[homeSlot, coachSlot, pitchSlot, recordsSlot, trainingSlot, dugoutSlot, nutritionSlot]} /> : null}
+      {today ? <TabPager index={pagerIndex} visible={pagerOn && !inOrg} slots={[homeSlot, coachSlot, recordsSlot, pitchSlot, trainingSlot, dugoutSlot, nutritionSlot]} /> : null}
       {/* 홈 밖의 탭은 위 막대가 없어 시계 자리를 막으로 덮는다(웹 data-top-veil) */}
       {today && pagerOn && pagerIndex !== 0 && !inOrg ? <ClockVeil /> : null}
       {inOrg ? <OrgSpaceView bottom={tabBottom} /> : null}
@@ -1057,8 +1102,8 @@ export default function SiteScreen() {
           active={
             pressed ??
             sportRoot ??
-            /* 기록은 새 탭 목록에선 투구 탭 안, 옛 목록(사이트가 판 13 탭을 보냄)에선 제 탭 */
-            (showPitch ? '/videos' : showHome ? '/today' : showCoach ? COACH_PATH : showRecords ? (tabs.some((t) => t.href === RECORDS_PATH) ? RECORDS_PATH : '/videos') : showNutrition ? '/nutrition' : active)
+            /* 기록은 제 탭이 있으면(판 15 · 13 탭) 그 탭, 판 14 탭이면 투구 탭 안 — 다른 탭에서 기록을 열어도 하나뿐인 기록 탭에 불 */
+            (showPitch ? '/videos' : showHome ? '/today' : showCoach ? COACH_PATH : showRecords ? (recordsTab ? RECORDS_PATH : '/videos') : showNutrition ? '/nutrition' : active)
           }
           onPress={pressTab}
           popTo={atSportRoot ? null : sportRoot}

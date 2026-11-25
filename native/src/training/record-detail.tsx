@@ -26,6 +26,7 @@ import { Icon, type IconName } from '~/shell/icon';
 import { Press } from '~/shell/press';
 import { Pulse } from '~/shell/motion';
 import { leave } from '~/mechanics/parts';
+import { recordsHref } from '~/records/intent';
 import { pushOpen } from '~/shell/release';
 import { HistoryPanel } from './history';
 import {
@@ -77,7 +78,8 @@ export function TrainingRecordScreen({
     scroll.current?.scrollTo({ y: 0, animated: false });
     router.setParams({ date: key });
   };
-  const back = () => (router.canGoBack() ? router.back() : leave('/records'));
+  /* 뒤로 갈 곳이 없으면(알림 · 링크로 바로 열림) 기록 탭 그날 · 트레이닝으로 */
+  const back = () => (router.canGoBack() ? router.back() : leave(recordsHref({ date, category: 'training' })));
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
       <Bar

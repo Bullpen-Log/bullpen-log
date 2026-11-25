@@ -15,9 +15,11 @@ import { toDateKey } from '@/lib/pitch-stats';
 import { createAvatarUrl } from '@/lib/storage';
 import {
   APP_COACH_LEVEL,
+  APP_RECORDS_LEVEL,
   APP_TABS,
   APP_TABS_LEVEL,
   APP_TABS_V13,
+  APP_TABS_V15,
   MOBILE_TABS,
   SPORT_BARS,
   applyLocks,
@@ -101,9 +103,13 @@ export default async function AppLayout({
   /* 앱(스마트폰 껍데기) 안인가 — 구속 측정 메뉴는 앱이면 누구나, 웹이면 관리자만(lib/nav.ts) */
   const userAgent = (await headers()).get('user-agent');
   const isNative = isNativeUserAgent(userAgent);
-  /* 앱 하단 탭 — 판 14+ 홈 · 코치 · 투구 · 트레이닝 · 덕아웃, 판 13 은 코치 대신 기록 탭, 그 전 앱은 더보기가 있는 옛 탭(lib/nav.ts APP_TABS) */
+  /*
+   * 앱 하단 탭 — 판 15+ 홈 · 코치 · 기록 · 투구 · 트레이닝 · 덕아웃(기록이 제 탭), 판 14 홈 · 코치 · 투구 · 트레이닝 · 덕아웃(기록은 투구 고르개),
+   * 판 13 은 코치 대신 기록 탭, 그 전 앱은 더보기가 있는 옛 탭(lib/nav.ts APP_TABS)
+   */
   const level = expoLevel(userAgent);
-  const appTabs = level >= APP_COACH_LEVEL ? APP_TABS : level >= APP_TABS_LEVEL ? APP_TABS_V13 : MOBILE_TABS;
+  const appTabs =
+    level >= APP_RECORDS_LEVEL ? APP_TABS_V15 : level >= APP_COACH_LEVEL ? APP_TABS : level >= APP_TABS_LEVEL ? APP_TABS_V13 : MOBILE_TABS;
   /* 웹(브라우저)의 싱커 틀 — 덕아웃 탭 대신 홈 왼쪽의 원형 뒤로가기(2026-10-21 금윤호). 앱은 탭 그대로(김민 몫) */
   const back = isNative ? null : { href: '/', label: '덕아웃' };
   /* 나라(lib/country.ts) — 미국 · 일본은 투수 전용이라 타격 탭 · 메뉴가 빠진다 */

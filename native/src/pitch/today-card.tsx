@@ -149,7 +149,18 @@ export function ArmStatusPanel({ state }: { state: PitchTodayState }) {
 }
 
 /** 오늘 투구 — 흰 카드: 작은 이름 · 큰 값(기록 전 · N구 · 휴식 · 측정 N구) · 한 줄 · 주 단추 하나 */
-export function PitchTodayCard({ today, logs = null, state }: { today: string; logs?: PitchLog[] | null; state: PitchTodayState }) {
+export function PitchTodayCard({
+  today,
+  logs = null,
+  state,
+  onRecords,
+}: {
+  today: string;
+  logs?: PitchLog[] | null;
+  state: PitchTodayState;
+  /** '오늘 기록 보기'(남긴 투구 · 휴식 읽기) — 기록 탭 오늘 · 투구로(PITCH-RECORDS-MINIMAL01 R2). 남기기 · 측정 반영은 그날 투구 화면 그대로 */
+  onRecords?: () => void;
+}) {
   const c = usePalette();
   const { current, failed, go } = state;
   const pending = current?.unloggedVelocity ?? 0;
@@ -173,7 +184,12 @@ export function PitchTodayCard({ today, logs = null, state }: { today: string; l
         </View>
         {note ? <Text style={{ color: c.muted, fontSize: 12, lineHeight: 18 }}>{note}</Text> : null}
       </View>
-      <ActionButton label={button.label} icon={button.icon} onPress={() => pushOpen(go as Href)} style={{ borderRadius: 16 }} />
+      <ActionButton
+        label={button.label}
+        icon={button.icon}
+        onPress={() => ((current?.logged || resting) && !pending && onRecords ? onRecords() : pushOpen(go as Href))}
+        style={{ borderRadius: 16 }}
+      />
     </Animated.View>
   );
 }

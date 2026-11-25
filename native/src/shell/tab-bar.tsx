@@ -21,11 +21,13 @@ export type ShellTab = { href: string; label: string; icon: string; locked?: boo
 
 export const DEFAULT_TABS: ShellTab[] = [
   /*
-   * 차례 홈 · 코치 · 투구 · 트레이닝 · 덕아웃(2026-11-01 김민, 웹 lib/nav.ts APP_TABS). 기록은 투구 탭 맨 위 고르개(pitch/seg.tsx).
+   * 차례 홈 · 코치 · 기록 · 투구 · 트레이닝 · 덕아웃(2026-11-25 사용자 확정, 웹 lib/nav.ts APP_TABS_V15) — 기록이 제 탭이고 투구 바로 왼쪽.
+   * 사이트 탭이 오기 전 · 꺼진 망에서 켤 때 이 차례로 그린다. 옛 사이트(판 14 탭)를 받으면 기록은 투구 탭 고르개로 돌아간다(pitch/seg.tsx).
    * 더보기는 각 탭 위 오른쪽 메뉴(shell/menu-button.tsx)
    */
   { href: '/today', label: '홈', icon: 'home' },
   { href: '/coach', label: '코치', icon: 'coach' },
+  { href: '/records', label: '기록', icon: 'records' },
   { href: '/videos', label: '투구', icon: 'baseball' },
   { href: '/training?view=home', label: '트레이닝', icon: 'dumbbell' },
   { href: '/?dugout=1', label: '덕아웃', icon: 'users' },
