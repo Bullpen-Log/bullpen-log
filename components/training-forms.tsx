@@ -6,6 +6,7 @@ import { RefreshCw } from '@/components/icon';
 import { CheckboxGroup, RadioGroup } from '@/components/choice-inputs';
 import { OpenCheckinButton } from '@/components/notice-bell';
 import { SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
+import { WORKOUT_MINUTES_CHOICES } from '@/lib/report/theme';
 import { TRAINING_LEVELS } from '@/lib/report/personalize';
 import { generateTodayPlan, saveTrainingSettings } from '@/app/actions/training-setup';
 import { SafeForm } from '@/components/safe-form';
@@ -163,6 +164,14 @@ export function PlanForm({
           </p>
         </div>
       )}
+
+      <RadioGroup
+        name="minutes"
+        label="운동 시간"
+        compact
+        options={[{ name: '자동', value: '' }, ...WORKOUT_MINUTES_CHOICES.map((m) => ({ name: `${m}분`, value: String(m) }))]}
+        selected=""
+      />
 
       <CheckboxGroup
         name="availableEquipment"
