@@ -1,4 +1,12 @@
-# CURRENT RESUME — 2026-11-20 (supersedes historical resume headings below)
+# 최신 재개 안내 · 2026-11-25
+
+운동영상과 메커니즘 영상의 공통 검수 기준은 [싱커 운동·투구 드릴 영상 검수 룰북](VIDEO-REVIEW-RULEBOOK.md) 제1판이다. 매 영상 검수 전 읽고, 공통 양식과 영상별 필수 점검표를 적용한다. 아래 과거 인계의 상충하는 규칙에는 룰북과 최신 사용자 지시가 우선한다.
+
+메커니즘 현재는 **12번 뎁스 드롭 힌지 스로우 (작은 메디신볼)**의 사용자 확인 대기다. 참고 영상만 있어 자체 촬영이 필요하다. 저장된 설명은 박스에서 바닥으로 떨어져 무릎을 굽히며 착지하는 표현으로 수정했다. 정확한 착지 발과 이동 방향 및 기존 드롭·브레이크 분류의 적합성은 시범 재확인 대상이다. 다음 이동은 사용자 지시 후에 한다. 현재·다음의 정확한 식별자와 판단은 checkpoint.json과 video-records.json의 최신 기록을 따른다.
+
+---
+
+# 이전 재개 기록 · 2026-11-20 당시
 
 This is the mechanics department's public-safe Mac-to-Mac handoff. Read `checkpoint.json` and the matching `video-records.json` entry after receiving all four mechanics/yunho files with the reviewed-only sync workflow in `docs/reviews/handoff/README.md`. Preserve any differing local MacBook notes; do not overwrite or select a winner by timestamp. A published remote ref is not proof of receipt on the physical MacBook. Do not expose source/signed URLs, credentials, private media, or personal information.
 

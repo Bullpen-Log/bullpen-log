@@ -1650,5 +1650,12 @@
     "latest_rule": "박스에서 실제 떨어지는 동작은 떨어진다고 직접 표현. 엉덩이를 접는다처럼 이해 어려운 표현은 피하고 실제 몸과 다리 동작을 명확히 설명.",
     "current": "12번 사용자 확인 대기. 도약·착지 발과 방향, 목적 분류 추가 검토 필요.",
     "priority": "사용자 최신 정정이 과거 규칙보다 우선하며 앞으로 추가 지시를 반영한다."
+  },
+  "common_video_review_rulebook_20261125": {
+    "version": 1,
+    "repository_document": "docs/reviews/handoff/mechanics/yunho/VIDEO-REVIEW-RULEBOOK.md",
+    "desktop_copy": "바탕화면 sinker/운동·투구 드릴 영상 검수 규칙.md",
+    "scope": "운동영상과 메커니즘 영상에 공통 적용하는 사용자 요청 필수 규칙",
+    "application": "검수 시작 전 읽고 설명 양식 및 영상별 점검표를 적용한다. 새 공통 지시는 룰북에 반영한다. 이전 기록 중 상충 문구는 최신 사용자 지시와 룰북을 따른다."
   }
 }
