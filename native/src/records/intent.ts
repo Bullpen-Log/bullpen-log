@@ -7,7 +7,7 @@ import type { RecordItem } from '@/lib/records/day-records';
  * - 날짜는 진짜 날짜 키만, 묶음은 넷 중 하나(아니면 전체), 기록 번호는 기록 탭 목록의 꼴(종류:번호)만. 묶음과 다른 종류의 기록 번호는 버린다.
  * - recent: 날짜를 안 준 '전체 기록 · 히스토리' 입구 — 그 묶음의 가장 최근 기록이 있는 날(오늘까지)로. 없으면 오늘.
  * - 옛 주소: '/videos?view=log'(투구 기록 달력) · 쿼리 없는 '/pitch-log/<날짜>'(그날 투구 읽기)는 기록 탭 투구로. 쿼리가 있는
- *   '/pitch-log/<날짜>?drill=…' 같은 입력 채우기는 여기서 받지 않는다(그 입력 흐름 그대로).
+ *   '/pitch-log/<날짜>?view=records'도 조회다. '?drill=…'처럼 입력을 채우는 주소는 원래 흐름에 둔다.
  * 순수 함수만 — 자체 시험 scripts/native-records-intent-selftest.mts.
  */
 export const RECORDS_PATH = '/records';
@@ -86,9 +86,9 @@ export function recordsIntentOfHref(href: string): RecordsIntent | null {
     const date = sp.get('date');
     return recordsIntent({ date, category: 'pitch', recent: !isDateKey(date) });
   }
-  /* 그날 투구 읽기(쿼리 없음) — 입력을 채워 여는 '/pitch-log/<날짜>?drill=…' 은 아니다 */
+  /* 그날 투구 읽기 — 웹에서 같이 쓰는 입력 경로는 명시적으로 view=records를 붙인다. */
   const day = /^\/pitch-log\/(\d{4}-\d{2}-\d{2})$/.exec(path)?.[1];
-  if (day && !query) return isDateKey(day) ? recordsIntent({ date: day, category: 'pitch' }) : recordsIntent({ category: 'pitch', recent: true });
+  if (day && (!query || query === 'view=records')) return isDateKey(day) ? recordsIntent({ date: day, category: 'pitch' }) : recordsIntent({ category: 'pitch', recent: true });
   return null;
 }
 

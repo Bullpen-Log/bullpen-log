@@ -44,47 +44,48 @@ export function useTabIntent(tab: DateTab, cb: (date: string) => void) {
 }
 
 /* ---------------- 기록 탭 ---------------- */
+type RecordsDelivery = { fromSave?: boolean };
 let seq = 0;
-let recordsPending: { seq: number; intent: RecordsIntent } | null = null;
-const recordsListeners = new Set<(intent: RecordsIntent, seq: number) => void>();
+let recordsPending: { seq: number; intent: RecordsIntent; delivery: RecordsDelivery } | null = null;
+const recordsListeners = new Set<(intent: RecordsIntent, seq: number, delivery: RecordsDelivery) => void>();
 
 /** 기록 탭에 부탁을 남긴다 — 판이 붙어 있으면 바로, 아니면 붙을 때. 마지막 부탁 하나만 남는다(앞의 것은 덮는다) */
-export function openRecordsAt(intent: RecordsIntent) {
+export function openRecordsAt(intent: RecordsIntent, delivery: RecordsDelivery = {}) {
   const n = ++seq;
   if (recordsListeners.size) {
     recordsPending = null;
-    recordsListeners.forEach((l) => l(intent, n));
-  } else recordsPending = { seq: n, intent };
+    recordsListeners.forEach((l) => l(intent, n, delivery));
+  } else recordsPending = { seq: n, intent, delivery };
 }
 
 /**
  * 기록 탭 부탁 받기(훅 밖 — 시험이 그대로 부른다, scripts/native-records-intent-selftest.mts). 붙는 순간 남은 부탁을 한 번 꺼내 주고,
  * 같은 차례 번호는 두 번 주지 않는다. 떼는 함수를 돌려준다.
  */
-export function subscribeRecordsIntent(cb: (intent: RecordsIntent) => void): () => void {
+export function subscribeRecordsIntent(cb: (intent: RecordsIntent, delivery: RecordsDelivery) => void): () => void {
   let last = 0;
-  const l = (i: RecordsIntent, n: number) => {
+  const l = (i: RecordsIntent, n: number, delivery: RecordsDelivery) => {
     if (n <= last) return;
     last = n;
-    cb(i);
+    cb(i, delivery);
   };
   recordsListeners.add(l);
   const left = recordsPending;
   if (left) {
     recordsPending = null;
-    l(left.intent, left.seq);
+    l(left.intent, left.seq, left.delivery);
   }
   return () => {
     recordsListeners.delete(l);
   };
 }
 
-export function useRecordsIntent(cb: (intent: RecordsIntent) => void) {
+export function useRecordsIntent(cb: (intent: RecordsIntent, delivery: RecordsDelivery) => void) {
   const ref = useRef(cb);
   useEffect(() => {
     ref.current = cb;
   });
-  useEffect(() => subscribeRecordsIntent((i) => ref.current(i)), []);
+  useEffect(() => subscribeRecordsIntent((i, delivery) => ref.current(i, delivery)), []);
 }
 
 /** 로그아웃 · 계정이 바뀔 때 — 앞사람이 남긴 부탁이 다음 사람 화면을 옮기지 않게 */

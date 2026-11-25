@@ -1,5 +1,5 @@
 import { type Href } from 'expo-router';
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RecordItem } from '@/lib/records/day-records';
@@ -62,8 +62,8 @@ export function RecordsTab({
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [waiting, setWaiting] = useState<Waiting | null>(null);
-  /* 가리킨 기록 하나 — 그 줄로 굴려 잠시 칠한다(n 은 같은 기록을 다시 가리킬 때도 다시 굴리게) */
-  const [focus, setFocus] = useState<{ id: string; n: number } | null>(null);
+  /* 가리킨 기록 하나 — 그 줄로 굴려 잠시 칠한다(같은 기록도 다시 가리키면 다시 굴린다) */
+  const [focus, setFocus] = useState<{ id: string } | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   /* 자정을 넘기면(껍데기가 오늘을 다시 물음) 오늘을 보던 사람은 새 오늘로 */
   const seenToday = useRef(today);
@@ -76,7 +76,7 @@ export function RecordsTab({
 
   const items = useMemo(() => {
     const byId = new Map<string, RecordItem>();
-    for (const r of [...(s.items ?? []), ...Object.values(s.older).flat()]) byId.set(r.id, r);
+    for (const r of [...Object.values(s.older).flat(), ...(s.items ?? [])]) byId.set(r.id, r);
     return [...byId.values()];
   }, [s.items, s.older]);
 
@@ -107,12 +107,13 @@ export function RecordsTab({
   const scroll = useRef<ScrollViewInstance>(null);
   useRetapTop(() => scroll.current?.scrollTo({ y: 0, animated: true }));
 
-  useRecordsIntent((i) => {
+  useRecordsIntent((i, { fromSave }) => {
+    setFocus(i.recordId ? { id: i.recordId } : null);
+    if (fromSave) return;
     setExpanded(false);
     setSearchOpen(false);
     setQuery('');
     setFilter(i.category);
-    setFocus(i.recordId ? { id: i.recordId, n: Date.now() } : null);
     if (i.date) {
       setWaiting(null);
       setSelected(i.date);
@@ -130,21 +131,28 @@ export function RecordsTab({
   });
   const searching = searchOpen && query.trim().length > 0;
   const list = searching ? searchRecords(items, query, filter) : dayRecords(items, day, filter);
-  const loading = s.items == null || (waiting != null && resolved == null);
+  const loadingArchive = !searching && !!s.from && day < s.from && !s.older[month] && !s.error;
+  const loading = s.items == null || (waiting != null && resolved == null) || loadingArchive;
   const firstUse = s.items != null && s.items.length === 0 && Object.values(s.older).every((x) => x.length === 0);
 
   /* 가리킨 줄로 굴리기 — 목록 칸의 자리와 그 줄의 자리를 다 안 뒤에 한 번 */
   const listY = useRef<number | null>(null);
   const rowY = useRef(new Map<string, number>());
-  const scrolledFor = useRef(0);
-  const tryScroll = () => {
-    if (!focus || scrolledFor.current === focus.n || listY.current == null) return;
+  const scrolledFor = useRef<typeof focus>(null);
+  const visibleFocus = focus && list.some((r) => r.id === focus.id) ? focus : null;
+  const tryScroll = useCallback(() => {
+    if (!visibleFocus || scrolledFor.current === visibleFocus || listY.current == null) return;
+    const focus = visibleFocus;
     const y = rowY.current.get(focus.id);
     if (y == null) return;
-    scrolledFor.current = focus.n;
+    scrolledFor.current = focus;
     scroll.current?.scrollTo({ y: Math.max(0, listY.current + y - 120), animated: true });
     setFlash(focus.id);
-  };
+  }, [visibleFocus]);
+  useEffect(() => {
+    const frame = requestAnimationFrame(tryScroll);
+    return () => cancelAnimationFrame(frame);
+  }, [tryScroll]);
   useEffect(() => {
     if (!flash) return;
     const t = setTimeout(() => setFlash(null), 2400);
@@ -169,7 +177,7 @@ export function RecordsTab({
       const id = pitchLogIdOf(r.id);
       return pushOpen((r.rested || !id ? `/pitch/${r.date}` : editHref(r.date, id)) as Href);
     }
-    if (r.kind === 'checkin') return pushOpen(`/calendar?date=${r.date}` as Href);
+    if (r.kind === 'checkin') return pushOpen(`/calendar?date=${r.date}&from=records` as Href);
     pushOpen(`/training/day/${r.date}?kind=${r.kind}` as Href);
   };
   const dayHasPitch = !searching && list.some((r) => r.kind === 'pitch');
@@ -243,7 +251,13 @@ export function RecordsTab({
           </Press>
         </View>
       </View>
-      <View style={[styles.calendar, { backgroundColor: c.card }]}>
+      <View
+        style={[
+          styles.calendar,
+          { backgroundColor: c.card },
+          width < 360 && { marginHorizontal: 4 - SPACE.side, paddingHorizontal: 0 },
+        ]}
+      >
         {expanded ? (
           <View style={styles.grid}>
             {['월', '화', '수', '목', '금', '토', '일'].map((w) => (
@@ -256,7 +270,7 @@ export function RecordsTab({
             )}
           </View>
         ) : (
-          <View style={styles.week}>
+          <View style={[styles.week, width < 328 && { gap: 0 }]}>
             {weekOf(day).map((d) => (
               <DayButton key={d} date={d} today={today} selected={day === d} marks={kindsOn(items, d)} onPress={() => pick(d)} c={c} />
             ))}

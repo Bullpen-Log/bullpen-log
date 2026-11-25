@@ -1,4 +1,4 @@
-import { type Href, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -25,7 +25,7 @@ import { usePalette, withAlpha, type Palette } from '~/lib/ui';
 import { homeSnapshot } from '~/home/tab';
 import { syncCalendarAlarm, useEventAlarmIssues } from '~/home/events';
 import { dayRecords } from '~/records/model';
-import { recordsHref } from '~/records/intent';
+import { categoryOfRecordId, recordsHref } from '~/records/intent';
 import { Icon, type IconName } from '~/shell/icon';
 import { leaveTo } from '~/shell/web-nav';
 import { Press } from '~/shell/press';
@@ -57,7 +57,7 @@ export default function CalendarScreen() {
   const reduce = useReducedMotion();
   const { fontScale } = useWindowDimensions();
   const { speed } = usePrefs();
-  const params = useLocalSearchParams<{ date?: string }>();
+  const params = useLocalSearchParams<{ date?: string; from?: string }>();
   const today = homeSnapshot()?.today ?? toDateKey(new Date());
   const requested = isCalendarDate(params.date) ? params.date : null;
   const [selected, setSelected] = useState(requested ?? today);
@@ -124,12 +124,8 @@ export default function CalendarScreen() {
     [selected]
   );
   const openRecord = (r: RecordItem) => {
-    if (r.kind === 'checkin') return setCheckin(r);
-    router.push(
-      (r.kind === 'pitch'
-        ? `/pitch/${r.date}`
-        : `/training/day/${r.date}?kind=${r.kind}`) as Href
-    );
+    if (r.kind === 'checkin' && params.from === 'records') return setCheckin(r);
+    leaveTo(recordsHref({ date: r.date, category: categoryOfRecordId(r.id) ?? 'all', recordId: r.id }));
   };
   const summary = (r: RecordItem) => {
     if (r.kind === 'pitch')

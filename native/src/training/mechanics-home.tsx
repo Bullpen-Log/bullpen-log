@@ -16,7 +16,8 @@ import { MechanicsEquipment } from '~/mechanics/focus-progress';
 import { FocusHistory } from '~/mechanics/focus-review';
 import { act, Description } from '~/mechanics/parts';
 import type { Palette } from '~/lib/ui';
-import { fromApp } from '~/shell/web-nav';
+import { fromApp, leaveTo } from '~/shell/web-nav';
+import { recordsHref } from '~/records/intent';
 import { Press } from '~/shell/press';
 import { Sheet } from '~/workout/sheets';
 import { Star } from './fav-button';
@@ -224,7 +225,13 @@ export function MechanicsTraining({
       meta: program.lastFinish ? `${program.lastFinish.saved}개 드릴 수행 · 기록 저장됨` : '기록 저장됨',
       tone: 'done',
       primary: program.lastFinish
-        ? { label: '수행 기록 보기', onPress: () => router.push(`/mechanics/done?id=${program.lastFinish!.attemptId}` as Href) }
+        ? {
+            label: '수행 기록 보기',
+            onPress: () => {
+              const date = program.lastFinish!.on;
+              leaveTo(recordsHref({ date, category: 'training', recordId: `drill:${date}` }));
+            },
+          }
         : null,
     };
   else if (savedNow > 0)

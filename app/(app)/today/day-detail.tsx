@@ -61,7 +61,7 @@ function tabLink(
   switch (focus) {
     case 'pitch':
       return {
-        href: `/pitch-log/${date}`,
+        href: `/pitch-log/${date}${opts.empty ? '' : '?view=records'}`,
         label: opts.empty ? '이 날 투구 남기기' : '투구 탭에서 자세히',
       };
     case 'training':

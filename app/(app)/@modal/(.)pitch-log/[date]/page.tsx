@@ -1,6 +1,7 @@
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
-import { isExpoUserAgent } from '@/lib/app-env';
+import { expoLevel, isExpoUserAgent } from '@/lib/app-env';
+import { APP_RECORDS_LEVEL } from '@/lib/nav';
 import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { DayClient } from '@/app/(app)/pitch-log/[date]/day-client';
 import { loadPitchDay } from '@/app/(app)/pitch-log/[date]/load';
@@ -15,13 +16,21 @@ export default async function PitchDayModalPage({
 }: {
   params: Promise<{ date: string }>;
   /** ?drill=40&pct=70 — 트레이닝의 드릴 공 카드가 붙여 온다(load.ts drillPrefillOf) */
-  searchParams: Promise<{ drill?: string | string[]; pct?: string | string[] }>;
+  searchParams: Promise<{ drill?: string | string[]; pct?: string | string[]; view?: string | string[] }>;
 }) {
   const { date } = await params;
   /* 새 아이폰 앱(Expo)은 그날 화면을 앱 화면으로 연다 — 폰에 둔 영상을 웹 화면이 못 꺼낸다(앱 영상 부품은 앱 화면만) */
-  if (isExpoUserAgent((await headers()).get('user-agent')) && /^\d{4}-\d{2}-\d{2}$/.test(date))
-    return <OpenNative path={`/pitch/${date}`} cover={false} />;
-  const data = await loadPitchDay(date, await searchParams);
+  const agent = (await headers()).get('user-agent');
+  const query = await searchParams;
+  if (isExpoUserAgent(agent) && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    // This page also handles entry, measurement and video links. Only a
+    // record-reading link goes to the Records tab.
+    const href = expoLevel(agent) >= APP_RECORDS_LEVEL && query.view === 'records' && query.drill == null
+      ? `/records?date=${date}&cat=pitch`
+      : `/pitch/${date}`;
+    return <OpenNative path={href} cover={false} />;
+  }
+  const data = await loadPitchDay(date, query);
   if (!data) notFound();
   return <DayClient {...data} />;
 }

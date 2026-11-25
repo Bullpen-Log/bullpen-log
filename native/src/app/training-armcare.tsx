@@ -12,6 +12,7 @@ import { sendCheck } from '~/armcare/send';
 import { act, leave, offlineAs } from '~/mechanics/parts';
 import { usePalette, type Palette } from '~/lib/ui';
 import { openCheckin } from '~/shell/web-nav';
+import { recordsHref } from '~/records/intent';
 import { Checklist, RehabCard, RoutineCard, StrengthWeek, WeekDots, doneWith, openPlay, useCheckIntents } from '~/training/armcare-parts';
 import { FavButton } from '~/training/fav-button';
 import { Fold, Screen, SectionHead, s, useScreenData } from '~/training/screen';
@@ -421,7 +422,7 @@ function TodayCard({
           </View>
           {staleLine}
           {allDone
-            ? main('기록 확인', start, !ready)
+            ? main('기록 확인', () => leave(recordsHref({ date: dateKey, category: 'training', recordId: `armcare:${dateKey}` })), !ready)
             : changed
               ? main(showList ? '구성을 확인하고 있어요' : '바뀐 구성 확인', () => setShowList(true), showList)
               : main(done > 0 ? '이어하기' : '시작하기', start, !ready, 'play.fill')}

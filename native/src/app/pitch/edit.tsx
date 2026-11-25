@@ -12,6 +12,7 @@ import { measuredFrom, type EntrySource } from '~/pitch/entry-model';
 import { QuickStepEntry } from '~/pitch/quick-step';
 import { monthOf, useMonth } from '~/pitch/store';
 import { recordsIntent } from '~/records/intent';
+import { applySavedPitchRecord } from '~/records/store';
 import { openRecordsAt } from '~/shell/tab-intent';
 
 /**
@@ -120,9 +121,9 @@ function Entry({ date, id, videos, importKey, drill, pct, vsids, type, count, co
       compact={compact === '1'}
       onDone={(r) => {
         toast(r.created ? '기록했어요' : '고쳤어요');
+        if (compact === '1') applySavedPitchRecord(r.log);
         router.back();
-        /* 기록 탭에서 한 날을 보다 연 한 장 — 같은 날 · 같은 묶음에서 저장한 줄로(기록 탭은 돌아오면 새로 받는다) */
-        if (compact === '1' && cat != null) openRecordsAt(recordsIntent({ date, category: cat, recordId: `pitch:${r.log.id}` }));
+        if (compact === '1' && cat != null) openRecordsAt(recordsIntent({ date, category: cat, recordId: `pitch:${r.log.id}` }), { fromSave: true });
       }}
       onCancel={close}
     />

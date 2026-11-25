@@ -34,7 +34,7 @@ import { resetImported } from '~/pitch/attach';
 import { resetScanned } from '~/nutrition/scanned';
 import { HomeTab, resetHomeCache } from '~/home/tab';
 import { accessAllowsPath } from '@/lib/release-access';
-import { canOpen, isBetaView, noticeLocked, releaseLookupFailed, resetRelease, restoreRelease, useRelease } from '~/shell/release';
+import { canOpen, decidedNow, isBetaView, noticeLocked, releaseLookupFailed, resetRelease, restoreRelease, useRelease, useReleaseDecided } from '~/shell/release';
 import { resetNotificationList } from '~/home/notifications';
 import { resetMyVideos } from '~/videos/store';
 import { resetGalleryUi } from '~/videos/filters';
@@ -371,6 +371,9 @@ export default function SiteScreen() {
    * 막힌 쪽으로 그린다. 잠긴 탭은 자물쇠를 달고 누르면 안내만 — 판을 붙이지도 서버를 부르지도 않는다(진짜 막기는 서버 403).
    */
   const release = useRelease();
+  const releaseDecided = useReleaseDecided();
+  const pendingRecords = useRef<string | null>(null);
+  const recordsOwnPath = useRef(false);
   const beta = isBetaView(release);
   const open = useCallback((href: string) => canOpen(href, release), [release]);
   /* 베타에서 앱 화면으로는 열리지만 그 웹 주소는 잠긴 곳(투구 첫 화면) — 웹을 그리로 보내지 않는다 */
@@ -576,6 +579,10 @@ export default function SiteScreen() {
      한 묶음으로 기억해 판이 붙을 때마다 바뀌었다(2026-10-25 점검). 손으로 묶는다 */
   const goWeb = useCallback(
     (href: string, track = true) => {
+      if (track) {
+        recordsOwnPath.current = false;
+        pendingRecords.current = null;
+      }
       const waits = track && route.send(href);
       web.current?.injectJavaScript(`window.__bpTab && window.__bpTab(${JSON.stringify(href)});true;`);
       return waits;
@@ -654,11 +661,20 @@ export default function SiteScreen() {
   const goRecords = (href: string): boolean => {
     const intent = recordsIntentOfHref(href);
     if (!intent) return false;
+    if (!decidedNow()) {
+      pendingRecords.current = href;
+      return true;
+    }
+    pendingRecords.current = null;
     arrived();
-    if (!open(RECORDS_PATH)) {
+    if (!canOpen(RECORDS_PATH)) {
       noticeLocked();
       return true;
     }
+    // The underlying WebView can finish its initial load or an older navigation
+    // after this native tab opens. Those messages must not select another tab.
+    recordsOwnPath.current = true;
+    if (spaceNow().key !== ME && spaceNow().hasSinker) setSpace(ME);
     setWebFront(false);
     if (href !== RECORDS_PATH) openRecordsAt(intent);
     setPath(RECORDS_PATH);
@@ -666,6 +682,8 @@ export default function SiteScreen() {
     return true;
   };
   const pressTab = (t: ShellTab) => {
+    if (t.href === RECORDS_PATH) return void goRecords(t.href);
+    pendingRecords.current = null;
     /* 앞서 누른 웹 칸을 기다리던 것은 버린다 — 안 그러면 옛 칸으로 되돌아가고 렌즈도 그 칸에 남았다(2026-10-24 검토) */
     arrived();
     /* 출시 전 베타 — 잠긴 탭은 안내만(판 · 웹 이동 없음). 더보기 · 홈은 늘 열린다 */
@@ -687,7 +705,7 @@ export default function SiteScreen() {
       return;
     }
     /* 기록 · 코치는 앱 화면만 — 웹은 지금 자리에 둔다(웹 '/records' 는 없고 웹 '/coach' 는 PC 분석). 판만 바꾼다 */
-    if (t.href === RECORDS_PATH || t.href === COACH_PATH) {
+    if (t.href === COACH_PATH) {
       setPath(t.href);
       setSearch('');
       return;
@@ -756,10 +774,7 @@ export default function SiteScreen() {
       /* 그 나라에 없는 곳(미국 · 일본의 타격 · 영양)으로 가는 이동은 홈으로 */
       if (!href.startsWith('#') && hiddenIn(countryNow(), href)) return goTab('/today');
       /* 기록 탭(알림 · 앱 화면이 끝난 뒤 · 옛 투구 기록 주소) — 조직 공간이면 내 싱커로 옮긴 뒤(기록은 내 싱커 것) */
-      if (!href.startsWith('#') && recordsIntentOfHref(href)) {
-        if (spaceNow().key !== ME && spaceNow().hasSinker) setSpace(ME);
-        return void goRecords(href);
-      }
+      if (!href.startsWith('#') && goRecords(href)) return;
       /* 출시 전 베타 — 잠긴 곳(알림 · 웹 링크 · 앱 화면이 끝난 뒤의 이동)은 안내만, 지금 자리에 둔다 */
       if (!href.startsWith('#') && !open(href) && !nativeOfWeb(href)) return noticeLocked();
       /* 조직 권한 없음 · 조직 알림 — 웹으로 보내지 않고 앱이 받는다(계약 8-4 · 8-5) */
@@ -780,6 +795,10 @@ export default function SiteScreen() {
       else goTab(href);
     };
   });
+  useEffect(() => {
+    const href = pendingRecords.current;
+    if (releaseDecided && href) navTo.current(href);
+  }, [releaseDecided]);
   useWebNav(useCallback((href: string) => navTo.current(href), []));
   /* 휴대폰 푸시를 누르면 그 주소로(native/src/shell/push.ts) */
   usePushTaps(useCallback((href: string) => navTo.current(href), []));
@@ -812,7 +831,7 @@ export default function SiteScreen() {
     /* 네이티브로 옮긴 화면 — 사이트 대신 앱 화면을 연다(구속 측정, 검토 D3) */
     /* ?web=1 은 옛 앱 세션을 웹 구속 화면이 마무리하는 길이라 가로채지 않는다(app/(session)/velocity/page.tsx) */
     const u = new URL(req.url);
-    if (host === SITE_HOST && (u.pathname === ORG_LOST || u.pathname === '/org/open')) {
+    if (host === SITE_HOST && (u.pathname === ORG_LOST || u.pathname === '/org/open' || u.pathname === RECORDS_PATH)) {
       navTo.current(u.pathname + u.search);
       return false;
     }
@@ -852,6 +871,8 @@ export default function SiteScreen() {
 
   /* 로그인 화면에 왔다 = 로그아웃 — 앞사람 기록과 함께 껍데기 상태(붙여 둔 판 · 웹 홈/영양 · 탭 · 종목 바)도 처음으로 */
   const resetShell = useCallback(() => {
+    pendingRecords.current = null;
+    recordsOwnPath.current = false;
     resetAccount();
     askNo.current++;
     setToday(null);
@@ -887,7 +908,7 @@ export default function SiteScreen() {
     }
     if (msg.t === 'native' && msg.path) {
       /* 웹 받이 페이지(app/org/open · lost)가 알려 온 조직 주소 */
-      if (msg.path === ORG_LOST || parseOrgOpen(msg.path)) return navTo.current(msg.path);
+      if (msg.path === ORG_LOST || parseOrgOpen(msg.path) || recordsIntentOfHref(msg.path)) return navTo.current(msg.path);
       return openNative(msg.path);
     }
     if (msg.t === 'tabs' && Array.isArray(msg.items)) {
@@ -901,7 +922,9 @@ export default function SiteScreen() {
       const loc = { path: msg.path, search: typeof msg.search === 'string' ? msg.search : '' };
       webArrived(loc.path, loc.search);
       /* 더 새 이동이 가는 중에 늦게 온 옛 이동의 답 — 화면 · 탭 불을 그쪽으로 돌리지 않는다 */
-      if (route.arrive(loc) === 'stale') return;
+      if (route.arrive(loc) === 'stale' || recordsOwnPath.current) return;
+      const href = loc.search ? `${loc.path}?${loc.search}` : loc.path;
+      if (loc.path === '/videos' && recordsIntentOfHref(href)) return navTo.current(href);
       arrived();
       setPath(loc.path);
       setSearch(loc.search);

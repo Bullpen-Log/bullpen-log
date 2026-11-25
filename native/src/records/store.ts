@@ -1,6 +1,8 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import type { RecordItem } from '@/lib/records/day-records';
 import { shiftDateKey } from '@/lib/pitch-stats';
+import { isRestSession } from '@/lib/session-type';
+import type { PitchLog } from '~/pitch/api';
 import { lastWriteAt, rpc, RpcError } from '~/lib/rpc';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
 
@@ -29,30 +31,33 @@ const messageOf = (e: unknown) =>
 
 let inflight: Promise<void> | null = null;
 let loadedWrite = -1;
+let recordsWriteVersion = 0;
 export function reloadRecords(today: string): Promise<void> {
   if (inflight) return inflight;
   const e = cacheEpoch();
   const write = lastWriteAt();
+  const version = recordsWriteVersion;
   const from = shiftDateKey(today, -WINDOW_DAYS);
   if (!state.items || state.today !== today)
     void cacheGet(KEY).then((v) => {
       const c = v as { today?: string; from?: string; items?: RecordItem[] } | null;
       if (e === cacheEpoch() && !state.items && c?.today === today && Array.isArray(c.items)) set({ today, from: c.from ?? from, items: c.items });
     });
-  inflight = fetchRange(from, today)
+  const request = fetchRange(from, today)
     .then((items) => {
-      if (e !== cacheEpoch()) return;
+      if (e !== cacheEpoch() || version !== recordsWriteVersion) return;
       loadedWrite = write;
       set({ today, from, items, error: null, older: state.today === today ? state.older : {} });
       void cacheSet(KEY, { today, from, items });
     })
     .catch((err: unknown) => {
-      if (e === cacheEpoch()) set({ error: messageOf(err) });
+      if (e === cacheEpoch() && version === recordsWriteVersion) set({ error: messageOf(err) });
     })
     .finally(() => {
-      inflight = null;
+      if (inflight === request) inflight = null;
     });
-  return inflight;
+  inflight = request;
+  return request;
 }
 
 /** 창보다 옛 달(YYYY-MM) — 고를 때 한 번 받는다 */
@@ -61,17 +66,48 @@ export function loadOlderMonth(month: string) {
   /* 창에 다 들어오는 달은 안 받는다 — 창에 반만 걸친 달은 통째로 받는다(겹치는 줄은 화면이 id 로 한 번만) */
   if (!state.from || `${month}-01` >= state.from || state.older[month] || olderLoading.has(month)) return;
   const e = cacheEpoch();
+  const version = recordsWriteVersion;
   olderLoading.add(month);
   const [y, m] = month.split('-').map(Number);
   const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
   void fetchRange(`${month}-01`, `${month}-${String(last).padStart(2, '0')}`)
     .then((items) => {
-      if (e === cacheEpoch()) set({ older: { ...state.older, [month]: items } });
+      if (e === cacheEpoch() && version === recordsWriteVersion) set({ older: { ...state.older, [month]: items } });
     })
     .catch((err: unknown) => {
-      if (e === cacheEpoch()) set({ error: messageOf(err) });
+      if (e === cacheEpoch() && version === recordsWriteVersion) set({ error: messageOf(err) });
     })
-    .finally(() => olderLoading.delete(month));
+    .finally(() => {
+      if (e === cacheEpoch()) olderLoading.delete(month);
+    });
+}
+
+/** Use the server-confirmed pitch immediately, including in already loaded archive months. */
+export function applySavedPitchRecord(log: PitchLog) {
+  const date = log.date.slice(0, 10);
+  const month = date.slice(0, 7);
+  const row: RecordItem = {
+    kind: 'pitch',
+    id: `pitch:${log.id}`,
+    date,
+    at: log.createdAt,
+    title: log.sessionType,
+    pitches: log.pitchCount,
+    rested: isRestSession(log.sessionType),
+    maxKmh: log.maxVelocity,
+    videos: log.videoPaths.length,
+    memo: log.memo?.trim() || null,
+  };
+  const upsert = (items: RecordItem[]) => [...items.filter((r) => r.id !== row.id), row];
+  recordsWriteVersion++;
+  if (state.items && state.from && state.today && date >= state.from && date <= state.today) {
+    const items = upsert(state.items);
+    const older = state.older[month] ? { ...state.older, [month]: upsert(state.older[month]) } : state.older;
+    set({ items, older });
+    void cacheSet(KEY, { today: state.today, from: state.from, items });
+  } else {
+    set({ older: { ...state.older, [month]: upsert(state.older[month] ?? []) } });
+  }
 }
 
 export function useRecords(today: string): State {

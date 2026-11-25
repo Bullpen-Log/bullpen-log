@@ -160,4 +160,16 @@ const UUID = '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b';
   ok(/level >= APP_RECORDS_LEVEL \? APP_TABS_V15/.test(layout), '사이트는 판 15 이상에만 새 탭');
 }
 
+{
+  eq(recordsIntentOfHref('/pitch-log/2026-11-20?view=records'), recordsIntent({ date: '2026-11-20', category: 'pitch' }), '웹의 명시적 투구 기록 읽기');
+  eq(recordsIntentOfHref('/pitch-log/2026-11-20?view=records&drill=30&pct=70'), null, '드릴 입력은 조회로 옮기지 않음');
+  const deliveries: unknown[] = [];
+  const completed = recordsIntent({ date: '2026-11-20', recordId: `pitch:${UUID}` });
+  openRecordsAt(completed, { fromSave: true });
+  const unsubscribe = subscribeRecordsIntent((intent, delivery) => deliveries.push({ intent, fromSave: delivery.fromSave }));
+  openRecordsAt(completed);
+  unsubscribe();
+  eq(deliveries, [{ intent: completed, fromSave: true }, { intent: completed, fromSave: undefined }], '저장 뒤 같은 날짜·묶음을 보존하는 요청과 일반 이동을 구분');
+}
+
 console.log(`native-records-intent: ${n}개 통과`);

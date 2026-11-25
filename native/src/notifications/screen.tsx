@@ -296,7 +296,7 @@ export default function NoticeScreen() {
                     label="체크인 보기"
                     onPress={() => {
                       setSheet(null);
-                      openCheckin();
+                      leaveTo(recordsHref({ date, category: 'condition' }));
                     }}
                     c={c}
                   />
