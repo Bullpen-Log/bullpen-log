@@ -761,7 +761,7 @@
   "all_future_review_standards": "docs/reviews/handoff/exercise/yunho/MACBOOK-REVIEW-STANDARDS-2026-11-14.md: 사용자 확정, 기존 지시와 함께 매 영상 동일 적용. 현재 P022 유지.",
   "reporting_preference": "Show before and after of each change and distinguish previous sessions from current edits.",
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
-  "latest_resume": "박스 스쿼트 설명은 운영 DB 읽기로 저장 확인, 사용자 확인 대기. 기존 UI는 구 설명을 보여 원인 미확인. 수행 설정은 기존값 유지; 추정 1RM 적합성 미확인.",
+  "latest_resume": "박스 스쿼트: 공통 지침으로 통증 안내 위치·투구 연관 수정 및 DB/화면 확인. 사용자 확인 대기. 영상 0·6·16초 확인, 끝 마무리·좁은 화면/앱 정렬 등 미확인 보존.",
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
     "guide": "docs/reviews/handoff/exercise/yunho/MACBOOK-GUIDE.md",
