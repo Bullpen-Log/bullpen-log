@@ -21,6 +21,8 @@
  * <html data-theme-choice> 에 따로 적어 고르개가 읽는다.
  */
 
+import { SINKER_THEME, SINKER_THEME_UA_MARK } from './sinker-theme';
+
 export const THEME_STORAGE_KEY = 'bullpen-theme';
 
 export const THEME_CHOICES = [
@@ -77,8 +79,10 @@ const THEME_COLOR_JS = `function(t){var c=${JSON.stringify(PAGE_COLORS)}[t]||'#f
  */
 export const THEME_INIT_SCRIPT = `
 (function () {
+  var fixed = navigator.userAgent.indexOf('${SINKER_THEME_UA_MARK}') !== -1;
+  if (fixed) document.documentElement.dataset.themeLocked = '${SINKER_THEME}';
   try {
-    var stored = localStorage.getItem('${THEME_STORAGE_KEY}');
+    var stored = fixed ? '${SINKER_THEME}' : localStorage.getItem('${THEME_STORAGE_KEY}');
     var known = ${JSON.stringify(THEME_CHOICES.map((c) => c.value))};
     var choice = known.indexOf(stored) === -1 ? '${DEFAULT_THEME}' : stored;
     document.documentElement.dataset.themeChoice = choice;
@@ -94,7 +98,7 @@ export const THEME_INIT_SCRIPT = `
     paintBar(theme);
     document.addEventListener('DOMContentLoaded', function () { paintBar(theme); });
   } catch (e) {
-    document.documentElement.dataset.theme = 'light';
+    document.documentElement.dataset.theme = fixed ? '${SINKER_THEME}' : 'light';
   }
 })();
 `.trim();
@@ -114,6 +118,7 @@ export function readTheme(): ThemeChoice {
 /** 고른 값을 <html> 에 칠한다 — 고른 것과 실제로 칠할 것을 함께 적는다 */
 function paint(choice: ThemeChoice) {
   const root = document.documentElement;
+  if (root.dataset.themeLocked === SINKER_THEME) choice = SINKER_THEME;
   root.dataset.themeChoice = choice;
   const theme = resolveTheme(choice);
   root.dataset.theme = theme;
@@ -183,13 +188,14 @@ let switchTimer: ReturnType<typeof setTimeout> | undefined;
 /** 고른 값을 저장하고 바로 화면에 반영한다. */
 export function applyTheme(choice: ThemeChoice) {
   if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  if (root.dataset.themeLocked === SINKER_THEME) return;
   try {
     localStorage.setItem(THEME_STORAGE_KEY, choice);
   } catch {
     // 사생활 보호 모드 등에서 저장이 막힐 수 있다. 이번 화면에는 그래도 적용한다.
   }
 
-  const root = document.documentElement;
   /*
    * 이미 같은 테마면 아무것도 하지 않는다. 같은 버튼을 두 번 눌렀다고
    * 화면 전체에 전환을 걸 이유가 없다.

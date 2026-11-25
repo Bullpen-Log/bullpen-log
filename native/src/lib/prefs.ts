@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import { useSyncExternalStore } from 'react';
+import { SINKER_THEME } from '@/lib/sinker-theme';
 import {
   DEFAULT_LENGTH,
   DEFAULT_SPEED,
@@ -14,9 +16,8 @@ import {
 } from '@/lib/units';
 
 /**
- * 앱 설정 — 화면 테마 · 길이 · 무게 · 구속 단위. 웹(lib/theme.ts · lib/units-storage.ts)과 같은 열쇠 · 같은 값(글자 그대로)으로 앱 저장소에 둔다.
- * 웹 값은 껍데기(index.tsx)가 웹뷰를 열 때마다 옮겨 오고(reloadPrefs), 앱 설정 화면(app/settings.tsx)에서 바꾸면 웹에도 칠한다(onPrefsChange →
- * 껍데기가 window.__bpPrefs). 그래서 앱 화면과 웹 화면의 테마 · 단위가 늘 같다.
+ * 앱 설정 — 길이 · 무게 · 구속 단위는 웹과 같은 이름으로 저장하고 양쪽에 반영한다.
+ * 싱커는 네이비로 고정한다. 별도 덕아웃 앱은 기존 기기 설정과 저장값을 따른다.
  */
 export const THEME_OPTIONS = [
   { value: 'light', label: '라이트' },
@@ -41,8 +42,9 @@ const ALLOWED: Record<keyof Prefs, readonly { value: string }[]> = {
   weight: WEIGHT_UNITS,
   speed: SPEED_UNITS,
 };
-/* 웹과 같은 기본값 — 테마는 자동(lib/theme.ts DEFAULT_THEME): 고른 적 없으면 폰 밝기를 따른다(2026-10-27 HIG 검토 — 예전 기본값 라이트는 다크 모드 폰에서도 흰 앱이었다) */
-const DEFAULTS: Prefs = { theme: 'system', length: DEFAULT_LENGTH, weight: DEFAULT_WEIGHT, speed: DEFAULT_SPEED };
+/* app.config.js에서 별도 덕아웃 앱에만 slug를 바꾼다. 싱커는 저장값을 읽기 전부터 네이비다. */
+const fixedTheme = Constants.expoConfig?.slug === 'dugout' ? undefined : SINKER_THEME;
+const DEFAULTS: Prefs = { theme: fixedTheme ?? 'system', length: DEFAULT_LENGTH, weight: DEFAULT_WEIGHT, speed: DEFAULT_SPEED };
 
 let prefs: Prefs = DEFAULTS;
 const subs = new Set<() => void>();
@@ -53,6 +55,7 @@ const emit = () => subs.forEach((f) => f());
 export async function reloadPrefs(): Promise<void> {
   const next = { ...DEFAULTS };
   for (const key of Object.keys(PREF_KEYS) as (keyof Prefs)[]) {
+    if (key === 'theme' && fixedTheme) continue;
     try {
       const raw = (await AsyncStorage.getItem(PREF_KEYS[key]))?.replace(/"/g, '');
       if (raw && ALLOWED[key].some((o) => o.value === raw)) (next as Record<string, string>)[key] = raw;
@@ -68,11 +71,12 @@ export async function reloadPrefs(): Promise<void> {
 /** 지금 값 — 약속(prefsReady)을 기다린 뒤 그때의 값을 볼 때 */
 export const currentPrefs = () => prefs;
 
-/** 앱을 켤 때 처음 읽기 — 끝나기 전엔 테마가 기본값(자동)이라, 시작 연출 · 시작 화면 테마는 이걸 기다린다 */
+/** 앱을 켤 때 저장된 표시 단위와 덕아웃 테마를 처음 읽는다. */
 export const prefsReady: Promise<void> = reloadPrefs();
 
 /** 앱 설정 화면에서 고르면 — 바로 그리고, 앱 저장소에 두고, 웹에도 칠한다 */
 export function setPref<K extends keyof Prefs>(key: K, value: Prefs[K]) {
+  if (key === 'theme' && fixedTheme) return;
   if (prefs[key] === value) return;
   prefs = { ...prefs, [key]: value };
   emit();

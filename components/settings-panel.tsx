@@ -21,7 +21,7 @@ import { DevicePrefsRows } from '@/components/device-prefs-rows';
 export function SettingsPanel() {
   return (
     <div className="space-y-6">
-      <Section title="테마">
+      <Section title="테마" className="[[data-theme-locked=navy]_&]:hidden">
         {/* 고르개 자체가 회색 판이라 카드로 또 두르지 않는다(2026-10-22 금윤호 "두르고 있는 사각형은 없어도 돼") */}
         <ThemeToggle />
       </Section>
@@ -53,9 +53,9 @@ export function SettingsPanel() {
 /** 흰 카드 — 덕아웃 레슨 화면의 카드와 같은 모양 */
 const CARD = 'rounded-2xl border border-line bg-surface p-3';
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ title, children, className = '' }: { title: string; children: ReactNode; className?: string }) {
   return (
-    <section className="space-y-2.5">
+    <section className={`space-y-2.5 ${className}`}>
       <h3 className="px-1 text-sm font-bold text-ink">{title}</h3>
       {children}
     </section>

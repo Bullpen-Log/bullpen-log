@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import { Icon, type IconName } from '~/shell/icon';
+import { Icon } from '~/shell/icon';
 import * as WebBrowser from 'expo-web-browser';
 import { type Href, router } from 'expo-router';
 import Constants from 'expo-constants';
@@ -19,23 +19,11 @@ import { useRelease, useReleaseDecided } from '~/shell/release';
 type InfoSheet = 'credits' | 'app' | null;
 type BundleInfo = Awaited<ReturnType<typeof loadBundleInfo>>;
 
-const THEME_CARDS: readonly { value: Prefs['theme']; label: string; hint: string; icon: IconName }[] = [
-  { value: 'system', label: '자동', hint: '기기 설정', icon: 'circle' },
-  { value: 'light', label: '라이트', hint: '밝은 화면', icon: 'sun' },
-  { value: 'dark', label: '다크', hint: '어두운 화면', icon: 'moon' },
-  { value: 'navy', label: '네이비', hint: '푸른 화면', icon: 'moon-star' },
-];
-
-/** 앱 설정. 테마·표시 단위는 고르는 즉시 앱 저장소와 웹 화면에 같이 반영된다. */
+/** 앱 설정. 표시 단위는 고르는 즉시 앱 저장소와 웹 화면에 같이 반영된다. */
 export default function SettingsScreen() {
   const c = usePalette();
   const inset = useSafeAreaInsets();
   const prefs = usePrefs();
-  const { width, fontScale } = useWindowDimensions();
-  const [themeWidth, setThemeWidth] = useState(0);
-  const gridWidth = themeWidth || Math.min(width, 760) - 32;
-  const themeColumns = gridWidth >= 4 * 76 * Math.max(1, fontScale) + 24 ? 4 : 2;
-  const themeCardWidth = (gridWidth - (themeColumns - 1) * 8) / themeColumns;
   const [sheet, setSheet] = useState<InfoSheet>(null);
   const [bundle, setBundle] = useState<BundleInfo | null>(null);
   const release = useRelease();
@@ -58,7 +46,7 @@ export default function SettingsScreen() {
   }, []);
 
   const open = (path: string) => void WebBrowser.openBrowserAsync(`${SITE_URL}${path}`).catch(() => undefined);
-  const pick = <K extends keyof Prefs>(key: K, value: Prefs[K]) => {
+  const pick = <K extends Exclude<keyof Prefs, 'theme'>>(key: K, value: Prefs[K]) => {
     if (prefs[key] === value) return;
     void Haptics.selectionAsync();
     setPref(key, value);
@@ -68,31 +56,6 @@ export default function SettingsScreen() {
     <View style={{ flex: 1, backgroundColor: c.page }}>
       <Bar modal back="뒤로" title="설정" c={c} />
       <ScrollView contentContainerStyle={[st.body, { paddingBottom: inset.bottom + 32 }, READABLE]}>
-        <Text style={[st.intro, { color: c.muted }]}>화면과 단위는 고르면 바로 적용돼요.</Text>
-
-        <Section title="화면" c={c}>
-          <View accessibilityRole="radiogroup" accessibilityLabel="화면 테마" onLayout={(e) => setThemeWidth(e.nativeEvent.layout.width)} style={st.themeGrid}>
-            {THEME_CARDS.map((option) => {
-              const selected = prefs.theme === option.value;
-              return (
-                <Pressable
-                  key={option.value}
-                  accessibilityRole="radio"
-                  accessibilityLabel={`${option.label}, ${option.hint}`}
-                  accessibilityState={{ selected }}
-                  onPress={() => pick('theme', option.value)}
-                  style={({ pressed }) => [st.themeCard, { width: themeCardWidth, backgroundColor: selected ? c.skyTint : c.card, borderColor: selected ? c.link : c.line, opacity: pressed ? 0.7 : 1 }]}
-                >
-                  <Icon name={option.icon} size={19} color={selected ? c.link : c.ink} />
-                  <Text style={[st.themeLabel, { color: selected ? c.link : c.ink }]}>{option.label}</Text>
-                  <Text style={[st.themeHint, { color: c.muted }]} numberOfLines={2}>{option.hint}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          <Text style={[st.note, { color: c.muted }]}>이 기기에서만 바뀌어요.</Text>
-        </Section>
-
         <Section title="표시 단위" c={c}>
           <View style={[st.group, { backgroundColor: c.card }]}>
             <UnitRow label="길이" hint="키 · 윙스팬" options={LENGTH_UNITS} value={prefs.length} onChange={(v) => pick('length', v)} c={c} />
@@ -225,15 +188,10 @@ function Fact({ label, value, c }: { label: string; value: string; c: Palette })
 
 const st = StyleSheet.create({
   body: { padding: 16, gap: 24 },
-  intro: { fontSize: 14, paddingHorizontal: 3 },
   section: { gap: 10 },
   sectionTitle: { fontSize: 16, fontWeight: '700', paddingHorizontal: 3 },
   note: { ...TYPE.sub, lineHeight: 18, paddingHorizontal: 3 },
   medical: { ...TYPE.sub, lineHeight: 18, paddingHorizontal: 3 },
-  themeGrid: { flexWrap: 'wrap', flexDirection: 'row', gap: 8 },
-  themeCard: { minWidth: 0, minHeight: 92, alignItems: 'center', justifyContent: 'center', gap: 3, paddingHorizontal: 2, paddingVertical: 10, borderWidth: 1, borderRadius: 16 },
-  themeLabel: { fontSize: 14, fontWeight: '700', textAlign: 'center' },
-  themeHint: { fontSize: 12, textAlign: 'center' },
   group: { borderRadius: RADIUS.card, overflow: 'hidden' },
   unitRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 62, paddingHorizontal: 15 },
   unitRowStack: { flexDirection: 'column', alignItems: 'stretch', paddingVertical: 14, gap: 10 },

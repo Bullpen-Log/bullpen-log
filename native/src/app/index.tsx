@@ -191,11 +191,11 @@ function tabOf(path: string, tabs: ShellTab[]): string | null {
  * lib/store.ts adoptWebValues). 같은 번들 ID 라 옛 앱의 웹 저장소 · 로그인 쿠키는 그대로 남아 있다.
  */
 const WEB_JSON_KEYS = ['bullpen-velocity-setup'];
-/** 테마 · 단위(글자 값, ~/lib/prefs) — 웹을 열 때마다 웹 값을 따른다. 앱 설정 화면에서 바꾸면 웹에도 같이 칠해 둘이 늘 같다 */
-const WEB_RAW_KEYS = Object.values(PREF_KEYS);
+/** 표시 단위는 웹과 맞춘다. 싱커 웹뷰의 색은 앱 이름표로 네이비를 선택한다. */
+const WEB_RAW_KEYS = [PREF_KEYS.length, PREF_KEYS.weight, PREF_KEYS.speed];
 const WEB_KEYS = [...WEB_JSON_KEYS, ...WEB_RAW_KEYS];
 /*
- * 웹이 서버에 쓰거나(fetch POST · 서버 동작) 테마 · 단위를 바꾸면 앱에 알린다 — 앱 화면은 앱이 부른 쓰기(lib/rpc markWrite)만 알아서,
+ * 웹이 서버에 쓰거나(fetch POST · 서버 동작) 표시 단위를 바꾸면 앱에 알린다 — 앱 화면은 앱이 부른 쓰기(lib/rpc markWrite)만 알아서,
  * 웹 체크인 · 투구 기록 · 설정 뒤 홈으로 돌아와도 30초 동안 옛 화면이었고, 웹 설정 창에서 바꾼 단위는 웹을 다시 열 때까지 안 따랐다
  * (2026-10-24 두 번째 검토). 화면 처음 그릴 때 한 번만 건다(웹 안 옮겨 다니기는 같은 창이라 그대로 남는다).
  */
@@ -745,7 +745,7 @@ export default function SiteScreen() {
   useWebNav(useCallback((href: string) => navTo.current(href), []));
   /* 휴대폰 푸시를 누르면 그 주소로(native/src/shell/push.ts) */
   usePushTaps(useCallback((href: string) => navTo.current(href), []));
-  /* 앱 설정 화면에서 고른 테마 · 단위를 웹에도 — 웹 다리(expo-tabs.tsx __bpPrefs)가 없는 화면이면 저장소에만 두고 다음에 열 때 칠해진다 */
+  /* 앱 설정 화면에서 고른 단위를 웹에도 — 웹 다리(expo-tabs.tsx __bpPrefs)가 없는 화면이면 저장소에 두고 다음에 열 때 적용한다. */
   useEffect(
     () =>
       onPrefsChange((p) => {
