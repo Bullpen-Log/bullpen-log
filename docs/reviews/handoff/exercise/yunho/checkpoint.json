@@ -13,8 +13,8 @@
     "암케어",
     "회복 및 보강"
   ],
-  "current_review_id": "EX-Y-P-BOXSQUAT-0f9f8df6",
-  "current_title": "박스 스쿼트",
+  "current_review_id": "EX-Y-P-DROPCATCH-94a61272",
+  "current_title": "바벨 드롭-캐치(버티며 내리기)",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": "스프린터 아이소 홀드 다음 지시",
@@ -525,9 +525,16 @@
       "status": "참고 영상만 있음",
       "evidence": "촬영 전 · 참고 영상",
       "previous_title": "스플릿 스탠스 발목 아이소메트릭 프레스"
+    },
+    {
+      "title": "바벨 드롭-캐치(버티며 내리기)",
+      "category": "파워",
+      "status": "촬영 필요",
+      "evidence": "촬영 전 · 참고 영상만 있음",
+      "library_database_id": "94a61272-733d-4150-a439-3af0b35413c5"
     }
   ],
-  "filming_count": 17,
+  "filming_count": 18,
   "owned_videos": [
     12,
     15,
@@ -761,7 +768,7 @@
   "all_future_review_standards": "docs/reviews/handoff/exercise/yunho/MACBOOK-REVIEW-STANDARDS-2026-11-14.md: 사용자 확정, 기존 지시와 함께 매 영상 동일 적용. 현재 P022 유지.",
   "reporting_preference": "Show before and after of each change and distinguish previous sessions from current edits.",
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
-  "latest_resume": "박스 스쿼트 왜 필요한가의 중복 동작 설명 삭제, 코드 저장 및 화면 확인. 사용자 검수 대기.",
+  "latest_resume": "바벨 드롭-캐치 참고 영상만 존재, 촬영 필요. 영상 재생 확인했으나 장비·손·움직임이 작아 미확정. 설명·부위·수행 설정 변경 보류하고 사용자 확인 대기.",
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
     "guide": "docs/reviews/handoff/exercise/yunho/MACBOOK-GUIDE.md",
