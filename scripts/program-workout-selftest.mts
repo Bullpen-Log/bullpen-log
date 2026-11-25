@@ -116,11 +116,22 @@ console.log('[3] 서버 동작 — 등록 · 워밍업 · 종료 · 강도의 �
   check('워밍업 — 보낸 판 번호를 쓴다', /input\.sessionId/.test(warm));
   const fin = workout.slice(workout.indexOf('export async function finishSession('), workout.indexOf('/** 마치기의 답을 못 받았을 때'));
   check('종료(앱) — 정확한 판 번호만', /where: \{ id: input\.sessionId, userId: user\.id \}/.test(fin) && !/activeSession\(/.test(fin));
-  check('종료(앱) — 마친 판이면 다시 닫지 않고 뒤처리만', /if \(session\.status === 'ACTIVE'\) await closeSession/.test(fin) && /recoverFollowUps\(closed\)/.test(fin));
+  const webFinish = workout.slice(workout.indexOf('export async function finishWorkout('), workout.indexOf('export async function finishSession('));
+  for (const [platform, name, method] of [['앱', 'session', fin], ['웹', 'any', webFinish]]) {
+    const start = method.indexOf(`if (${name}.status === 'ACTIVE') {`);
+    const active = method.slice(start, method.indexOf('\n  }', start));
+    const validation = active.indexOf('finishNoteInput(input)');
+    const close = active.indexOf('await closeSession(');
+    check(`종료(${platform}) — 처음 닫기 전에 강도 검사, 마친 판은 뒤처리`,
+      start >= 0 && validation >= 0 && close > validation && /recoverFollowUps\(closed\)/.test(method));
+  }
   const st = workout.slice(workout.indexOf('export async function finishStatus('), workout.indexOf('/** 마친 판의 뒤처리(일차 · 강도)를 다시'));
   check('종료 상태 조회 — 쓰지 않는다', !/\.(create|update|updateMany|upsert|delete)\(|recoverFollowUps|closeSession/.test(st));
   check('종료 — 제출한 강도 · 메모를 닫기와 같은 쓰기에 남긴다(finishNote)', /finishNote: \{ \.\.\.note, at: appNow\(\)\.toISOString\(\) \}/.test(workout));
-  check('종료 — 메모만은 받지 않는다(조용히 버리지 않고 오류)', /if \(memo && intensity == null\) return \{ error/.test(workout));
+  const finishNote = workout.slice(workout.indexOf('function finishNoteInput('), workout.indexOf('async function closeSession('));
+  check('종료 — 강도는 1~10 정수 필수, 메모는 비워도 된다',
+    /typeof intensity !== 'number' \|\| !Number\.isInteger\(intensity\) \|\| intensity < 1 \|\| intensity > 10/.test(finishNote)
+      && /input\.memo\.trim\(\)\.slice\(0, 1000\) \|\| null/.test(finishNote));
   const rate = workout.slice(workout.indexOf('export async function rateWorkoutEffort('), workout.indexOf('/* ---------------------------- 목록 고치기'));
   check('완료 뒤 강도 — 1~10 정수를 그대로 받는다', /Number\.isInteger\(input\.intensity\) && input\.intensity >= 1 && input\.intensity <= 10/.test(rate));
   check('완료 뒤 강도 — 옛 칩(effort)도 받는다', /intensityOfEffort\(input\?\.effort\)/.test(rate));
@@ -150,7 +161,8 @@ console.log('[4] 앱 화면 — 준비 · 상세는 쓰지 않고, 슬라이더�
   check('슬라이더 — 선택 해제 · 조절 역할', /onChange\(null\)/.test(slider) && /accessibilityRole="adjustable"/.test(slider));
   const finishSheet = src('native/src/workout/finish-sheet.tsx');
   check('종료 확인 — 숫자 열 칸 · 칩 대신 슬라이더', /<IntensitySlider/.test(finishSheet) && !/Array\.from\(\{ length: 10 \}/.test(finishSheet));
-  check('종료 확인 — 메모만이면 알리고 막는다', /memoNeedsIntensity/.test(finishSheet) && /pending\.length === 0 && !memoNeedsIntensity/.test(finishSheet));
+  check('종료 확인 — 메모와 관계없이 강도를 골라야 마친다', /pending\.length === 0 && intensity != null/.test(finishSheet));
+  check('종료 확인 — 세트를 빼고 마치는 경로에도 강도가 필요하다', /intensity != null && onExclude\(intensity\)/.test(finishSheet));
   const done = src('native/src/app/workout-done.tsx');
   check('완료 — 강도는 숫자로 저장(칩 없음)', /'workout\.rateWorkoutEffort', \{\s*sessionId: data\.sessionId,\s*intensity: draft,/.test(done) && !/EFFORT_LEVELS/.test(done));
   check('완료 — 종료를 다시 부르지 않는다', !/workout\.finishWorkout|workout\.finishSession/.test(done));

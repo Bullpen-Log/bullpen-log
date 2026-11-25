@@ -295,10 +295,10 @@ jobs:
           xcrun simctl launch --console "$UDID" com.sinker.app > "$RUNNER_TEMP/sim-console.log" 2>&1 &
           CONSOLE_PID=$!
           sleep 25
-          APP_PID=$(grep -Eo 'com\.bullpenlog\.app: [0-9]+' "$RUNNER_TEMP/sim-console.log" | head -n 1 | awk '{print $2}' || true)
+          APP_PID=$(grep -Eo 'com\.sinker\.app: [0-9]+' "$RUNNER_TEMP/sim-console.log" | head -n 1 | awk '{print $2}' || true)
           ALIVE=""
           if [ -n "$APP_PID" ] && kill -0 "$APP_PID" 2>/dev/null; then ALIVE="pid $APP_PID"; fi
-          if [ -z "$ALIVE" ] && xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | grep -q 'com\.bullpenlog\.app'; then ALIVE="launchctl"; fi
+          if [ -z "$ALIVE" ] && xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | grep -q 'com\.sinker\.app'; then ALIVE="launchctl"; fi
           if [ -n "$ALIVE" ]; then
             kill "$CONSOLE_PID" 2>/dev/null || true
             echo "::notice title=시뮬레이터에서 켜짐::25초 동안 꺼지지 않았다 ($ALIVE)"

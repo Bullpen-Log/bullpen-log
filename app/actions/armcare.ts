@@ -10,17 +10,26 @@ import { revalidatePath } from 'next/cache';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
-import { loadArmcareToday } from '@/lib/armcare/today';
+import { loadArmcareToday, notAdvised } from '@/lib/armcare/today';
+import { featureLocks } from '@/lib/feature-locks';
+import { toDateKey } from '@/lib/pitch-stats';
+import { formatPrescription } from '@/lib/exercise-meta';
+import { equipmentLabel, similarExercises } from '@/lib/workout/swap';
+import { armcarePlayerItems } from '@/lib/armcare/play-load';
+import { armcareSwapPosition, type ArmcareSwapOptions, type ArmcareSwapRequest } from '@/lib/armcare/swap';
+import type { PlayerItem } from '@/app/(session)/armcare/play/[id]/armcare-player';
 import {
   ARMCARE_KIND_TEXT,
   ARMCARE_OFF_TEXT,
+  armcareBlock,
   armcareChoices,
+  armcareMinutes,
   buildArmcareRoutine,
   type ArmcareChoice,
   type ArmcareLength,
   type ArmcareRoutine,
 } from '@/lib/armcare/routine';
-import { ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
+import { ARMCARE_AREAS, ARMCARE_CATEGORY, areasOf, primaryArea } from '@/lib/armcare/anatomy';
 import { visibleExercises } from '@/lib/library-cache';
 import {
   isRoutineId,
@@ -122,6 +131,99 @@ async function saveRoutine(userId: string, date: Date, routine: ArmcareRoutine) 
     update: { plan },
   });
   revalidatePath('/training');
+}
+
+const ROUTINE_CHANGED = '오늘 루틴이 바뀌었어요. 다시 열어 주세요.';
+type ArmcareUser = Awaited<ReturnType<typeof requireUser>>;
+
+/** 그날의 맞춤 루틴을 기준으로 교체할 자리와 지금 가능한 운동을 고른다. */
+async function armcareSwapContext(user: ArmcareUser, input: ArmcareSwapRequest, toId?: string) {
+  const now = appNow();
+  if (
+    input?.dateKey !== toDateKey(now) || typeof input.fromId !== 'string' ||
+    !Array.isArray(input.planIds) || !input.planIds.every((id) => typeof id === 'string')
+  ) return { ok: false as const, error: ROUTINE_CHANGED };
+
+  const today = await loadArmcareToday(user, now);
+  const routine = today.routine;
+  if (!routine || routine.off || today.rehab || !today.hasCheckinToday || today.decision.kind === 'rest') {
+    return { ok: false as const, error: '지금은 오늘 암케어 루틴을 바꿀 수 없어요.' };
+  }
+  const ids = routine.items.map((item) => item.exerciseId);
+  const position = armcareSwapPosition(ids, input.planIds, input.fromId, toId);
+  if (!position) return { ok: false as const, error: ROUTINE_CHANGED };
+  if (today.doneToday.has(input.fromId) || (toId != null && today.doneToday.has(toId))) {
+    return { ok: false as const, error: '이미 수행한 운동은 바꿀 수 없어요.' };
+  }
+
+  const from = today.library.find((ex) => ex.id === input.fromId);
+  if (!from) return { ok: false as const, error: '바꿀 수 없는 운동이에요.' };
+  const original = routine.items[position.index];
+  const pool = today.candidates.flatMap((ex) => {
+    if (ex.id === input.fromId || today.doneToday.has(ex.id) ||
+      (ids.includes(ex.id) && !(position.applied && ex.id === toId)) ||
+      notAdvised(today, ex, false) || armcareBlock(ex, routine.kind, today.facts.condition.today)) return [];
+    const areas = areasOf(ex.targetMuscles);
+    const sameArea = areas.find((area) => area.key === original.area);
+    if (routine.kind === 'pain' && !sameArea) return [];
+    const area = sameArea ?? primaryArea(ex.targetMuscles);
+    return area ? [{ ...ex, area, bodyParts: areas.map((known) => known.label), similar: !!sameArea }] : [];
+  });
+  return { ok: true as const, today, routine, original, position, from, pool };
+}
+
+/** 트레이닝 교체의 비슷한 운동 정렬을 암케어 부위 기준으로 사용한다. */
+export async function armcareSwapOptions(input: ArmcareSwapRequest): Promise<ArmcareSwapOptions | { error: string }> {
+  const user = await requireUser();
+  if (featureLocks(user).training) return { error: '트레이닝 설정을 먼저 마쳐 주세요.' };
+  const context = await armcareSwapContext(user, input);
+  if (!context.ok) return { error: context.error };
+  const { original, from, pool } = context;
+  const fromAreas = new Set(areasOf(from.targetMuscles).map((area) => area.key));
+  fromAreas.add(original.area);
+  const relatedAreas = ARMCARE_AREAS.filter((area) => fromAreas.has(area.key));
+  const similar = similarExercises({
+    ...from,
+    bodyParts: relatedAreas.map((area) => area.label),
+  }, pool.filter((ex) => ex.similar), new Set()).map(({ exercise, reason }) => ({ id: exercise.id, reason }));
+  return {
+    picks: pool.map((ex) => ({
+      id: ex.id,
+      title: ex.title,
+      area: ex.area.label,
+      equipment: equipmentLabel(ex.equipment, ex.id),
+      prescription: formatPrescription({ ...ex, sets: original.sets }),
+    })),
+    similar,
+  };
+}
+
+/** 교체 직전에 조건을 다시 보고, 그동안 다시 만든 루틴을 덮어쓰지 않는다. */
+export async function replaceArmcareExercise(input: ArmcareSwapRequest & { toId: string }): Promise<{ item: PlayerItem } | { error: string }> {
+  const user = await requireUser();
+  if (featureLocks(user).training) return { error: '트레이닝 설정을 먼저 마쳐 주세요.' };
+  if (typeof input?.toId !== 'string' || !input.toId || input.toId === input.fromId) return { error: '바꿀 운동을 골라 주세요.' };
+  const context = await armcareSwapContext(user, input, input.toId);
+  if (!context.ok) return { error: context.error };
+  const { today, routine, original, position, from, pool } = context;
+  const to = pool.find((ex) => ex.id === input.toId);
+  if (!to) return { error: '지금 루틴에 넣을 수 없는 운동이에요.' };
+
+  const [item] = await armcarePlayerItems([{ exercise: to, sets: original.sets, doneBefore: false, unsafe: false }]);
+  if (position.applied) return { item };
+
+  const items = routine.items.map((entry, index) =>
+    index === position.index ? { ...entry, exerciseId: to.id, area: to.area.key } : entry);
+  const estimatedMinutes = Math.max(1, Math.round(
+    routine.estimatedMinutes - armcareMinutes(from, original.sets) + armcareMinutes(to, original.sets)
+  ));
+  const result = await prisma.dailyArmcare.updateMany({
+    where: { userId: user.id, date: today.midnight, plan: { equals: routine as unknown as Prisma.InputJsonValue } },
+    data: { plan: { ...routine, items, estimatedMinutes } as unknown as Prisma.InputJsonValue },
+  });
+  if (result.count === 0) return { error: ROUTINE_CHANGED };
+  revalidatePath('/training');
+  return { item };
 }
 
 /* ── 내 루틴 ─────────────────────────────────────────────────────────── */

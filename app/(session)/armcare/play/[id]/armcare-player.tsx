@@ -36,6 +36,8 @@ import {
 import { useAlarm } from '@/components/use-alarm';
 import { nativeCancelAlarm, nativeScheduleAlarm } from '@/lib/native-bridge';
 import { RehabSessionCheck, type RehabCheckInitial } from './rehab-check';
+import type { ArmcareSwapRequest } from '@/lib/armcare/swap';
+import { ArmcareSwapSheet } from './swap-sheet';
 
 /** 따라 할 운동 하나 — 서버(page.tsx)가 만들어 넘긴다 */
 export type PlayerItem = {
@@ -51,6 +53,8 @@ export type PlayerItem = {
   doneBefore: boolean;
   /** 지금 몸 상태에는 권하지 않는 운동 — 루틴 목록과 같은 규칙(lib/armcare/today.ts) */
   unsafe: boolean;
+  /** 자동 루틴에서 바꿀 수 있는 암케어 운동. */
+  replaceable?: boolean;
   /** 이름 밑 한마디 — 재활 운동의 '가볍게' · '아프지 않은 높이까지'(재활 2편). 없으면 안 그린다 */
   note?: string | null;
 };
@@ -182,6 +186,7 @@ export function ArmcarePlayer({
   dateKey,
   notice,
   items: initialItems,
+  replacePlanIds,
   rehabCheck = null,
 }: {
   title: string;
@@ -191,6 +196,7 @@ export function ArmcarePlayer({
   /** 위에 한 번 알릴 것 — 만든 뒤 바뀐 몸 상태, 통증을 남긴 날 */
   notice: string | null;
   items: PlayerItem[];
+  replacePlanIds?: string[];
   /**
    * 재활 따라하기(/armcare/play/rehab)면 끝에 3문항을 묻는다(재활 2편 — rehab-check.tsx). 이미 남긴 답이 있으면
    * initial 로 미리 골라 둔다. 맞춤 · 내 루틴은 null.
@@ -198,12 +204,14 @@ export function ArmcarePlayer({
   rehabCheck?: { initial: RehabCheckInitial } | null;
 }) {
   /*
-   * 목록은 처음 받은 것으로 못박는다. 이 화면이 서버에서 새로 그려지면(다 마친 뒤 목록을
+   * 목록은 이 화면에서 확인한 교체만 반영한다. 서버에서 다시 그려질 때(마친 목록을
    * 새로 그릴 때 등) 새 items 가 오는데, 진행 상태(몇 번째 · 몇 세트)는 처음 목록의 차례를
    * 가리킨다. 그 사이 목록이 바뀌면(다른 기기에서 운동을 뺐다 등) 없는 운동을 읽다 오류가
    * 나거나 다른 운동이 체크됐다(2026-09-26 검토).
    */
-  const [items] = useState(initialItems);
+  const [items, setItems] = useState(initialItems);
+  const [planIds, setPlanIds] = useState(replacePlanIds);
+  const [swapRequest, setSwapRequest] = useState<ArmcareSwapRequest | null>(null);
   const [state, dispatch] = useReducer(
     (s: State, a: Action) => reduce(s, a, items),
     items,
@@ -216,7 +224,7 @@ export function ArmcarePlayer({
   const lastTap = useRef(0);
   const tap = (a: Action) => {
     const now = Date.now();
-    if (now - lastTap.current < 450) return;
+    if (swapRequest || now - lastTap.current < 450) return;
     lastTap.current = now;
     dispatch(a);
   };
@@ -487,6 +495,15 @@ export function ArmcarePlayer({
         ? `${it.reps}회`
         : '';
   const toast = state.justDone ? items[state.justDone.index].exercise.title : null;
+  const canSwap = planIds?.includes(ex.id) && it.replaceable && !done && doneSets === 0 && state.side === 0 && !clock;
+
+  const swapped = (replacement: PlayerItem) => {
+    if (!swapRequest) return;
+    const fromId = swapRequest.fromId;
+    setItems((current) => current.map((row) => row.exercise.id === fromId ? replacement : row));
+    setPlanIds((ids) => ids?.map((id) => id === fromId ? replacement.exercise.id : id));
+    setSwapRequest(null);
+  };
 
   return (
     <Shell {...shell}>
@@ -519,9 +536,20 @@ export function ArmcarePlayer({
             ) : null}
 
             <div className="space-y-1.5">
-              <h1 className="text-heading text-2xl leading-tight break-keep text-ink">
-                {ex.title}
-              </h1>
+              <div className="flex items-center justify-between gap-2">
+                <h1 className="text-heading min-w-0 text-2xl leading-tight break-keep text-ink">
+                  {ex.title}
+                </h1>
+                {canSwap && planIds && (
+                  <button
+                    type="button"
+                    className="min-h-11 shrink-0 rounded-full bg-surface-2 px-3 text-sm font-semibold text-sky-strong"
+                    onClick={() => setSwapRequest({ dateKey, fromId: ex.id, planIds })}
+                  >
+                    운동 바꾸기
+                  </button>
+                )}
+              </div>
               <p className="text-base font-semibold text-sky-strong">
                 {amount}
                 {it.perSide && ' · 좌우 각각'} · {it.sets}세트
@@ -545,6 +573,10 @@ export function ArmcarePlayer({
           {notSaved}
         </div>
       </div>
+
+      {swapRequest && (
+        <ArmcareSwapSheet request={swapRequest} title={ex.title} onDone={swapped} onClose={() => setSwapRequest(null)} />
+      )}
 
       {/* 누르는 막대 — 엄지가 닿는 아래에 */}
       <div className="border-t border-line bg-surface px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">

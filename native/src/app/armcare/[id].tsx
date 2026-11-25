@@ -11,6 +11,8 @@ import { primaryArea } from '@/lib/armcare/anatomy';
 import { useLiveActivity } from '~/shell/live-activity';
 import { REST_CLOCK_LIMIT_SECONDS } from '@/lib/workout/rest';
 import type { ArmcarePlay } from '@/lib/armcare/play-load';
+import type { ArmcareSwapRequest } from '@/lib/armcare/swap';
+import { ArmcareSwapSheet } from '~/armcare/swap-sheet';
 import type { PlayerItem } from '@/app/(session)/armcare/play/[id]/armcare-player';
 import { BullpenNative } from '../../../modules/bullpen-native';
 import { checkOutbox, drainChecks } from '~/armcare/outbox';
@@ -134,9 +136,10 @@ function Player({
   backHref,
   dateKey,
   notice,
-  items,
+  items: initialItems,
   rehabCheck,
   week,
+  replacePlanIds,
   query,
   inApp,
   c,
@@ -146,6 +149,9 @@ function Player({
   const inset = useSafeAreaInsets();
   /* 아이패드 — 바닥 막대 안 단추를 본문 폭으로(~/lib/layout) */
   const barSide = useBarSide(12);
+  const [items, setItems] = useState(initialItems);
+  const [planIds, setPlanIds] = useState(replacePlanIds);
+  const [swapRequest, setSwapRequest] = useState<ArmcareSwapRequest | null>(null);
   /* 시작 때 이미 한 운동 — 서버의 그날 체크 + 폰 대기열의 뜻(못 보낸 체크는 한 것, 보낼 해제는 안 한 것). 첫 화면의 수 · 이어하기와 같은 셈 */
   const [before] = useState(() => {
     const queue = checkOutbox.visible().filter((p) => p.dateKey === dateKey);
@@ -162,7 +168,7 @@ function Player({
   const lastTap = useRef(0);
   const tap = (a: Action) => {
     const now = Date.now();
-    if (now - lastTap.current < 450) return;
+    if (swapRequest || now - lastTap.current < 450) return;
     lastTap.current = now;
     tick();
     dispatch(a);
@@ -454,6 +460,16 @@ function Player({
   const prescription = [amount, it.perSide ? '좌우 각각' : null, `${it.sets}세트`].filter(Boolean).join(' · ');
   const meta = [ex.equipment.join(' · '), primaryArea(ex.targetMuscles)?.label].filter(Boolean).join(' · ');
   const pending = waitingCount + localCount + refusedCount;
+  const canSwap = planIds?.includes(ex.id) && it.replaceable && !isDone && doneSets === 0 &&
+    state.side === 0 && !clock && completed == null;
+
+  const swapped = (replacement: PlayerItem) => {
+    if (!swapRequest) return;
+    const fromId = swapRequest.fromId;
+    setItems((current) => current.map((row) => row.exercise.id === fromId ? replacement : row));
+    setPlanIds((ids) => ids?.map((id) => id === fromId ? replacement.exercise.id : id));
+    setSwapRequest(null);
+  };
 
   /* 세트 판의 상태 한 줄 */
   const chip = clock
@@ -519,7 +535,18 @@ function Player({
         <View key={ex.id} style={{ gap: 14 }}>
           <View style={{ gap: 4 }}>
             {meta ? <Text style={[TYPE.sub, { color: c.muted }]}>{meta}</Text> : null}
-            <Text style={[s.title, { color: c.ink }]}>{ex.title}</Text>
+            <View style={s.exerciseHead}>
+              <Text style={[s.title, { color: c.ink, flex: 1 }]}>{ex.title}</Text>
+              {canSwap && planIds ? (
+                <Press
+                  accessibilityRole="button"
+                  onPress={() => setSwapRequest({ dateKey, fromId: ex.id, planIds })}
+                  style={[s.swap, { backgroundColor: c.chip }]}
+                >
+                  <Text style={[TYPE.buttonCompact, { color: c.link }]}>운동 바꾸기</Text>
+                </Press>
+              ) : null}
+            </View>
             <Text style={[TYPE.card, { color: c.link }]}>{prescription}</Text>
             {it.note ? <Text style={[TYPE.buttonCompact, { color: c.ink }]}>{it.note}</Text> : null}
             {it.unsafe && !isDone ? (
@@ -572,19 +599,15 @@ function Player({
                 <Text style={[TYPE.card, { color: c.muted }]}>{it.holdSeconds != null ? '초' : it.reps != null ? '회' : ''}</Text>
               </View>
             )}
-            <Text style={[TYPE.sub, { color: c.muted, textAlign: 'center' }]}>
-              {clock?.kind === 'rest'
-                ? `${doneSets}세트 완료 · 다음 세트 준비`
-                : two
-                  ? state.side === 0
-                    ? '양쪽을 마치면 1세트'
-                    : '반대쪽까지 마치면 1세트'
-                  : it.perSide
-                    ? '양쪽을 마친 뒤 세트 완료'
-                    : it.holdSeconds != null
-                      ? '이번 세트 목표 시간'
-                      : '이번 세트 목표 횟수'}
-            </Text>
+            {clock?.kind === 'rest' || two || !it.perSide ? (
+              <Text style={[TYPE.sub, { color: c.muted, textAlign: 'center' }]}>
+                {clock?.kind === 'rest'
+                  ? `${doneSets}세트 완료 · 다음 세트 준비`
+                  : two
+                    ? state.side === 0 ? '양쪽을 마치면 1세트' : '반대쪽까지 마치면 1세트'
+                    : it.holdSeconds != null ? '이번 세트 목표 시간' : '이번 세트 목표 횟수'}
+              </Text>
+            ) : null}
           </View>
         )}
 
@@ -679,6 +702,10 @@ function Player({
           </>
         )}
       </View>
+
+      {swapRequest ? (
+        <ArmcareSwapSheet request={swapRequest} title={ex.title} onDone={swapped} onClose={() => setSwapRequest(null)} c={c} />
+      ) : null}
 
       {listOpen ? (
         <Sheet
@@ -796,6 +823,8 @@ const s = StyleSheet.create({
   content: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24, gap: 14 },
   notice: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, paddingLeft: 14, paddingRight: 4, minHeight: 48 },
   textBtn: { minHeight: 44, paddingHorizontal: 10, justifyContent: 'center' },
+  exerciseHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  swap: { minHeight: 44, borderRadius: 22, justifyContent: 'center', paddingHorizontal: 12 },
   title: { fontSize: 28, fontWeight: '800', lineHeight: 34, letterSpacing: -0.6 },
   warnRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 4 },
   setCard: { borderRadius: 22, padding: 18, gap: 12 },

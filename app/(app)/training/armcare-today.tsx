@@ -59,9 +59,7 @@ export function ArmcareToday({
   /** 오늘 만들어 둔 루틴. 없으면 아직 안 만든 날 */
   routine: {
     kind: ArmcareKind;
-    reason: string;
     notes: string[];
-    estimatedMinutes: number;
     items: ArmcareTodayItem[];
     /** 직접 골라 만들었으면 그때 권한 종류(lib/armcare/routine.ts ArmcareRoutine.recommended) */
     recommended?: ArmcareKind;
@@ -80,7 +78,7 @@ export function ArmcareToday({
   const [error, setError] = useState<string>();
 
   /*
-   * 통증 루틴 날 — 까닭 줄 밑에 팔 통증 안내를 연다(참고 부상 · 위험 신호 · 오늘 할 일). [통증 루틴 하기]는
+   * 통증 루틴 날 — 팔 통증 안내를 연다(참고 부상 · 위험 신호 · 오늘 할 일). [통증 루틴 하기]는
    * 내지 않는다 — 루틴이 바로 이 카드에 있다.
    */
   const guide =
@@ -200,9 +198,6 @@ export function ArmcareToday({
           <p className="text-heading text-xl text-ink">
             오늘은 {withJosa(suggested.label, '을/를')} 권해요
           </p>
-          <p className="text-sm font-semibold break-keep text-sky-strong">
-            {decision.reason}
-          </p>
           {afterThrowing}
           {guide}
           {lengthRow}
@@ -239,16 +234,9 @@ export function ArmcareToday({
             <span className="text-numeric text-base text-ink">
               {routine.items.length}
             </span>
-            개 · 약{' '}
-            <span className="text-numeric text-base text-ink">
-              {routine.estimatedMinutes}
-            </span>
-            분
+            개
           </p>
         </div>
-        <p className="text-sm font-semibold break-keep text-sky-strong">
-          {routine.reason}
-        </p>
         {afterThrowing}
         {guide}
         {/* 빠진 부위 같은 안내는 접어 둔다 — 늘 보일 만큼 급하지 않다 */}
@@ -267,8 +255,7 @@ export function ArmcareToday({
           </details>
         )}
         {/*
-          종류가 바뀌었으면 왜 바뀌었는지(지금의 까닭)도 붙인다 — 위 줄의 까닭은 만들 때의
-          것이라, 그것만 보면 왜 다시 만들라는지 알 수 없다.
+          종류가 바뀌었으면 지금의 까닭을 알려 다시 만들지 판단할 수 있게 한다.
         */}
         {(kindChanged || unsafeCount > 0) && (
           <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-xs leading-relaxed break-keep text-warn">
@@ -318,31 +305,6 @@ const monthDay = (key: string) => {
   const [, m, d] = key.split('-').map(Number);
   return `${m}월 ${d}일`;
 };
-
-/**
- * 이번 주 강화 n/3 · 연속 주(2026-11-24, ArmCare 의 주간 목표 막대 · Week Streak) — 셈은 lib/armcare/routine.ts strengthWeekOf.
- * 3을 넘긴 주도 있다(웨이트에서 어깨 · 팔을 세게 한 날까지 센다) — 칸은 목표까지만 채운다.
- */
-export function StrengthWeek({ week }: { week: { done: number; target: number; streak: number } }) {
-  return (
-    <div className="rounded-2xl border border-line bg-surface px-4 py-3.5">
-      <p className="flex items-baseline justify-between text-sm">
-        <span className="font-semibold text-ink">이번 주 강화</span>
-        <span className="text-muted">
-          <b className="text-numeric text-base text-ink tabular-nums">{week.done}</b>/{week.target}번
-        </span>
-      </p>
-      <div className="mt-2.5 flex gap-1" aria-hidden>
-        {Array.from({ length: week.target }, (_, i) => (
-          <span key={i} className={`h-1.5 flex-1 rounded-full ${i < week.done ? 'bg-sky' : 'bg-surface-2'}`} />
-        ))}
-      </div>
-      <p className="mt-2 text-xs break-keep text-muted">
-        {week.streak >= 2 ? `${week.streak}주 연속으로 주 2번 넘게 했어요.` : '강화는 주 2~3번, 이틀 잇지 않고 해요.'}
-      </p>
-    </div>
-  );
-}
 
 /**
  * 이번 주 암케어 — 최근 7일(오늘 포함)을 점 7개로.

@@ -1009,7 +1009,7 @@ function Run({
     }
   };
 
-  const finish = async () => {
+  const finish = async (intensity: number) => {
     if (phase !== 'idle') return;
     /*
      * EX-LOAD01-R1 — 마치기 직전에 살아 있는 대기열을 다시 본다(이 계정 · 이 판). 보류를 포함해 못 보낸 세트가 남았으면 마치지 않는다 —
@@ -1030,7 +1030,7 @@ function Run({
     try {
       const res = await rpc<{ ok: true; receipt: FinishReceipt } | { error: string; state: 'active' | 'missing' | 'closed' }>('workout.finishSession', {
         sessionId,
-        intensity: finishDraft.intensity,
+        intensity,
         memo: finishDraft.memo.trim() || null,
       });
       if ('ok' in res) return finished(res.receipt);
@@ -1053,7 +1053,7 @@ function Run({
    * '이 세트 빼고 마치기'(시안 08 예외) — 가는 중인 보내기를 기다리고, 서버가 가진 세트와 같은 열쇠로 견준 뒤 서버에 이미 있는 세트는 대기열에서만
    * 걷고(보낸 것으로), 서버에 없는 것만 뺀다. 견줄 수 없으면(신호 없음) 아무것도 빼지 않는다.
    */
-  const excludeAndFinish = () => {
+  const excludeAndFinish = (intensity: number) => {
     /* EX-LOAD01-R1 — 보류한 세트(held)는 빼지 않는다: 숫자가 서버와 같아도 밴드 · 기구 같은 구조화 값의 저장은 증명되지 않고(가짜 확인),
        지우면 원래 값을 잃는다. 보류는 못 보낸 기록에 남아 사람이 하나씩 다시 보내거나 버린다(렌더 검토 D3) */
     const mineP = pending.filter((p) => !p.held);
@@ -1106,7 +1106,7 @@ function Run({
             }
             setSaved(server);
             setPhase('idle');
-            void finish();
+            void finish(intensity);
           })();
         },
       },
@@ -1217,7 +1217,6 @@ function Run({
         ) : null}
 
         <ScrollView ref={scrollRef} style={s.fill} contentContainerStyle={[s.content, READABLE]} keyboardShouldPersistTaps="handled">
-          <Text style={[s.smallBold, { color: c.muted }]}>{ex.category}</Text>
           <View style={s.titleRow}>
             <Text style={[s.title, { color: c.ink }]}>
               {ex.title}
@@ -1742,7 +1741,7 @@ function Run({
         onRir={(id, no, n) => answerRirFor(id, no, n)}
         onRetrySend={() => void outbox.retryPersist().then(() => flush())}
         onExclude={excludeAndFinish}
-        onFinish={() => void finish()}
+        onFinish={(intensity) => void finish(intensity)}
         onCheck={() => void checkFinish()}
         onClose={() => {
           if (phase === 'busy' || phase === 'checking') return;

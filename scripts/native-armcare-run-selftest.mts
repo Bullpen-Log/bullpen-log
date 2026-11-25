@@ -3,6 +3,7 @@
  * 실제 모듈을 부른다(폰 저장소는 메모리 흉내, 실패는 시험이 넣는다). 실제 아이폰의 타이머 · 알림 · 잠금 · 저장소 오류는 이 시험이 보지 못한다.
  */
 import assert from 'node:assert/strict';
+import { armcareSwapPosition } from '../lib/armcare/swap.ts';
 
 let n = 0;
 const eq = (a: unknown, b: unknown, m: string) => {
@@ -27,6 +28,16 @@ const item = (id: string, o: Partial<Item> = {}): Item =>
     unsafe: false,
     ...o,
   }) as Item;
+
+{
+  const plan = ['a', 'b', 'c'];
+  eq(armcareSwapPosition(plan, plan, 'b', 'x'), { index: 1, applied: false }, '교체할 운동 자리');
+  eq(armcareSwapPosition(['a', 'x', 'c'], plan, 'b', 'x'), { index: 1, applied: true }, '같은 교체의 응답을 못 받았으면 재확인');
+  eq(armcareSwapPosition(['a', 'x', 'y'], plan, 'b', 'x'), null, '다른 자리까지 바뀐 목록은 덮지 않음');
+  eq(armcareSwapPosition(['c', 'b', 'a'], plan, 'b', 'x'), null, '순서가 달라진 목록은 덮지 않음');
+  eq(armcareSwapPosition(plan, plan, 'b', 'a'), null, '이미 들어 있는 운동은 교체 후보가 아님');
+  eq(armcareSwapPosition(plan, plan, 'z', 'x'), null, '없는 운동은 교체할 수 없음');
+}
 
 /* ---------- 1. 반복 운동 — 세트 → 쉬기 → 세트 → '이 운동 끝'에 머문다 ---------- */
 {

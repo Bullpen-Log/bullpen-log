@@ -3,7 +3,7 @@ import { appNow } from '@/lib/clock';
 import { zonedNoon } from '@/lib/time-zone';
 import type { getCurrentUser } from '@/lib/dal';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
-import { visibleExercises } from '@/lib/library-cache';
+import { visibleExercises, type CachedExercise } from '@/lib/library-cache';
 import { FALLBACK_REST_SECONDS } from '@/lib/exercise-meta';
 import { ARMCARE_AREAS, ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
 import { buildFocusRoutine, parseAreas } from '@/lib/armcare/coverage';
@@ -40,6 +40,8 @@ export type ArmcarePlay = {
   notice: string | null;
   items: PlayerItem[];
   rehabCheck: { initial: RehabCheckInitial } | null;
+  /** 교체 가능한 오늘 맞춤 루틴의 원래 순서(숨겨진 운동도 포함). */
+  replacePlanIds?: string[];
   /**
    * 그날까지 최근 7일 — 날마다 암케어를 기록했나(lib/armcare/today.ts 의 week, 루틴 칸 맨 아래 점과 같은 셈). 앱 완료 화면의 '최근 7일'이 읽는다
    * (2026-10-30 시안 03). 옛 앱 · 웹 따라 하기는 안 읽는다.
@@ -113,7 +115,7 @@ export async function loadArmcarePlay(
   let picks: { exerciseId: string; sets: number; note?: string | null }[];
   let notice: string | null = null;
   /* 그날 이미 체크한 것 — 재활 운동은 카테고리가 여럿이라 따로 읽어 둔 것(lib/armcare/today.ts) */
-  let doneBefore = data.doneToday;
+  let doneBeforeIds = data.doneToday;
   let rehabCheck: { initial: RehabCheckInitial } | null = null;
 
   if (rehabPlay) {
@@ -131,7 +133,7 @@ export async function loadArmcarePlay(
       note: it.note ?? (it.replaces ? `${it.replaces} 대신` : null),
     }));
     notice = '아프면 바로 멈추세요(통증 5 이상).';
-    doneBefore = rehab.doneToday;
+    doneBeforeIds = rehab.doneToday;
     const saved = rehab.status.today;
     rehabCheck = {
       initial: saved
@@ -206,27 +208,18 @@ export async function loadArmcarePlay(
     const ex = byId.get(p.exerciseId);
     return ex != null && (!(mine || focusPlay) || ex.category === ARMCARE_CATEGORY) && !notAdvised(current, ex, mine || focusPlay);
   });
-  const views = await toArmcareViews(
-    usable.map((p) => byId.get(p.exerciseId)!),
-    new Map(usable.map((p) => [p.exerciseId, p.sets]))
-  );
-  const items: PlayerItem[] = usable.map((p, i) => {
+  const items = await armcarePlayerItems(usable.map((p) => {
     const ex = byId.get(p.exerciseId)!;
-    const done = doneBefore.has(p.exerciseId);
+    const doneBefore = doneBeforeIds.has(p.exerciseId);
     return {
-      exercise: views[i],
+      exercise: ex,
       sets: p.sets,
-      reps: ex.reps,
-      holdSeconds: ex.holdSeconds,
-      /* 처방이 비었으면 걸리는 시간을 셀 때와 같은 값으로(lib/exercise-meta.ts) */
-      restSeconds: ex.restSeconds ?? FALLBACK_REST_SECONDS,
-      perSide: ex.perSide,
-      doneBefore: done,
-      /* 재활은 그 단계 규칙으로 고른 운동이라 맞춤 루틴의 몸 상태 표시를 달지 않는다 */
-      unsafe: !done && !rehabPlay && notAdvised(data, ex, mine || focusPlay),
+      doneBefore,
+      /* 재활은 그 단계 규칙으로 골라 몸 상태 표시를 달지 않는다 */
+      unsafe: !doneBefore && !rehabPlay && notAdvised(data, ex, mine || focusPlay),
       note: p.note ?? null,
     };
-  });
+  }));
 
   return {
     ok: true,
@@ -236,6 +229,32 @@ export async function loadArmcarePlay(
     notice,
     items,
     rehabCheck,
+    replacePlanIds: id === 'today' && dateKey === todayKey && data.routine && !data.rehab
+      ? data.routine.items.map((item) => item.exerciseId)
+      : undefined,
     week: data.week,
   };
+}
+
+/** 교체한 운동도 처음 들어올 때와 같은 처방과 미디어를 받는다. */
+export async function armcarePlayerItems(picks: {
+  exercise: CachedExercise;
+  sets: number;
+  doneBefore: boolean;
+  unsafe: boolean;
+  note?: string | null;
+}[]): Promise<PlayerItem[]> {
+  const views = await toArmcareViews(
+    picks.map((pick) => pick.exercise),
+    new Map(picks.map((pick) => [pick.exercise.id, pick.sets]))
+  );
+  return picks.map(({ exercise: ex, ...pick }, i) => ({
+    ...pick,
+    exercise: views[i],
+    reps: ex.reps,
+    holdSeconds: ex.holdSeconds,
+    restSeconds: ex.restSeconds ?? FALLBACK_REST_SECONDS,
+    perSide: ex.perSide,
+    replaceable: ex.category === ARMCARE_CATEGORY,
+  }));
 }

@@ -52,6 +52,7 @@ export default async function ArmcarePlayPage({
       dateKey={play.dateKey}
       notice={play.notice}
       items={play.items}
+      replacePlanIds={play.replacePlanIds}
       rehabCheck={play.rehabCheck}
     />
   );

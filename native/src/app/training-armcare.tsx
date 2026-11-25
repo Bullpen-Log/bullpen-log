@@ -13,7 +13,7 @@ import { act, leave, offlineAs } from '~/mechanics/parts';
 import { usePalette, type Palette } from '~/lib/ui';
 import { openCheckin } from '~/shell/web-nav';
 import { recordsHref } from '~/records/intent';
-import { Checklist, RehabCard, RoutineCard, StrengthWeek, WeekDots, doneWith, openPlay, useCheckIntents } from '~/training/armcare-parts';
+import { Checklist, RehabCard, RoutineCard, WeekDots, doneWith, openPlay, useCheckIntents } from '~/training/armcare-parts';
 import { FavButton } from '~/training/fav-button';
 import { Fold, Screen, SectionHead, s, useScreenData } from '~/training/screen';
 import { useRememberPart } from '~/training/remember';
@@ -139,7 +139,6 @@ function TodayTab({ data, fresh, failed, reload, c }: { data: AppArmcareTodayTab
         )}
       </View>
 
-      {data.strengthWeek ? <StrengthWeek week={data.strengthWeek} c={c} /> : null}
       <WeekDots week={data.week} c={c} />
       <ArmcareGuideNote c={c} />
     </View>
@@ -232,7 +231,6 @@ function TodayCard({
 
   const shell = (body: ReactNode, tone: 'hero' | 'warn' = 'hero') => (
     <View style={[st.today, tone === 'hero' ? { backgroundColor: HERO_BG } : { backgroundColor: c.warnBg }]}>
-      <Text style={[s.smallBold, { color: tone === 'hero' ? HERO_SUB : c.warn }]}>오늘 루틴</Text>
       {body}
     </View>
   );
@@ -368,7 +366,6 @@ function TodayCard({
     return shell(
       <>
         {title(decision.label)}
-        {sub(decision.reason)}
         {extras}
         {staleLine}
         {lengthRow}
@@ -392,18 +389,11 @@ function TodayCard({
       {shell(
         <>
           {title(allDone ? '오늘 루틴 끝' : routine.label)}
-          {allDone ? sub(routine.label) : changed ? sub(routine.kind !== decision.kind ? `체크인이 바뀌어 구성을 다시 확인해요. ${decision.reason}` : `몸 상태가 바뀌어 지금은 권하지 않는 운동이 ${unsafeCount}개 있어요.`) : sub(routine.reason)}
+          {allDone ? sub(routine.label) : changed ? sub(routine.kind !== decision.kind ? `체크인이 바뀌어 구성을 다시 확인해요. ${decision.reason}` : `몸 상태가 바뀌어 지금은 권하지 않는 운동이 ${unsafeCount}개 있어요.`) : null}
           {extras}
-          <View style={st.stats}>
-            <Text style={[s.small, { color: HERO_SUB }]}>
-              <Text style={st.statNum}>{n}</Text>개 운동
-            </Text>
-            {!allDone ? (
-              <Text style={[s.small, { color: HERO_SUB }]}>
-                약 <Text style={st.statNum}>{routine.estimatedMinutes}</Text>분
-              </Text>
-            ) : null}
-          </View>
+          <Text style={[s.small, { color: HERO_SUB, paddingTop: 4 }]}>
+            <Text style={st.statNum}>{n}</Text>개 운동
+          </Text>
           <View style={{ gap: 6 }} accessible accessibilityLabel={`${n}개 중 ${done}개 수행${waiting ? `, ${waiting}개 전송 대기` : ''}`}>
             <View style={s.between}>
               <Text style={[s.smallBold, { color: '#fff' }]}>
@@ -556,7 +546,6 @@ const st = StyleSheet.create({
   today: { borderRadius: 24, padding: 20, gap: 10 },
   todayTitle: { fontSize: 26, fontWeight: '800', letterSpacing: -0.6, lineHeight: 32 },
   mainBtn: { minHeight: 52, borderRadius: 18, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
-  stats: { flexDirection: 'row', alignItems: 'baseline', gap: 14, paddingTop: 4 },
   statNum: { color: '#fff', fontSize: 24, fontWeight: '800', fontVariant: ['tabular-nums'] },
   bars: { flexDirection: 'row', gap: 4 },
   barSeg: { flex: 1, height: 5, borderRadius: 3 },

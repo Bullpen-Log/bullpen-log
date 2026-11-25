@@ -650,15 +650,14 @@ type FinishInput = {
   memo?: string | null;
 };
 
-/** 마치기 창의 강도 · 메모 — 강도는 1~10 정수(선택), 메모는 1000자. 메모만은 받지 않는다(강도와 같이 남는 계약) */
-function finishNoteInput(input: FinishInput): { intensity: number | null; memo: string | null } | { error: string } {
-  const raw = input.intensity;
-  const intensity =
-    raw == null ? null : typeof raw === 'number' && Number.isInteger(raw) && raw >= 1 && raw <= 10 ? raw : NaN;
-  if (Number.isNaN(intensity)) return { error: '운동 강도를 1~10 중에서 골라 주세요.' };
+/** 처음 닫을 때 체감 강도는 1~10 정수로 받고, 메모는 선택으로 1000자까지 받는다. */
+function finishNoteInput(input: FinishInput): { intensity: number; memo: string | null } | { error: string } {
+  const intensity = input.intensity;
+  if (typeof intensity !== 'number' || !Number.isInteger(intensity) || intensity < 1 || intensity > 10) {
+    return { error: '운동 강도를 1~10 중에서 골라 주세요.' };
+  }
   const memo = typeof input.memo === 'string' ? input.memo.trim().slice(0, 1000) || null : null;
-  if (memo && intensity == null) return { error: '느낀점을 남기려면 강도도 골라 주세요.' };
-  return { intensity: intensity as number | null, memo };
+  return { intensity, memo };
 }
 
 /**
@@ -668,7 +667,7 @@ function finishNoteInput(input: FinishInput): { intensity: number | null; memo: 
 async function closeSession(
   userId: string,
   session: NonNullable<Awaited<ReturnType<typeof activeSession>>>,
-  note: { intensity: number | null; memo: string | null }
+  note: { intensity: number; memo: string | null }
 ): Promise<boolean> {
   /* v2 판 — 닫기 · 시간 · 요약(그 거래가 읽은 세트로) · 프로그램 효과(원래 의무)를 한 거래로. 하루 메모는 아래 recoverFollowUps 그대로 */
   if (await isV2Session(session.id)) {
@@ -708,14 +707,16 @@ async function closeSession(
 export async function finishWorkout(input: FinishInput): Promise<{ error: string } | never> {
   allowFeature('training');
   const user = await requireUser();
-  const note = finishNoteInput(input);
-  if ('error' in note) return note;
   const any =
     typeof input.sessionId === 'string' && input.sessionId
       ? await prisma.trainingSession.findFirst({ where: { id: input.sessionId, userId: user.id } })
       : await activeSession(user.id);
   if (!any || any.status === 'ABANDONED') redirect('/training');
-  if (any.status === 'ACTIVE') await closeSession(user.id, any, note);
+  if (any.status === 'ACTIVE') {
+    const note = finishNoteInput(input);
+    if ('error' in note) return note;
+    await closeSession(user.id, any, note);
+  }
   const closed = await prisma.trainingSession.findUnique({ where: { id: any.id } });
   if (closed?.status === 'FINISHED') await recoverFollowUps(closed);
   /* 홈 · 트레이닝 · 영양(소모) · 분석이 다 읽는다 — 레이아웃째 한 번(맨 위 설명) */
@@ -736,13 +737,15 @@ export async function finishSession(
 ): Promise<{ ok: true; receipt: FinishReceipt } | { error: string; state: 'active' | 'missing' | 'closed' }> {
   allowFeature('training');
   const user = await requireUser();
-  const note = finishNoteInput(input);
-  if ('error' in note) return { ...note, state: 'active' };
   if (typeof input.sessionId !== 'string' || !input.sessionId) return { error: '운동을 찾지 못했어요.', state: 'missing' };
   const session = await prisma.trainingSession.findFirst({ where: { id: input.sessionId, userId: user.id } });
   if (!session) return { error: '운동을 찾지 못했어요.', state: 'missing' };
   if (session.status === 'ABANDONED') return { error: '오래 멈춰 있던 운동이라 이미 기록으로 닫혔어요.', state: 'closed' };
-  if (session.status === 'ACTIVE') await closeSession(user.id, session, note);
+  if (session.status === 'ACTIVE') {
+    const note = finishNoteInput(input);
+    if ('error' in note) return { ...note, state: 'active' };
+    await closeSession(user.id, session, note);
+  }
   const closed = await prisma.trainingSession.findUnique({ where: { id: session.id } });
   if (!closed || closed.status !== 'FINISHED') return { error: '운동을 마치지 못했어요. 다시 눌러 주세요.', state: 'active' };
   const receipt = await recoverFollowUps(closed);
@@ -791,7 +794,7 @@ export async function sessionSets(input: { sessionId: string }): Promise<{ sets:
 /* ---------------------------- 힘듦 한 번 ---------------------------- */
 
 /**
- * 축하 화면의 강도 — 마치기 창에서 강도를 안 고른 날, 마친 뒤 그날 DailyTrainingNote 로 남긴다.
+ * 축하 화면의 강도 — 강도 없이 마친 기존 운동의 그날 DailyTrainingNote 를 남긴다.
  * 2026-10-30 부터 1~10 정수(intensity)를 그대로 받는다(시안 09 슬라이더 — 4 · 6 · 8 · 10 도 그대로). 옛 칩(effort 'light' · 'normal' · 'hard' · 'max' → 3 · 5 · 7 · 9)도 받는다.
  *
  * - 본인 판이면 된다(FINISHED 조건 없음) — 힘듦은 날짜마다 한 줄이라 판 상태와 무관하다.

@@ -1,3 +1,9 @@
+## Mac mini release lead and Kim Min — 2026-11-25 · MacBook GPT — Training and armcare
+
+- Training now requires a perceived intensity to finish and keeps the memo optional. The server still recovers previously closed sessions without requiring a second rating. The reviewed training and armcare screens have less explanatory copy.
+- In today's generated armcare routine, an unstarted exercise can be replaced from similar exercises or search. The server rechecks the routine, today's restrictions and completed exercises before updating the plan. Completed records keep the actual exercise ID. Existing beta access rules apply. No schema change, migration, or new environment variable.
+- Web and iOS types, iOS export, release access, training finish, armcare player and the isolated workout/armcare database checks passed. The remaining issues from the broad training and integration suites reproduced on the existing main. The iOS simulator CI checks the current Sinker bundle identifier. Physical-device and tester-side installation were not verified.
+
 ## 맥 미니 전체 총괄 · 김민에게 — 2026-11-25 · 맥북 GPT — 싱커 기록 탭
 
 - 사용자 지시에 따라 앱 하단을 홈 · 코치 · 기록 · 투구 · 트레이닝 · 덕아웃 순으로 배치했다. 기록에서 투구·트레이닝·컨디션을 모아 보고 허용된 계정은 투구를 한 화면에서 남기거나 고친다.

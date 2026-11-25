@@ -1504,7 +1504,6 @@ export function SessionClient({
       )}
 
       <div ref={topRef} className="flex-1 overflow-y-auto px-4 py-4">
-        <p className="text-xs font-medium text-muted">{ex.category}</p>
         {/*
           이름 옆에 ★(즐겨찾기)와 [교체].
 

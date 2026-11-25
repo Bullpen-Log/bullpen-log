@@ -14,11 +14,11 @@ import type { PendingSet, ShownSet } from './outbox';
 import { Sheet } from './sheets';
 
 /**
- * 운동 종료 확인(2026-10-30 확정 시안 08) — 실제 요약 → 선택 강도(1~10 슬라이더) → 접힌 메모 → 필요할 때만 여유 횟수 · 전송 상태 → [운동 마치기].
+ * 운동 종료 확인(2026-10-30 확정 시안 08) — 실제 요약 → 필수 강도(1~10 슬라이더) → 선택 메모 → 필요할 때만 여유 횟수 · 전송 상태 → [운동 마치기].
  *
  * 값(강도 · 메모 초안 · 처리 상태)은 운동 화면(workout.tsx)이 들고 있다 — 창을 닫고 운동으로 돌아갔다 다시 열어도 그대로다. 이 창은 그리기만 한다.
- *   - 강도 · 메모 둘 다 비워도 마칠 수 있다. 메모만은 저장하지 못하는 계약이라 강도를 고르라고 그 자리에서 알리고 막는다(메모를 버리지 않는다).
- *   - 그날 이미 남긴 강도 · 메모가 있으면 읽어 보인다. 손대지 않으면 다시 보내지 않는다(빈 메모로 덮지 않음).
+ *   - 강도를 골라야 마칠 수 있고 메모는 선택이다.
+ *   - 그날 강도는 새로 고른 값으로 갱신한다. 메모가 비어 있으면 기존 메모를 보존한다.
  *   - 못 보낸 세트가 있으면 일반 마치기를 잠그고 무엇이 왜 남았는지 · 다시 보내기를 보인다. '이 세트 빼고 마치기'는 자세히 안에.
  *   - 마치는 중 · 결과 확인 중에는 입력을 잠그고 초안은 남긴다.
  *   - EX-LOAD01-R1 — 세트 글은 원래 무게 기록 그대로(밴드 · 섞임 · 양손 다른 무게 · 기구 이름, lib/workout/load/describe.ts) — kg 숫자 하나로
@@ -80,8 +80,8 @@ export function FinishSheet({
   onMemo: (t: string) => void;
   onRir: (exerciseId: string, setNo: number, n: number) => void;
   onRetrySend: () => void;
-  onExclude: () => void;
-  onFinish: () => void;
+  onExclude: (intensity: number) => void;
+  onFinish: (intensity: number) => void;
   onCheck: () => void;
   onClose: () => void;
   c: Palette;
@@ -90,7 +90,6 @@ export function FinishSheet({
   const [listOpen, setListOpen] = useState(false);
   const [pendingOpen, setPendingOpen] = useState(false);
   const locked = phase !== 'idle';
-  const memoNeedsIntensity = memo.trim() !== '' && intensity == null;
   const exerciseCount = summarizeSets(sets).length;
   const titleOf = new Map(exercises.map((e) => [e.id, e.title]));
   const contractOf = new Map<string, RecordingContract>(exercises.map((e) => [e.id, e.load]));
@@ -104,7 +103,7 @@ export function FinishSheet({
    * 마치기는 이 판의 못 보낸 세트가 하나도 없을 때만(보류 포함 — GPT 완료 기준 결정). 보류한 원래 값을 두고 판을 닫으면 서버가 끝난 판이라
    * 다시 받지 않는다. 보류는 못 보낸 기록에서 다시 보내거나 고치거나(확인 뒤) 버려야 풀린다.
    */
-  const canFinish = !locked && pending.length === 0 && !memoNeedsIntensity;
+  const canFinish = !locked && pending.length === 0 && intensity != null;
   /* 복구 화면 — 다시 보내기 · 고치기 · 버리기(내 계정 줄만, 버리기는 한 번 묻는다). 운동 판 · 날짜는 바꾸지 않는다 */
   const openRecovery = () => {
     onClose();
@@ -129,7 +128,7 @@ export function FinishSheet({
         </View>
       ) : null}
       <Pressable
-        onPress={() => canFinish && onFinish()}
+        onPress={() => canFinish && onFinish(intensity)}
         disabled={!canFinish}
         accessibilityRole="button"
         accessibilityState={{ disabled: !canFinish, busy: phase === 'busy' }}
@@ -147,7 +146,7 @@ export function FinishSheet({
   );
 
   return (
-    <Sheet open={open} onClose={onClose} title="운동을 마칠까요?" description="기록한 세트로 오늘 운동을 정리해요." footer={footer} c={c}>
+    <Sheet open={open} onClose={onClose} title="운동을 마칠까요?" footer={footer} c={c}>
       {/* 요약 — 본운동 시간(창을 연 때 기준, 최종 값은 서버가 다시 셈) · 기록한 세트 · 운동 수 */}
       <View style={[st.card, { backgroundColor: c.card, boxShadow: c.float }]}>
         <View style={st.stats}>
@@ -172,7 +171,7 @@ export function FinishSheet({
             <Icon name={listOpen ? 'chevron-up' : 'chevron-down'} size={16} color={c.muted} />
           </Press>
         ) : (
-          <Text style={[st.body, { color: c.muted }]}>기록한 세트가 없어요. 이대로 마치면 오늘 운동 기록은 남지 않아요.</Text>
+          <Text style={[st.body, { color: c.muted }]}>기록한 세트가 없어요.</Text>
         )}
         {listOpen
           ? summarizeSets(sets).map((sum) => {
@@ -202,19 +201,17 @@ export function FinishSheet({
         </View>
       ) : null}
 
-      {/* 체감 강도 — 선택 */}
+      {/* 체감 강도 — 필수 */}
       <View style={{ gap: 6 }}>
         <Text style={[st.section, { color: c.ink }]}>
-          오늘 얼마나 힘들었나요? <Text style={[st.small, { color: c.muted, fontWeight: '400' }]}>선택</Text>
+          오늘 얼마나 힘들었나요? <Text style={[st.small, { color: c.muted, fontWeight: '400' }]}>필수</Text>
         </Text>
         {dailyNote ? (
           <Text style={[st.small, { color: c.muted }]}>
-            오늘 이미 강도({dailyNote.intensity})를 남겼어요. 바꿀 때만 골라요. 고르지 않으면 그대로 둬요.
+            오늘 남긴 강도 {dailyNote.intensity}/10은 지금 고른 값으로 바뀌어요.
           </Text>
-        ) : (
-          <Text style={[st.small, { color: c.muted }]}>오늘 운동 전체를 합쳐서 떠올려 주세요. 나중에 남겨도 돼요.</Text>
-        )}
-        <IntensitySlider value={intensity} onChange={onIntensity} disabled={locked} />
+        ) : null}
+        <IntensitySlider value={intensity} onChange={onIntensity} disabled={locked} label="오늘 운동 강도, 필수" />
       </View>
 
       {/* 메모 — 접혀서 시작 */}
@@ -245,11 +242,6 @@ export function FinishSheet({
             />
             <Text style={[st.tiny, { color: c.muted, textAlign: 'right' }]}>{memo.length}/1000</Text>
           </>
-        ) : null}
-        {memoNeedsIntensity ? (
-          <Text accessibilityRole="alert" style={[st.note, { color: c.warn, backgroundColor: c.warnBg }]}>
-            메모는 강도와 함께 저장돼요. 위에서 강도를 골라 주세요.
-          </Text>
         ) : null}
       </View>
 
@@ -346,7 +338,12 @@ export function FinishSheet({
                       ? `계속 보내지지 않으면 보내는 중인 세트 ${sendingCount}개는 뺄 수 있어요. 보류한 세트 ${heldCount}개는 빼지 않아요. 남아 있으면 마치지 않아요.`
                       : `계속 보내지지 않으면 보내는 중인 세트 ${sendingCount}개를 빼고 마칠 수 있어요. 서버에 이미 들어간 세트인지 먼저 확인하고, 없는 것만 빼요.`}
                   </Text>
-                  <Press accessibilityRole="button" disabled={locked} onPress={onExclude} style={st.inlineBtn}>
+                  <Press
+                    accessibilityRole="button"
+                    disabled={locked || intensity == null}
+                    onPress={() => intensity != null && onExclude(intensity)}
+                    style={[st.inlineBtn, { opacity: locked || intensity == null ? 0.4 : 1 }]}
+                  >
                     <Text style={[st.bodyBold, { color: c.danger }]}>{heldCount > 0 ? '보내는 중인 세트 빼기' : '보내는 중인 세트 빼고 마치기'}</Text>
                   </Press>
                 </>
