@@ -1667,6 +1667,13 @@
         "source": "https://drivelinebaseball.com/blogs/blog/making-movement-changes-weight-room",
         "limit": "개별 선수 사례로 일반적 움직임 연결만 참고, 해당 영상의 직접 지침 아님.",
         "pending": "사용자 편집 결과와 발 움직임 직접 검수 대기. 드리프트 보조 목적 및 썸네일 적합성 추가 확인 필요."
+      },
+      "ending_extension_20261125": {
+        "at": "2026-11-25T18:55:57.614906+09:00",
+        "request": "영상의 끝 부분을 조금 더 보여줘",
+        "result": "원본에서 종점을 3.20초에서 3.45초로 약 0.25초 연장. 원본과 이전 편집본을 보존.",
+        "verification": "저장 후 운영 화면에서 편집본 재생과 반복 켜짐 확인. 사용자 확인 대기.",
+        "advance_authorized": false
       }
     },
     {
