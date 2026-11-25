@@ -65,6 +65,7 @@ import {
 } from '@/lib/engine/day-state';
 import {
   DEFAULT_WORKOUT_MINUTES,
+  WORKOUT_MINUTES_CHOICES,
   minutesChoicesFor,
   nearestMinutesChoice,
 } from '@/lib/report/theme';
@@ -433,9 +434,11 @@ export async function generateTodayPlan(formData: FormData) {
    * 운동은 규칙이 이미 뺀다(prescription.ts 의 rehabEasingParts).
    */
   /* 프로그램 날은 목표 · 시간을 정할 것이 없다(그날 운동은 프로그램이 정했다) — 자동 맞춤의 까닭이 프로그램 날 글을 가리지 않게 안 부른다 */
+  /* 자동 맞춤에서 오늘 시간을 고르면(2026-11-25 김민) 그 시간이 바탕 — 몸 상태로 줄이기만 하고 코치 분 · 한 주 위 끝은 안 건다 */
+  const pickedMinutes = auto && (WORKOUT_MINUTES_CHOICES as readonly number[]).includes(rawMinutes) ? rawMinutes : null;
   const made =
     auto && !programToday && (!plan.halted || plan.rehab)
-      ? await decideAutoSetup({ user, facts, plan, today, strengthDates, coachMinutes: coachMinutesOf(coachSlot), coachConditioning: coachConditioningOf(coachSlot) })
+      ? await decideAutoSetup({ user, facts, plan, today, strengthDates, pickedMinutes, coachMinutes: coachMinutesOf(coachSlot), coachConditioning: coachConditioningOf(coachSlot) })
       : null;
   const choice: {
     goal: string | null;
@@ -630,6 +633,7 @@ async function decideAutoSetup({
   plan,
   today,
   strengthDates,
+  pickedMinutes = null,
   coachMinutes = null,
   coachConditioning = false,
 }: {
@@ -642,6 +646,8 @@ async function decideAutoSetup({
   plan: PitchPlan;
   today: Date;
   strengthDates: StrengthHistory;
+  /** 오늘 고른 시간 — 있으면 코치 분 · 기본 시간 대신 바탕이고 한 주 위 끝을 안 건다 */
+  pickedMinutes?: number | null;
   /** 코치 칸의 분 — 있으면 저장해 둔 기본 시간 대신 이것이 바탕(넘지 않고 줄이기만) */
   coachMinutes?: number | null;
   /** 코치의 체력 날 — 몸 상태 · 고른 운동이 목표를 안 정한 근력 날이면 컨디셔닝(lib/report/auto-setup.ts) */
@@ -652,13 +658,17 @@ async function decideAutoSetup({
     facts,
     plan,
     workout,
-    defaultMinutes: coachMinutes ?? user.dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES,
+    defaultMinutes: pickedMinutes ?? coachMinutes ?? user.dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES,
     lastLowerKey: strengthDates.lower,
     lastUpperKey: strengthDates.upper,
-    weeklyCap: strengthDates.weeklyMinutesCap,
+    weeklyCap: pickedMinutes != null ? null : strengthDates.weeklyMinutesCap,
     coachConditioning,
   });
-  return { ...fence.draft, by: 'rules', rules: coachMinutes != null ? [`코치 계획 ${coachMinutes}분`, ...fence.rules] : fence.rules };
+  return {
+    ...fence.draft,
+    by: 'rules',
+    rules: pickedMinutes == null && coachMinutes != null ? [`코치 계획 ${coachMinutes}분`, ...fence.rules] : fence.rules,
+  };
 }
 
 /* ─────────────────────────── 트레이닝 첫 설정(/training/setup) ─────────────────────────── */

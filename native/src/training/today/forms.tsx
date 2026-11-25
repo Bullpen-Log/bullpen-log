@@ -5,6 +5,7 @@ import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { BODY_PARTS, EXERCISE_EQUIPMENT, INTENSITY_LEVELS, bodyGroups, equipmentDisplayName } from '@/lib/exercise-meta';
 import { equipmentConditions, equipmentSearchTags, equipmentSummary } from '@/lib/equipment-requirements';
 import { matchesSearch, withJosa } from '@/lib/korean';
+import { WORKOUT_MINUTES_CHOICES } from '@/lib/report/theme';
 import type { TodayMake, TodayPickItem } from '@/lib/report/training-today-data';
 import { act, leave } from '~/mechanics/parts';
 import type { Palette } from '~/lib/ui';
@@ -43,6 +44,8 @@ export function PlanForm({
     const today = make.selected.filter((n) => make.equipment.includes(n));
     return make.selected.length > 0 ? today : [...make.equipment];
   });
+  /* 오늘 운동 시간 — null 이면 앱이 정한다(자동) */
+  const [minutes, setMinutes] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,7 +73,11 @@ export function PlanForm({
     setBusy(true);
     setError(null);
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const fields: [string, string][] = [['mode', 'auto'], ...on.map((n) => ['availableEquipment', n] as [string, string])];
+    const fields: [string, string][] = [
+      ['mode', 'auto'],
+      ...(minutes != null ? [['minutes', String(minutes)] as [string, string]] : []),
+      ...on.map((n) => ['availableEquipment', n] as [string, string]),
+    ];
     void a.generate(fields).then((err) => {
       setBusy(false);
       setError(err);
@@ -80,7 +87,6 @@ export function PlanForm({
 
   return (
     <View style={{ gap: 14 }}>
-      <Text style={[s.small, { color: c.muted }]}>목표 · 시간은 앱이 정해요.</Text>
       {clash ? (
         <View style={[s.box, { backgroundColor: c.warnBg, gap: 4 }]}>
           <Text style={[s.bodyBold, { color: c.warn }]}>
@@ -90,8 +96,25 @@ export function PlanForm({
         </View>
       ) : null}
 
+      <Field c={c} label="운동 시간">
+        <View style={s.chips}>
+          {[null, ...WORKOUT_MINUTES_CHOICES].map((m) => (
+            <Chip
+              key={m ?? 'auto'}
+              c={c}
+              label={m == null ? '자동' : `${m}분`}
+              on={minutes === m}
+              onPress={() => {
+                pick();
+                setMinutes(m);
+              }}
+            />
+          ))}
+        </View>
+      </Field>
+
       {make.equipment.length > 0 ? (
-        <Field c={c} label="오늘 쓸 수 있는 장비" hint="없는 것은 꺼 주세요. 다 끄면 맨몸 운동만 나와요.">
+        <Field c={c} label="오늘 쓸 수 있는 장비">
           <View style={s.chips}>
             {make.equipment.map((n) => (
               <Chip

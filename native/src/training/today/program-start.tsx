@@ -76,7 +76,6 @@ export function ProgramStartView({ ps, c, a, initialId }: { ps: TodayProgramStar
     initialId ? { with: ps.programs.find((p) => p.id === initialId) ?? null } : null
   );
   const basicsChoice = ps.programs.find((p) => p.audience === 'basics') ?? null;
-  const adultCount = ps.programs.filter((p) => p.audience === 'adult').length;
   const showBasics = basicsChoice != null && ps.basicsBlocked == null && offersBasics(ps);
   const recommend = showBasics && ps.blocked != null;
 
@@ -106,9 +105,7 @@ export function ProgramStartView({ ps, c, a, initialId }: { ps: TodayProgramStar
       <Press accessibilityRole="button" onPress={() => setOpening({ with: null })} style={[st.entry, { backgroundColor: c.card, boxShadow: c.float }]}>
         <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
           <Text style={[s.bodyBold, { color: c.ink }]}>근력 · 파워 프로그램</Text>
-          <Text style={[s.tiny, { color: c.muted }]}>
-            {ps.blocked ? ps.blocked.reason : `${adultCount}개 중에 골라요 · 모두 ${ps.programs[0]?.weeks.length ?? 4}주`}
-          </Text>
+          {ps.blocked ? <Text style={[s.tiny, { color: c.muted }]}>{ps.blocked.reason}</Text> : null}
         </View>
         <Text style={{ color: c.muted, fontSize: 18 }}>›</Text>
       </Press>
