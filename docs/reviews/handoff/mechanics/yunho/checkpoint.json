@@ -1445,5 +1445,197 @@
     "rule": "어떤 운동인가의 용어 풀이는 이해에 꼭 필요한 어려운 야구 용어에 한정한다. 스위치 풋과 힌지 용어 설명은 불필요. 동작과 안전에 필요한 정보는 남기되 중복·과도하게 풀어쓴 설명을 줄여 간결하고 따라 하기 쉽게 쓴다. 앞으로 검수 시 적용.",
     "current": "10번 설명 수정 저장 및 화면 재확인, 사용자 확인 대기",
     "source": "2026-11-24 사용자 지시"
+  },
+  "medicine_ball_guidance_20261125": {
+    "at": "2026-11-25T19:03:23.940261+09:00",
+    "user_instruction": "메디신볼을 사용하는 운동에는 무게 선택 안내를 모두 넣는다.",
+    "scope": "운영 라이브러리의 숨기지 않은 메디신볼 장비 등록 또는 제목 포함 항목; 투구 드릴 38, 운동 17",
+    "applied": "기존 선택 안내가 없는 드릴 33개와 운동 3개에 자세와 움직임을 유지할 수 있는 무게 선택 및 동작이 흐트러지면 무게를 낮추는 안내를 강도에 추가. 나머지 19개는 기존 선택 안내 유지.",
+    "changed_items": [
+      {
+        "kind": "mechanics",
+        "id": "05c7ab7b-59f5-4fb5-9b78-7b7d72946587",
+        "title": "스플릿 스탠스 스로우 (큰 공)"
+      },
+      {
+        "kind": "mechanics",
+        "id": "6e935572-f617-4822-9276-6b9bffab4be2",
+        "title": "크로스언더 메디신볼 회전 토스"
+      },
+      {
+        "kind": "mechanics",
+        "id": "855fd97a-0d4f-4e09-aaf1-12a09e47c2fb",
+        "title": "드롭스텝 → 슬램"
+      },
+      {
+        "kind": "mechanics",
+        "id": "4f831dc3-c1f5-42c1-8aeb-56c12ddbafa8",
+        "title": "스플릿 스탠스 스로우 + 모멘텀 (작은 공)"
+      },
+      {
+        "kind": "mechanics",
+        "id": "60f5eaa8-7c17-4a57-89ef-1887f1c6681f",
+        "title": "스트레치 스로우 (큰 공)"
+      },
+      {
+        "kind": "mechanics",
+        "id": "f9292553-3959-4cdc-9026-9f488116e015",
+        "title": "뎁스 드롭 힌지 스로우 (큰 공)"
+      },
+      {
+        "kind": "mechanics",
+        "id": "0dbd7386-80a6-40e5-b64e-3826619ee6d4",
+        "title": "헤비 메디신볼 힌지 토스 (큰 공)"
+      },
+      {
+        "kind": "mechanics",
+        "id": "9a506010-cf70-4067-8b52-c5bc67bcd511",
+        "title": "레터럴 힌지 바운드 스로우 (작은 공)"
+      },
+      {
+        "kind": "mechanics",
+        "id": "e7566ad4-1418-430b-b893-675cddc9beed",
+        "title": "힌지 오버더톱 슬램 (큰 공)"
+      },
+      {
+        "kind": "mechanics",
+        "id": "9e3f5bec-99fc-417a-84e2-5503b72b82c4",
+        "title": "오버헤드 앞다리 스로우 + 모멘텀 (큰 공)"
+      },
+      {
+        "kind": "mechanics",
+        "id": "c0bcd6e6-23fa-4396-995c-91e400918782",
+        "title": "회전 앞다리 슬램 (큰 공)"
+      },
+      {
+        "kind": "mechanics",
+        "id": "e611b6aa-ed27-4604-a996-47b40c52b24a",
+        "title": "스플릿 스탠스 스로우 (작은 공)"
+      },
+      {
+        "kind": "mechanics",
+        "id": "aee35d44-3887-40e7-8807-2ef944e4be26",
+        "title": "오버헤드 메디신볼 스로우"
+      },
+      {
+        "kind": "mechanics",
+        "id": "7d115fa4-020e-4d84-ae09-11bad3d0d123",
+        "title": "스위치 풋 드롭 힌지 스로우 (큰 공)"
+      },
+      {
+        "kind": "mechanics",
+        "id": "365824c6-316c-4f95-a3d1-8de12ad2ef89",
+        "title": "드롭스텝 → 회전 토스"
+      },
+      {
+        "kind": "mechanics",
+        "id": "528e7aba-d52c-411c-8064-8134111c525a",
+        "title": "수평 메디신볼 슬램 + 앞다리 신전"
+      },
+      {
+        "kind": "mechanics",
+        "id": "c13756a8-2d2e-4f47-80fc-81a140bfe104",
+        "title": "메디신볼 워킹 와인드업 스로우"
+      },
+      {
+        "kind": "mechanics",
+        "id": "0bb098cf-3120-4118-acb8-18221493c447",
+        "title": "뎁스 드롭 힌지 스로우 (작은 공)"
+      },
+      {
+        "kind": "mechanics",
+        "id": "aa72043b-c690-40f7-bf04-d9f197219fe7",
+        "title": "와이드 스트레치 스로우 (작은 공)"
+      },
+      {
+        "kind": "mechanics",
+        "id": "f0f70f7e-1b6a-479f-9647-d626fea53c3f",
+        "title": "힌지 홉 스로우 (큰 공)"
+      },
+      {
+        "kind": "mechanics",
+        "id": "7096333b-7ba7-4d6b-9f7c-0237098f5039",
+        "title": "오버헤드 앞다리 스로우 + 모멘텀 (작은 공)"
+      },
+      {
+        "kind": "mechanics",
+        "id": "24650c35-468c-4151-b68c-9579458b5452",
+        "title": "스플릿 스탠스 슬램 (큰 공)"
+      },
+      {
+        "kind": "mechanics",
+        "id": "d927b54b-c2b3-4cb4-b814-7f853e6f2a7f",
+        "title": "크로스오버 스텝 → 슬램"
+      },
+      {
+        "kind": "mechanics",
+        "id": "c6f1b0e4-50dc-4c30-8b1d-c978d8d9783a",
+        "title": "싱글렉 포고 홉 → 회전 토스"
+      },
+      {
+        "kind": "mechanics",
+        "id": "4536a33e-b36e-4005-8957-1f026f06d3da",
+        "title": "메디신볼 턴 앤 번 숏풋"
+      },
+      {
+        "kind": "mechanics",
+        "id": "50ca932a-93cb-407a-bf94-49a0c8d00cfe",
+        "title": "스트레치 스로우 (작은 공)"
+      },
+      {
+        "kind": "mechanics",
+        "id": "c9657020-d807-4c7e-ab64-0c425d2a77de",
+        "title": "크로스오버 스텝 → 회전 토스"
+      },
+      {
+        "kind": "mechanics",
+        "id": "8ec0f1b3-dd87-48f0-8a8a-442208243b5f",
+        "title": "앞다리 찹 스로우 (큰 공)"
+      },
+      {
+        "kind": "mechanics",
+        "id": "ce5f020d-1a4b-411d-819f-209ee3c613dd",
+        "title": "힌지 스톰프 스로우 (작은 공)"
+      },
+      {
+        "kind": "mechanics",
+        "id": "079a3513-c094-46a2-882e-526fbad51247",
+        "title": "레터럴 셔플 스로우 (작은 공)"
+      },
+      {
+        "kind": "mechanics",
+        "id": "812ec56d-2141-4dfe-aec8-ab3cb6b14b59",
+        "title": "힌지 스톰프 스로우 (큰 공)"
+      },
+      {
+        "kind": "mechanics",
+        "id": "ec08e662-7661-40e1-8f49-9056047b2824",
+        "title": "와이드 스트레치 스로우 (큰 공)"
+      },
+      {
+        "kind": "mechanics",
+        "id": "e759318e-e89c-426b-a3d9-b41ea412be90",
+        "title": "스위치 풋 드롭 힌지 스로우 (작은 메디신볼)"
+      },
+      {
+        "kind": "exercise",
+        "id": "5b62348b-29cc-4ce7-99e9-c34b581b1bba",
+        "title": "시티드 발목 내·외번 (메디신볼)"
+      },
+      {
+        "kind": "exercise",
+        "id": "9e7dad6e-d00d-4df8-b0d3-f6fda3bb6372",
+        "title": "메디신볼 러시안 트위스트"
+      },
+      {
+        "kind": "exercise",
+        "id": "618b535c-df6a-404b-9c63-5e93497d5464",
+        "title": "싱글렉 메디신볼 RDL"
+      }
+    ],
+    "verification": "36개 설명 DB 저장 후 정확히 다시 읽기 완료. 개별 영상 동작이나 각 기기의 표시까지 일괄 검수한 것은 아님. 현재 11번 판정 대기 유지.",
+    "source": "https://drivelinebaseball.com/blogs/blog/draft-how-and-why-of-baseball-med-ball-exercises",
+    "source_limit": "일반적인 청소년 메디신볼 선택에 대한 코칭 자료; 모든 항목의 특정 중량 근거 아님",
+    "preference": "사용자 요청: 수정과 확인은 가능한 한 코드로 수행하고 오른쪽 창에서 클릭하며 작업하지 않는다. 사용자 영상 직접 확인용 화면은 유지."
   }
 }
