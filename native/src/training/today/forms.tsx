@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
 import { BODY_PARTS, EXERCISE_EQUIPMENT, INTENSITY_LEVELS, bodyGroups, equipmentDisplayName } from '@/lib/exercise-meta';
 import { equipmentConditions, equipmentSearchTags, equipmentSummary } from '@/lib/equipment-requirements';
 import { matchesSearch, withJosa } from '@/lib/korean';
@@ -68,14 +68,14 @@ export function PlanForm({
   const clash = make.clash;
   const pick = () => void Haptics.selectionAsync();
 
-  const submit = () => {
-    if (busy) return;
+  const send = (keepWorkout: boolean) => {
     setBusy(true);
     setError(null);
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const fields: [string, string][] = [
       ['mode', 'auto'],
       ...(minutes != null ? [['minutes', String(minutes)] as [string, string]] : []),
+      ...(keepWorkout ? [['keepWorkout', '1'] as [string, string]] : []),
       ...on.map((n) => ['availableEquipment', n] as [string, string]),
     ];
     void a.generate(fields).then((err) => {
@@ -83,6 +83,21 @@ export function PlanForm({
       setError(err);
       if (!err) onLeave?.();
     });
+  };
+
+  /* 웨이트 · 파워를 골랐는데 부하가 높은 날 — 컨디셔닝을 권하고, 그대로 가면 고른 운동으로 짠다(2026-11-26 김민) */
+  const submit = () => {
+    if (busy) return;
+    const w = make.loadWarn;
+    if (!w) return send(false);
+    Alert.alert(
+      '운동 부하가 높아요',
+      `운동 부하 지수${w.ratio != null ? ` ${w.ratio.toFixed(2)}` : ''}(${w.label}). 오늘은 컨디셔닝 어때요?`,
+      [
+        { text: '컨디셔닝', onPress: () => send(false) },
+        { text: `${w.kind} 그대로`, onPress: () => send(true) },
+      ]
+    );
   };
 
   return (

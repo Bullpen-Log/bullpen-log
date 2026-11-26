@@ -200,6 +200,7 @@ export function decideAutoFence({
   lastUpperKey,
   weeklyCap = null,
   coachConditioning = false,
+  keepPreferred = false,
 }: {
   facts: ReportFacts;
   plan: PitchPlan;
@@ -218,6 +219,8 @@ export function decideAutoFence({
    * 더 가벼운 쪽이라 안전 판정은 그대로). 안 주면 예전과 같다.
    */
   coachConditioning?: boolean;
+  /** 부하가 높다는 창에서 고른 운동(웨이트 · 파워) 그대로를 눌렀다(2026-11-26 김민) — 부하로는 목표 · 시간을 안 바꾼다 */
+  keepPreferred?: boolean;
 }): AutoFence {
   /* 목표마다 오늘 시간의 바탕 — 아래의 '실제로 줄어드는가' 검사와 시간 목록이 같은 값을 본다(위 끝으로 누른 뒤의 값) */
   const baseOf = (goal: string) => baseMinutesFor(goal, defaultMinutes, weeklyCap);
@@ -272,7 +275,10 @@ export function decideAutoFence({
   const clash =
     conflict && preferred ? { kind: preferred, reason: conflict.reason } : null;
 
-  const loadHigh = workout.zone === 'caution' || workout.zone === 'danger';
+  const loadZoneHigh = workout.zone === 'caution' || workout.zone === 'danger';
+  /* 고른 운동을 지키기로 한 날 — 부하는 권유만 했고(만들기 전 창), 목표 · 시간을 바꾸는 신호로 안 쓴다 */
+  const loadKept = loadZoneHigh && keepPreferred && (preferred === '웨이트' || preferred === '파워');
+  const loadHigh = loadZoneHigh && !loadKept;
   const sleepDebt =
     today != null &&
     isShortSleep(today) &&
@@ -327,6 +333,10 @@ export function decideAutoFence({
       );
     }
   } else if (strengthDay && (preferred === '파워' || preferred === '웨이트')) {
+    if (loadKept && workout.zone) {
+      const ratio = workout.ratio != null ? ` ${workout.ratio.toFixed(2)}` : '';
+      rules.push(`운동 부하 지수${ratio}(${ACWR_ZONES[workout.zone].label}) → 그래도 ${preferred}(직접 고름)`);
+    }
     /*
      * 몸 상태와 안 부딪히고 고른 것은 그대로 간다. 고른 사람의 뜻이고,
      * 부딪혔다면 위에서 이미 회복·보조날이 됐다.

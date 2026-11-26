@@ -4198,6 +4198,27 @@ console.log('\n[자동 맞춤] 규칙이 울타리를 치고 초안을 내는가
       plain.day.label !== CONDITIONING_DAY_LABEL,
     `${loaded.day.label} / 평소 ${plain.day.label}`
   );
+  /* 부하 창에서 '웨이트 그대로'(2026-11-26 김민) — 부하로는 목표 · 시간을 안 바꾸고 고른 운동대로, 까닭에 한 줄. 안 누르면 예전처럼 컨디셔닝 */
+  const keptOf = (keepPreferred: boolean) =>
+    decideAutoFence({
+      facts: factsWith({ wants: '웨이트' }),
+      plan: buildPitchPlan(factsWith({ wants: '웨이트' })),
+      workout: signals({ zone: 'danger', ratio: 1.61 }),
+      defaultMinutes: 75,
+      lastLowerKey: null,
+      lastUpperKey: null,
+      keepPreferred,
+    });
+  const kept = keptOf(true);
+  const notKept = keptOf(false);
+  check(
+    "부하 위험 + 웨이트 + '그대로' → 근력 향상 75분, 까닭에 '그래도 웨이트' · 안 누르면 컨디셔닝",
+    kept.draft.goal === '근력 향상' &&
+      kept.draft.minutes === 75 &&
+      kept.rules.some((r) => r.includes('그래도 웨이트')) &&
+      notKept.draft.goal === CONDITIONING_GOAL,
+    `${kept.draft.goal} ${kept.draft.minutes} · ${kept.rules.join(' / ')} · ${notKept.draft.goal}`
+  );
   const loadedLong = fenceFor(
     factsWith({}),
     signals({ zone: 'danger', ratio: 1.7 }),
@@ -24198,7 +24219,7 @@ console.log(
       'P5 주당 (마) 위 끝은 자동 맞춤에만 — 일정 만들기는 2주 기록을 통째로 decideAutoSetup 에 넘기고, 그 안의 decideAutoFence 만 weeklyCap 을 받는다(직접 고르기의 buildDailyPlan 은 안 받음)',
       /* 코치 진행 중이면 그날 칸의 분을 기본 시간으로 넘긴다(2026-11-01 유료 코치 C4 — 2주 기록을 통째로 넘기는 짝은 그대로) · 체력 날(2026-11-21) ·
          오늘 고른 시간이면 위 끝을 안 건다(2026-11-25 — 사람이 고른 시간 그대로, 몸 상태로 줄이기만) */
-      /decideAutoSetup\(\{ user, facts, plan, today, strengthDates(, pickedMinutes)?(, coachMinutes: coachMinutesOf\(coachSlot\)(, coachConditioning: coachConditioningOf\(coachSlot\))?)? \}\)/.test(setup) &&
+      /decideAutoSetup\(\{ user, facts, plan, today, strengthDates(, pickedMinutes)?(, keepPreferred: formData\.get\('keepWorkout'\) === '1')?(, coachMinutes: coachMinutesOf\(coachSlot\)(, coachConditioning: coachConditioningOf\(coachSlot\))?)? \}\)/.test(setup) &&
         /strengthDates: StrengthHistory;/.test(setup) &&
         /weeklyCap: pickedMinutes != null \? null : strengthDates\.weeklyMinutesCap,/.test(setup) &&
         setup.split('weeklyMinutesCap').length - 1 === 1 &&

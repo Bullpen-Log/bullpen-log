@@ -11,6 +11,7 @@ import { TRAINING_LEVELS } from '@/lib/report/personalize';
 import { generateTodayPlan, saveTrainingSettings } from '@/app/actions/training-setup';
 import { SafeForm } from '@/components/safe-form';
 import { Button } from '@/components/ui';
+import { Modal } from '@/components/modal';
 
 /**
  * 트레이닝 설정과 일정 만들기 폼.
@@ -57,6 +58,7 @@ export function PlanForm({
   checkedIn,
   returnTo,
   clash = null,
+  loadWarn = null,
   checkinAction,
 }: {
   /** 오늘 고른 장비. 안 골랐으면 null — 장비를 다 켜서 보인다 */
@@ -82,6 +84,8 @@ export function PlanForm({
    * (통증만은 예외라, 그날은 애초에 이 값이 들어오지 않는다.)
    */
   clash?: { kind: string; reason: string; fallbackLabel: string } | null;
+  /** 웨이트 · 파워를 골랐는데 운동 부하가 높다 — 만들기를 누르면 '컨디셔닝 어때요?' 창(2026-11-26 김민) */
+  loadWarn?: { kind: string; ratio: number | null; label: string } | null;
   /**
    * 체크인이 없을 때 '체크인 먼저' 안에 놓을 것 — 그 자리에서 체크인 창을 여는 단추.
    *
@@ -95,6 +99,15 @@ export function PlanForm({
    * 무엇을 더 해야 하는 화면처럼 보인다.
    */
   const [open, setOpen] = useState(!generated);
+  /* 부하 창 — 누른 만들기 단추를 막고 연다. 고르면 숨은 칸(keepWorkout)을 채워 폼을 보낸다 */
+  const [askLoad, setAskLoad] = useState(false);
+  const keepRef = useRef<HTMLInputElement>(null);
+  const sendWith = (keep: boolean) => {
+    setAskLoad(false);
+    if (!keepRef.current) return;
+    keepRef.current.value = keep ? '1' : '';
+    keepRef.current.form?.requestSubmit();
+  };
 
   /*
    * 오늘 쓸 수 있는 장비 — 처음엔 다 켜 둔다(2026-10-20 김민: "기본으로 모든 장비 선택"). 가진 장비 설정을 없애
@@ -152,6 +165,7 @@ export function PlanForm({
     <SafeForm action={generateTodayPlan} className="space-y-4">
       <input type="hidden" name="returnTo" value={returnTo} />
       <input type="hidden" name="mode" value="auto" />
+      <input ref={keepRef} type="hidden" name="keepWorkout" defaultValue="" />
 
       {/* 체크인 · 카드에서 고른 운동이 몸 상태와 부딪히는 날 — 몸 상태에 맞춰 가고 까닭을 말한다 */}
       {clash && (
@@ -180,13 +194,37 @@ export function PlanForm({
         selected={equipmentSelected}
       />
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div
+        className="flex flex-wrap items-center gap-3"
+        onClickCapture={(e) => {
+          if (!loadWarn || (e.target as HTMLElement).closest('button[type="submit"]') == null) return;
+          e.preventDefault();
+          setAskLoad(true);
+        }}
+      >
         <SubmitButton
           label={generated ? '자동 맞춤으로 다시 만들기' : '자동 맞춤으로 만들기'}
           busy="오늘 몸 상태에 맞추고 있어요…"
         />
         {cancel}
       </div>
+      {loadWarn && (
+        <Modal open={askLoad} onClose={() => setAskLoad(false)} title="운동 부하가 높아요">
+          <div className="space-y-5">
+            <p className="text-sm text-ink">
+              운동 부하 지수{loadWarn.ratio != null ? ` ${loadWarn.ratio.toFixed(2)}` : ''}({loadWarn.label}). 오늘은 컨디셔닝 어때요?
+            </p>
+            <div className="flex flex-col gap-2 desk:flex-row desk:justify-end">
+              <Button type="button" variant="secondary" onClick={() => sendWith(false)}>
+                컨디셔닝
+              </Button>
+              <Button type="button" onClick={() => sendWith(true)}>
+                {loadWarn.kind} 그대로
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </SafeForm>
   );
 }

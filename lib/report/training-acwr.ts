@@ -5,7 +5,7 @@ import { appNow } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { buildTrainingLoad, type TrainingLoad } from '@/lib/training-load';
 import { estimateTrainingDailyLoad } from '@/lib/baseline';
-import { toDateKey } from '@/lib/pitch-stats';
+import { ACWR_ZONES, toDateKey } from '@/lib/pitch-stats';
 import { ARM_CARE_CATEGORY } from '@/lib/training-volume';
 import { isRehabCheck } from '@/lib/armcare/rehab';
 import { loadRehabPeriods } from '@/lib/armcare/rehab-store';
@@ -122,4 +122,19 @@ export async function trainingLoad(
 
   /* 견줄 수 없어 배수에서 뺀 무게 줄 수를 함께 싣는다(화면이 '무게 없이 셈'을 말할 수 있게) — 지수 계산 자체는 그대로 */
   return { ...buildTrainingLoad(logs, notes, today, seed), weightBasis: { compared, withheld } };
+}
+
+/**
+ * 오늘 웨이트 · 파워를 골랐는데 운동 부하가 높다(주의 · 위험) — 만들기를 누르면 '컨디셔닝 어때요?' 창을 띄운다(2026-11-26 김민).
+ * 판단은 자동 맞춤의 loadHigh(lib/report/auto-setup.ts)와 같은 구간. 창에서 그대로 가면 keepWorkout 으로 고른 운동을 지킨다.
+ */
+export async function loadHighWarnOf(
+  user: UserForTrainingLoad,
+  today: Date,
+  preferredWorkout: string | null
+): Promise<{ kind: string; ratio: number | null; label: string } | null> {
+  if (preferredWorkout !== '웨이트' && preferredWorkout !== '파워') return null;
+  const w = await trainingLoad(user, today);
+  if (w.zone !== 'caution' && w.zone !== 'danger') return null;
+  return { kind: preferredWorkout, ratio: w.ratio, label: ACWR_ZONES[w.zone].label };
 }

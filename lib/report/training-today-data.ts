@@ -1,4 +1,5 @@
 import 'server-only';
+import { loadHighWarnOf } from '@/lib/report/training-acwr';
 import { missingEquipment, requirementLabel } from '@/lib/equipment-requirements';
 import { forSummary, forTonnage, gateRows, planContextOf } from '@/lib/workout/load/plan-gate';
 import { readSetLoads } from '@/lib/workout/load/server';
@@ -103,6 +104,8 @@ export type TodayMake = {
   selected: string[];
   /** 고른 운동 종류가 몸 상태와 부딪힘 */
   clash: { kind: string; reason: string; fallbackLabel: string } | null;
+  /** 웨이트 · 파워를 골랐는데 운동 부하가 높다 — 만들기를 누르면 '컨디셔닝 어때요?' 창(그대로 가면 keepWorkout) */
+  loadWarn: { kind: string; ratio: number | null; label: string } | null;
   /** 직접 고르기 칸(웹 PlanForm 의 minutes · defaultMinutes · goal · focus · preferredWorkout · effortSpike · startMode) — 이번에 쓸 시간 */
   minutes: number;
   /** 내 정보에 저장한 기본 시간 */
@@ -206,6 +209,9 @@ export async function loadTrainingToday(user: TodayUser, today: Date): Promise<T
     }),
   ]);
   const { savedPlan, picked, doneIds, shownPicks, droppedForSafety } = core;
+  /* 부딪힘(몸 상태)이 있으면 그 경고가 먼저 — 부하 창은 안 띄운다 */
+  const loadWarnP = core.workoutClash ? Promise.resolve(null) : loadHighWarnOf(user, today, core.preferredWorkout);
+  loadWarnP.catch(() => {});
   /*
    * 그릴 운동만 자세히 — 일정에 담긴 것과 오늘 마친 것(웹과 같은 까닭). 지난 양 · 오늘 마친 세트는 프로그램과 상관없어 여기서 바로
    * 읽기 시작한다(예전엔 프로그램 줄 → 프로그램 하루를 다 기다린 뒤 읽어 왕복이 하나 더 쌓였다, 2026-10-18 앱 화면 속도).
@@ -339,6 +345,7 @@ export async function loadTrainingToday(user: TodayUser, today: Date): Promise<T
   })).filter((g) => g.items.length > 0);
 
   const savedMinutes = user.dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES;
+  const loadWarn = await loadWarnP;
   const make = (minutes: number): TodayMake => ({
     checkedIn: core.hasCheckinToday,
     /* 가진 장비 설정을 없앴다(2026-10-20) — 묻지 않고, 오늘 칸에 모든 장비를 켜고 시작한다(앱 PlanForm) */
@@ -346,6 +353,7 @@ export async function loadTrainingToday(user: TodayUser, today: Date): Promise<T
     equipment: [...SELECTABLE_EQUIPMENT],
     selected: core.todaySetup?.availableEquipment.length ? core.todaySetup.availableEquipment : [],
     clash: core.workoutClash,
+    loadWarn,
     minutes,
     defaultMinutes: savedMinutes,
     goal: user.trainingGoal,

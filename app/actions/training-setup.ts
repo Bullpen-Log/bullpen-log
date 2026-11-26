@@ -438,7 +438,7 @@ export async function generateTodayPlan(formData: FormData) {
   const pickedMinutes = auto && (WORKOUT_MINUTES_CHOICES as readonly number[]).includes(rawMinutes) ? rawMinutes : null;
   const made =
     auto && !programToday && (!plan.halted || plan.rehab)
-      ? await decideAutoSetup({ user, facts, plan, today, strengthDates, pickedMinutes, coachMinutes: coachMinutesOf(coachSlot), coachConditioning: coachConditioningOf(coachSlot) })
+      ? await decideAutoSetup({ user, facts, plan, today, strengthDates, pickedMinutes, keepPreferred: formData.get('keepWorkout') === '1', coachMinutes: coachMinutesOf(coachSlot), coachConditioning: coachConditioningOf(coachSlot) })
       : null;
   const choice: {
     goal: string | null;
@@ -634,6 +634,7 @@ async function decideAutoSetup({
   today,
   strengthDates,
   pickedMinutes = null,
+  keepPreferred = false,
   coachMinutes = null,
   coachConditioning = false,
 }: {
@@ -648,6 +649,8 @@ async function decideAutoSetup({
   strengthDates: StrengthHistory;
   /** 오늘 고른 시간 — 있으면 코치 분 · 기본 시간 대신 바탕이고 한 주 위 끝을 안 건다 */
   pickedMinutes?: number | null;
+  /** 부하가 높다는 창에서 고른 운동 그대로를 눌렀다 */
+  keepPreferred?: boolean;
   /** 코치 칸의 분 — 있으면 저장해 둔 기본 시간 대신 이것이 바탕(넘지 않고 줄이기만) */
   coachMinutes?: number | null;
   /** 코치의 체력 날 — 몸 상태 · 고른 운동이 목표를 안 정한 근력 날이면 컨디셔닝(lib/report/auto-setup.ts) */
@@ -663,6 +666,7 @@ async function decideAutoSetup({
     lastUpperKey: strengthDates.upper,
     weeklyCap: pickedMinutes != null ? null : strengthDates.weeklyMinutesCap,
     coachConditioning,
+    keepPreferred,
   });
   return {
     ...fence.draft,

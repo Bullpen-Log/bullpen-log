@@ -14,6 +14,7 @@ import { formatPrescription } from '@/lib/exercise-meta';
 import { planPrescription } from '@/lib/report/volume';
 import { pickReasonLineOf } from '@/lib/report/score';
 import { loadTodayCore } from '@/lib/report/today-data';
+import { loadHighWarnOf } from '@/lib/report/training-acwr';
 import { toDateKey } from '@/lib/pitch-stats';
 import { TRAINING_SCREEN_TEXT, trainingScreenOf } from '@/lib/report/training-screen';
 import { remakeFieldsOf, stateNoticeOf } from '@/lib/report/state-notice';
@@ -306,6 +307,9 @@ export default async function TrainingPage({
     }),
   ]);
   const { savedPlan, picked, doneIds, shownPicks, droppedForSafety } = core;
+  /* 웨이트 · 파워를 골랐는데 부하가 높은 날 — 만들기 전 '컨디셔닝 어때요?' 창(부딪힘 경고가 있으면 그것이 먼저) */
+  const loadWarnP = core.workoutClash ? Promise.resolve(null) : loadHighWarnOf(user, today, core.preferredWorkout);
+  loadWarnP.catch(() => {});
   /*
    * 근력 · 파워 프로그램(lib/program) — 진행 중이면 맨 위 카드, 끝난 지 사흘 안이면 결과 카드, 아니면 입구 한 줄(설계 §13-1).
    * 카드의 목록 · 무게는 운동 시작(app/actions/program.ts)이 얼리는 것과 같은 함수에서 나온다.
@@ -564,6 +568,7 @@ export default async function TrainingPage({
     };
   });
 
+  const loadWarn = await loadWarnP;
   /** 홈과 트레이닝 둘 다에서 만들 수 있다. 여기서 만들면 여기로 돌아온다. */
   /*
    * '오늘 하고 싶은 운동' 카드(체크인 3판, 2026-10-13) — 체크인 상세에서 옮겨 온 질문. 일정을 만들 수 있는 날(체크인이 있는 날)에만
@@ -586,6 +591,7 @@ export default async function TrainingPage({
       checkedIn={core.hasCheckinToday}
       returnTo="/training"
       clash={core.workoutClash}
+      loadWarn={loadWarn}
       /*
        * 체크인이 없으면 이 자리에서 체크인 창을 연다 — 홈으로 보내지 않는다.
        * 상세 체크인의 '하고 싶은 부위'는 라이브러리에 실제로 있는 부위만 고른다(홈과 같다).
