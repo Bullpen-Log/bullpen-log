@@ -1,7 +1,7 @@
 import { type Href } from 'expo-router';
 import { pushOpen } from '~/shell/release';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Animated, { Easing, useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
@@ -20,28 +20,18 @@ import { Press } from '~/shell/press';
 import { AllDone } from './all-done';
 import { CameraSwipe } from './camera-swipe';
 import { useUnreadNotifications } from './notifications';
-import { READABLE, READABLE_WIDE, columnCell, columnRow, useColumns } from '~/lib/layout';
+import { READABLE } from '~/lib/layout';
 import { useFocusRefresh, useOnTabActive, useRetapTop, useTabActive } from '~/shell/tab-pager';
 import { SpacePickButton } from '~/org/space-pick';
 import { MenuButton } from '~/shell/menu-button';
 import { useSpace } from '~/org/space-store';
-import { useBallRotation } from './ball/ball';
-import { HomeHero } from './hero';
-import { nextAction, todayCount, type NextAction } from './plan-model';
-import { WeekCard } from './week-card';
-import { recordsHref } from '~/records/intent';
-import { TodayPlan } from './today-plan';
-import { CoachHomeCard } from '~/coach/home-card';
+import { todayCount } from './plan-model';
+import { recordsHref, type RecordsCategory } from '~/records/intent';
+import { DailyOverview } from './daily-overview';
 
 /**
- * 홈 탭(앱 화면) — 2026-10-27 승인 시안 '시안 1 볼 컨트롤 + 새 하단', 2026-10-29 확정 디자인으로 아래만 바꿨다:
- *   위 막대 → (통증 · 회복 안내) → 히어로(큰 날짜 · 입체 공 · 지금 할 일 하나) → 오늘 플랜 → 이번 주(요일 일곱 칸, week-card.tsx).
- * 오늘 플랜까지는 그대로 두고, 기록 보드(최근 투구 · 최고 구속 · 내 영상 · 구속 측정 · 분석)는 걷었다 — 상세 이력은 기록 탭, 측정 도구는 투구 탭.
- * (시안의 내 라커 — 공 꾸미기 · 스티커 · 공 잡기 — 는 2026-10-27 김민이 뺐다. 코드는 git 6f090f09 에.)
- * 예전 홈의 링 셋 · 요약 칸 · 달력은 이렇게 옮겼다: 링의 셈 → 위 막대의 '한 수 / 셀 수'와 히어로 · 오늘 플랜, 요약 칸의 투구 · 구속 · 부하 · 컨디션 →
- * 오늘 플랜 · 이번 주(app.loadAppHome 의 board), 달력 · 그날 칸 · 일정 → 기록 탭(날짜 · '이번 주 N일')과 그날 자세히(app/calendar.tsx).
- * 숫자는 서버 셈(app.loadAppHome) 그대로. 받아 둔 값을 먼저 그리고 뒤에서 새로 받는다(검토 D10). 새로 받다 실패하면 받아 둔 값 위에 한 줄로 알린다.
- * 완료 축하는 이번에 '안 다 함 → 다 함'을 직접 본 때만 — 앱을 켤 때 이미 다 해 둔 날은 조용히.
+ * 홈 — 날짜, 체크인·투구·운동 상태, 투구·운동 카드, 이번 주 활동 순서.
+ * 서버의 기록과 완료 상태를 표시하고 카드에서 기존 입력 화면을 연다.
  */
 let cached: AppHome | null = null;
 /** 홈이 마지막으로 받은 값 — 전체 기록 · 기록 달력 시트가 읽는다(없으면 null) */
@@ -70,12 +60,14 @@ export function HomeTab({
 }) {
   const c = usePalette();
   const inset = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const side = width >= 400 ? 28 : width >= 360 ? 22 : 16;
   /* 받아 둔 홈은 오늘 것일 때만 먼저(자정을 넘겨 켜 둔 앱이 어제 것을 안 보이게) */
   const [home, setHome] = useState<AppHome | null>(() => (cached?.today === today ? cached : null));
   const [error, setError] = useState<string | null>(null);
-  /* 홈 보드가 투구 기록을 읽지는 않지만, 달 묶음을 데워 두면 기록 달력 · 그날 화면이 바로 뜬다(예전 홈 달력과 같은 조회) */
-  const { reload } = useMonth(monthOf(today));
-  const rotation = useBallRotation();
+  const [selection, setSelection] = useState({ today, date: today });
+  const selected = selection.today === today ? selection.date : today;
+  const { logs, reload } = useMonth(monthOf(selected));
   /* 축하를 틀 날 — 그날 직접 본 전이에만(다음 날로 넘어가면 저절로 꺼진다) */
   const [playDay, setPlayDay] = useState<string | null>(null);
   const seen = useRef<Seen | null>(null);
@@ -188,8 +180,6 @@ export function HomeTab({
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
   /* 지금 탭(홈)을 다시 누르면 맨 위로 */
   useRetapTop(() => scrollRef.current?.scrollTo({ y: 0, animated: true }));
-  /* 넓은 창(아이패드 가로)이면 두 칸 — 왼쪽 오늘(히어로 · 오늘 플랜), 오른쪽 이번 주 */
-  const cols = useColumns({ ratio: [1, 1], gap: SPACE.section });
 
   const openNotice = () =>
     pushOpen({
@@ -206,18 +196,10 @@ export function HomeTab({
     const w = home?.workout;
     /* 다 마친 오늘 운동 읽기는 기록 탭 오늘 · 트레이닝으로(PITCH-RECORDS-MINIMAL01 R2) — 시작 · 이어서는 트레이닝 화면 그대로 */
     if (w && w.total > 0 && w.done >= w.total) return onTab(recordsHref({ date: today, category: 'training' }));
-    pushOpen({ pathname: '/training-today' as Href as never, params: { today } });
+    pushOpen({ pathname: '/training-today' as Href as never, params: { today, fromHome: '1' } });
   };
   /* 기록 탭의 그날 · 전체로 — 껍데기가 주소를 기록 탭 부탁(shell/tab-intent)으로 바꿔 넘기고 기록 탭을 연다 */
-  const openRecords = (date: string) => onTab(recordsHref({ date }));
-  const runAction = (a: NextAction) => {
-    if (a.key === 'painCheck' || a.key === 'checkin') return openCheckin();
-    if (a.key === 'pitchSetup' || a.key === 'pitch') return openPitch();
-    if (a.key === 'workout') return openWorkout();
-    openRecords(today);
-  };
-  const action = home ? nextAction(home) : null;
-  const count = home ? todayCount(home) : null;
+  const openRecords = (date: string, category?: RecordsCategory) => onTab(recordsHref({ date, category }));
 
   const warnings =
     home?.painWords || home?.recovering ? (
@@ -244,9 +226,9 @@ export function HomeTab({
           onScroll={onScroll}
           scrollEventThrottle={16}
           style={{ flex: 1 }}
-          contentContainerStyle={[{ paddingTop: inset.top + BAR_H + 12, paddingBottom: bottom + 24, paddingHorizontal: SPACE.side }, READABLE_WIDE]}
+          contentContainerStyle={{ paddingTop: inset.top + BAR_H + 12, paddingBottom: bottom + 24, paddingHorizontal: side }}
         >
-          <View onLayout={cols.onLayout}>
+          <View style={READABLE}>
             {error && home ? (
               <Animated.View entering={fadeIn} style={[styles.stale, { backgroundColor: c.card }]}>
                 <Text style={{ flex: 1, color: c.muted, fontSize: 13 }}>새로 받지 못했어요. 마지막으로 받은 기록이에요.</Text>
@@ -255,25 +237,23 @@ export function HomeTab({
                 </Press>
               </Animated.View>
             ) : null}
-            {home && action && count ? (
-              <View style={[columnRow(cols.two, SPACE.section), !cols.two && READABLE]}>
-                <View style={columnCell(cols.two, 1, 22)}>
-                  {warnings}
-                  <HomeHero today={today} action={action} onAction={() => runAction(action)} rotation={rotation} />
-                  <TodayPlan
-                    home={home}
-                    next={action.key}
-                    onPitch={openPitch}
-                    onWorkout={openWorkout}
-                    onCheckin={() => openCheckin()}
-                    onLoad={() => go('/analysis?view=pitch')}
-                  />
-                  <CoachHomeCard onOpen={() => onTab('/coach')} />
-                  {home.goodNote ? <GoodDayNote note={home.goodNote} /> : null}
-                </View>
-                <View style={columnCell(cols.two, 1, 22)}>
-                  <WeekCard board={home.board} today={today} onWeek={() => openRecords(today)} onDay={openRecords} />
-                </View>
+            {home ? (
+              <View>
+                <DailyOverview
+                  home={home}
+                  today={today}
+                  selected={selected}
+                  pitchMonth={logs}
+                  onSelect={date => setSelection({ today, date })}
+                  notices={warnings}
+                  onCheckin={openCheckin}
+                  onPitch={openPitch}
+                  onWorkout={openWorkout}
+                  onRecords={openRecords}
+                />
+                {home.goodNote ? (
+                  <View style={{ marginTop: 18 }}><GoodDayNote note={home.goodNote} /></View>
+                ) : null}
               </View>
             ) : error ? (
               <View style={[READABLE, { gap: 12, alignItems: 'flex-start' }]}>
@@ -283,19 +263,20 @@ export function HomeTab({
                 </Press>
               </View>
             ) : (
-              /* 처음 불러오는 동안 — 히어로 · 카드 둘의 뼈대가 숨 쉬듯(받아 둔 값이 있으면 이 판은 안 뜬다) */
+              /* 날짜, 완료 상태, 액션 카드 순으로 자리 표시 */
               <View style={[READABLE, { gap: 22 }]}>
-                <Pulse style={[styles.skel, { height: 386, borderRadius: 24, backgroundColor: c.line }]} />
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <Pulse style={[styles.skel, { flex: 1, height: 132, backgroundColor: c.line }]} />
-                  <Pulse style={[styles.skel, { flex: 1, height: 132, backgroundColor: c.line }]} />
+                <Pulse style={[styles.skel, { height: 76, backgroundColor: c.line }]} />
+                <Pulse style={[styles.skel, { height: 69, backgroundColor: c.line }]} />
+                <View style={{ flexDirection: 'row', gap: 18 }}>
+                  <Pulse style={[styles.skel, { flex: 1, aspectRatio: 178 / 190, backgroundColor: c.line }]} />
+                  <Pulse style={[styles.skel, { flex: 1, aspectRatio: 178 / 190, backgroundColor: c.line }]} />
                 </View>
               </View>
             )}
           </View>
         </Animated.ScrollView>
 
-        {/* 위 막대 — 홈은 로고가 가운데, 오른쪽은 내 영상 · 알림 종(오늘 셈 알약은 2026-10-28 김민이 뺐다). 시계 자리는 늘 막대 색으로 덮는다 */}
+        {/* 로고는 내용의 왼쪽 여백, 알림과 메뉴는 오른쪽 */}
         <Animated.View pointerEvents="none" style={[styles.tail, { top: inset.top + BAR_H }, tailStyle]}>
           <Svg width="100%" height={16}>
             <Defs>
@@ -308,13 +289,13 @@ export function HomeTab({
           </Svg>
         </Animated.View>
         <View pointerEvents="none" style={[styles.clock, { height: inset.top, backgroundColor: c.page }]} />
-        <Animated.View style={[styles.bar, { top: inset.top, backgroundColor: c.page }, barStyle]}>
+        <Animated.View style={[styles.bar, { top: inset.top, paddingLeft: side, backgroundColor: c.page }, barStyle]}>
+          <Wordmark />
           {spaces.length ? (
             <View style={styles.pick}>
               <SpacePickButton label="내 싱커" compact c={c} />
             </View>
           ) : null}
-          <Wordmark />
           {/* 오른쪽은 알림 종 · 전체 메뉴(☰ — 하단 탭의 더보기를 옮겼다, 2026-10-29). 내 영상은 기록 탭 아래 칸으로 갔다 */}
           <Pressable
             accessibilityRole="button"
@@ -368,10 +349,10 @@ const BAR_H = 56;
 const styles = StyleSheet.create({
   clock: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 3 },
   tail: { position: 'absolute', left: 0, right: 0, height: 16, zIndex: 1 },
-  bar: { position: 'absolute', left: 0, right: 0, height: BAR_H, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
+  bar: { position: 'absolute', left: 0, right: 0, height: BAR_H, flexDirection: 'row', alignItems: 'center', gap: 12, zIndex: 2 },
   menu: { position: 'absolute', right: 14 },
   bell: { position: 'absolute', right: 12, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  pick: { position: 'absolute', left: 12, minHeight: 44, justifyContent: 'center' },
+  pick: { flexShrink: 1, maxWidth: '39%', minHeight: 44, justifyContent: 'center' },
   dot: { position: 'absolute', right: 10, top: 10, width: 9, height: 9, borderRadius: 5, borderWidth: 2 },
   card: { borderRadius: 20, padding: SPACE.pad, gap: 10 },
   retry: { minHeight: 44, paddingHorizontal: 20, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },

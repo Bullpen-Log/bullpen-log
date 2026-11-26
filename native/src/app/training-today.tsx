@@ -50,7 +50,7 @@ export default function TrainingTodayScreen() {
   const c = usePalette();
   const inset = useSafeAreaInsets();
   /* program — 트레이닝 탭 프로그램 커버에서 왔으면 그 프로그램 소개를 편 채로(training/program-cards.tsx) */
-  const params = useLocalSearchParams<{ today?: string; program?: string }>();
+  const params = useLocalSearchParams<{ today?: string; program?: string; fromHome?: string }>();
   /* 트레이닝 탭이 서버의 오늘을 넘기면 그것(시험 계정 날짜까지), 없으면 폰의 오늘 — 받아 둔 값이 그날 것일 때만 먼저 보인다 */
   const today = typeof params.today === 'string' ? params.today : toDateKey(new Date());
   const [data, setData] = useState<TrainingToday | null>(() => (remembered()?.today === today ? remembered() : null));
@@ -214,6 +214,24 @@ export default function TrainingTodayScreen() {
 
   const b = data.body;
   const wide = cols.two;
+  const makeCard = b.kind === 'make' || b.kind === 'empty' ? (
+    <MakeCard
+      prefs={data.prefs}
+      today={data.today}
+      make={b.make}
+      head={b.kind === 'make' ? '오늘 운동 만들기' : '만들어 둔 일정에 남은 운동이 없어요'}
+      note={
+        b.kind === 'make'
+          ? b.stale
+          : b.dropped
+            ? '몸 상태가 바뀌어 무리인 운동이 모두 빠졌어요.'
+            : '지금 할 수 있는 운동이 아직 없어요.'
+      }
+      c={c}
+      a={actions}
+    />
+  ) : null;
+  const showMakeFirst = params.fromHome === '1' && makeCard !== null && !data.done;
 
   return (
     <View style={[s.fill, { backgroundColor: c.page }]}>
@@ -240,12 +258,14 @@ export default function TrainingTodayScreen() {
         <View style={columnCell(wide, 1, GAP)}>
         {heading}
         {failed ? <Text style={[s.small, { color: c.danger }]}>{failed}</Text> : null}
+        {showMakeFirst && data.notice ? <NoticeBand notice={data.notice} fields={data.remakeFields} c={c} a={actions} /> : null}
+        {showMakeFirst ? makeCard : null}
         <CoachNote />
 
         {data.programCard ? <ProgramCardView p={data.programCard} c={c} a={actions} /> : null}
         {data.programDone ? <ProgramDoneView result={data.programDone} c={c} /> : null}
 
-        {data.notice ? <NoticeBand notice={data.notice} fields={data.remakeFields} c={c} a={actions} /> : null}
+        {!showMakeFirst && data.notice ? <NoticeBand notice={data.notice} fields={data.remakeFields} c={c} a={actions} /> : null}
 
         {data.done ? (
           <DoneView done={data.done} intensity={data.note.intensity} canResume={data.screen.canResume} c={c} a={actions} />
@@ -267,25 +287,9 @@ export default function TrainingTodayScreen() {
 
         {b.kind === 'halted' ? (
           <HaltedCard reason={b.reason} c={c} a={actions} />
-        ) : b.kind === 'program' ? null /* 프로그램 날은 위 카드가 다 말한다 — 같은 말 한 줄은 뺐다(2026-10-20 김민) */ : b.kind === 'make' || b.kind === 'empty' ? (
-          <MakeCard
-            prefs={data.prefs}
-            today={data.today}
-            make={b.make}
-            head={b.kind === 'make' ? '오늘 운동 만들기' : '만들어 둔 일정에 남은 운동이 없어요'}
-            note={
-              b.kind === 'make'
-                ? b.stale
-                : b.dropped
-                  ? '몸 상태가 바뀌어 무리인 운동이 모두 빠졌어요.'
-                  : '지금 할 수 있는 운동이 아직 없어요.'
-            }
-            c={c}
-            a={actions}
-          />
         ) : b.kind === 'plan' ? (
           <PlanBody plan={b.plan} make={b.make} data={data} c={c} a={actions} />
-        ) : null}
+        ) : showMakeFirst ? null : makeCard}
         </View>
         </View>
         </View>

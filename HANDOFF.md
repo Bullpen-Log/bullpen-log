@@ -1,3 +1,8 @@
+## Mac mini release lead and Kim Min — 2026-11-27 · MacBook UX — Sinker home
+
+- The approved navy home shows the swipeable calendar, daily completion, baseball and workout cards, and weekly activity. An action opens the existing input or record view directly. The workout card puts the existing creation form first when a plan is needed.
+- Native types and scoped lint passed. Home rules (70), pitch entry (93), records navigation (60), and the stubbed home state and action checks passed. The iOS runtime fingerprint matches the current update runtime. Physical iPhone rendering and client-side receipt have not been verified.
+
 ## Mac mini release lead and Kim Min — 2026-11-25 · MacBook GPT — Training and armcare
 
 - Training now requires a perceived intensity to finish and keeps the memo optional. The server still recovers previously closed sessions without requiring a second rating. The reviewed training and armcare screens have less explanatory copy.
