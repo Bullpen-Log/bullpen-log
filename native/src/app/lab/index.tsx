@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import { type Href, router } from 'expo-router';
+import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
@@ -26,6 +26,7 @@ type Loaded = Awaited<ReturnType<typeof loadAppLabList>>;
 const RECENT = 3;
 
 export default function LabHomeScreen() {
+  const { fromHome } = useLocalSearchParams<{ fromHome?: string }>();
   const c = usePalette();
   const inset = useSafeAreaInsets();
   const { data, error, reload } = useLoad<Loaded>('pitch-lab.loadAppLabList', 'mine');
@@ -33,7 +34,7 @@ export default function LabHomeScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
       <Bar
-        back="투구"
+        back={fromHome === '1' ? '홈' : '투구'}
         title="3D 동작 분석"
         right={data?.isAdmin ? <BarButton label="샘플" onPress={() => router.push('/lab/samples' as Href)} c={c} /> : undefined}
         c={c}

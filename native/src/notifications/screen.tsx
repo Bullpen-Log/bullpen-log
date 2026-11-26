@@ -12,7 +12,7 @@ import { cacheEpoch } from '~/lib/store';
 import { SITE_URL } from '~/lib/site';
 import { usePalette } from '~/lib/ui';
 import { Icon, type IconName } from '~/shell/icon';
-import { canOpen } from '~/shell/release';
+import { canOpen, useRelease } from '~/shell/release';
 import { Press } from '~/shell/press';
 import { leaveTo, openCheckin } from '~/shell/web-nav';
 import { recordsHref } from '~/records/intent';
@@ -39,7 +39,10 @@ export default function NoticeScreen() {
   const checkinDone = current?.checkinDone ?? params.checkin === '1',
     pitchDone = current?.pitchDone ?? params.pitch === '1',
     locked = current?.pitchLocked ?? params.locked === '1';
-  const remaining = Number(!checkinDone) + Number(!pitchDone);
+  const release = useRelease();
+  const pitchHref = locked ? '/setup/pitch' : `/pitch/${date}`;
+  const pitchPending = !pitchDone && canOpen(pitchHref, release);
+  const remaining = Number(!checkinDone) + Number(pitchPending);
   const s = useInbox();
   const [sheet, setSheet] = useState<'tasks' | 'blocked' | InboxItem | null>(null);
   const [denied, setDenied] = useState(false);
@@ -156,7 +159,7 @@ export default function NoticeScreen() {
           <Text style={{ color: c.muted, fontSize: 13 }}>
             {[
               !checkinDone ? '체크인' : null,
-              !pitchDone ? (locked ? '투구 기록 설정' : '투구 기록') : null,
+              pitchPending ? (locked ? '투구 기록 설정' : '투구 기록') : null,
             ]
               .filter(Boolean)
               .join(' · ')}
@@ -275,12 +278,12 @@ export default function NoticeScreen() {
                     openCheckin();
                   })
                 : null}
-              {!pitchDone
+              {pitchPending
                 ? task(
                     locked ? '투구 기록 설정' : '투구 기록',
                     locked ? '기본 정보 확인' : '기록 · 휴식',
                     'circle-dot',
-                    () => go(locked ? '/setup/pitch' : `/pitch/${date}`)
+                    () => go(pitchHref)
                   )
                 : null}
               <View

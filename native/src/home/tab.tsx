@@ -1,5 +1,5 @@
-import { type Href } from 'expo-router';
-import { pushOpen } from '~/shell/release';
+import { type Href, useIsFocused } from 'expo-router';
+import { canOpen, pushOpen, useRelease } from '~/shell/release';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Animated, { Easing, useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -11,7 +11,10 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { Wordmark } from '~/shell/wordmark';
 import { fadeIn, Pulse } from '~/shell/motion';
 import { leaveTo, openCheckin } from '~/shell/web-nav';
-import { RpcError } from '~/lib/rpc';
+import { lastWriteAt, rpc, RpcError } from '~/lib/rpc';
+import { loadMe } from '~/pitch/api';
+import { whenStill } from '~/shell/transition';
+import type { loadCoachToday } from '@/app/actions/coach';
 import { monthOf, reloadFeatured, reloadVelocityDays, useMonth } from '~/pitch/store';
 import { loadHome, type AppHome } from './api';
 import { layoutMove, resetDayCache } from './day-card';
@@ -28,9 +31,10 @@ import { useSpace } from '~/org/space-store';
 import { todayCount } from './plan-model';
 import { recordsHref, type RecordsCategory } from '~/records/intent';
 import { DailyOverview } from './daily-overview';
+import { HighlightCard, type HomeHighlight } from './highlight-card';
 
 /**
- * 홈 — 날짜, 체크인·투구·운동 상태, 투구·운동 카드, 이번 주 활동 순서.
+ * 홈 — 날짜, 체크인·투구·운동 상태, 하이라이트, 투구·운동 카드 순서.
  * 서버의 기록과 완료 상태를 표시하고 카드에서 기존 입력 화면을 연다.
  */
 let cached: AppHome | null = null;
@@ -45,6 +49,7 @@ export const resetHomeCache = () => {
 };
 
 type Seen = { all: boolean; epoch: number; day: string };
+type CoachSpotlight = { day: string; epoch: number; readAt: number; line: string | null };
 
 export function HomeTab({
   today,
@@ -189,17 +194,85 @@ export function HomeTab({
   const pending = useUnreadNotifications();
   const { spaces } = useSpace();
 
+  const release = useRelease();
+  /* 기록 탭의 그날 · 전체로 — 껍데기가 주소를 기록 탭 부탁(shell/tab-intent)으로 바꿔 넘기고 기록 탭을 연다 */
+  const openRecords = (date: string, category?: RecordsCategory) => onTab(recordsHref({ date, category }));
   const go = (to: string) => pushOpen(to as Href);
-  const openPitch = () => (home?.pitchLocked ? go('/setup/pitch') : go(`/pitch/${today}`));
+  const [coachSpotlight, setCoachSpotlight] = useState<CoachSpotlight | null>(null);
+  const focused = useIsFocused();
+  const canShowCoach = canOpen('/coach', release);
+  const epoch = cacheEpoch();
+  useEffect(() => {
+    if (!canShowCoach || !tabActive || !focused) return;
+    if (coachSpotlight?.day === today && coachSpotlight.epoch === epoch
+      && Date.now() - coachSpotlight.readAt < 30_000 && lastWriteAt() <= coachSpotlight.readAt) return;
+    let active = true;
+    const stop = whenStill(() => {
+      const readAt = Date.now();
+      void loadMe()
+        .then((me) => me.coachPaid ? rpc<Awaited<ReturnType<typeof loadCoachToday>>>('coach.loadCoachToday') : null)
+        .then((result) => {
+          if (!active || epoch !== cacheEpoch()) return;
+          setCoachSpotlight({ day: today, epoch, readAt, line: result?.coach?.owner === 'coach' ? result.coach.line : null });
+        }, () => undefined);
+    });
+    return () => {
+      active = false;
+      stop();
+    };
+  }, [canShowCoach, coachSpotlight, epoch, focused, tabActive, today]);
+
+  const highlights: HomeHighlight[] = [];
+  if (canOpen('/lab', release)) {
+    highlights.push({
+      key: 'motion',
+      label: '3D 동작 분석',
+      title: '내 투구를\n3D로 보기',
+      detail: '옆·뒤 영상으로 투구 동작을 확인해요',
+      action: '분석 열기',
+      icon: 'pitcher',
+      accent: '#a4d6ff',
+      onPress: () => go('/lab?fromHome=1'),
+    });
+  }
+  if (home?.today === today && canOpen('/checkin', release)) {
+    const condition = home.feed?.find((item) => item.key === 'condition' && item.tone === 'today');
+    const sleep = condition?.variants?.find((variant) => variant.id === 'sleep');
+    const checked = home.checkinDone;
+    highlights.push({
+      key: 'condition',
+      label: '오늘 몸 상태',
+      title: checked ? home.board?.condition?.label ?? '오늘 체크인' : '오늘 체크인',
+      detail: checked ? sleep?.text ?? condition?.sub ?? '기록한 몸 상태 보기' : '수면과 몸 상태를 남겨요',
+      action: checked ? '상세 보기' : '체크인 열기',
+      icon: 'heart-pulse',
+      accent: '#9ee7f3',
+      score: checked ? home.board?.condition?.value ?? null : null,
+      onPress: () => checked ? openRecords(today, 'condition') : openCheckin(),
+    });
+  }
+  if (canShowCoach && coachSpotlight?.day === today && coachSpotlight.epoch === epoch && coachSpotlight.line) {
+    highlights.push({
+      key: 'coach',
+      label: 'AI 코치',
+      title: '오늘의 훈련 포인트',
+      detail: coachSpotlight.line,
+      action: '코치 탭 열기',
+      icon: 'clipboard-list',
+      accent: '#c4ccff',
+      onPress: () => onTab('/coach'),
+    });
+  }
+  const pitchHref = home?.pitchLocked ? '/setup/pitch' : `/pitch/${today}`;
+  const pitchShowsRecords = !!home?.pitchDone || !canOpen(pitchHref, release);
+  const openPitch = () => pitchShowsRecords ? openRecords(today, 'pitch') : go(pitchHref);
   const openWorkout = () => {
     if (home?.trainingLocked) return go('/setup/training');
     const w = home?.workout;
     /* 다 마친 오늘 운동 읽기는 기록 탭 오늘 · 트레이닝으로(PITCH-RECORDS-MINIMAL01 R2) — 시작 · 이어서는 트레이닝 화면 그대로 */
-    if (w && w.total > 0 && w.done >= w.total) return onTab(recordsHref({ date: today, category: 'training' }));
+    if (w && w.total > 0 && w.done >= w.total) return openRecords(today, 'training');
     pushOpen({ pathname: '/training-today' as Href as never, params: { today, fromHome: '1' } });
   };
-  /* 기록 탭의 그날 · 전체로 — 껍데기가 주소를 기록 탭 부탁(shell/tab-intent)으로 바꿔 넘기고 기록 탭을 연다 */
-  const openRecords = (date: string, category?: RecordsCategory) => onTab(recordsHref({ date, category }));
 
   const warnings =
     home?.painWords || home?.recovering ? (
@@ -246,8 +319,10 @@ export function HomeTab({
                   pitchMonth={logs}
                   onSelect={date => setSelection({ today, date })}
                   notices={warnings}
-                  onCheckin={openCheckin}
+                  highlight={highlights.length ? <HighlightCard items={highlights} /> : undefined}
+                  onCheckin={() => openCheckin()}
                   onPitch={openPitch}
+                  pitchShowsRecords={pitchShowsRecords}
                   onWorkout={openWorkout}
                   onRecords={openRecords}
                 />

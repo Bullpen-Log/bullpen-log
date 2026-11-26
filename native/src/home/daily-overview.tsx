@@ -1,17 +1,30 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { runOnJS } from 'react-native-reanimated';
+import Animated, {
+  Easing,
+  Extrapolation,
+  interpolate,
+  runOnJS,
+  useAnimatedProps,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import Svg, {
+  Circle,
   Defs,
   Image as SvgImage,
   LinearGradient,
   Mask,
+  Path,
+  RadialGradient,
   Rect,
   Stop,
 } from 'react-native-svg';
 import { shiftDateKey, weekStartKey } from '@/lib/pitch-stats';
-import type { BoardDay, HomeBoard } from '@/lib/report/home-board';
+import type { BoardDay } from '@/lib/report/home-board';
 import { isRestSession } from '@/lib/session-type';
 import { cacheEpoch } from '~/lib/store';
 import { type Palette, usePalette, withAlpha } from '~/lib/ui';
@@ -27,6 +40,16 @@ const PITCH_ART = require('../../assets/home-actions/pitch.webp');
 const TRAINING_ART = require('../../assets/home-actions/training.webp');
 const CARD_WIDTH = 178;
 const CARD_HEIGHT = 190;
+const ART_TOP = 24;
+const CHECK_ACCENT = '#a6dff5';
+const CHECK_INK = '#132f43';
+const CHECK_SIZE = 27;
+const CHECK_LENGTH = 19;
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+const CARD_LIGHT = {
+  pitch: ['#becfe3', '#8ca8c8'],
+  training: ['#abc0d7', '#718bad'],
+} as const;
 
 type Props = {
   home: AppHome;
@@ -35,8 +58,10 @@ type Props = {
   pitchMonth: PitchLog[] | null;
   onSelect: (date: string) => void;
   notices?: ReactNode;
+  highlight?: ReactNode;
   onCheckin: () => void;
   onPitch: () => void;
+  pitchShowsRecords: boolean;
   onWorkout: () => void;
   onRecords: (date: string, category?: RecordsCategory) => void;
 };
@@ -50,8 +75,10 @@ export function DailyOverview({
   pitchMonth,
   onSelect,
   notices,
+  highlight,
   onCheckin,
   onPitch,
+  pitchShowsRecords,
   onWorkout,
   onRecords,
 }: Props) {
@@ -126,28 +153,24 @@ export function DailyOverview({
     : todayPitch.value + todayPitch.unit;
   const workoutCaption = old
     ? trained
-      ? '완료'
+      ? `${progress}개`
       : exercises?.length
         ? `${progress} / ${exercises.length}`
         : detail
           ? '기록 전'
           : missingHistory
-    : todayWorkout.value + todayWorkout.unit;
+    : trained && home.workout ? `${home.workout.done}개` : todayWorkout.value + todayWorkout.unit;
 
   const actions = [
     {
       key: 'pitch',
       title: future
         ? '투구'
-        : old
-          ? pitched
-            ? '투구 기록 보기'
-            : '투구 기록'
+        : old || pitchShowsRecords
+          ? '투구 기록 보기'
           : home.pitchLocked
             ? '투구 설정하기'
-            : pitched
-              ? '투구 기록 보기'
-              : '투구 기록하기',
+            : '투구 기록하기',
       caption: pitched ? pitchCaption : undefined,
       art: PITCH_ART,
       onPress: old ? () => onRecords(selected, 'pitch') : onPitch,
@@ -176,6 +199,9 @@ export function DailyOverview({
       onPress: old ? () => onRecords(selected, 'training') : onWorkout,
     },
   ] as const;
+  const stackActions = fontScale >= 1.45;
+  const alignCaptions = !future && !stackActions && actions.some((action) => !!action.caption);
+  const completionKey = `${cacheEpoch()}:${selected}`;
 
   return (
     <View>
@@ -189,10 +215,22 @@ export function DailyOverview({
       {notices ? <View style={{ marginTop: 12 }}>{notices}</View> : null}
       <View
         accessibilityLabel="선택한 날짜의 기록과 완료 상태"
-        style={[styles.progress, { backgroundColor: c.card, borderColor: c.line }]}
+        style={[styles.progress, { backgroundColor: c.card, borderColor: c.line, boxShadow: c.float }]}
       >
+        <View pointerEvents="none" accessible={false} style={styles.progressLight}>
+          <Svg width="100%" height="100%">
+            <Defs>
+              <LinearGradient id="daily-status-light" x1="0" y1="0" x2="0.78" y2="1">
+                <Stop offset="0" stopColor={c.link} stopOpacity={0.13} />
+                <Stop offset="1" stopColor={c.link} stopOpacity={0} />
+              </LinearGradient>
+            </Defs>
+            <Rect width="100%" height="100%" fill="url(#daily-status-light)" />
+          </Svg>
+        </View>
         <Completion
-          icon="heart-pulse"
+          key={`condition-${completionKey}`}
+          animate={selected === today}
           label="체크인"
           caption={checkinCaption}
           done={checked}
@@ -201,7 +239,8 @@ export function DailyOverview({
           onPress={old ? () => onRecords(selected, 'condition') : onCheckin}
         />
         <Completion
-          icon="target"
+          key={`pitch-${completionKey}`}
+          animate={selected === today}
           label="투구"
           caption={pitchCaption}
           done={pitched}
@@ -210,7 +249,8 @@ export function DailyOverview({
           onPress={actions[0].onPress}
         />
         <Completion
-          icon="dumbbell"
+          key={`training-${completionKey}`}
+          animate={selected === today}
           label="운동"
           caption={workoutCaption}
           done={trained}
@@ -219,7 +259,8 @@ export function DailyOverview({
           onPress={actions[1].onPress}
         />
       </View>
-      <View style={[styles.actions, fontScale >= 1.45 && { flexDirection: 'column' }]}>
+      {highlight ? <View style={styles.highlight}>{highlight}</View> : null}
+      <View style={[styles.actions, stackActions && { flexDirection: 'column' }]}>
         {actions.map((action) => (
           <Press
             key={action.key}
@@ -232,32 +273,31 @@ export function DailyOverview({
             onPress={action.onPress}
             style={[
               styles.action,
-              fontScale >= 1.45 && { flex: 0, aspectRatio: 2.15 },
+              { boxShadow: c.floatHero },
+              stackActions && { flex: 0, aspectRatio: 2.15 },
               future && { opacity: 0.68 },
             ]}
           >
-            <ActionArt id={action.key} art={action.art} />
-            <View style={styles.actionLabel}>
-              <View style={styles.actionText}>
-                <Text lineBreakStrategyIOS="hangul-word" style={styles.actionTitle}>
-                  {action.title}
-                </Text>
-                {action.caption && !future ? (
-                  <Text style={styles.actionCaption}>{action.caption}</Text>
+            <View style={styles.actionFace}>
+              <ActionArt id={action.key} art={action.art} />
+              <View pointerEvents="none" style={styles.actionEdge} />
+              <View style={styles.actionLabel}>
+                <View style={styles.actionTitleRow}>
+                  <Text lineBreakStrategyIOS="hangul-word" style={styles.actionTitle}>
+                    {action.title}
+                  </Text>
+                  {!future ? <Icon name="chevron-right" size={15} color="#cbdef3" /> : null}
+                </View>
+                {!future && (action.caption || alignCaptions) ? (
+                  <Text numberOfLines={stackActions ? 2 : 1} style={styles.actionCaption}>
+                    {action.caption ?? '\u00a0'}
+                  </Text>
                 ) : null}
               </View>
-              {!future ? <Icon name="chevron-right" size={15} color="#cbdef3" /> : null}
             </View>
           </Press>
         ))}
       </View>
-      <WeeklyActivity
-        board={home.board}
-        selected={selected}
-        today={today}
-        c={c}
-        onRecords={onRecords}
-      />
     </View>
   );
 }
@@ -343,7 +383,7 @@ function DateRail({
 }
 
 function Completion({
-  icon,
+  animate,
   label,
   caption,
   done,
@@ -351,7 +391,7 @@ function Completion({
   onPress,
   c,
 }: {
-  icon: 'heart-pulse' | 'target' | 'dumbbell';
+  animate: boolean;
   label: string;
   caption: string;
   done: boolean;
@@ -367,37 +407,108 @@ function Completion({
       onPress={onPress}
       style={styles.completion}
     >
-      <View
+      <CompletionMark animate={animate} done={done} disabled={disabled} c={c} />
+      <Text style={[styles.completionTitle, { color: c.ink }]}>{label}</Text>
+      <Text
         style={[
-          styles.completionIcon,
-          {
-            backgroundColor: done ? '#c5ebfb' : c.chip,
-            borderColor: done ? '#94cdee' : c.line,
-          },
+          styles.completionCaption,
+          { color: done ? c.ink : c.muted },
+          done && styles.completionValue,
         ]}
       >
-        <Icon
-          name={done ? 'check' : icon}
-          size={15}
-          strokeWidth={done ? 2.7 : 1.8}
-          color={done ? '#142f47' : c.muted}
-        />
-      </View>
-      <View style={styles.completionText}>
-        <Text style={[styles.completionTitle, { color: c.ink }]}>{label}</Text>
-        <Text numberOfLines={1} style={[styles.completionCaption, { color: c.muted }]}>
-          {disabled ? '예정일' : caption}
-        </Text>
-      </View>
+        {disabled ? '예정일' : caption}
+      </Text>
     </Press>
   );
 }
 
-function ActionArt({ art, id }: { art: number; id: string }) {
+function CompletionMark({
+  animate,
+  done,
+  disabled,
+  c,
+}: {
+  animate: boolean;
+  done: boolean;
+  disabled: boolean;
+  c: Palette;
+}) {
+  const reduce = useReducedMotion();
+  const previous = useRef(done);
+  const progress = useSharedValue(done ? 1 : 0);
+  useEffect(() => {
+    const newlyDone = done && !previous.current;
+    previous.current = done;
+    if (newlyDone && animate && !reduce) {
+      progress.set(0);
+      progress.set(withTiming(1, { duration: 500, easing: Easing.linear }));
+    } else {
+      progress.set(done ? 1 : 0);
+    }
+  }, [animate, done, reduce, progress]);
+
+  const face = useAnimatedStyle(() => {
+    const time = progress.get();
+    return {
+      opacity: interpolate(time, [0, 0.36], [0, 1], Extrapolation.CLAMP),
+      transform: [{ scale: interpolate(time, [0, 0.36, 0.58, 0.82, 1], [0.75, 1.07, 1.015, 0.995, 1]) }],
+    };
+  });
+  const halo = useAnimatedStyle(() => {
+    const time = progress.get();
+    return {
+      opacity: interpolate(time, [0, 0.26, 0.53, 0.98], [0, 0, 0.62, 0], Extrapolation.CLAMP),
+      transform: [{ scale: interpolate(time, [0.26, 0.98], [0.9, 1.47], Extrapolation.CLAMP) }],
+    };
+  });
+  const line = useAnimatedProps(() => {
+    const draw = interpolate(progress.get(), [0.25, 0.85], [0, 1], Extrapolation.CLAMP);
+    return {
+      strokeDashoffset: CHECK_LENGTH * (1 - draw) ** 1.65,
+      strokeOpacity: draw > 0 ? 1 : 0,
+    };
+  });
+
+  return (
+    <View pointerEvents="none" accessible={false} style={styles.checkMark}>
+      <View style={[styles.checkTrack, { borderColor: withAlpha(c.muted, disabled ? 0.22 : 0.48) }]} />
+      {done ? (
+        <>
+          <Animated.View style={[styles.checkHalo, halo]} />
+          <Animated.View style={[styles.checkFace, face]}>
+            <Svg width={CHECK_SIZE} height={CHECK_SIZE} viewBox="0 0 33 33">
+              <Defs>
+                <RadialGradient id="completion-light" cx="29%" cy="12%" rx="89%" ry="89%">
+                  <Stop offset="0" stopColor="#edfaff" />
+                  <Stop offset="0.47" stopColor="#b7e5ff" />
+                  <Stop offset="1" stopColor="#77a9d4" />
+                </RadialGradient>
+              </Defs>
+              <Circle cx={16.5} cy={16.5} r={15} fill="url(#completion-light)" stroke="#d4eeff" strokeOpacity={0.55} />
+              <AnimatedPath
+                d="M 9.6 16.9 L 14 21.2 L 22.8 12.4"
+                fill="none"
+                stroke={CHECK_INK}
+                strokeWidth={2.35}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeDasharray={[CHECK_LENGTH, CHECK_LENGTH]}
+                animatedProps={line}
+              />
+            </Svg>
+          </Animated.View>
+        </>
+      ) : null}
+    </View>
+  );
+}
+
+function ActionArt({ art, id }: { art: number; id: keyof typeof CARD_LIGHT }) {
   const scene = `home-scene-${id}`;
   const fade = `home-art-${id}`;
   const shade = `home-shade-${id}`;
   const artHeight = (CARD_WIDTH * 2) / 3;
+  const [light, shadeColor] = CARD_LIGHT[id];
   return (
     <View
       pointerEvents="none"
@@ -412,27 +523,29 @@ function ActionArt({ art, id }: { art: number; id: string }) {
       >
         <Defs>
           <LinearGradient id={scene} x1="0" y1="0" x2="1" y2="0.35">
-            <Stop offset="0" stopColor="#abbfd4" />
-            <Stop offset="0.56" stopColor="#9ab4cf" />
-            <Stop offset="1" stopColor="#91aeca" />
+            <Stop offset="0" stopColor={light} />
+            <Stop offset="1" stopColor={shadeColor} />
           </LinearGradient>
           <LinearGradient id={fade} x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0.84" stopColor="#fff" />
+            <Stop offset="0" stopColor="#fff" stopOpacity={0} />
+            <Stop offset="0.11" stopColor="#fff" />
+            <Stop offset="0.87" stopColor="#fff" />
             <Stop offset="1" stopColor="#fff" stopOpacity={0} />
           </LinearGradient>
           <LinearGradient id={shade} x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0.49" stopColor="#15283b" stopOpacity={0} />
-            <Stop offset="0.60" stopColor="#15283b" stopOpacity={0.13} />
-            <Stop offset="0.73" stopColor="#13253b" stopOpacity={0.47} />
-            <Stop offset="0.91" stopColor="#112237" stopOpacity={0.82} />
-            <Stop offset="1" stopColor="#112237" stopOpacity={0.92} />
+            <Stop offset="0.52" stopColor="#15283b" stopOpacity={0} />
+            <Stop offset="0.66" stopColor="#15283b" stopOpacity={0.13} />
+            <Stop offset="0.77" stopColor="#13253b" stopOpacity={0.54} />
+            <Stop offset="0.90" stopColor="#112237" stopOpacity={0.87} />
+            <Stop offset="1" stopColor="#112237" stopOpacity={0.96} />
           </LinearGradient>
           <Mask id={`${fade}-mask`}>
-            <Rect width={CARD_WIDTH} height={artHeight} fill={`url(#${fade})`} />
+            <Rect y={ART_TOP} width={CARD_WIDTH} height={artHeight} fill={`url(#${fade})`} />
           </Mask>
         </Defs>
         <Rect width={CARD_WIDTH} height={CARD_HEIGHT} fill={`url(#${scene})`} />
         <SvgImage
+          y={ART_TOP}
           width={CARD_WIDTH}
           height={artHeight}
           href={art}
@@ -440,146 +553,6 @@ function ActionArt({ art, id }: { art: number; id: string }) {
         />
         <Rect width={CARD_WIDTH} height={CARD_HEIGHT} fill={`url(#${shade})`} />
       </Svg>
-    </View>
-  );
-}
-
-const ROWS = [
-  { label: '운동', category: 'training', matches: (day: BoardDay) => day.workout },
-  {
-    label: '투구',
-    category: 'pitch',
-    matches: (day: BoardDay) => day.pitch === 'throw',
-  },
-  {
-    label: '투구 휴식',
-    category: 'pitch',
-    matches: (day: BoardDay) => day.pitch === 'rest',
-  },
-] as const;
-
-function WeeklyActivity({
-  board,
-  selected,
-  today,
-  c,
-  onRecords,
-}: {
-  board?: HomeBoard;
-  selected: string;
-  today: string;
-  c: Palette;
-  onRecords: Props['onRecords'];
-}) {
-  const dates = board?.week ?? [];
-  return (
-    <View style={styles.week}>
-      <Text accessibilityRole="header" style={[styles.weekTitle, { color: c.ink }]}>
-        이번 주 활동
-      </Text>
-      {board ? (
-        <View
-          style={[styles.weekCard, { backgroundColor: c.card, borderColor: c.line }]}
-        >
-          <View style={styles.activityRow} accessible={false}>
-            <View style={styles.activityLabel} />
-            {dates.map((day) => (
-              <View
-                key={day.date}
-                style={[
-                  styles.activityCell,
-                  styles.weekdayCell,
-                  day.date === selected && { backgroundColor: c.chip },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.weekday,
-                    { color: day.date === selected ? c.ink : c.muted },
-                  ]}
-                >
-                  {weekdayKo(day.date)}
-                </Text>
-              </View>
-            ))}
-            <View style={styles.total} />
-          </View>
-          {ROWS.map((row) => {
-            const entries = dates.filter(row.matches);
-            return (
-              <Press
-                key={row.label}
-                accessibilityRole="button"
-                accessibilityLabel={`이번 주 ${row.label} ${entries.length}일, 기록 보기`}
-                accessibilityHint={entries
-                  .map((day) => `${weekdayKo(day.date)}요일`)
-                  .join(', ')}
-                onPress={() =>
-                  onRecords(
-                    dates.some((day) => day.date === selected) && selected <= today
-                      ? selected
-                      : today,
-                    row.category
-                  )
-                }
-                style={[
-                  styles.activityRow,
-                  styles.activityItem,
-                  { borderColor: c.line },
-                ]}
-              >
-                <Text
-                  style={[styles.activityLabel, styles.activityText, { color: c.ink }]}
-                >
-                  {row.label}
-                </Text>
-                {dates.map((day) => (
-                  <View
-                    key={day.date}
-                    style={[
-                      styles.activityCell,
-                      day.date === selected && { backgroundColor: c.chip },
-                    ]}
-                  >
-                    <View
-                      style={[
-                        styles.mark,
-                        {
-                          backgroundColor: withAlpha(
-                            c.muted,
-                            day.date > today ? 0.09 : 0.2
-                          ),
-                        },
-                        row.matches(day) &&
-                          (row.label === '투구 휴식'
-                            ? {
-                                width: 9,
-                                height: 9,
-                                borderWidth: 1,
-                                borderColor: '#9fd1f3',
-                                backgroundColor: 'transparent',
-                              }
-                            : { width: 16, height: 8, backgroundColor: '#a7d9f7' }),
-                      ]}
-                    />
-                  </View>
-                ))}
-                <Text style={[styles.total, styles.activityText, { color: c.ink }]}>
-                  {entries.length}일
-                </Text>
-              </Press>
-            );
-          })}
-        </View>
-      ) : (
-        <Press
-          accessibilityRole="button"
-          onPress={() => onRecords(today)}
-          style={styles.activityItem}
-        >
-          <Text style={{ color: c.muted }}>이번 주 기록 보기</Text>
-        </Press>
-      )}
     </View>
   );
 }
@@ -600,81 +573,74 @@ const styles = StyleSheet.create({
   date: { fontSize: 17, fontWeight: '700', fontVariant: ['tabular-nums'] },
   dot: { width: 4, height: 4, borderRadius: 2 },
   progress: {
-    minHeight: 69,
-    padding: 5,
+    marginHorizontal: 11,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     flexDirection: 'row',
-    marginTop: 17,
-    borderRadius: 18,
+    marginTop: 13,
+    borderRadius: 20,
     borderWidth: StyleSheet.hairlineWidth,
-    alignItems: 'stretch',
   },
+  progressLight: { ...StyleSheet.absoluteFill, borderRadius: 20, overflow: 'hidden' },
   completion: {
     flex: 1,
     minWidth: 0,
-    minHeight: 44,
-    paddingHorizontal: 5,
-    paddingVertical: 6,
-    gap: 6,
-    borderRadius: 12,
-    flexDirection: 'row',
+    paddingHorizontal: 4,
+    paddingVertical: 8,
     alignItems: 'center',
   },
-  completionIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+  checkMark: { width: CHECK_SIZE, height: CHECK_SIZE, marginBottom: 6 },
+  checkTrack: {
+    ...StyleSheet.absoluteFill,
+    margin: 1,
+    borderRadius: CHECK_SIZE / 2,
     borderWidth: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(6, 13, 25, 0.34)',
+    boxShadow: 'inset 0 1px 4px rgba(0, 0, 0, 0.42)',
   },
-  completionText: { flex: 1, minWidth: 0, gap: 2 },
-  completionTitle: { fontSize: 13, fontWeight: '600' },
-  completionCaption: { fontSize: 11 },
-  actions: { flexDirection: 'row', gap: 18, marginTop: 32 },
+  checkFace: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: CHECK_SIZE / 2,
+    boxShadow: '0 4px 10px -3px rgba(125, 211, 252, 0.50)',
+  },
+  checkHalo: {
+    ...StyleSheet.absoluteFill,
+    margin: 2,
+    borderRadius: CHECK_SIZE / 2,
+    borderWidth: 1,
+    borderColor: CHECK_ACCENT,
+  },
+  completionTitle: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  completionCaption: { minHeight: 19, fontSize: 12, fontWeight: '500', marginTop: 5, textAlign: 'center' },
+  completionValue: { fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  highlight: { marginTop: 17 },
+  actions: { flexDirection: 'row', gap: 16, marginTop: 21 },
   action: {
     flex: 1,
     minWidth: 0,
     aspectRatio: CARD_WIDTH / CARD_HEIGHT,
-    borderRadius: 20,
+    borderRadius: 22,
+  },
+  actionFace: {
+    flex: 1,
+    borderRadius: 22,
     overflow: 'hidden',
     backgroundColor: '#172b43',
     justifyContent: 'flex-end',
   },
-  actionLabel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 4,
-    paddingHorizontal: 13,
-    paddingBottom: 16,
+  actionEdge: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: 22,
+    boxShadow: 'inset 0 1px 0 rgba(240, 248, 255, 0.38), inset 1px 0 0 rgba(240, 248, 255, 0.12), inset 0 -1px 0 rgba(0, 0, 0, 0.3)',
   },
-  actionText: { flexShrink: 1, gap: 3 },
+  actionLabel: { gap: 3, paddingHorizontal: 15, paddingBottom: 16 },
+  actionTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4 },
   actionTitle: {
+    flexShrink: 1,
     fontSize: 17,
     fontWeight: '700',
     letterSpacing: -0.68,
     color: '#f2f7ff',
   },
   actionCaption: { fontSize: 11, color: '#b9d2ea' },
-  week: { marginTop: 42, gap: 12 },
-  weekTitle: { fontSize: 21, fontWeight: '700', letterSpacing: -0.55 },
-  weekCard: {
-    borderRadius: 19,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  activityRow: { flexDirection: 'row', alignItems: 'stretch' },
-  activityItem: { minHeight: 44, borderTopWidth: StyleSheet.hairlineWidth },
-  activityCell: {
-    flex: 1,
-    minWidth: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  weekdayCell: { minHeight: 27, borderTopLeftRadius: 7, borderTopRightRadius: 7 },
-  activityLabel: { width: 62 },
-  total: { width: 38, textAlign: 'right' },
-  activityText: { alignSelf: 'center', fontSize: 12, fontWeight: '600' },
-  mark: { width: 7, height: 5, borderRadius: 5 },
 });

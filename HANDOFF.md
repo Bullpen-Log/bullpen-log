@@ -1,3 +1,9 @@
+## 맥 미니 전체 총괄 · 김민에게 — 2026-11-27 · 맥북 홈 UX — 홈 하이라이트
+
+- 승인한 네이비 홈에서 날짜 아래 완료 체크를 정리하고, 투구·운동 카드 위에 좌우로 넘길 수 있는 하이라이트를 배치했다. 하이라이트는 3D 투구 분석, 체크인 요약, 이용 권한이 있는 계정의 코치 노트로 연결한다. 투구·운동 카드의 그래픽 위치와 홈에서 들어간 화면의 복귀 경로를 정리했다.
+- iPhone 17 Pro Max 시뮬레이터에서 네이티브 레이아웃, 하이라이트 자동 전환·스와이프, 3D 분석과 체크인 진입 및 홈 복귀를 확인했다. 앱 타입·변경 파일 린트, 홈 70개, 투구 93개, 기록 이동 60개, 릴리스 권한 763개, 격리 운동 저장 38개 통과.
+- 기존 iOS 런타임과 일치한다. 운영 계정에서 투구·운동을 직접 저장한 후 복귀하는 동작, 코치 활성 계정에 표시되는 하이라이트, 실기기에서의 OTA 수신은 별도 확인한다.
+
 ## Mac mini release lead and Kim Min — 2026-11-27 · MacBook UX — Sinker home
 
 - The approved navy home shows the swipeable calendar, daily completion, baseball and workout cards, and weekly activity. An action opens the existing input or record view directly. The workout card puts the existing creation form first when a plan is needed.

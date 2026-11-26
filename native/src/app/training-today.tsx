@@ -51,6 +51,8 @@ export default function TrainingTodayScreen() {
   const inset = useSafeAreaInsets();
   /* program — 트레이닝 탭 프로그램 커버에서 왔으면 그 프로그램 소개를 편 채로(training/program-cards.tsx) */
   const params = useLocalSearchParams<{ today?: string; program?: string; fromHome?: string }>();
+  const fromHome = params.fromHome === '1';
+  const backTitle = fromHome ? '홈' : '트레이닝';
   /* 트레이닝 탭이 서버의 오늘을 넘기면 그것(시험 계정 날짜까지), 없으면 폰의 오늘 — 받아 둔 값이 그날 것일 때만 먼저 보인다 */
   const today = typeof params.today === 'string' ? params.today : toDateKey(new Date());
   const [data, setData] = useState<TrainingToday | null>(() => (remembered()?.today === today ? remembered() : null));
@@ -156,17 +158,17 @@ export default function TrainingTodayScreen() {
     reload: load,
     start: (program) => void start(program),
     starting,
-    checkin: () => openCheckin('/training?view=home'),
+    checkin: () => openCheckin(fromHome ? '/today' : '/training?view=home'),
     generate,
     web: leave,
   };
 
-  /* 웹 휴대폰 위 막대의 '‹ 트레이닝'(back-link) — 제목은 본문 큰 제목(PageHeading)이 맡는다 */
+  /* 왼쪽 버튼은 이 화면을 연 탭으로 돌아간다. */
   const header = (
     <View style={[st.bar, { paddingTop: inset.top + 4, backgroundColor: c.page }]}>
-      <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="트레이닝으로 돌아가기" style={({ pressed }) => [st.back, pressed && { opacity: 0.6 }]}>
+      <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={`${backTitle}으로 돌아가기`} style={({ pressed }) => [st.back, pressed && { opacity: 0.6 }]}>
         <Icon name="back" size={24} color={c.link} />
-        <Text style={{ color: c.link, fontSize: 17 }}>트레이닝</Text>
+        <Text style={{ color: c.link, fontSize: 17 }}>{backTitle}</Text>
       </Pressable>
     </View>
   );
@@ -231,7 +233,7 @@ export default function TrainingTodayScreen() {
       a={actions}
     />
   ) : null;
-  const showMakeFirst = params.fromHome === '1' && makeCard !== null && !data.done;
+  const showMakeFirst = fromHome && makeCard !== null && !data.done;
 
   return (
     <View style={[s.fill, { backgroundColor: c.page }]}>
