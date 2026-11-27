@@ -36,12 +36,14 @@ type Waiting = Pick<RecordsIntent, 'category' | 'recordId' | 'recent'>;
  * 자료는 이미 남은 기록을 읽기만 한다(app.loadAppRecords). 위에 쌓인 화면에서 돌아오면 날짜 · 묶음 · 자리를 그대로 두고 새로 받는다.
  */
 export function RecordsTab({
+  sharedHeader = false,
   today,
   bottom,
   onTab,
   standalone = false,
   pitchSetup = false,
 }: {
+  sharedHeader?: boolean;
   today: string;
   bottom: number;
   onTab: (href: string) => void;
@@ -203,7 +205,7 @@ export function RecordsTab({
         >
           <Icon name={searchOpen ? 'x' : 'search'} size={20} color={searchOpen ? c.link : c.ink} />
         </Press>
-        <MenuButton />
+        {!sharedHeader && <MenuButton />}
       </PageHead>
       {standalone ? null : <PitchSeg value={RECORDS_PATH} onTab={onTab} />}
       {searchOpen ? (

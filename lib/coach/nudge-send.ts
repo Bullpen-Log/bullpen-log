@@ -1,4 +1,5 @@
 import 'server-only';
+import { UNREAD_NUDGE } from './unread';
 import { prisma } from '@/lib/prisma';
 import { appNow } from '@/lib/clock';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
@@ -43,7 +44,7 @@ async function send(userId: string, n: Nudge): Promise<boolean> {
   if (n.chat) {
     const [ai, health] = await Promise.all([coachAiConsentFor(userId), healthConsentFor(userId)]);
     if (!ai.valid || (n.health && !health.valid)) return false;
-    await prisma.coachMessage.create({ data: { userId, role: 'coach', text: n.chat.text, act: n.chat.act ?? undefined } });
+    await prisma.coachMessage.create({ data: { userId, role: 'coach', adjusts: UNREAD_NUDGE, text: n.chat.text, act: n.chat.act ?? undefined } });
   }
   await notify(userId, { kind: 'coach', title: NUDGE_TITLE, body: n.push, link: n.link });
   return true;

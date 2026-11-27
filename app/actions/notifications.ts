@@ -62,11 +62,16 @@ export async function loadBellNotifications(): Promise<{ items: BellNotification
 }
 
 /** 종의 점 — 안 읽은 알림 수(로그인 전 0) */
-export async function countBellNotifications(): Promise<number> {
+export async function countBellNotifications(scope?: 'general'): Promise<number> {
   allowFeature('notifications');
   const user = await getCurrentUser();
   if (!user) return 0;
-  return prisma.notification.count({ where: { userId: user.id, readAt: null } });
+  return prisma.notification.count({
+    where: {
+      userId: user.id, readAt: null,
+      ...(scope === 'general' ? { OR: [{ kind: { not: 'coach' } }, { link: null }, { link: { not: '/coach-chat' } }] } : {}),
+    },
+  });
 }
 
 /** 종 창에서 읽음 — 하나(id) 또는 전부(id 없음). 화면 다시 그리기는 부르는 쪽이 한다(창이 닫히지 않게 revalidate 하지 않는다) */

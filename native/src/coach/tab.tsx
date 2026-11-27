@@ -61,14 +61,14 @@ type CoachWeekData = { today: string; weekStart?: string; week: DaySlot[] | null
  * 시작 전이면 [코치 시작하기]. 칸 상태는 서버가 기록에서 읽는다(lib/coach/status.ts). 그날 운동은 [시작]이 연 화면이 엔진으로 만든다(R2).
  * 출시 전 베타의 잠김은 껍데기가 막는다(탭 막대 자물쇠 — app/index.tsx). 유료는 서버가 정한다(loadAppMe 의 coachPaid ← lib/coach-access.ts).
  */
-export function CoachMainTab({ bottom }: { bottom: number }) {
+export function CoachMainTab({ bottom, initialWeek = false }: { bottom: number; initialWeek?: boolean }) {
   const c = usePalette();
   const inset = useSafeAreaInsets();
   const [access, setAccess] = useState<'loading' | 'paid' | 'free' | 'error'>('loading');
   const [data, setData] = useState<CoachWeekData | undefined>(undefined);
   const [weekLoading, setWeekLoading] = useState(true);
   const [weekError, setWeekError] = useState(false);
-  const [view, setView] = useState<'today' | 'week'>('today');
+  const [view, setView] = useState<'today' | 'week'>(initialWeek ? 'week' : 'today');
   const [selectedDay, setSelectedDay] = useState(0);
   const scroll = useRef<ScrollViewInstance>(null);
   const accessRequest = useRef(0);

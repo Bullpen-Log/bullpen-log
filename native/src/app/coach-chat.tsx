@@ -1,6 +1,6 @@
-import { useCallback, useRef, useState } from 'react';
-import { router, useFocusEffect, type Href } from 'expo-router';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance, type TextInputInstance } from 'react-native';
+import { useCallback, useRef, useState, useEffect } from 'react';
+import { router, useFocusEffect, useIsFocused, type Href } from 'expo-router';
+import { ActivityIndicator, Alert, AppState, KeyboardAvoidingView, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance, type TextInputInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { applyCoachAdjust, previewCoachAdjust } from '@/app/actions/coach';
 import type { applyCoachCard, applyCoachGoal, loadCoachChat, sendCoachMessage } from '@/app/actions/coach-chat';
@@ -71,6 +71,31 @@ export default function CoachChatScreen() {
   }, []);
   useFocusEffect(load);
 
+  const focused = useIsFocused();
+  const boxes = useRef(new Map<string, { y: number; height: number }>());
+  const viewport = useRef({ y: 0, height: 0 });
+  const inFlight = useRef(new Set<string>());
+  const positioned = useRef(false);
+  const checkVisible = useCallback(() => {
+    if (!focused || AppState.currentState !== 'active' || !chat?.consented) return;
+    const { y, height } = viewport.current;
+    if (!height) return;
+    const ids = (chat.unreadIds ?? []).filter(id => {
+      const box = boxes.current.get(id);
+      return box && !inFlight.current.has(id) && box.y < y + height && box.y + box.height > y;
+    }).slice(0, 100);
+    if (!ids.length) return;
+    ids.forEach(id => inFlight.current.add(id));
+    void rpc('coach-chat.readCoachMessages', ids).then(() => {
+      setChat(current => current ? { ...current, unreadIds: (current.unreadIds ?? []).filter(id => !ids.includes(id)) } : current);
+    }).catch(() => {}).finally(() => ids.forEach(id => inFlight.current.delete(id)));
+  }, [chat, focused]);
+  useEffect(() => {
+    if (!focused || !chat?.consented || !chat.unreadIds?.length) return;
+    const timer = setInterval(checkVisible, 450);
+    return () => clearInterval(timer);
+  }, [chat, focused, checkVisible]);
+
   const agree = async () => {
     if (!chat) return;
     const r = await rpc<{ ok: true } | { error: string }>('coach-chat.agreeCoachAi', chat.consent.version).catch(() => null);
@@ -123,7 +148,19 @@ export default function CoachChatScreen() {
       {chat && !chat.consented ? <ConsentView chat={chat} onAgree={() => void agree()} c={c} /> : null}
       {chat && chat.consented ? (
         <>
-          <ScrollView ref={scroll} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 12 }} onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: false })}>
+          <ScrollView ref={scroll} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 12 }} onLayout={e => { viewport.current.height = e.nativeEvent.layout.height; }}
+            scrollEventThrottle={32} onScroll={e => { viewport.current.y = e.nativeEvent.contentOffset.y; }}
+            onContentSizeChange={() => {
+              if (positioned.current) return;
+              const first = chat.unreadIds?.[0];
+              if (!first) scroll.current?.scrollToEnd({ animated: false });
+              else {
+                const box = boxes.current.get(first);
+                if (!box) return;
+                scroll.current?.scrollTo({ y: Math.max(0, box.y - 12), animated: false });
+              }
+              positioned.current = true;
+            }}>
             {chat.messages.length === 0 ? (
               <View style={{ gap: 8 }}>
                 <Text style={[TYPE.body, { color: c.muted }]}>던진 것 · 이번 주 일정 · 해 보고 싶은 것을 말해 주세요. 바꿀 것 · 정할 목표 · 투구 기록 초안은 미리 보여 드리고, 저장은 직접 눌러요.</Text>
@@ -146,7 +183,14 @@ export default function CoachChatScreen() {
               </View>
             ) : null}
             {chat.messages.map((m) => (
-              <Bubble key={m.id} m={m} c={c} />
+              <View key={m.id} onLayout={e => {
+                const { y, height } = e.nativeEvent.layout;
+                boxes.current.set(m.id, { y, height });
+                if (!positioned.current && m.id === chat.unreadIds?.[0]) {
+                  positioned.current = true;
+                  scroll.current?.scrollTo({ y: Math.max(0, y - 12), animated: false });
+                }
+              }}><Bubble m={m} c={c} /></View>
             ))}
             {sending ? <Text style={[TYPE.sub, { color: c.muted }]}>코치가 쓰는 중…</Text> : null}
           </ScrollView>

@@ -52,11 +52,13 @@ type Seen = { all: boolean; epoch: number; day: string };
 type CoachSpotlight = { day: string; epoch: number; readAt: number; line: string | null };
 
 export function HomeTab({
+  fixedHeader = false,
   today,
   bottom,
   onTab,
 }: {
   today: string;
+  fixedHeader?: boolean;
   bottom: number;
   /** 웹 화면으로(체크인 · 분석 · 웹 홈) — 앱 화면을 걷는다 */
   onWeb: (href: string) => void;
@@ -299,7 +301,7 @@ export function HomeTab({
           onScroll={onScroll}
           scrollEventThrottle={16}
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingTop: inset.top + BAR_H + 12, paddingBottom: bottom + 24, paddingHorizontal: side }}
+          contentContainerStyle={{ paddingTop: inset.top + (fixedHeader ? 0 : BAR_H) + 12, paddingBottom: bottom + 24, paddingHorizontal: side }}
         >
           <View style={READABLE}>
             {error && home ? (
@@ -326,6 +328,9 @@ export function HomeTab({
                   onWorkout={openWorkout}
                   onRecords={openRecords}
                 />
+                {canShowCoach && <Press accessibilityRole="button" onPress={() => onTab('/coach?view=week')} style={{ marginTop: 16, padding: 16, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.card, borderRadius: 16 }}>
+                  <Text style={[TYPE.body, { color: c.ink, fontWeight: '600' }]}>이번 주 훈련 계획</Text><Icon name="chevron-right" size={18} color={c.muted}/>
+                </Press>}
                 {home.goodNote ? (
                   <View style={{ marginTop: 18 }}><GoodDayNote note={home.goodNote} /></View>
                 ) : null}
@@ -352,7 +357,7 @@ export function HomeTab({
         </Animated.ScrollView>
 
         {/* 로고는 내용의 왼쪽 여백, 알림과 메뉴는 오른쪽 */}
-        <Animated.View pointerEvents="none" style={[styles.tail, { top: inset.top + BAR_H }, tailStyle]}>
+        {!fixedHeader && <><Animated.View pointerEvents="none" style={[styles.tail, { top: inset.top + BAR_H }, tailStyle]}>
           <Svg width="100%" height={16}>
             <Defs>
               <LinearGradient id="veil" x1="0" y1="0" x2="0" y2="1">
@@ -384,6 +389,7 @@ export function HomeTab({
           </Pressable>
           <MenuButton style={styles.menu} />
         </Animated.View>
+        </>}
         {/* 오늘 셀 것을 다 했을 때 — 홈이 직접 본 전이에서만, 누름을 막지 않는 작은 카드 */}
         <AllDone play={playDay === today} day={today} />
       </View>

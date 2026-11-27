@@ -1,3 +1,5 @@
+import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { CoachHeader } from '~/coach/fixed-header';
 import { resetRoutineTargets } from '~/armcare/routine-target-store';
 import * as Linking from 'expo-linking';
 import { type Href, router } from 'expo-router';
@@ -11,7 +13,7 @@ import {
   type ComponentType,
   type Ref,
 } from 'react';
-import { ActivityIndicator, Alert, AppState, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, Keyboard, StyleSheet, Text, View } from 'react-native';
 import {
   WebView,
   type WebViewMessageEvent,
@@ -34,7 +36,7 @@ import { resetImported } from '~/pitch/attach';
 import { resetScanned } from '~/nutrition/scanned';
 import { HomeTab, resetHomeCache } from '~/home/tab';
 import { accessAllowsPath } from '@/lib/release-access';
-import { canOpen, decidedNow, isBetaView, noticeLocked, releaseLookupFailed, resetRelease, restoreRelease, useRelease, useReleaseDecided } from '~/shell/release';
+import { canOpen, pushOpen, decidedNow, isBetaView, noticeLocked, releaseLookupFailed, resetRelease, restoreRelease, useRelease, useReleaseDecided } from '~/shell/release';
 import { resetNotificationList } from '~/home/notifications';
 import { resetMyVideos } from '~/videos/store';
 import { resetGalleryUi } from '~/videos/filters';
@@ -358,6 +360,7 @@ export default function SiteScreen() {
   /* 사이트 첫 불러오기가 끝났나(onLoadEnd · onError) — 그 전엔 빈 웹뷰 대신 앱 바탕 + 돌개(아래 첫 불러오기 판) */
   const [webLoaded, setWebLoaded] = useState(false);
   const page = usePalette().page;
+  const insets = useSafeAreaInsets();
   const dark = useTheme() !== 'light';
   const web = useRef<WebViewHandle>(null);
   /** 사이트 테마의 바탕색 — 오래 뒤에 있다 돌아와 다시 그리는 동안 흰 화면이 번쩍이지 않게(옛 앱의 bullpenTheme 과 같은 일) */
@@ -396,6 +399,14 @@ export default function SiteScreen() {
   const [barOn, setBarOn] = useState(false);
   const [today, setToday] = useState<string | null>(null);
   /* 서버가 계정 · 오늘을 알려 줬나 — 꺼진 망이면 오늘은 폰의 한국 날짜로 두고(앱 탭이 그려지게) 8초마다 다시 묻는다 */
+  const [coachOwner, setCoachOwner] = useState<string | null>(null);
+  const [typing, setTyping] = useState(false);
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setTyping(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setTyping(false));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
+  const [weekVisit, setWeekVisit] = useState(0);
   const [meOk, setMeOk] = useState(false);
   const [meTry, setMeTry] = useState(0);
   /* 계정 · 오늘을 못 받은 까닭(꺼진 망 말고) — 오늘을 모르면 앱 판이 안 서고, 새 앱은 웹 홈 · 투구 판도 그리지 않아 빈 화면이었다(2026-10-24 검토) */
@@ -422,6 +433,7 @@ export default function SiteScreen() {
           resetMe();
           openWebAfter('#refresh');
         });
+        setCoachOwner(m.coachPaid ? m.userId : null);
         setMeOk(true);
         setMeError(null);
         ownerKnown(m.userId);
@@ -744,6 +756,13 @@ export default function SiteScreen() {
     } else showWeb(href, waits);
   };
   const goTab = (href: string) => {
+    if (href === '/coach?view=week' && open(COACH_PATH)) {
+      setWeekVisit(v => v + 1);
+      setWebFront(false);
+      setPath(COACH_PATH);
+      setSearch('view=week');
+      return;
+    }
     if (goRecords(href)) return;
     if (!open(href)) return noticeLocked();
     /*
@@ -876,6 +895,7 @@ export default function SiteScreen() {
     resetAccount();
     askNo.current++;
     setToday(null);
+    setCoachOwner(null);
     setMeOk(false);
     setSeen(UNSEEN);
     setWebHome(false);
@@ -989,16 +1009,18 @@ export default function SiteScreen() {
    * 출시 전 베타에도 홈 · 투구 판은 원래 모양 그대로(2026-11-01 금윤호: "인터페이스는 원래대로, 문이 잠긴 것처럼 못 들어가게만") — 그 안의 잠긴 기능은
    * 누르면 안내만(shell/release.ts pushOpen · canOpen). 잠긴 탭의 판은 아예 붙이지 않는다(그 판의 서버 부름 · 대기열도 안 돈다)
    */
-  const homeSlot = today && seenHome ? <HomeTab key="home" today={today} bottom={tabBottom} onWeb={openWeb} onTab={goTab} /> : null;
-  const coachSlot = today && seenCoach && open(COACH_PATH) ? <CoachMainTab key="coach" bottom={tabBottom} /> : null;
+  const coachEnabled = !!coachOwner && open(COACH_PATH);
+  const fixedHeader = coachEnabled && !typing && (showHome || showRecords || showPitch || showTraining || showNutrition);
+  const homeSlot = today && seenHome ? <HomeTab fixedHeader={coachEnabled} key="home" today={today} bottom={tabBottom} onWeb={openWeb} onTab={goTab} /> : null;
+  const coachSlot = today && seenCoach && open(COACH_PATH) ? <CoachMainTab initialWeek={search === 'view=week'} key={`coach-${weekVisit}-${search === 'view=week'}`} bottom={tabBottom} /> : null;
   const pitchSlot =
     today && seenPitch && open('/videos') ? (
-      <PitchTab key="pitch" today={today} bottom={tabBottom} onWeb={openWeb} onTab={goTab} log={pitchLog} recordsTab={recordsTab} />
+      <PitchTab sharedHeader={coachEnabled} key="pitch" today={today} bottom={tabBottom} onWeb={openWeb} onTab={goTab} log={pitchLog} recordsTab={recordsTab} />
     ) : null;
-  const trainingSlot = today && seenTraining && open(TRAINING_HOME_HREF) ? <TrainingTab key="training" today={today} bottom={tabBottom} onWeb={openWeb} /> : null;
+  const trainingSlot = today && seenTraining && open(TRAINING_HOME_HREF) ? <TrainingTab sharedHeader={coachEnabled} key="training" today={today} bottom={tabBottom} onWeb={openWeb} /> : null;
   const recordsSlot =
     today && seenRecords && open(RECORDS_PATH) ? (
-      <RecordsTab key="records" today={today} bottom={tabBottom} onTab={goTab} standalone={recordsTab} pitchSetup={pitchSetup} />
+      <RecordsTab sharedHeader={coachEnabled} key="records" today={today} bottom={tabBottom} onTab={goTab} standalone={recordsTab} pitchSetup={pitchSetup} />
     ) : null;
   const dugoutSlot = today && seen.dugout && open('/?dugout=1') ? <DugoutTab key="dugout" bottom={tabBottom} onWeb={openWeb} /> : null;
   const nutritionSlot =
@@ -1095,9 +1117,21 @@ export default function SiteScreen() {
         </View>
       ) : null}
       {/* 탭 넷 — 나란히 두고 240ms 에 미끄러진다(웹 tab-pager). 한 번 연 판은 붙여 둬서 굴린 자리가 남는다 */}
-      {today ? <TabPager index={pagerIndex} visible={pagerOn && !inOrg} slots={[homeSlot, coachSlot, recordsSlot, pitchSlot, trainingSlot, dugoutSlot, nutritionSlot]} /> : null}
+      {today && (
+        <View pointerEvents={pagerOn && !inOrg ? 'box-none' : 'none'}
+          style={[StyleSheet.absoluteFill, { top: fixedHeader && !inOrg ? insets.top + 56 : 0 }]}>
+          <SafeAreaInsetsContext.Provider value={fixedHeader && !inOrg ? { ...insets, top: 0 } : insets}>
+            <TabPager index={pagerIndex} visible={pagerOn && !inOrg}
+              slots={[homeSlot, coachSlot, recordsSlot, pitchSlot, trainingSlot, dugoutSlot, nutritionSlot]} />
+          </SafeAreaInsetsContext.Provider>
+        </View>
+      )}
+      {fixedHeader && !inOrg && coachOwner && (
+        <CoachHeader key={coachOwner} onStart={() => goTab(COACH_PATH)}
+          onNotice={() => pushOpen({ pathname: '/notice', params: { date: today ?? undefined } })} />
+      )}
       {/* 홈 밖의 탭은 위 막대가 없어 시계 자리를 막으로 덮는다(웹 data-top-veil) */}
-      {today && pagerOn && pagerIndex !== 0 && !inOrg ? <ClockVeil /> : null}
+      {today && pagerOn && pagerIndex !== 0 && !inOrg && !fixedHeader ? <ClockVeil /> : null}
       {inOrg ? <OrgSpaceView bottom={tabBottom} /> : null}
       {/*
         웹 창(설정 · 내 정보 — 웹 틀의 폴더 모양 창)이 앞에 떠 있는 동안은 숨긴다 — 그 창을 닫는 바깥 막은 아래쪽 띠뿐인데 이 막대가 그 띠를
@@ -1121,7 +1155,7 @@ export default function SiteScreen() {
       ) : barShown ? (
         <TabBar
           key="main"
-          tabs={tabs}
+          tabs={tabs.filter(t => t.href !== COACH_PATH)}
           active={
             pressed ??
             sportRoot ??

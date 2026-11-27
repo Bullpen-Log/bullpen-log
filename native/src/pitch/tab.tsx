@@ -34,6 +34,7 @@ import { LockedBlock } from '~/shell/locked';
  * 웹 투구 탭(app/(app)/videos)과 같은 규칙.
  */
 export function PitchTab({
+  sharedHeader = false,
   today,
   bottom,
   onWeb,
@@ -41,6 +42,7 @@ export function PitchTab({
   log = false,
   recordsTab = false,
 }: {
+  sharedHeader?: boolean;
   today: string;
   bottom: number;
   onWeb: (href: string) => void;
@@ -252,7 +254,7 @@ export function PitchTab({
               <Icon name="film" size={16} color={c.link} />
               <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>영상</Text>
             </Pressable>
-            <MenuButton />
+            {!sharedHeader && <MenuButton />}
           </PageHead>
           {recordsTab ? null : <PitchSeg value="/videos" onTab={onTab} />}
           <View style={styles.dateRow}>

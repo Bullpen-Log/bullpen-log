@@ -3,6 +3,7 @@
 import { ASSIST_TOOLS, applyAssist } from '@/lib/coach/assist';
 import { cardDayOk } from '@/lib/coach/tool-defs';
 import { revalidatePath } from 'next/cache';
+import { unreadNudge, unreadMessagesOf } from '@/lib/coach/unread';
 import type { Prisma } from '@prisma/client';
 import { requireUser } from '@/lib/dal';
 import { prisma } from '@/lib/prisma';
@@ -120,21 +121,42 @@ async function markLogged<T extends { act: CoachAct | null; cards: ShownCard[] }
   }));
 }
 
+/** Only count persisted, unsolicited chat messages for this account. */
+export async function loadCoachInboxStatus() {
+  const user = await requireUser();
+  const active = await activeCoach(user);
+  const unread = active && (await coachAiConsentFor(user.id)).valid
+    ? await prisma.coachMessage.count({ where: unreadMessagesOf(user.id) }) : 0;
+  return { active, unread };
+}
+
+export async function readCoachMessages(ids: unknown) {
+  const user = await requireUser();
+  if (!Array.isArray(ids) || ids.length > 100 || !ids.every(id => typeof id === 'string')) return;
+  await prisma.coachMessage.updateMany({
+    where: { ...unreadMessagesOf(user.id), id: { in: ids } },
+    data: { adjusts: [] },
+  });
+}
+
 /** 대화 시트 — 동의했나 · 막힘 글 · 남은 마디 · 최근 대화(30일, 40마디) */
 export async function loadCoachChat() {
   const user = await requireUser();
   if (!(await activeCoach(user))) return { ok: false as const, error: '코치를 시작한 뒤에 쓸 수 있어요.' };
-  const [{ gate, consented }, rows, profile] = await Promise.all([
+  const [{ gate, consented }, rows, profile, unreadRows] = await Promise.all([
     gateFor(user),
     prisma.coachMessage.findMany({
       where: { userId: user.id, createdAt: { gte: new Date(Date.now() - KEEP_DAYS * 86_400_000) } },
       orderBy: { createdAt: 'desc' },
       take: 40,
-      select: { id: true, role: true, text: true, adjusts: true, goal: true, act: true },
+      select: { id: true, createdAt: true, role: true, text: true, adjusts: true, goal: true, act: true },
     }),
     prisma.coachProfile.findUnique({ where: { userId: user.id }, select: { nudges: true } }),
+    prisma.coachMessage.findMany({ where: unreadMessagesOf(user.id), orderBy: { createdAt: 'asc' } }),
   ]);
-  const shown: ShownMessage[] = rows.reverse().map((m) => ({
+  const timeline = [...new Map([...unreadRows, ...rows].map(row => [row.id, row])).values()]
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id));
+  const shown: ShownMessage[] = timeline.map((m) => ({
     id: m.id,
     role: m.role === 'user' ? 'user' : 'coach',
     text: m.text,
@@ -152,6 +174,7 @@ export async function loadCoachChat() {
     block: gate.ok || gate.why === 'consent' ? null : AI_BLOCK_TEXT[gate.why],
     left: gate.ok ? gate.left : 0,
     messages,
+    unreadIds: consented ? timeline.filter(m => unreadNudge(m.adjusts)).map(m => m.id) : [],
     /* 코치가 먼저 말 걸기(자비스 3단계, lib/coach/nudge.ts) 켬 · 끔 */
     nudges: profile?.nudges ?? true,
   };

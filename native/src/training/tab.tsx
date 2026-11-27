@@ -48,7 +48,7 @@ const stateOf = (card: TrainingCard): TodayState =>
 
 const STATE_LABEL: Record<TodayState, string> = { none: '일정 없음', planned: '운동 예정', active: '운동 중', done: '오늘 완료', rest: '쉬는 날' };
 
-export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: number; onWeb: (href: string) => void }) {
+export function TrainingTab({ sharedHeader = false, today, bottom, onWeb }: { sharedHeader?: boolean; today: string; bottom: number; onWeb: (href: string) => void }) {
   const c = usePalette();
   const inset = useSafeAreaInsets();
   const { width, fontScale } = useWindowDimensions();
@@ -146,7 +146,7 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
       contentContainerStyle={[{ paddingTop: inset.top + 12, paddingBottom: bottom + 24, paddingHorizontal: SPACE.side, gap: 14 }, READABLE]}
     >
       <PageHead title="트레이닝">
-        <MenuButton />
+        {!sharedHeader && <MenuButton />}
       </PageHead>
 
       <View style={styles.sectionHead}>
