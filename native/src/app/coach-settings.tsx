@@ -71,7 +71,7 @@ export default function CoachSettingsScreen() {
     <View style={{ flex: 1, backgroundColor: c.page }}>
       <View style={{ paddingHorizontal: 16, paddingTop: 12 }}><SheetHead c={c} title="코치 설정" /></View>
       <ScrollView contentContainerStyle={[st.content, { paddingBottom: inset.bottom + 32 }, READABLE]}>
-        <View><Text style={[TYPE.hero, { color: c.ink }]}>내 코치를 내 방식으로</Text><Text style={[TYPE.body, { color: c.muted, marginTop: 5 }]}>AI 대화 선택과 기록을 관리해요. 주간 계획과 일정 조정은 별개로 계속 사용할 수 있어요.</Text></View>
+        <View><Text style={[TYPE.hero, { color: c.ink }]}>내 코치를 내 방식으로</Text><Text style={[TYPE.body, { color: c.muted, marginTop: 5 }]}>AI 대화 선택과 기록을 관리해요.</Text></View>
         {!chat && !error ? <ActivityIndicator color={c.action} style={{ marginTop: 24 }} /> : null}
         {error ? <View style={[st.notice, { backgroundColor: c.warnBg, borderColor: c.warnLine }]}><Text style={[TYPE.body, { color: c.ink }]}>{error}</Text><ActionButton label="다시 확인" compact tone="secondary" onPress={() => { setError(null); load(); }} /></View> : null}
         {chat ? <>

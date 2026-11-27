@@ -15,9 +15,9 @@ type Next = (typeof FOLLOWUP_NEXT)[FollowupWhy];
 
 /**
  * 어제 이어보기(lib/coach/followup.ts) — 어제 계획한 과제를 덜 한 날, 코치 탭 맨 위에 한 번. 한 번 누르면 답이 어제 칸에 남고(서버 answerCoachFollowup),
- * 다음 걸음 한 줄과 이미 있는 길(이번 주 일정 고치기 · 체크인 · 오늘 운동 만들기)을 보인다. '넘어가기'도 답으로 남겨 다시 묻지 않는다.
+ * 다음 걸음 한 줄과 오늘 할 수 있는 일을 보인다. '넘어가기'도 답으로 남겨 다시 묻지 않는다.
  */
-export function FollowupCard({ ask, onAdjust, onDone }: { ask: FollowupData; onAdjust: () => void; onDone: () => void }) {
+export function FollowupCard({ ask, onDone }: { ask: FollowupData; onDone: () => void }) {
   const c = usePalette();
   const [busy, setBusy] = useState(false);
   const [next, setNext] = useState<Next | null>(null);
@@ -38,8 +38,7 @@ export function FollowupCard({ ask, onAdjust, onDone }: { ask: FollowupData; onA
   const go = () => {
     const kind = next?.action?.kind;
     onDone();
-    if (kind === 'adjust') onAdjust();
-    else if (kind === 'checkin') openCheckin();
+    if (kind === 'checkin') openCheckin();
     else if (kind === 'training') pushOpen('/training-today' as Href);
   };
   return (
@@ -48,9 +47,9 @@ export function FollowupCard({ ask, onAdjust, onDone }: { ask: FollowupData; onA
       <Text style={[TYPE.card, { color: c.ink }]}>{ask.line}</Text>
       {next ? (
         <>
-          <Text style={[TYPE.body, { color: c.muted }]}>{next.text}</Text>
+          <Text style={[TYPE.body, { color: c.muted }]}>{next.action?.kind === 'adjust' ? '못 한 운동은 몰아서 하지 않아요. 오늘 할 수 있는 것부터 이어가요.' : next.text}</Text>
           <View style={st.actions}>
-            {next.action ? (
+            {next.action && next.action.kind !== 'adjust' ? (
               <Press accessibilityRole="button" onPress={go} style={[st.primary, { backgroundColor: c.action }]}>
                 <Text style={[TYPE.body, { color: c.onAction, fontWeight: '600' }]}>{next.action.label}</Text>
               </Press>

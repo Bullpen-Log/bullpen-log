@@ -15,7 +15,7 @@ import { Press } from '~/shell/press';
 import { toast } from '~/shell/toast';
 import { Icon } from '~/shell/icon';
 import { pushOpen } from '~/shell/release';
-import { openCheckin } from '~/shell/web-nav';
+import { leaveTo, openCheckin } from '~/shell/web-nav';
 
 type Chat = Extract<Awaited<ReturnType<typeof loadCoachChat>>, { ok: true }>;
 type Msg = Chat['messages'][number];
@@ -47,7 +47,7 @@ function adjustLabel(a: CoachAdjust): string {
  */
 export default function CoachChatScreen() {
   const c = usePalette();
-  const source = useLocalSearchParams<{ kind?: string; id?: string; jobId?: string; label?: string }>();
+  const source = useLocalSearchParams<{ kind?: string; id?: string; jobId?: string; label?: string; fromHome?: string }>();
   const examples = source.kind === 'velocity' ? ['이 기록에서 최고와 평균 구속은 어떻게 봐야 해?']
     : source.kind === 'report' ? ['이 리포트에서 먼저 신경 쓸 동작이 뭐야?']
     : source.kind === 'week' ? ['이번 주에 가장 집중할 훈련이 뭐야?'] : EXAMPLES;
@@ -143,7 +143,7 @@ export default function CoachChatScreen() {
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: c.page }}>
       <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <View style={{ flex: 1 }}><SheetHead c={c} title="코치에게 말하기" /></View>
+          <View style={{ flex: 1 }}><SheetHead c={c} title="코치에게 말하기" onClose={source.fromHome === '1' ? () => leaveTo('/today') : undefined} /></View>
           <Press accessibilityRole="button" accessibilityLabel="코치 설정" onPress={() => router.push('/coach-settings')} style={st.settingsButton}><Icon name="settings" size={19} color={c.ink} /></Press>
         </View>
       </View>

@@ -30,13 +30,14 @@ import { QuickStepEntry } from '~/pitch/quick-step';
  * 닫으면 읽던 자리 그대로). 기록이 없는 날은 바로 입력부터(측정만 남은 날은 그 측정으로). 2026-10-29 퀵스텝 확정안.
  */
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
-type Open = { source: EntrySource; convertRest?: boolean };
+type Open = { source: EntrySource; convertRest?: boolean; fromHome?: boolean };
 
 export default function PitchDayScreen() {
   const c = usePalette();
   const speed = usePrefs().speed;
   const inset = useSafeAreaInsets();
-  const { date } = useLocalSearchParams<{ date: string }>();
+  const { date, fromHome } = useLocalSearchParams<{ date: string; fromHome?: string }>();
+  const directEntry = fromHome === '1';
   const { logs, error } = useMonth(monthOf(date));
   const day = (logs ?? []).filter((l) => dateKeyOf(l.date) === date);
   const at = new Date(`${date}T00:00:00.000Z`);
@@ -77,7 +78,7 @@ export default function PitchDayScreen() {
   if (!autoDone && !open && settled && !future && serverToday != null && logs != null && day.length === 0 && (velocity.data || velocity.failed)) {
     const pf = velocity.data?.prefill;
     setAutoDone(true);
-    setOpen({ source: pf ? { kind: 'measured', m: measuredFrom(pf, velocity.data!.sessions) } : { kind: 'new' } });
+    setOpen({ source: pf ? { kind: 'measured', m: measuredFrom(pf, velocity.data!.sessions) } : { kind: 'new' }, fromHome: directEntry });
   }
 
   const link = useLinkNote(date);
@@ -125,6 +126,46 @@ export default function PitchDayScreen() {
       ]
     );
   };
+
+  const closeEntry = () => {
+    if (open?.fromHome) leaveTo('/today');
+    else setOpen(null);
+  };
+  const entry = open ? (
+    <QuickStepEntry
+      key={open.source.kind === 'edit' ? open.source.log.id : open.source.kind}
+      date={date}
+      source={open.source}
+      convertRest={open.convertRest}
+      onDone={(result) => {
+        toast(result.created ? '기록했어요' : '고쳤어요');
+        closeEntry();
+      }}
+      onCancel={closeEntry}
+    />
+  ) : null;
+  if (open?.fromHome) return entry;
+
+  // 홈의 기록 바로가기는 기존 기록과 구속 측정이 확인될 때까지 날짜 요약을 열지 않는다.
+  const preparingEntry = directEntry && !open && !autoDone && (serverToday == null || !future)
+    && (logs == null ? !error : day.length === 0);
+  if (preparingEntry) {
+    return (
+      <View style={{ flex: 1, backgroundColor: c.page }}>
+        <View style={[styles.grabber, { backgroundColor: c.lineStrong }]} />
+        <View style={styles.bar}>
+          <View style={styles.side} />
+          <Text accessibilityRole="header" style={[styles.barTitle, { color: c.ink }]}>투구 기록</Text>
+          <View style={[styles.side, { alignItems: 'flex-end' }]}>
+            <Press accessibilityRole="button" accessibilityLabel="닫기" onPress={() => leaveTo('/today')} hitSlop={6} style={[styles.close, { backgroundColor: c.chip }]}>
+              <Icon name="x" size={18} color={c.muted} />
+            </Press>
+          </View>
+        </View>
+        <ActivityIndicator accessibilityLabel="투구 기록 준비 중" color={c.muted} style={styles.entryLoading} />
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
@@ -237,21 +278,7 @@ export default function PitchDayScreen() {
           </ScrollView>
         </ViewportProvider>
       </View>
-      {open ? (
-        <View style={StyleSheet.absoluteFill}>
-          <QuickStepEntry
-            key={open.source.kind === 'edit' ? open.source.log.id : open.source.kind}
-            date={date}
-            source={open.source}
-            convertRest={open.convertRest}
-            onDone={(r) => {
-              setOpen(null);
-              toast(r.created ? '기록했어요' : '고쳤어요');
-            }}
-            onCancel={() => setOpen(null)}
-          />
-        </View>
-      ) : null}
+      {entry ? <View style={StyleSheet.absoluteFill}>{entry}</View> : null}
     </View>
   );
 }
@@ -263,6 +290,7 @@ const styles = StyleSheet.create({
   side: { width: 52 },
   close: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', margin: 6 },
   barTitle: { fontSize: 17, fontWeight: '600' },
+  entryLoading: { marginTop: 24 },
   total: { gap: 2, paddingHorizontal: 4, paddingTop: 4 },
   add: { minHeight: 48, borderRadius: 24, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center' },
   well: { borderRadius: 12, paddingHorizontal: 16, paddingVertical: 32, textAlign: 'center', fontSize: 15, lineHeight: 22, overflow: 'hidden' },

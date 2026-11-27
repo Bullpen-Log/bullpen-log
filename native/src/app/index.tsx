@@ -406,7 +406,6 @@ export default function SiteScreen() {
     const hide = Keyboard.addListener('keyboardDidHide', () => setTyping(false));
     return () => { show.remove(); hide.remove(); };
   }, []);
-  const [weekVisit, setWeekVisit] = useState(0);
   const [meOk, setMeOk] = useState(false);
   const [meTry, setMeTry] = useState(0);
   /* 계정 · 오늘을 못 받은 까닭(꺼진 망 말고) — 오늘을 모르면 앱 판이 안 서고, 새 앱은 웹 홈 · 투구 판도 그리지 않아 빈 화면이었다(2026-10-24 검토) */
@@ -756,13 +755,7 @@ export default function SiteScreen() {
     } else showWeb(href, waits);
   };
   const goTab = (href: string) => {
-    if (href === '/coach?view=week' && open(COACH_PATH)) {
-      setWeekVisit(v => v + 1);
-      setWebFront(false);
-      setPath(COACH_PATH);
-      setSearch('view=week');
-      return;
-    }
+    if (href === '/coach?view=week') href = COACH_PATH;
     if (goRecords(href)) return;
     if (!open(href)) return noticeLocked();
     /*
@@ -1012,7 +1005,7 @@ export default function SiteScreen() {
   const coachEnabled = !!coachOwner && open(COACH_PATH);
   const fixedHeader = coachEnabled && !typing && (showHome || showRecords || showPitch || showTraining || showNutrition);
   const homeSlot = today && seenHome ? <HomeTab fixedHeader={coachEnabled} key="home" today={today} bottom={tabBottom} onWeb={openWeb} onTab={goTab} /> : null;
-  const coachSlot = today && seenCoach && open(COACH_PATH) ? <CoachMainTab initialWeek={search === 'view=week'} key={`coach-${weekVisit}-${search === 'view=week'}`} bottom={tabBottom} /> : null;
+  const coachSlot = today && seenCoach && open(COACH_PATH) ? <CoachMainTab key="coach" bottom={tabBottom} /> : null;
   const pitchSlot =
     today && seenPitch && open('/videos') ? (
       <PitchTab sharedHeader={coachEnabled} key="pitch" today={today} bottom={tabBottom} onWeb={openWeb} onTab={goTab} log={pitchLog} recordsTab={recordsTab} />

@@ -1,6 +1,6 @@
 import { type Href } from 'expo-router';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type ScrollViewInstance } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RecordItem } from '@/lib/records/day-records';
 import { shiftDateKey } from '@/lib/pitch-stats';
@@ -9,7 +9,6 @@ import { SPACE, TYPE, usePalette, withAlpha, type Palette } from '~/lib/ui';
 import { PageHead } from '~/shell/heading';
 import { Icon } from '~/shell/icon';
 import { MenuButton } from '~/shell/menu-button';
-import { Pulse } from '~/shell/motion';
 import { Press } from '~/shell/press';
 import { canOpen, pushOpen, useRelease } from '~/shell/release';
 import { useFocusRefresh, useOnTabActive, useRetapTop } from '~/shell/tab-pager';
@@ -337,10 +336,7 @@ export function RecordsTab({
               </Press>
             </View>
           ) : (
-            <View accessibilityLabel="기록을 불러오는 중이에요" style={{ gap: 12, padding: 16 }}>
-              <Pulse style={[styles.skel, { backgroundColor: c.line }]} />
-              <Pulse style={[styles.skel, { backgroundColor: c.line, width: '60%' }]} />
-            </View>
+            <RecordsLoading color={c.muted} />
           )
         ) : firstUse ? (
           <EmptyLine c={c} text="아직 남긴 기록이 없어요" />
@@ -445,6 +441,15 @@ function EmptyLine({ c, text }: { c: Palette; text: string }) {
   );
 }
 
+function RecordsLoading({ color }: { color: string }) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setVisible(true), 450);
+    return () => clearTimeout(timer);
+  }, []);
+  return visible ? <ActivityIndicator accessibilityLabel="기록을 불러오는 중이에요" color={color} style={styles.loading} /> : null;
+}
+
 const styles = StyleSheet.create({
   iconBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   search: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, paddingLeft: 14 },
@@ -473,7 +478,7 @@ const styles = StyleSheet.create({
   searchDate: { fontSize: 13, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 2 },
   state: { minHeight: 80, alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 18 },
   retry: { marginTop: 4, minHeight: 44, paddingHorizontal: 20, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  skel: { height: 18, borderRadius: 9 },
+  loading: { paddingVertical: 18 },
   links: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 16 },
   more: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 4 },
 });

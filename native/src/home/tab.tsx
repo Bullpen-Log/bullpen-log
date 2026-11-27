@@ -300,6 +300,7 @@ export function HomeTab({
   const program = progressFor('program');
   const savedComparison = comparisons?.[0];
   const load = home?.today === today ? home.board?.load : null;
+  const pitchHref = home?.pitchLocked ? '/setup/pitch' : '/pitch/' + today + '?fromHome=1';
   const line = canShowCoach && coachSpotlight?.day === today && coachSpotlight.epoch === epoch ? coachSpotlight.line : null;
   const enter = (route: string, destination: string) => canOpen(route, release) ? go(destination) : noticeLocked();
   const highlights: HomeHighlight[] = [
@@ -326,7 +327,7 @@ export function HomeTab({
     }, {
       key: 'load', label: '투구 부하 지수', title: '첫 투구부터 기록해요', load,
       action: load ? '투구 분석 보기' : '투구 기록하기',
-      onPress: () => enter('/analysis?view=pitch', load ? '/analysis?view=pitch' : home?.pitchLocked ? '/setup/pitch' : '/pitch/' + today),
+      onPress: () => enter('/analysis?view=pitch', load ? '/analysis?view=pitch' : pitchHref),
     }, {
       key: 'program', label: '프로그램', title: '기초 근력부터\n투수 파워까지',
       detail: program?.detail, action: program?.action ?? '프로그램 고르기',
@@ -334,11 +335,14 @@ export function HomeTab({
     }, {
       key: 'coach', label: 'AI 코치', title: line ? '오늘의\n훈련 포인트' : '내 기록을 아는\n투수 코치',
       detail: line ?? undefined,
-      action: line ? '오늘 계획 보기' : '코치 알아보기',
-      onPress: () => canShowCoach ? onTab('/coach') : noticeLocked(),
+      action: line ? 'AI 코치와 대화하기' : '코치 알아보기',
+      onPress: () => {
+        if (!canShowCoach) return noticeLocked();
+        if (line) return go('/coach-chat?fromHome=1');
+        onTab('/coach');
+      },
     },
   ];
-  const pitchHref = home?.pitchLocked ? '/setup/pitch' : `/pitch/${today}`;
   const pitchShowsRecords = !!home?.pitchDone || !canOpen(pitchHref, release);
   const openPitch = () => pitchShowsRecords ? openRecords(today, 'pitch') : go(pitchHref);
   const openWorkout = () => {
@@ -401,9 +405,6 @@ export function HomeTab({
                   onWorkout={openWorkout}
                   onRecords={openRecords}
                 />
-                {canShowCoach && <Press accessibilityRole="button" onPress={() => onTab('/coach?view=week')} style={{ marginTop: 16, padding: 16, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.card, borderRadius: 16 }}>
-                  <Text style={[TYPE.body, { color: c.ink, fontWeight: '600' }]}>이번 주 훈련 계획</Text><Icon name="chevron-right" size={18} color={c.muted}/>
-                </Press>}
                 {home.goodNote ? (
                   <View style={{ marginTop: 18 }}><GoodDayNote note={home.goodNote} /></View>
                 ) : null}
