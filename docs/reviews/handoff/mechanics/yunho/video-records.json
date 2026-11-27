@@ -1857,11 +1857,11 @@
       "number": 14,
       "review_id": "mv-4b418de00f1d1ab5",
       "category": "드롭",
-      "title": "힌지 홉 스로우 (큰 공)",
+      "title": "힌지 홉 스로우 (큰 메디신볼)",
       "kind": "참고 영상",
       "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
-      "status": "미검수",
-      "drill_id": null,
+      "status": "사전 수정 · 사용자 확인 대기",
+      "drill_id": "f0f70f7e-1b6a-479f-9647-d626fea53c3f",
       "user_decision": null,
       "user_decided_at": null,
       "user_change_requests": [],
@@ -1873,11 +1873,18 @@
       "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
       "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
       "filming_needed": {
-        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
-        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+        "status": "촬영 필요",
+        "reason": "운영 화면에 촬영 전 참고 영상으로 표시"
       },
       "content_change_approved": false,
-      "deployment_approved": false
+      "deployment_approved": false,
+      "pre_review_20261127": {
+        "changes": "제목과 동작·목적·강도 설명 수정, 무게 선택 안내 추가.",
+        "observed": "참고 영상 일부 시범과 재생 확인. 발 움직임과 분류는 사용자 확인 필요.",
+        "focus": "드롭·드리프트 기존 분류, 재검토 필요.",
+        "source": "https://edu.drivelinebaseball.com/courses/mb-for-baseball",
+        "advance_authorized": false
+      }
     },
     {
       "number": 15,
