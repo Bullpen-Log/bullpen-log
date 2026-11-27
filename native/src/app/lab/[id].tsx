@@ -1,3 +1,4 @@
+import { RecordCoachLink, useRecordCoach } from '~/coach/record-link';
 import { LabPracticeCard } from '~/lab/practice-card';
 import * as Haptics from 'expo-haptics';
 import * as Print from 'expo-print';
@@ -391,6 +392,7 @@ function ResultView({ c, data, active, doneAgain, onReload }: { c: Palette; data
   const lab = useRef<Lab3DHandle>(null);
   const r = data.result!;
   const report = r.report;
+  const recordCoach = useRecordCoach(r.mine && !!data.shown);
   const [exporting, setExporting] = useState<'report' | 'video' | null>(null);
   const [exportProgress, setExportProgress] = useState(0);
   const exportBusy = useRef(false);
@@ -625,6 +627,7 @@ function ResultView({ c, data, active, doneAgain, onReload }: { c: Palette; data
               left={(boxW) => (
                 <View style={{ gap: 12 }}>
                   <Summary c={c} report={report} onScene={onScene} />
+                  {recordCoach && data.shown ? <RecordCoachLink kind="report" id={data.id} jobId={data.shown} label={[data.when, data.title, '3D 리포트'].filter(Boolean).join(' · ')} /> : null}
                   <Text accessibilityRole="header" style={[TYPE.card, { color: c.ink, marginTop: 8, paddingHorizontal: 4 }]}>
                     3D 동작
                   </Text>

@@ -1,3 +1,4 @@
+import { RecordCoachLink, useRecordCoach } from '~/coach/record-link';
 import * as Haptics from 'expo-haptics';
 import { pushOpen } from '~/shell/release';
 import { type Href } from 'expo-router';
@@ -91,6 +92,7 @@ export function VelocityDay({
   const [viewing, setViewing] = useState<VelocityPitchView | null>(null);
   const [editing, setEditing] = useState<VelocityPitchView | null>(null);
   const [open, setOpen] = useState(false);
+  const recordCoach = useRecordCoach(open);
   if (!data || data.sessions.length === 0) return null;
   const allPitches = data.sessions.flatMap((s) => s.pitches);
   const all = summarize(allPitches);
@@ -179,6 +181,7 @@ export function VelocityDay({
                 <Icon name="trash2" size={15} color={c.muted} />
               </Press>
             </View>
+            {recordCoach && sum && s.mode === 'pitch' ? <RecordCoachLink kind="velocity" id={s.id} label={date + ' ' + pad(at.getHours()) + ':' + pad(at.getMinutes()) + ' · 구속 측정'} /> : null}
             {s.pitches.map((p, i) => (
               <View key={p.id} style={[styles.row, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }]}>
                 <Press

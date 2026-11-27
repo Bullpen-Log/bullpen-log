@@ -1,3 +1,4 @@
+import { RecordCoachLink, useRecordCoach } from '~/coach/record-link';
 import { CoachAccessActions } from './access-actions';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
@@ -116,6 +117,7 @@ export function CoachMainTab({ bottom, initialWeek = false }: { bottom: number; 
   useFocusRefresh(() => { if (access === 'paid') loadWeek(); else if (access === 'free') checkAccess(); });
   const retryAccess = () => { setAccess('loading'); checkAccess(); };
   const retryWeek = () => { setWeekLoading(true); setWeekError(false); loadWeek(); };
+  const recordCoach = useRecordCoach(view === 'week');
   const week = data?.week ?? null;
   const todayAt = week && data ? week.findIndex((s) => s.date === data.today) : -1;
   const openWeek = (day = todayAt) => {
@@ -189,6 +191,7 @@ export function CoachMainTab({ bottom, initialWeek = false }: { bottom: number; 
             {data.states ? <AdjustBar week={week} states={data.states} today={data.today} onDone={loadWeek} /> : null}
             <SectionHead title="7일 계획" />
             <WeekRows week={week} states={data.states} todayAt={todayAt} c={c} />
+            {recordCoach && week[0] ? <RecordCoachLink kind="week" id={week[0].date} label={weekLabel(week) + ' 훈련 계획'} /> : null}
             {data.review ? <ReviewCard review={data.review} thisWeek={data.review.weekStart === data.weekStart} onDone={loadWeek} /> : null}
             <SectionHead title="리뷰" />
             <View style={[st.group, { backgroundColor: c.card, boxShadow: c.float }]}>{REVIEWS.map((r, i) => <Press key={r.view} accessibilityRole="link" onPress={() => pushOpen(`/analysis?view=${r.view}` as Href)} style={[st.row, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }]}><Icon name="chart-no-axes-column" size={19} color={c.link} /><Text style={[TYPE.body, { flex: 1, color: c.ink }]}>{r.label}</Text><Icon name="chevron-right" size={17} color={c.muted} /></Press>)}</View>

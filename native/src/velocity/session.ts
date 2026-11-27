@@ -190,7 +190,7 @@ export function statsOf(list: NativePitch[], fit: CalFit) {
   );
 }
 
-type SaveResult = { ok: true; clipFailed: number } | { ok: false; error: string };
+type SaveResult = { ok: true; sessionId?: string; clipFailed: number } | { ok: false; error: string };
 
 /**
  * 세션 저장 — 서버(saveVelocitySession) → 공마다 클립. 회원 클립은 폰의 앱 안(keep → attachClip localId — 웹과 같은 규칙, 2026-10-10
@@ -212,7 +212,7 @@ export async function saveSession(input: {
   const longSide = info ? Math.max(info.mainWidth, info.mainHeight) : null;
   const ids = new Map<number, string | null>();
   for (const [job, id] of input.attemptIds) ids.set(job, await id);
-  const res = await rpc<{ ok: true; pitchIds?: string[] } | { ok: false; error: string }>(
+  const res = await rpc<{ ok: true; sessionId?: string; pitchIds?: string[] } | { ok: false; error: string }>(
     'velocity.saveVelocitySession',
     {
       date: input.date,
@@ -299,5 +299,5 @@ export async function saveSession(input: {
       if (!kept) void DualCamera.discard({ paths: [p.clip.path] });
     }
   }
-  return { ok: true, clipFailed };
+  return { ok: true, clipFailed, sessionId: res.sessionId };
 }

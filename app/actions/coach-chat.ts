@@ -1,5 +1,6 @@
 'use server';
 
+import { selectedRecord } from '@/lib/coach/selected-record';
 import { ASSIST_TOOLS, applyAssist } from '@/lib/coach/assist';
 import { cardDayOk } from '@/lib/coach/tool-defs';
 import { revalidatePath } from 'next/cache';
@@ -364,7 +365,7 @@ const FALLBACK = {
 
 /** 한 마디 — 판정 → 맥락 → AI → 비용 기록 → 바꿀 거리 거르기 → 두 마디 저장. 막히면 저장 없이 막힘 글 */
 export async function sendCoachMessage(
-  text: unknown
+  text: unknown, source?: unknown
 ): Promise<
   | { ok: true; blocked: string }
   | { ok: true; reply: string; adjusts: CoachAdjust[]; goal: GoalOffer | null; act: CoachAct | null; cards: ShownCard[]; messageId: string; left: number }
@@ -381,6 +382,9 @@ export async function sendCoachMessage(
   const base = await coachWeekBase(user.id);
   const context = await contextOf(user, base, ageOn(user.birthDate, appNow()) ?? 20);
   if (!context || !base.slots) return { error: '이번 주 일정이 없어요.' };
+  const selected = source === undefined ? null : await selectedRecord(user, source, base.slots);
+  if (source !== undefined && !selected) return { error: '선택한 기록을 확인할 수 없어요. 원래 화면에서 다시 열어 주세요.' };
+  const prompt = selected ? context.text + '\n사용자가 화면에서 선택한 기록이다. 이 기록에 대한 질문에는 아래 자료를 기준으로 답한다.\n' + selected : context.text;
   /*
    * 마디 자리를 먼저 잡는다 — 사용자별 잠금 안에서 세고 · 빈 기록(실패 · 값 0)을 먼저 만든 뒤 AI 를 부르고, 끝나면 그 기록을 채운다. 예전에는
    * 세고 → AI → 기록 차례라 동시에 보낸 요청이 모두 '오늘 0마디'로 통과했다(2026-11-17 검토 [24]). 월 상한은 값을 모른 채 잡혀 몇 센트 넘을 수 있다(설계).
@@ -416,7 +420,7 @@ export async function sendCoachMessage(
   let picked: Promise<Awaited<ReturnType<typeof loadTodayPicker>>> | null = null;
   const todayWork: TodayWork = { ...context.work, started: base.locked(base.today), picker: () => (picked ??= loadTodayPicker(user, appNow())) };
   const box = toolboxOf({ user, today: base.today, said, health: context.health, week: base.slots, locked: base.locked, goalOpen: context.goalOpen, cards, todayWork });
-  const turn = await chatTurn(lines, context.text, said, box);
+  const turn = await chatTurn(lines, prompt, said, box);
   await prisma.coachLog.update({
     where: { id: seat.logId },
     data: {

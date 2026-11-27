@@ -255,7 +255,7 @@ check('⑤ 시스템 글은 이름을 안 쓰고 말하지 말라고 한다', sc
     '⑦ 규칙 글: 구속 약속 금지 · 영상 본 척 금지 · 처방 바꾸라 안 함 · 모름 짐작 금지 · 먼저 꺼내 말함',
     ['구속이 얼마나 · 언제 오를지 약속하지 않고', '영상을 직접 본 것처럼 말하지 않는다', '단계를 올리거나 처방을 바꾸라고 하지 않는다', "'모름'인 칸을 짐작으로 채우지 않는다", '네가 먼저 꺼내 말한다'].every((w) => COACH_SYSTEM.includes(w))
   );
-  check('⑦ 동의 글에 보내는 것이 적혀 있다(개인 비서 판)', ['3D 동작 분석의 판정', '암케어', '더 먹을 양', '투구 기록', '정한 목표', '찾아본 기간', '투구 계획', '오늘 운동'].every((w) => COACH_AI_CONSENT.items.includes(w)) && (COACH_VELOCITY || !COACH_AI_CONSENT.items.includes('구속')) && COACH_AI_CONSENT.purpose.includes('누를 때만') && COACH_AI_CONSENT.version === '2026-11-21');
+  check('⑦ 동의 글에 보내는 것이 적혀 있다(개인 비서 판)', ['3D 동작 분석의 판정', '암케어', '더 먹을 양', '투구 기록', '정한 목표', '찾아본 기간', '투구 계획', '오늘 운동'].every((w) => COACH_AI_CONSENT.items.includes(w)) && COACH_AI_CONSENT.items.includes('직접 선택한 구속 측정') && COACH_AI_CONSENT.purpose.includes('누를 때만') && COACH_AI_CONSENT.version === '2026-11-27');
 }
 
 /* ⑧ 검토 반영(2026-11-19) — 건강 동의가 없어진 뒤 보내는 것 · 지금 연습하는 요소 · 구속 종류별. 실제 AI 호출 없이 */

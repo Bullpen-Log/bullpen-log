@@ -1,3 +1,4 @@
+import { RecordCoachLink, useRecordCoach } from '~/coach/record-link';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
@@ -173,7 +174,8 @@ export default function VelocityScreen() {
   const [view, setView] = useState({ width: 0, height: 0 });
   /* 세션을 마쳤나(요약) · 저장했나(저장 끝 판) — 요약 · 저장 동안은 알아채기를 끈다 */
   const [ended, setEnded] = useState(false);
-  const [saved, setSaved] = useState<{ clipFailed: number } | null>(null);
+  const [saved, setSaved] = useState<{ clipFailed: number; sessionId?: string; label: string } | null>(null);
+  const recordCoach = useRecordCoach(!!saved?.sessionId);
   const [effortPct, setEffortPct] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -695,7 +697,7 @@ export default function VelocityScreen() {
       setSessionDate(null);
       for (const k of sentAttempts.keys()) attempts.current.delete(k);
       setLive(false);
-      setSaved({ clipFailed: res.clipFailed ?? 0 });
+      setSaved({ clipFailed: res.clipFailed ?? 0, sessionId: res.sessionId, label: (sessionDate ?? start.today) + ' · ' + sessionType + ' 구속 측정' });
     } catch (e) {
       setSaveError(e instanceof RpcError ? e.message : '저장하지 못했어요. 잰 공은 그대로 있으니 다시 눌러 주세요.');
     } finally {
@@ -978,6 +980,7 @@ export default function VelocityScreen() {
         <Text style={[styles.sumBody, { color: p.muted, textAlign: 'center' }]}>
           {saved.clipFailed ? `영상 ${saved.clipFailed}개는 붙이지 못했어요. 측정값은 저장됐어요.` : '투구 기록으로도 남겨 주세요.'}
         </Text>
+        {recordCoach && saved.sessionId ? <RecordCoachLink kind="velocity" id={saved.sessionId} label={saved.label} /> : null}
       </View>
     );
     note = '새 세션은 촬영 준비부터 다시 확인해요.';

@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
-import { router, useFocusEffect, useIsFocused, type Href } from 'expo-router';
+import { router, useLocalSearchParams, useFocusEffect, useIsFocused, type Href } from 'expo-router';
 import { ActivityIndicator, Alert, AppState, KeyboardAvoidingView, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance, type TextInputInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { applyCoachAdjust, previewCoachAdjust } from '@/app/actions/coach';
@@ -47,6 +47,10 @@ function adjustLabel(a: CoachAdjust): string {
  */
 export default function CoachChatScreen() {
   const c = usePalette();
+  const source = useLocalSearchParams<{ kind?: string; id?: string; jobId?: string; label?: string }>();
+  const examples = source.kind === 'velocity' ? ['이 기록에서 최고와 평균 구속은 어떻게 봐야 해?']
+    : source.kind === 'report' ? ['이 리포트에서 먼저 신경 쓸 동작이 뭐야?']
+    : source.kind === 'week' ? ['이번 주에 가장 집중할 훈련이 뭐야?'] : EXAMPLES;
   const inset = useSafeAreaInsets();
   const [chat, setChat] = useState<Chat | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -113,7 +117,7 @@ export default function CoachChatScreen() {
     setChat({ ...chat, messages: [...chat.messages, mine] });
     setText('');
     try {
-      const r = await rpc<Awaited<ReturnType<typeof sendCoachMessage>>>('coach-chat.sendCoachMessage', t);
+      const r = await rpc<Awaited<ReturnType<typeof sendCoachMessage>>>('coach-chat.sendCoachMessage', t, ...(source.kind ? [{ kind: source.kind, id: source.id, jobId: source.jobId }] : []));
       if ('error' in r) {
         setNotice(r.error ?? '다시 보내 주세요.');
         setChat((cur) => (cur ? { ...cur, messages: cur.messages.filter((m) => m.id !== mine.id) } : cur));
@@ -143,6 +147,7 @@ export default function CoachChatScreen() {
           <Press accessibilityRole="button" accessibilityLabel="코치 설정" onPress={() => router.push('/coach-settings')} style={st.settingsButton}><Icon name="settings" size={19} color={c.ink} /></Press>
         </View>
       </View>
+      {source.kind && source.label ? <Text style={{ paddingHorizontal: 16, paddingVertical: 6, color: c.link }} numberOfLines={2}>질문할 기록 · {source.label}</Text> : null}
       {failed ? <View style={{ padding: 16, gap: 10 }}><Text style={[TYPE.body, { color: c.danger }]}>{failed}</Text><ActionButton label="다시 확인" compact tone="secondary" onPress={() => { setFailed(null); load(); }} /></View> : null}
       {!chat && !failed ? <ActivityIndicator style={{ marginTop: 40 }} /> : null}
       {chat && !chat.consented ? <ConsentView chat={chat} onAgree={() => void agree()} c={c} /> : null}
@@ -165,7 +170,7 @@ export default function CoachChatScreen() {
               <View style={{ gap: 8 }}>
                 <Text style={[TYPE.body, { color: c.muted }]}>던진 것 · 이번 주 일정 · 해 보고 싶은 것을 말해 주세요. 바꿀 것 · 정할 목표 · 투구 기록 초안은 미리 보여 드리고, 저장은 직접 눌러요.</Text>
                 <View style={st.chips}>
-                  {EXAMPLES.map((e) => (
+                  {examples.map((e) => (
                     <Press
                       key={e}
                       accessibilityRole="button"
@@ -202,7 +207,7 @@ export default function CoachChatScreen() {
                 ref={input}
                 value={text}
                 onChangeText={setText}
-                placeholder="코치에게 말하기"
+                placeholder={source.kind ? '이 기록에 대해 물어보세요' : '코치에게 말하기'}
                 placeholderTextColor={c.muted}
                 multiline
                 maxLength={500}
