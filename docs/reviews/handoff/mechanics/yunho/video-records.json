@@ -1788,7 +1788,13 @@
         "pending": "사용자 표시 용어 전반의 시스템 변경 및 검증 필요.",
         "advance_authorized": false
       },
-      "body_movement_instruction_20261125": {"at": "2026-11-25T21:21:20+09:00", "instruction": "2번은 몸을 목표 반대쪽으로 움직여 떨어지기, 3번은 중심을 목표 쪽으로 옮기며 회전하여 던지기로 수정.", "applied": "2. 몸을 목표 반대쪽으로 살짝 움직이며 박스에서 떨어져 오른발로 착지합니다.\n오른발이 바닥에 닿을 때 오른쪽 무릎을 굽혀 몸을 낮춥니다.\n3. 몸의 중심을 목표 쪽으로 옮기며 골반과 몸통을 돌려 메디신볼을 던집니다.", "verification": "운영 DB와 웹 검수 화면 확인.", "advance_authorized": false},
+      "body_movement_instruction_20261125": {
+        "at": "2026-11-25T21:21:20+09:00",
+        "instruction": "2번은 몸을 목표 반대쪽으로 움직여 떨어지기, 3번은 중심을 목표 쪽으로 옮기며 회전하여 던지기로 수정.",
+        "applied": "2. 몸을 목표 반대쪽으로 살짝 움직이며 박스에서 떨어져 오른발로 착지합니다.\n오른발이 바닥에 닿을 때 오른쪽 무릎을 굽혀 몸을 낮춥니다.\n3. 몸의 중심을 목표 쪽으로 옮기며 골반과 몸통을 돌려 메디신볼을 던집니다.",
+        "verification": "운영 DB와 웹 검수 화면 확인.",
+        "advance_authorized": false
+      },
       "drop_to_throw_explanation_20261125": {
         "at": "2026-11-25T19:57:23+09:00",
         "instruction": "박스에서 떨어지는 동작을 투구와 연결하고, 하강에서 받은 힘을 빠르고 힘 있는 움직임으로 잇는 연습이라는 점을 설명한다.",
@@ -1800,7 +1806,12 @@
         ],
         "evidence_limit": "투구에서의 힘 전달과 메디신볼 패턴 연습에 관한 일반 근거. 해당 드릴의 구속 향상 효과가 직접 측정된 자료는 아님.",
         "verification": "대상 ID의 설명 저장값과 운영 웹 검수 화면을 다시 읽어 확인.",
-        "wording_revision": {"at": "2026-11-25T21:14:46+09:00", "user_instruction": "낮아지는 흐름 표현이 어렵다. 떨어지는 에너지의 흐름을 살리는 표현으로 바꾼다.", "before": "투구에서도 몸이 낮아지는 흐름을 살려 빠르고 힘 있게 던지는 감각을 익힙니다.", "verified_on": "운영 웹 검수 화면"},
+        "wording_revision": {
+          "at": "2026-11-25T21:14:46+09:00",
+          "user_instruction": "낮아지는 흐름 표현이 어렵다. 떨어지는 에너지의 흐름을 살리는 표현으로 바꾼다.",
+          "before": "투구에서도 몸이 낮아지는 흐름을 살려 빠르고 힘 있게 던지는 감각을 익힙니다.",
+          "verified_on": "운영 웹 검수 화면"
+        },
         "advance_authorized": false
       }
     },
@@ -1808,11 +1819,11 @@
       "number": 13,
       "review_id": "mv-d7bab7bc6d4d7b58",
       "category": "드롭",
-      "title": "스위치 풋 드롭 힌지 스로우 (큰 공)",
+      "title": "스위치 풋 드롭 힌지 스로우 (큰 메디신볼)",
       "kind": "참고 영상",
       "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
-      "status": "미검수",
-      "drill_id": null,
+      "status": "사전 수정 · 사용자 확인 대기",
+      "drill_id": "7d115fa4-020e-4d84-ae09-11bad3d0d123",
       "user_decision": null,
       "user_decided_at": null,
       "user_change_requests": [],
@@ -1828,7 +1839,13 @@
         "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
       },
       "content_change_approved": false,
-      "deployment_approved": false
+      "deployment_approved": false,
+      "pre_review_20261127": {
+        "changes": "제목, 동작 설명, 목적, 메디신볼 무게 안내를 수정해 운영 화면에서 확인.",
+        "observed": "직접 등록 영상 재생 확인. 발 순서와 분류는 사용자 확인 필요.",
+        "source": "https://edu.drivelinebaseball.com/courses/mb-for-baseball",
+        "advance_authorized": false
+      }
     },
     {
       "number": 14,
