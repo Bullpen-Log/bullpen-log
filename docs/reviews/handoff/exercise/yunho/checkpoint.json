@@ -768,7 +768,7 @@
   "all_future_review_standards": "docs/reviews/handoff/exercise/yunho/MACBOOK-REVIEW-STANDARDS-2026-11-14.md: 사용자 확정, 기존 지시와 함께 매 영상 동일 적용. 현재 P022 유지.",
   "reporting_preference": "Show before and after of each change and distinguish previous sessions from current edits.",
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
-  "latest_resume": "바벨 드롭 캐치: 직접 투구 연결 대신 상체 훈련의 보조 능력 설명으로 수정 및 DB 확인. 그립·목표 부위 미확정; 사용자 확인 대기.",
+  "latest_resume": "바벨 드롭 캐치: 잡는 순간 발생하는 부하와 팔로 움직임을 멈추는 원리 추가, DB와 화면 확인. 플라이오메트릭 여부·그립·목표 부위 미확정, 사용자 확인 대기.",
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
     "guide": "docs/reviews/handoff/exercise/yunho/MACBOOK-GUIDE.md",
