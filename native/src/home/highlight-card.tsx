@@ -33,7 +33,7 @@ const ART: Record<HomeHighlightKey, { image?: number; background: string; ink: s
   coach: { image: require('../../assets/home-highlights/coach.webp'), background: '#1044ad', ink: '#f6f9ff', accent: '#f2f7ff' },
 };
 const LOAD_COLORS = ['#88a8c8', '#99ddcd', '#dfbb82', '#d79195'];
-const INTERVAL = 7000;
+const INTERVAL = 3000;
 const enter = FadeIn.duration(230);
 
 export function HighlightCard({ items, onVisible }: { items: HomeHighlight[]; onVisible: (key: HomeHighlightKey) => void }) {
