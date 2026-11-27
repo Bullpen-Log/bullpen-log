@@ -768,7 +768,7 @@
   "all_future_review_standards": "docs/reviews/handoff/exercise/yunho/MACBOOK-REVIEW-STANDARDS-2026-11-14.md: 사용자 확정, 기존 지시와 함께 매 영상 동일 적용. 현재 P022 유지.",
   "reporting_preference": "Show before and after of each change and distinguish previous sessions from current edits.",
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
-  "latest_resume": "바벨 드롭 캐치: 사용자 정정에 따라 잡고 곧바로 들어올리는 방법과 탄성 기여 가능성 설명 저장·화면 확인. 원본의 실제 전환 속도·그립 및 목표 부위 미확인, 사용자 검수 대기.",
+  "latest_resume": "바벨 드롭 캐치: 탄성 활용의 보조 능력·후속 상체 파워 훈련·투구 간접 관계 문구 DB 저장 확인. 원본 그립 및 빠른 전환 미확인, 사용자 확인 대기.",
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
     "guide": "docs/reviews/handoff/exercise/yunho/MACBOOK-GUIDE.md",
@@ -1259,5 +1259,5 @@
     "limits": "운영 준비 확인 없는 중앙 참고자료 등록은 하지 않음. 기존 영상 일괄 변경이나 자동 이동의 승인이 아님.",
     "adopted_at_utc": "2026-11-25T10:29:30.460858+00:00"
   },
-  "supplementary_training_rule": "투구와 직접 연결하기 어려운 보조 운동은 투수의 상위 훈련 능력과 이를 뒷받침하는 보조 능력을 근거 수준에 맞게 설명; 직접 효과·필수 선행 조건 단정 금지. 공통 룰북 제7조 뒤 사용자 정정 적용."
+  "supplementary_training_rule": "보조 운동은 훈련하는 능력→적합한 구체적 후속 훈련→투구에 필요한 능력의 관계를 설명. 직접 전이나 성과 향상은 근거 범위에서만 주장. 공통 룰북 사용자 정정 참조."
 }
