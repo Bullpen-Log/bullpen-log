@@ -768,7 +768,7 @@
   "all_future_review_standards": "docs/reviews/handoff/exercise/yunho/MACBOOK-REVIEW-STANDARDS-2026-11-14.md: 사용자 확정, 기존 지시와 함께 매 영상 동일 적용. 현재 P022 유지.",
   "reporting_preference": "Show before and after of each change and distinguish previous sessions from current edits.",
   "pitching_direction_rule": "2026-11-14 사용자: 월볼처럼 직접 던지는 운동을 제외하면 대부분의 파워 운동은 양쪽 수행. 직접 던지기는 투구 방향 지침과 각 운동을 대조하고 예외를 일괄 규칙으로 과장하지 않는다. 랜드마인 회전 펀치는 양쪽 수행 확정.",
-  "latest_resume": "케틀벨 스윙 마지막 9.648→8.15초 편집 후보 생성. 운영 연결 시 캐시로 재생 실패해 기존 영상으로 복구 및 재생 확인; 편집본 적용 보류. 코드로 운영 캐시 갱신 방법 확인 후 편집본 연결·재생 검증 필요. 현재 영상 유지.",
+  "latest_resume": "케틀벨 스윙: 사용자 피드백으로 8.15초 후보 대신 9.30초, 마지막 0.35초 페이드아웃 재편집 후보 생성. 프레임 확인했으나 실제 재생·사용자 판정 미확인. 운영 캐시 문제로 기존 라이브러리 영상 유지. 현재 영상 유지.",
   "macbook_handoff": {
     "at_utc": "2026-11-13T13:02:58.881444+00:00",
     "guide": "docs/reviews/handoff/exercise/yunho/MACBOOK-GUIDE.md",
