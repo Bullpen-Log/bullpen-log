@@ -1,5 +1,5 @@
 import { type Href, useIsFocused } from 'expo-router';
-import { canOpen, pushOpen, useRelease } from '~/shell/release';
+import { canOpen, noticeLocked, pushOpen, useRelease } from '~/shell/release';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Animated, { Easing, useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -15,6 +15,10 @@ import { lastWriteAt, rpc, RpcError } from '~/lib/rpc';
 import { loadMe } from '~/pitch/api';
 import { whenStill } from '~/shell/transition';
 import type { loadCoachToday } from '@/app/actions/coach';
+import type { loadAppLabList } from '@/app/actions/pitch-lab';
+import type { loadAppArmcare, loadAppMechanics } from '@/app/actions/app-training-parts';
+import type { TrainingToday } from '@/lib/report/training-today-data';
+import { useCompareStore } from '~/compare/store';
 import { monthOf, reloadFeatured, reloadVelocityDays, useMonth } from '~/pitch/store';
 import { loadHome, type AppHome } from './api';
 import { layoutMove, resetDayCache } from './day-card';
@@ -31,7 +35,7 @@ import { useSpace } from '~/org/space-store';
 import { todayCount } from './plan-model';
 import { recordsHref, type RecordsCategory } from '~/records/intent';
 import { DailyOverview } from './daily-overview';
-import { HighlightCard, type HomeHighlight } from './highlight-card';
+import { HighlightCard, type HomeHighlight, type HomeHighlightKey } from './highlight-card';
 
 /**
  * 홈 — 날짜, 체크인·투구·운동 상태, 하이라이트, 투구·운동 카드 순서.
@@ -50,6 +54,50 @@ export const resetHomeCache = () => {
 
 type Seen = { all: boolean; epoch: number; day: string };
 type CoachSpotlight = { day: string; epoch: number; readAt: number; line: string | null };
+
+type ProgressKey = 'motion' | 'mechanics' | 'armcare' | 'program';
+type Progress = { detail: string; action: string; href?: string };
+type ProgressEntry = { epoch: number; day: string; requestedAt: number; progress: Progress | null };
+const PROGRESS_ROUTES: Record<ProgressKey, string> = {
+  motion: '/lab',
+  mechanics: '/training-mechanics',
+  armcare: '/training-armcare',
+  program: '/training/programs',
+};
+
+
+async function readHighlightProgress(key: ProgressKey, day: string): Promise<Progress | null> {
+  switch (key) {
+    case 'motion': {
+      const data = await rpc<Awaited<ReturnType<typeof loadAppLabList>>>('pitch-lab.loadAppLabList', 'mine');
+      if (!data.ok) return null;
+      const active = data.samples.find(sample => sample.phase === 'active');
+      const ready = data.samples.find(sample => sample.phase === 'done');
+      if (active) return { detail: '분석 진행 중', action: '진행 보기', href: '/lab/' + encodeURIComponent(active.id) };
+      if (ready) return { detail: '최근 분석 완료', action: '결과 보기', href: '/lab/' + encodeURIComponent(ready.id) };
+      return null;
+    }
+    case 'mechanics': {
+      const data = await rpc<Awaited<ReturnType<typeof loadAppMechanics>>>('app-training-parts.loadAppMechanics', 'program');
+      if (!data.ok || data.tab !== 'program' || data.today !== day || !data.program?.level) return null;
+      return { detail: String(data.program.index) + ' / ' + data.program.total + ' 세션 완료', action: '이어서 하기' };
+    }
+    case 'armcare': {
+      const data = await rpc<Awaited<ReturnType<typeof loadAppArmcare>>>('app-training-parts.loadAppArmcare', 'today');
+      if (!data.ok || data.tab !== 'today' || data.dateKey !== day || data.custom.kind !== 'routine') return null;
+      const items = data.custom.routine?.items;
+      if (!items?.length) return null;
+      const done = items.filter(item => item.done).length;
+      return { detail: String(done) + ' / ' + items.length + ' 완료', action: done === items.length ? '완료 루틴 보기' : '이어서 하기' };
+    }
+    case 'program': {
+      const data = await rpc<({ ok: true } & TrainingToday) | { ok: false }>('app-training.loadAppTrainingToday');
+      const program = data.ok ? data.programCard : null;
+      if (!program) return null;
+      return { detail: String(program.completed) + ' / ' + program.total + ' 세션 완료', action: '내 프로그램 보기', href: '/training/program-today' };
+    }
+  }
+}
 
 export function HomeTab({
   fixedHeader = false,
@@ -224,47 +272,72 @@ export function HomeTab({
     };
   }, [canShowCoach, coachSpotlight, epoch, focused, tabActive, today]);
 
-  const highlights: HomeHighlight[] = [];
-  if (canOpen('/lab', release)) {
-    highlights.push({
-      key: 'motion',
-      label: '3D 동작 분석',
-      title: '내 투구를\n3D로 보기',
-      detail: '옆·뒤 영상으로 투구 동작을 확인해요',
-      action: '분석 열기',
-      icon: 'pitcher',
-      accent: '#a4d6ff',
-      onPress: () => go('/lab?fromHome=1'),
-    });
-  }
-  if (home?.today === today && canOpen('/checkin', release)) {
-    const condition = home.feed?.find((item) => item.key === 'condition' && item.tone === 'today');
-    const sleep = condition?.variants?.find((variant) => variant.id === 'sleep');
-    const checked = home.checkinDone;
-    highlights.push({
-      key: 'condition',
-      label: '오늘 몸 상태',
-      title: checked ? home.board?.condition?.label ?? '오늘 체크인' : '오늘 체크인',
-      detail: checked ? sleep?.text ?? condition?.sub ?? '기록한 몸 상태 보기' : '수면과 몸 상태를 남겨요',
-      action: checked ? '상세 보기' : '체크인 열기',
-      icon: 'heart-pulse',
-      accent: '#9ee7f3',
-      score: checked ? home.board?.condition?.value ?? null : null,
-      onPress: () => checked ? openRecords(today, 'condition') : openCheckin(),
-    });
-  }
-  if (canShowCoach && coachSpotlight?.day === today && coachSpotlight.epoch === epoch && coachSpotlight.line) {
-    highlights.push({
-      key: 'coach',
-      label: 'AI 코치',
-      title: '오늘의 훈련 포인트',
-      detail: coachSpotlight.line,
-      action: '코치 탭 열기',
-      icon: 'clipboard-list',
-      accent: '#c4ccff',
-      onPress: () => onTab('/coach'),
-    });
-  }
+  const { recent: comparisons } = useCompareStore();
+  const [highlightProgress, setHighlightProgress] = useState<Partial<Record<ProgressKey, ProgressEntry>>>({});
+  const requestedHighlights = useRef<Partial<Record<ProgressKey, Omit<ProgressEntry, 'progress'>>>>({});
+  const onHighlightVisible = useCallback((key: HomeHighlightKey) => {
+    if (key !== 'motion' && key !== 'mechanics' && key !== 'armcare' && key !== 'program') return;
+    if (!canOpen(PROGRESS_ROUTES[key], release)) return;
+    const previous = requestedHighlights.current[key];
+    const requestedAt = Date.now();
+    if (previous?.epoch === epoch && previous.day === today && requestedAt - previous.requestedAt < 60_000
+      && previous.requestedAt >= lastWriteAt()) return;
+    const request = { epoch, day: today, requestedAt };
+    requestedHighlights.current[key] = request;
+    void readHighlightProgress(key, today).then((progress) => {
+      if (epoch !== cacheEpoch() || requestedHighlights.current[key] !== request) return;
+      setHighlightProgress(current => ({ ...current, [key]: { ...request, progress } }));
+    }).catch(() => undefined);
+  }, [epoch, release, today]);
+  const progressFor = (key: ProgressKey) => {
+    const entry = highlightProgress[key];
+    return entry?.epoch === epoch && entry.day === today ? entry.progress : null;
+  };
+
+  const motion = progressFor('motion');
+  const mechanics = progressFor('mechanics');
+  const armcare = progressFor('armcare');
+  const program = progressFor('program');
+  const savedComparison = comparisons?.[0];
+  const load = home?.today === today ? home.board?.load : null;
+  const line = canShowCoach && coachSpotlight?.day === today && coachSpotlight.epoch === epoch ? coachSpotlight.line : null;
+  const enter = (route: string, destination: string) => canOpen(route, release) ? go(destination) : noticeLocked();
+  const highlights: HomeHighlight[] = [
+    {
+      key: 'motion', label: '3D 투구분석', title: '투구를\n구간별로 분석',
+      detail: motion?.detail, action: motion?.action ?? '분석 시작',
+      onPress: () => go(motion?.href ?? '/lab?fromHome=1'),
+    }, {
+      key: 'compare', label: '영상 비교', title: '같은 순간을\n나란히 비교',
+      detail: savedComparison ? '저장한 비교가 있어요' : undefined,
+      action: savedComparison ? '이어서 보기' : '영상 고르기',
+      onPress: () => pushOpen({
+        pathname: '/pitch/compare' as Href as never,
+        params: savedComparison ? { doc: savedComparison.id, src: 'home' } : { new: '1', src: 'home' },
+      }),
+    }, {
+      key: 'mechanics', label: '메커니즘', title: '투구 동작\n단계별 훈련',
+      detail: mechanics?.detail, action: mechanics?.action ?? '난이도 고르기',
+      onPress: () => enter('/training-mechanics', home?.trainingLocked ? '/setup/training' : '/training-mechanics'),
+    }, {
+      key: 'armcare', label: '암케어', title: '오늘의 맞춤\n암케어 루틴',
+      detail: armcare?.detail, action: armcare?.action ?? '루틴 보기',
+      onPress: () => enter('/training-armcare', home?.trainingLocked ? '/setup/training' : '/training-armcare'),
+    }, {
+      key: 'load', label: '투구 부하 지수', title: '첫 투구부터 기록해요', load,
+      action: load ? '투구 분석 보기' : '투구 기록하기',
+      onPress: () => enter('/analysis?view=pitch', load ? '/analysis?view=pitch' : home?.pitchLocked ? '/setup/pitch' : '/pitch/' + today),
+    }, {
+      key: 'program', label: '프로그램', title: '기초 근력부터\n투수 파워까지',
+      detail: program?.detail, action: program?.action ?? '프로그램 고르기',
+      onPress: () => enter('/training/programs', home?.trainingLocked ? '/setup/training' : program?.href ?? '/training/programs'),
+    }, {
+      key: 'coach', label: 'AI 코치', title: line ? '오늘의\n훈련 포인트' : '내 기록을 아는\n투수 코치',
+      detail: line ?? undefined,
+      action: line ? '오늘 계획 보기' : '코치 알아보기',
+      onPress: () => canShowCoach ? onTab('/coach') : noticeLocked(),
+    },
+  ];
   const pitchHref = home?.pitchLocked ? '/setup/pitch' : `/pitch/${today}`;
   const pitchShowsRecords = !!home?.pitchDone || !canOpen(pitchHref, release);
   const openPitch = () => pitchShowsRecords ? openRecords(today, 'pitch') : go(pitchHref);
@@ -321,7 +394,7 @@ export function HomeTab({
                   pitchMonth={logs}
                   onSelect={date => setSelection({ today, date })}
                   notices={warnings}
-                  highlight={highlights.length ? <HighlightCard items={highlights} /> : undefined}
+                  highlight={<HighlightCard items={highlights} onVisible={onHighlightVisible} />}
                   onCheckin={() => openCheckin()}
                   onPitch={openPitch}
                   pitchShowsRecords={pitchShowsRecords}

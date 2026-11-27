@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Image, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
@@ -15,9 +15,7 @@ import Animated, {
 import Svg, {
   Circle,
   Defs,
-  Image as SvgImage,
   LinearGradient,
-  Mask,
   Path,
   RadialGradient,
   Rect,
@@ -36,21 +34,13 @@ import { loadDay, type AppHome, type DayDetail } from './api';
 import { useHomeSwipe } from './camera-swipe';
 import { korDate, pitchCard, weekdayKo, workoutCard } from './plan-model';
 
-const PITCH_ART = require('../../assets/home-actions/pitch.webp');
-const TRAINING_ART = require('../../assets/home-actions/training.webp');
-const CARD_WIDTH = 178;
-const CARD_HEIGHT = 190;
-const ART_TOP = 24;
+const PITCH_ART = require('../../assets/home-actions/pitch-night.webp');
+const TRAINING_ART = require('../../assets/home-actions/training-night.webp');
 const CHECK_ACCENT = '#a6dff5';
 const CHECK_INK = '#132f43';
 const CHECK_SIZE = 27;
 const CHECK_LENGTH = 19;
 const AnimatedPath = Animated.createAnimatedComponent(Path);
-const CARD_LIGHT = {
-  pitch: ['#becfe3', '#8ca8c8'],
-  training: ['#abc0d7', '#718bad'],
-} as const;
-
 type Props = {
   home: AppHome;
   today: string;
@@ -279,7 +269,7 @@ export function DailyOverview({
             ]}
           >
             <View style={styles.actionFace}>
-              <ActionArt id={action.key} art={action.art} />
+              <Image accessibilityIgnoresInvertColors resizeMode="stretch" source={action.art} style={[StyleSheet.absoluteFill, styles.actionArt]} />
               <View pointerEvents="none" style={styles.actionEdge} />
               <View style={styles.actionLabel}>
                 <View style={styles.actionTitleRow}>
@@ -503,60 +493,6 @@ function CompletionMark({
   );
 }
 
-function ActionArt({ art, id }: { art: number; id: keyof typeof CARD_LIGHT }) {
-  const scene = `home-scene-${id}`;
-  const fade = `home-art-${id}`;
-  const shade = `home-shade-${id}`;
-  const artHeight = (CARD_WIDTH * 2) / 3;
-  const [light, shadeColor] = CARD_LIGHT[id];
-  return (
-    <View
-      pointerEvents="none"
-      importantForAccessibility="no-hide-descendants"
-      style={StyleSheet.absoluteFill}
-    >
-      <Svg
-        width="100%"
-        height="100%"
-        viewBox={`0 0 ${CARD_WIDTH} ${CARD_HEIGHT}`}
-        preserveAspectRatio="none"
-      >
-        <Defs>
-          <LinearGradient id={scene} x1="0" y1="0" x2="1" y2="0.35">
-            <Stop offset="0" stopColor={light} />
-            <Stop offset="1" stopColor={shadeColor} />
-          </LinearGradient>
-          <LinearGradient id={fade} x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor="#fff" stopOpacity={0} />
-            <Stop offset="0.11" stopColor="#fff" />
-            <Stop offset="0.87" stopColor="#fff" />
-            <Stop offset="1" stopColor="#fff" stopOpacity={0} />
-          </LinearGradient>
-          <LinearGradient id={shade} x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0.52" stopColor="#15283b" stopOpacity={0} />
-            <Stop offset="0.66" stopColor="#15283b" stopOpacity={0.13} />
-            <Stop offset="0.77" stopColor="#13253b" stopOpacity={0.54} />
-            <Stop offset="0.90" stopColor="#112237" stopOpacity={0.87} />
-            <Stop offset="1" stopColor="#112237" stopOpacity={0.96} />
-          </LinearGradient>
-          <Mask id={`${fade}-mask`}>
-            <Rect y={ART_TOP} width={CARD_WIDTH} height={artHeight} fill={`url(#${fade})`} />
-          </Mask>
-        </Defs>
-        <Rect width={CARD_WIDTH} height={CARD_HEIGHT} fill={`url(#${scene})`} />
-        <SvgImage
-          y={ART_TOP}
-          width={CARD_WIDTH}
-          height={artHeight}
-          href={art}
-          mask={`url(#${fade}-mask)`}
-        />
-        <Rect width={CARD_WIDTH} height={CARD_HEIGHT} fill={`url(#${shade})`} />
-      </Svg>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   dates: { flexDirection: 'row', gap: 3, marginHorizontal: -7, paddingVertical: 10 },
   day: {
@@ -618,28 +554,29 @@ const styles = StyleSheet.create({
   action: {
     flex: 1,
     minWidth: 0,
-    aspectRatio: CARD_WIDTH / CARD_HEIGHT,
+    aspectRatio: 182 / 169,
     borderRadius: 22,
   },
   actionFace: {
     flex: 1,
     borderRadius: 22,
     overflow: 'hidden',
-    backgroundColor: '#172b43',
+    backgroundColor: '#172337',
     justifyContent: 'flex-end',
   },
+  actionArt: { width: '100%', height: '100%' },
   actionEdge: {
     ...StyleSheet.absoluteFill,
     borderRadius: 22,
-    boxShadow: 'inset 0 1px 0 rgba(240, 248, 255, 0.38), inset 1px 0 0 rgba(240, 248, 255, 0.12), inset 0 -1px 0 rgba(0, 0, 0, 0.3)',
+    boxShadow: 'inset 0 1px 0 rgba(180, 206, 231, 0.15), inset 1px 0 0 rgba(180, 206, 231, 0.08), inset 0 -1px 0 rgba(0, 0, 0, 0.3)',
   },
   actionLabel: { gap: 3, paddingHorizontal: 15, paddingBottom: 16 },
   actionTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4 },
   actionTitle: {
     flexShrink: 1,
-    fontSize: 17,
+    fontSize: 13,
     fontWeight: '700',
-    letterSpacing: -0.68,
+    letterSpacing: -0.2,
     color: '#f2f7ff',
   },
   actionCaption: { fontSize: 11, color: '#b9d2ea' },

@@ -1,35 +1,44 @@
 import { useIsFocused } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { AccessibilityInfo, AppState, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, AppState, Image, StyleSheet, Text, View, useWindowDimensions, type DimensionValue } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { FadeIn, runOnJS, useReducedMotion } from 'react-native-reanimated';
-import Svg, { Circle, Defs, Ellipse, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
-import { usePalette, withAlpha } from '~/lib/ui';
-import { Icon, type IconName } from '~/shell/icon';
+import { ACWR_ZONE_ORDER, ACWR_ZONES, zoneOf } from '@/lib/pitch-stats';
+import type { HomeBoard } from '@/lib/report/home-board';
+import { usePalette } from '~/lib/ui';
+import { Icon } from '~/shell/icon';
 import { Press } from '~/shell/press';
-import { PitcherMark } from '~/pitch/dock-art';
 import { useTabActive } from '~/shell/tab-pager';
 import { useHomeSwipe } from './camera-swipe';
 
+export type HomeHighlightKey = 'motion' | 'compare' | 'mechanics' | 'armcare' | 'load' | 'program' | 'coach';
+
 export type HomeHighlight = {
-  key: 'motion' | 'condition' | 'coach';
+  key: HomeHighlightKey;
   label: string;
   title: string;
-  detail: string;
+  detail?: string;
   action: string;
-  icon: IconName;
-  accent: string;
-  score?: number | null;
+  load?: HomeBoard['load'];
   onPress: () => void;
 };
 
+const ART: Record<HomeHighlightKey, { image?: number; background: string; ink: string; accent: string }> = {
+  motion: { image: require('../../assets/home-highlights/motion.webp'), background: '#101e31', ink: '#f4f8ff', accent: '#a6eaff' },
+  compare: { image: require('../../assets/home-highlights/compare.webp'), background: '#afcbdc', ink: '#132c43', accent: '#173e5f' },
+  mechanics: { image: require('../../assets/home-highlights/mechanics.webp'), background: '#b9d1b9', ink: '#172f25', accent: '#284a38' },
+  armcare: { image: require('../../assets/home-highlights/armcare.webp'), background: '#e2d3f5', ink: '#272038', accent: '#48316c' },
+  load: { background: '#252830', ink: '#f1f6ff', accent: '#e0e4eb' },
+  program: { image: require('../../assets/home-highlights/program.webp'), background: '#ffffff', ink: '#172f47', accent: '#205b91' },
+  coach: { image: require('../../assets/home-highlights/coach.webp'), background: '#1044ad', ink: '#f6f9ff', accent: '#f2f7ff' },
+};
+const LOAD_COLORS = ['#88a8c8', '#99ddcd', '#dfbb82', '#d79195'];
 const INTERVAL = 7000;
 const enter = FadeIn.duration(230);
 
-export function HighlightCard({ items }: { items: HomeHighlight[] }) {
+export function HighlightCard({ items, onVisible }: { items: HomeHighlight[]; onVisible: (key: HomeHighlightKey) => void }) {
   const c = usePalette();
-  const { width, fontScale } = useWindowDimensions();
-  const artSize = Math.max(100, Math.min(146, width * 0.34));
+  const { fontScale } = useWindowDimensions();
   const count = items.length;
   const [page, setPage] = useState(0);
   const [holding, setHolding] = useState(false);
@@ -80,39 +89,39 @@ export function HighlightCard({ items }: { items: HomeHighlight[] }) {
 
   const index = count ? page % count : 0;
   const item = items[index];
+  const visibleKey = item?.key;
+  useEffect(() => {
+    if (active && focused && foreground && visibleKey) onVisible(visibleKey);
+  }, [active, focused, foreground, onVisible, visibleKey]);
   if (!item) return null;
+  const art = ART[item.key];
+  const showArt = art.image != null && fontScale < 1.35;
+  const load = item.load;
+  const zone = load ? zoneOf(load.ratio) : null;
+  const pressLabel = [item.label, load?.ratio.toFixed(2) ?? item.title.replace(/\n/g, ' '), zone && ACWR_ZONES[zone].short, item.detail, item.action]
+    .filter(Boolean).join(', ');
 
   return (
     <View>
       <View style={styles.head}>
         <Text accessibilityRole="header" style={[styles.heading, { color: c.ink }]}>하이라이트</Text>
         {count > 1 ? (
-          <Press
-            accessibilityRole="button"
-            accessibilityLabel={`하이라이트 ${index + 1}/${count}, 다음 보기`}
-            onPress={() => advance(1)}
-            onPressIn={hold}
-            onPressOut={resume}
-            style={styles.slideButton}
-          >
-            <View style={styles.dots} pointerEvents="none">
-              {items.map(({ key }, i) => (
-                <View key={key} style={[
-                  styles.dot,
-                  i === index && styles.dotCurrent,
-                  { backgroundColor: i === index ? item.accent : withAlpha(c.muted, 0.36) },
-                ]} />
-              ))}
-            </View>
-            <Icon name="chevron-right" size={13} color={c.muted} />
-          </Press>
+          <View style={styles.navigation}>
+            <Press accessibilityRole="button" accessibilityLabel="이전 하이라이트" onPress={() => advance(-1)} style={styles.navButton}>
+              <Icon name="chevron-left" size={15} color={c.muted} />
+            </Press>
+            <Text style={[styles.counter, { color: c.sky }]}>{index + 1} / {count}</Text>
+            <Press accessibilityRole="button" accessibilityLabel="다음 하이라이트" onPress={() => advance(1)} style={styles.navButton}>
+              <Icon name="chevron-right" size={15} color={c.muted} />
+            </Press>
+          </View>
         ) : null}
       </View>
       <GestureDetector gesture={swipe}>
         <Press
           card
           accessibilityRole="button"
-          accessibilityLabel={`${item.label}, ${item.title.replace(/\n/g, ' ')}, ${item.detail}, ${item.action}`}
+          accessibilityLabel={pressLabel}
           accessibilityActions={count > 1 ? [
             { name: 'increment', label: '다음 하이라이트' },
             { name: 'decrement', label: '이전 하이라이트' },
@@ -124,111 +133,87 @@ export function HighlightCard({ items }: { items: HomeHighlight[] }) {
           onPress={item.onPress}
           onPressIn={hold}
           onPressOut={resume}
-          style={[styles.card, { borderColor: c.line, boxShadow: c.floatHero }]}
+          style={[styles.card, { borderColor: c.line, boxShadow: c.floatHero, backgroundColor: art.background }]}
         >
-          <View style={[styles.surface, { backgroundColor: c.card }]}>
-            <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-              <Svg width="100%" height="100%">
-                <Defs>
-                  <RadialGradient id="home-highlight-glow" cx="81%" cy="42%" rx="78%" ry="94%">
-                    <Stop offset="0" stopColor={item.accent} stopOpacity={0.23} />
-                    <Stop offset="0.47" stopColor={item.accent} stopOpacity={0.11} />
-                    <Stop offset="1" stopColor={item.accent} stopOpacity={0} />
-                  </RadialGradient>
-                  <LinearGradient id="home-highlight-shade" x1="0" y1="0" x2="1" y2="1">
-                    <Stop offset="0" stopColor={c.page} stopOpacity={0} />
-                    <Stop offset="1" stopColor={c.page} stopOpacity={0.42} />
-                  </LinearGradient>
-                </Defs>
-                <Rect width="100%" height="100%" fill="url(#home-highlight-glow)" />
-                <Rect width="100%" height="100%" fill="url(#home-highlight-shade)" />
-              </Svg>
-            </View>
-            <Animated.View
-              key={item.key}
-              entering={!reduce && !screenReader && !holding ? enter : undefined}
-              style={styles.content}
-            >
-              <View style={styles.copy}>
-                <Text style={[styles.label, { color: item.accent }]}>{item.label}</Text>
-                <Text style={[styles.title, { color: c.ink }]}>{item.title}</Text>
-                <Text numberOfLines={2} style={[styles.detail, { color: c.muted }]}>{item.detail}</Text>
-                <View style={styles.action}>
-                  <Text style={[styles.actionLabel, { color: c.ink }]}>{item.action}</Text>
-                  <Icon name="arrow-right" size={14} color={item.accent} />
-                </View>
+          <Animated.View
+            key={item.key}
+            entering={!reduce && !screenReader && !holding ? enter : undefined}
+            style={styles.surface}
+          >
+            {showArt ? (
+              <Image accessibilityIgnoresInvertColors resizeMode="stretch" source={art.image} style={[StyleSheet.absoluteFill, styles.image]} />
+            ) : null}
+            <View style={styles.content}>
+              <View style={styles.labelRow}>
+                <Text style={[styles.label, { color: art.accent }]}>{item.label}</Text>
+                {zone ? <Text style={[styles.label, { color: LOAD_COLORS[ACWR_ZONE_ORDER.indexOf(zone)] }]}>• {ACWR_ZONES[zone].short}</Text> : null}
               </View>
-              {fontScale < 1.4 ? <HighlightArt item={item} size={artSize} /> : null}
-            </Animated.View>
-          </View>
+              {load ? (
+                <View style={styles.valueRow}>
+                  <Text style={[styles.value, { color: art.ink }]}>{load.ratio.toFixed(2)}</Text>
+                  <Text style={[styles.detail, { color: art.accent }]}>평소 기준 1.00</Text>
+                </View>
+              ) : (
+                <View style={showArt && item.key !== 'load' ? styles.copy : undefined}>
+                  <Text numberOfLines={2} style={[styles.title, { color: art.ink }]}>{item.title}</Text>
+                  {item.detail ? <Text numberOfLines={2} style={[styles.detail, { color: art.accent }]}>{item.detail}</Text> : null}
+                </View>
+              )}
+              {item.key === 'load' ? <LoadScale ratio={load?.ratio} /> : null}
+              <View style={styles.action}>
+                <Text style={[styles.actionLabel, { color: art.accent }]}>{item.action}</Text>
+                <Icon name="arrow-right" size={13} color={art.accent} />
+              </View>
+            </View>
+          </Animated.View>
         </Press>
       </GestureDetector>
     </View>
   );
 }
 
-function HighlightArt({ item, size }: { item: HomeHighlight; size: number }) {
-  const c = usePalette();
-  const score = item.score;
-  const isCondition = item.key === 'condition';
-  const hasScore = isCondition && score != null;
-  const arc = 264;
+function LoadScale({ ratio }: { ratio?: number }) {
+  const index = ratio == null ? -1 : ACWR_ZONE_ORDER.indexOf(zoneOf(ratio));
+  const stops = [0, 0.8, 1.3, 1.5, 2];
+  const fraction = ratio == null ? null
+    : (index + Math.max(0.06, Math.min(0.94, (ratio - stops[index]) / (stops[index + 1] - stops[index])))) * 25;
   return (
-    <View
-      accessible={false}
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-      pointerEvents="none"
-      style={[styles.art, { width: size, height: size }]}
-    >
-      <Svg width={size} height={size} viewBox="0 0 120 120" style={StyleSheet.absoluteFill}>
-        {isCondition ? (
-          <>
-            <Circle cx={60} cy={60} r={42} fill={withAlpha(c.page, 0.26)} stroke={withAlpha(item.accent, 0.16)} strokeWidth={5} />
-            {hasScore ? (
-              <Circle
-                cx={60} cy={60} r={42} fill="none" stroke={item.accent} strokeWidth={5}
-                strokeLinecap="round" strokeDasharray={[arc, arc]}
-                strokeDashoffset={arc * (1 - score / 10)} transform="rotate(-90 60 60)"
-              />
-            ) : null}
-          </>
-        ) : (
-          <>
-            <Circle cx={63} cy={60} r={43} fill={withAlpha(item.accent, 0.035)} stroke={withAlpha(item.accent, 0.18)} />
-            <Ellipse cx={62} cy={61} rx={56} ry={23} transform="rotate(-27 62 61)" fill="none" stroke={withAlpha(item.accent, 0.24)} />
-            <Circle cx={101} cy={35} r={2.5} fill={item.accent} />
-            <Circle cx={22} cy={84} r={1.6} fill={withAlpha(item.accent, 0.65)} />
-          </>
-        )}
-      </Svg>
-      {item.key === 'motion' ? <PitcherMark size={size * 0.93} />
-        : hasScore ? (
-          <Text style={[styles.score, { color: c.ink }]}>{score}<Text style={[styles.scoreUnit, { color: c.muted }]}>/10</Text></Text>
-        ) : (
-          <Icon name={item.icon} size={size * 0.30} strokeWidth={1.45} color={item.accent} />
-        )}
+    <View accessible={false} accessibilityElementsHidden style={styles.scale}>
+      <View style={styles.track}>
+        {LOAD_COLORS.map(color => <View key={color} style={{ flex: 1, backgroundColor: color }} />)}
+        {fraction != null ? (
+          <View style={[styles.marker, { left: (String(fraction) + '%') as DimensionValue, borderColor: LOAD_COLORS[index] }]} />
+        ) : null}
+      </View>
+      <View style={styles.scaleLabels}>
+        {ACWR_ZONE_ORDER.map(zone => <Text key={zone} style={styles.scaleLabel}>{ACWR_ZONES[zone].short}</Text>)}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  head: { minHeight: 37, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 2, marginBottom: 4 },
-  heading: { fontSize: 18, fontWeight: '700', letterSpacing: -0.45 },
-  slideButton: { minHeight: 37, paddingHorizontal: 7, flexDirection: 'row', gap: 7, alignItems: 'center' },
-  dots: { flexDirection: 'row', gap: 4, alignItems: 'center' },
-  dot: { width: 4, height: 4, borderRadius: 2 },
-  dotCurrent: { width: 14 },
-  card: { borderRadius: 23, borderWidth: StyleSheet.hairlineWidth },
-  surface: { borderRadius: 23, overflow: 'hidden' },
-  content: { minHeight: 184, flexDirection: 'row', alignItems: 'center', gap: 3, paddingLeft: 18, paddingRight: 9, paddingVertical: 15 },
-  copy: { flex: 1, minWidth: 0, gap: 5 },
-  label: { fontSize: 12, fontWeight: '700', letterSpacing: -0.12 },
-  title: { fontSize: 25, fontWeight: '800', letterSpacing: -1.1 },
-  detail: { fontSize: 12, paddingRight: 3 },
-  action: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 6 },
-  actionLabel: { flexShrink: 1, fontSize: 13, fontWeight: '700' },
-  art: { flexShrink: 0, alignItems: 'center', justifyContent: 'center' },
-  score: { fontSize: 31, fontWeight: '800', fontVariant: ['tabular-nums'], letterSpacing: -1.15 },
-  scoreUnit: { fontSize: 13, fontWeight: '600' },
+  head: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 1 },
+  heading: { fontSize: 16, fontWeight: '700', letterSpacing: -0.35 },
+  navigation: { flexDirection: 'row', alignItems: 'center' },
+  navButton: { minHeight: 44, minWidth: 36, alignItems: 'center', justifyContent: 'center' },
+  counter: { fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  card: { borderRadius: 21, borderWidth: StyleSheet.hairlineWidth },
+  surface: { borderRadius: 20, overflow: 'hidden' },
+  image: { width: '100%', height: '100%' },
+  content: { minHeight: 178, gap: 6, paddingHorizontal: 16, paddingTop: 20, paddingBottom: 16 },
+  labelRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 6 },
+  copy: { maxWidth: '55%' },
+  label: { fontSize: 12, fontWeight: '700' },
+  title: { fontSize: 23, fontWeight: '800', letterSpacing: -0.78 },
+  detail: { marginTop: 3, fontSize: 12 },
+  action: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 8, marginTop: 'auto' },
+  actionLabel: { flexShrink: 1, fontSize: 12, fontWeight: '700' },
+  valueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 9 },
+  value: { fontSize: 35, fontWeight: '800', fontVariant: ['tabular-nums'], letterSpacing: -1.1 },
+  scale: { gap: 5, marginTop: 2 },
+  track: { height: 7, borderRadius: 5, overflow: 'hidden', flexDirection: 'row' },
+  marker: { position: 'absolute', top: 0, bottom: 0, width: 8, marginLeft: -4, borderWidth: 1, borderRadius: 5, backgroundColor: '#f2f7ff' },
+  scaleLabels: { flexDirection: 'row' },
+  scaleLabel: { flex: 1, fontSize: 11, color: '#c4cbd6', textAlign: 'center' },
 });
