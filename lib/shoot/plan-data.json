@@ -1514,7 +1514,7 @@
        "at": 21.4,
        "minutes": 1.9,
        "load": 0.5,
-       "cue": "10초 버티기",
+       "cue": "10초 동작",
        "perSide": false,
        "breakAfter": false
       },
@@ -1530,7 +1530,7 @@
        "at": 23.3,
        "minutes": 1.6,
        "load": 0.5,
-       "cue": "10초 버티기",
+       "cue": "10초 동작",
        "perSide": false,
        "breakAfter": false
       },
@@ -1546,7 +1546,7 @@
        "at": 24.9,
        "minutes": 1.6,
        "load": 0.5,
-       "cue": "10초 버티기",
+       "cue": "10초 동작",
        "perSide": false,
        "breakAfter": false
       },

@@ -42,8 +42,9 @@ export function ShootGuideMode({ data, crew, startAt }: {
   useEffect(() => {
     if (!focusOnMove.current) return;
     focusOnMove.current = false;
-    heading.current?.focus();
-    heading.current?.scrollIntoView({ block: 'start', behavior: 'instant' });
+    heading.current?.focus({ preventScroll: true });
+    /* 제목이 아니라 맨 위로 — 제목으로 굴리면 위의 '운동 순서 N / 89 · 상태' 줄이 가려졌다 */
+    heading.current?.parentElement?.scrollTo({ top: 0, behavior: 'instant' });
   }, [index]);
 
   useEffect(() => {
