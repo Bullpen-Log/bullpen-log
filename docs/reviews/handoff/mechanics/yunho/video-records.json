@@ -1845,6 +1845,12 @@
         "observed": "직접 등록 영상 재생 확인. 발 순서와 분류는 사용자 확인 필요.",
         "source": "https://edu.drivelinebaseball.com/courses/mb-for-baseball",
         "advance_authorized": false
+      },
+      "user_forward_jump_20261127": {
+        "instruction": "발 바꾸기보다는 목표 쪽으로 가볍게 점프해 전진하고 그 힘을 이어 던지는 설명으로 변경.",
+        "applied": "어떤 운동인가, 동작 2·3번, 투수에게 왜 필요한가 및 강도 문구를 수정. 운영 화면 확인.",
+        "advance_authorized": false,
+        "source": "https://edu.drivelinebaseball.com/courses/mb-for-baseball"
       }
     },
     {
