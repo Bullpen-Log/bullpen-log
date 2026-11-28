@@ -58,13 +58,15 @@ export function ResultCard({ c, report, onScene, canShowScene }: {
             const statusColor = rating === 'improve' ? c.warn : rating === 'good' ? c.ok : c.muted;
             return (
               <View key={item.key} style={[s.phase, { borderTopColor: c.line }]}>
-                <View style={s.row}>
-                  <Text style={[TYPE.buttonCompact, s.phaseTitle, { color: c.ink }]}>{title}</Text>
+                <View style={s.phaseHeading}>
+                  <Text testID={`lab-title-${item.key}`} accessibilityRole="header" style={[TYPE.card, s.phaseTitle, { color: c.ink }]}>
+                    {title}
+                  </Text>
                   <View style={s.rating}>
                     {value != null && (
                       <Text testID={`lab-value-${item.key}`} style={[TYPE.buttonCompact, s.number, { color: c.ink }]}>{value}</Text>
                     )}
-                    <Text testID={`lab-rating-${item.key}`} style={[TYPE.sub, { color: statusColor }]}>{REPORT_STATUS_TEXT[rating]}</Text>
+                    <Text testID={`lab-rating-${item.key}`} style={[TYPE.sub, s.ratingLabel, { color: statusColor }]}>{REPORT_STATUS_TEXT[rating]}</Text>
                     <Pressable
                       testID={`lab-range-info-${item.key}`}
                       accessibilityRole="button"
@@ -76,8 +78,8 @@ export function ResultCard({ c, report, onScene, canShowScene }: {
                     </Pressable>
                   </View>
                 </View>
-                <View style={s.row}>
-                  <Text style={[TYPE.sub, s.phaseTitle, { color: c.muted }]}>{resultObservation(item)}</Text>
+                <View style={[s.row, s.phaseBody]}>
+                  <Text style={[TYPE.sub, s.phaseExplanation, { color: c.muted }]}>{resultObservation(item)}</Text>
                   <Pressable
                     testID={`lab-scene-${item.key}`}
                     accessibilityRole="button"
@@ -267,9 +269,13 @@ const s = StyleSheet.create({
   card: { borderRadius: 16, padding: 14 },
   list: { borderRadius: 16, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  phase: { borderTopWidth: StyleSheet.hairlineWidth, paddingBottom: 8 },
-  phaseTitle: { flex: 1 },
-  rating: { flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: -8 },
+  phase: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 3, paddingBottom: 5 },
+  phaseHeading: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 10 },
+  phaseTitle: { flexBasis: 0, flexGrow: 1, flexShrink: 1, minWidth: '46%', lineHeight: 23 },
+  phaseBody: { gap: 12 },
+  phaseExplanation: { flex: 1 },
+  rating: { flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 'auto', marginRight: -8 },
+  ratingLabel: { minWidth: 36, textAlign: 'right' },
   number: { fontVariant: ['tabular-nums'] },
   info: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   scene: { minHeight: 44, borderRadius: 10, paddingHorizontal: 10, justifyContent: 'center' },
