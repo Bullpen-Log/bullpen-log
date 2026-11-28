@@ -37,13 +37,15 @@ import { useLoad } from '~/community/parts';
 import { Lab3D, type Lab3DHandle, type LabTransport } from '~/lab/lab-3d';
 import { GuideLink } from '~/lab/parts';
 import { LabProgress, type LabAction, type LabPhase } from '~/lab/progress';
-import { CompareCard, ElementList, RxCard, STAGE_BG, Summary } from '~/lab/report';
+import { CompareCard, ResultCard, RxCard, STAGE_BG, TrainingAction } from '~/lab/report';
+import { LabDrillSheet, type DrillSelection } from '~/lab/drill-sheet';
+import { canOpen, noticeLocked, releaseNow } from '~/shell/release';
 import { rpc, RpcError } from '~/lib/rpc';
-import { TYPE, usePalette, type Palette } from '~/lib/ui';
+import { usePalette, type Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
 import { toast } from '~/shell/toast';
 import { Segmented } from '~/shell/heading';
-import { READABLE_WIDE, TwoColumns } from '~/lib/layout';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 3D 동작 분석 — 한 투구의 진행과 결과(앱 화면, 2026-10-29 확정 시안 analysis-progress · analysis-results).
@@ -52,8 +54,7 @@ import { READABLE_WIDE, TwoColumns } from '~/lib/layout';
  * 화면이 보이고 앱이 앞에 있는 동안 5초마다, 그리고 돌아올 때(화면 · 앱) 바로 checkPitch3dV2 를 부른다. 답은 지금 작업 번호와 견줘 다른 작업의 늦은 답을
  * 버린다. 묻기 실패는 분석 실패가 아니다(마지막 상태를 두고 '상태 다시 확인'). 끝나도 결과로 저절로 넘기지 않는다 — '결과 보기'를 누를 때.
  *
- * 결과가 있으면 차례: 머리(촬영 정보) → 한눈 요약(Summary) → 3D → 원본과 비교 → 동작 여섯 줄(ElementList) →
- * 추천 훈련 또는 다음 행동 → 지난번과 견주기 → 분석 상세. 3D 칸만 사이트 app/embed/lab/[id] 웹뷰(~/lab/lab-3d.tsx) — 판정 · 숫자는 서버 loadAppLabDetail.
+ * 결과가 있으면 3D → 접을 수 있는 핵심 결과 → 문제별 피드백과 드릴 순서. 3D 칸만 사이트 app/embed/lab/[id] 웹뷰다.
  *
  * 원본은 처음엔 하나도 만들지 않는다(재생기 · 받기 · 시계 맞추기 0). '원본과 비교'를 누르면 고른 쪽(옆 또는 뒤) 하나만 붙이고, 바꾸면 앞의 것을 떼고
  * 새 것을 붙인다(재생기는 컴포넌트와 함께 풀린다 — useVideoPlayer). 붙은 재생기는 3D 시계를 따라간다(lib/pitch-3d/v2/video-sync.ts followTick — 재생 중엔
@@ -195,10 +196,10 @@ export default function LabScreen() {
         />
       </View>
     );
-  return <ResultView c={c} data={data} active={active} doneAgain={live?.status === 'done' && live.id === jobId && data.shown !== jobId} onReload={reload} />;
+  return <ResultView key={`${data.id}:${data.shown ?? ''}`} c={c} data={data} active={active} doneAgain={live?.status === 'done' && live.id === jobId && data.shown !== jobId} onReload={reload} />;
 }
 
-function Header({ c, title }: { c: Palette; title: string }) {
+function Header({ c, title, onMore, busy }: { c: Palette; title: string; onMore?: () => void; busy?: boolean }) {
   const inset = useSafeAreaInsets();
   return (
     <View style={[s.header, { paddingTop: inset.top + 4, backgroundColor: c.page, borderBottomColor: c.line }]}>
@@ -208,7 +209,11 @@ function Header({ c, title }: { c: Palette; title: string }) {
       <Text accessibilityRole="header" numberOfLines={1} style={[s.headTitle, { color: c.ink }]}>
         {title}
       </Text>
-      <View style={s.iconBtn} />
+      {onMore ? (
+        <Pressable onPress={onMore} disabled={busy} accessibilityRole="button" accessibilityLabel="분석 내보내기" style={s.iconBtn}>
+          {busy ? <ActivityIndicator color={c.link} /> : <Icon name="ellipsis" size={22} color={c.link} />}
+        </Pressable>
+      ) : <View style={s.iconBtn} />}
     </View>
   );
 }
@@ -383,15 +388,16 @@ function AttestBox({ checked, onChange, c }: { checked: boolean; onChange: (v: b
 
 function ResultView({ c, data, active, doneAgain, onReload }: { c: Palette; data: AppLabDetail; active: boolean; doneAgain: boolean; onReload: () => void }) {
   const inset = useSafeAreaInsets();
-  /* 3D 칸(높이 = 폭 × 1.25 + 조작부)이 화면 높이의 절반을 넘지 않게 — 결론과 3D 가 같이 읽히게 */
-  const { height: winH } = useWindowDimensions();
-  const stageMax = Math.max(260, Math.min((winH - inset.top - 56 - 132 - 40) / 1.25, (winH * 0.5) / 1.25));
+  const { width } = useWindowDimensions();
+  const stageWidth = Math.max(1, Math.min(width - 52, 480));
   const scroll = useRef<ScrollViewInstance>(null);
   const content = useRef<ComponentRef<typeof View>>(null);
   const stage = useRef<ComponentRef<typeof View>>(null);
   const lab = useRef<Lab3DHandle>(null);
   const r = data.result!;
   const report = r.report;
+  const [drill, setDrill] = useState<DrillSelection | null>(null);
+  const [followUp, setFollowUp] = useState(false);
   const recordCoach = useRecordCoach(r.mine && !!data.shown);
   const [exporting, setExporting] = useState<'report' | 'video' | null>(null);
   const [exportProgress, setExportProgress] = useState(0);
@@ -524,7 +530,7 @@ function ResultView({ c, data, active, doneAgain, onReload }: { c: Palette; data
     );
   };
   const jump = (frame: number | null, move = true) => {
-    if (frame == null) return;
+    if (frame == null || !Number.isInteger(frame) || frame < 0) return;
     if (!viewerFailed) {
       lab.current?.seek(frame);
       if (move) scrollTo(stage.current);
@@ -532,10 +538,10 @@ function ResultView({ c, data, active, doneAgain, onReload }: { c: Palette; data
     }
     /* 3D 없이 — 원본에서 그 장면(옆 · 뒤 시각은 같은 장면의 원본 시각 + 편집 목록 앞머리) */
     const sync = data.sync;
-    if (!sync || frame >= sync.t.length) return;
+    const view = compare ?? sources[0]?.view;
+    if (!sync || frame >= sync.t.length || !view) return;
     void ensureShifts().then((sh) => {
       const src = sourceTimesAt(sync.t, sync.tBack, sync.t[frame]);
-      const view = compare === 'back' ? 'back' : 'side';
       const at = Math.max(0, (view === 'back' ? src.back : src.side) + (sh[view] ?? 0));
       const a = active1.current;
       if (a && a.view === view && a.p.status === 'readyToPlay') {
@@ -549,6 +555,20 @@ function ResultView({ c, data, active, doneAgain, onReload }: { c: Palette; data
     });
   };
   const onScene = (it: ReportItem) => jump(it.frame);
+  const canShowScene = (it: ReportItem) => {
+    const frame = it.frame;
+    const length = data.sync?.t.length;
+    return frame != null && Number.isInteger(frame) && frame >= 0 && (length == null || frame < length) &&
+      (!viewerFailed || (sources.length > 0 && length != null));
+  };
+  const openDrill = (selected: DrillSelection) => {
+    // A cold link can open the report before Home loads the cached policy. The RPC still checks access.
+    const access = releaseNow();
+    if (access && !canOpen('/library/mechanics', access)) return noticeLocked();
+    lab.current?.pause();
+    active1.current?.p.pause();
+    setDrill(selected);
+  };
 
   /* 원본 보기 버튼 — 3D 가 있으면 '원본과 비교', 없으면 '원본으로 확인' */
   const compareBlock =
@@ -558,7 +578,7 @@ function ResultView({ c, data, active, doneAgain, onReload }: { c: Palette; data
         onPress={() => {
           void Haptics.selectionAsync();
           if (viewerFailed) void ensureShifts();
-          openCompare('side');
+          openCompare(sources[0].view);
         }}
         style={({ pressed }) => [s.compareBtn, { backgroundColor: c.card, boxShadow: c.float, opacity: pressed ? 0.75 : 1 }]}
       >
@@ -595,24 +615,43 @@ function ResultView({ c, data, active, doneAgain, onReload }: { c: Palette; data
       </View>
     );
 
-  /* 머리는 투구 이름(올린 때), 밑줄에 찍은 때 · 촬영 조건 · '이번 한 구 기준' */
-  const sub = [data.when, report.ground === 'flat' ? '평지' : '마운드', report.hand === 'L' ? '왼손' : '오른손'].filter(Boolean).join(' · ');
+  const more = () => Alert.alert('분석 내보내기', undefined, [
+    { text: '리포트 PDF 저장·공유', onPress: () => void exportReport() },
+    ...(!viewerFailed && !active ? [{ text: '3D 영상 저장·공유', onPress: chooseVideoDestination }] : []),
+    { text: '취소', style: 'cancel' },
+  ]);
+  const capture = [data.title, data.when, report.ground === 'flat' ? '평지' : '마운드', report.hand === 'L' ? '왼손' : '오른손'].filter(Boolean).join(' · ');
+  const hasFollowUp = r.mine || r.previous || report.rx.length > 0 || (recordCoach && data.shown);
   return (
     <View style={[s.fill, { backgroundColor: c.page }]}>
-      {/* 왼쪽 끝에서 3D 를 돌리면 아이폰 '뒤로 쓸기'가 먼저 잡아 화면이 넘어갔다(2026-10-21 김민) — 이 화면은 쓸어 닫기를 끈다(‹ 단추로 나감) */}
+      {/* 3D 왼쪽 끝에서 드래그할 때 화면의 뒤로 가기 제스처가 먼저 잡히지 않게 한다. */}
       <Stack.Screen options={{ gestureEnabled: false }} />
-      <Header c={c} title="분석 결과" />
+      <Header c={c} title="분석 결과" onMore={more} busy={!!exporting} />
       <ScrollLockScope>
         {(scrollEnabled) => (
-          <ScrollView ref={scroll} innerViewRef={content} scrollEnabled={scrollEnabled} contentContainerStyle={[{ padding: 16, paddingBottom: inset.bottom + 32, gap: 20 }, READABLE_WIDE]}>
-            <View style={{ gap: 4 }}>
-              <Text style={[TYPE.section, { color: c.ink }]}>{data.title}</Text>
-              <Text style={[s.small, { color: c.muted }]}>{sub}</Text>
-              {r.handNote ? <Text style={[s.small, { color: c.muted }]}>{r.handNote}</Text> : null}
+          <ScrollView ref={scroll} innerViewRef={content} scrollEnabled={scrollEnabled} contentContainerStyle={[{ padding: 16, paddingBottom: inset.bottom + 24, gap: 14 }, READABLE]}>
+            <View ref={stage} testID="lab-3d-stage" style={[s.stage, { backgroundColor: STAGE_BG }]}>
+              <View style={{ width: stageWidth, maxWidth: '100%', alignSelf: 'center' }}>
+                <Lab3D
+                  key={data.shown ?? ''}
+                  ref={lab}
+                  id={data.id}
+                  width={stageWidth}
+                  bg={STAGE_BG}
+                  onTransport={onTransport}
+                  onFailed={setViewerFailed}
+                  stop={report.headline.frame}
+                  dark
+                />
+                {active && data.waiting ? <Reanalyzing /> : null}
+              </View>
+              {exporting === 'video' ? (
+                <Text accessibilityLiveRegion="polite" style={[s.small, { color: '#c7cfdd', textAlign: 'center' }]}>
+                  3D 영상 만드는 중 {Math.round(exportProgress * 100)}%
+                </Text>
+              ) : null}
+              {compareBlock}
             </View>
-            <Pressable accessibilityRole="button" accessibilityState={{ disabled: !!exporting }} disabled={!!exporting} onPress={() => void exportReport()} style={[s.exportButton, { backgroundColor: c.card, borderColor: c.line }]}>
-              <Text style={[s.bodyBold, { color: c.link }]}>{exporting === 'report' ? '리포트 만드는 중…' : '리포트 PDF 저장·공유'}</Text>
-            </Pressable>
             {doneAgain ? (
               <Pressable onPress={onReload} accessibilityRole="button" style={[s.notice, { backgroundColor: c.skyTint, borderColor: c.line }]}>
                 <Text style={[s.small, { flex: 1, color: c.ink }]}>다시 분석이 끝났어요. 지금 보이는 건 이전 결과예요.</Text>
@@ -623,50 +662,29 @@ function ResultView({ c, data, active, doneAgain, onReload }: { c: Palette; data
                 <Text style={[s.small, { flex: 1, color: c.ink }]}>다시 분석이 안 됐어요. {data.waiting.title} 지금 보이는 건 이전 결과예요.</Text>
               </View>
             ) : null}
-            <TwoColumns
-              left={(boxW) => (
-                <View style={{ gap: 12 }}>
-                  <Summary c={c} report={report} onScene={onScene} />
-                  {recordCoach && data.shown ? <RecordCoachLink kind="report" id={data.id} jobId={data.shown} label={[data.when, data.title, '3D 리포트'].filter(Boolean).join(' · ')} /> : null}
-                  <Text accessibilityRole="header" style={[TYPE.card, { color: c.ink, marginTop: 8, paddingHorizontal: 4 }]}>
-                    3D 동작
-                  </Text>
-                  <View ref={stage} accessibilityLabel="3D 동작" style={[s.stage, { backgroundColor: STAGE_BG }]}>
-                    <View style={{ width: Math.min(boxW - 20, stageMax), alignSelf: 'center' }}>
-                      {/* 다시 분석이 끝나 새 결과로 바뀔 때만 새로 연다(key) — 원본을 여닫거나 요소를 골라도 그대로 */}
-                      <Lab3D
-                        key={data.shown ?? ''}
-                        ref={lab}
-                        id={data.id}
-                        width={Math.min(boxW - 20, stageMax)}
-                        bg={STAGE_BG}
-                        onTransport={onTransport}
-                        onFailed={setViewerFailed}
-                        stop={report.headline.frame}
-                        dark
-                      />
-                      {active && data.waiting ? <Reanalyzing /> : null}
-                    </View>
+            <ResultCard c={c} report={report} onScene={onScene} canShowScene={canShowScene} />
+            <RxCard c={c} report={report} onDrill={openDrill} />
+            {hasFollowUp ? (
+              <View style={[s.list, { backgroundColor: c.card, boxShadow: c.float }]}>
+                <Pressable accessibilityRole="button" accessibilityState={{ expanded: followUp }} onPress={() => setFollowUp((open) => !open)} style={s.metric}>
+                  <Text style={[s.bodyBold, { color: c.ink, flex: 1 }]}>연습 기록 및 비교</Text>
+                  <Icon name={followUp ? 'chevron-up' : 'chevron-down'} size={18} color={c.muted} />
+                </Pressable>
+                {followUp ? (
+                  <View style={{ gap: 10, padding: 12, paddingTop: 0 }}>
+                    <TrainingAction c={c} report={report} mine={r.mine} focus={r.focus} />
+                    {r.mine ? <LabPracticeCard key={data.id} id={data.id} suggestedGoal={report.rx[0]?.cue ?? ''} /> : null}
+                    {r.previous ? <CompareCard c={c} prev={r.previous} /> : null}
+                    {recordCoach && data.shown ? <RecordCoachLink kind="report" id={data.id} jobId={data.shown} label={[data.when, data.title, '3D 리포트'].filter(Boolean).join(' · ')} /> : null}
                   </View>
-                  <Pressable accessibilityRole="button" accessibilityState={{ disabled: !!exporting || viewerFailed || active }} disabled={!!exporting || viewerFailed || active} onPress={chooseVideoDestination} style={[s.exportButton, { backgroundColor: c.card, borderColor: c.line, opacity: viewerFailed || active ? 0.5 : 1 }]}>
-                    <Text style={[s.bodyBold, { color: c.link }]}>{exporting === 'video' ? `3D 영상 만드는 중 ${Math.round(exportProgress * 100)}%` : '현재 각도로 3D 영상 저장·공유'}</Text>
-                  </Pressable>
-                  {compareBlock}
-                </View>
-              )}
-              right={
-                <>
-                  <ElementList c={c} report={report} onPick={(it) => jump(it.frame, false)} onScene={onScene} />
-                  <RxCard c={c} report={report} mine={r.mine} focus={r.focus} resultId={data.id} />
-                  {r.mine ? <LabPracticeCard key={data.id} id={data.id} suggestedGoal={report.rx[0]?.cue ?? ''} /> : null}
-                  {r.previous ? <CompareCard c={c} prev={r.previous} /> : null}
-                  <Details c={c} r={r} active={active} id={data.id} req={data.request} onJump={jump} onStarted={onReload} />
-                </>
-              }
-            />
+                ) : null}
+              </View>
+            ) : null}
+            <Details c={c} r={r} active={active} id={data.id} req={data.request} capture={capture} onJump={jump} onStarted={onReload} />
           </ScrollView>
         )}
       </ScrollLockScope>
+      {drill ? <LabDrillSheet key={`${drill.element}:${drill.title}:${drill.stage}`} drill={drill} c={c} onClose={() => setDrill(null)} /> : null}
     </View>
   );
 }
@@ -678,6 +696,7 @@ function Details({
   active,
   id,
   req,
+  capture,
   onJump,
   onStarted,
 }: {
@@ -686,6 +705,7 @@ function Details({
   active: boolean;
   id: string;
   req: AppLabDetail['request'];
+  capture: string;
   onJump: (frame: number | null) => void;
   onStarted: () => void;
 }) {
@@ -704,6 +724,8 @@ function Details({
       </Pressable>
       {open && (
         <View style={{ paddingHorizontal: 14, paddingBottom: 14, gap: 10 }}>
+          <Text style={[s.small, { color: c.muted }]}>{capture}</Text>
+          {r.handNote ? <Text style={[s.small, { color: c.warn }]}>{r.handNote}</Text> : null}
           {r.stale && !active && <Text style={[s.small, { color: c.ink }]}>엔진이 나아졌어요. 다시 분석하면 새 엔진으로 볼 수 있어요.</Text>}
           {active && <Text style={[s.small, { color: c.ink }]}>다시 분석 중이에요. 끝날 때까지 이전 결과를 보여 줘요.</Text>}
           {!active ? <RequestPanel id={id} req={req} onStarted={onStarted} c={c} /> : null}
@@ -899,11 +921,10 @@ const s = StyleSheet.create({
   smallBold: { fontSize: 13, fontWeight: '600' },
   numeric: { fontSize: 17, fontWeight: '600', fontVariant: ['tabular-nums'] },
   pill: { minHeight: 44, paddingHorizontal: 20, borderRadius: 22, justifyContent: 'center' },
-  exportButton: { minHeight: 48, paddingHorizontal: 16, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
   notice: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
   video: { width: '100%', aspectRatio: 4 / 5, maxHeight: 420, borderRadius: 14, backgroundColor: '#000', overflow: 'hidden' },
-  stage: { borderRadius: 24, padding: 10, overflow: 'hidden' },
-  compareBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 50, borderRadius: 25 },
+  stage: { borderRadius: 24, padding: 10, gap: 8, overflow: 'hidden' },
+  compareBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 44, borderRadius: 16 },
   compareBox: { borderRadius: 22, padding: 12, gap: 10 },
   list: { borderRadius: 14, overflow: 'hidden' },
   metric: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48, paddingHorizontal: 14, paddingVertical: 8 },

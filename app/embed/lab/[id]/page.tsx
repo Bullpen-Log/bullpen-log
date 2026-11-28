@@ -16,7 +16,7 @@ export default async function LabEmbedPage({
 }: {
   params: Promise<{ id: string }>;
   /** stop = 처음 재생이 멈출 장면(리포트의 주 문제), dark = 어두운 무대(리포트 결론 판 안, 2026-10-21) */
-  searchParams: Promise<{ stop?: string; dark?: string }>;
+  searchParams: Promise<{ stop?: string; dark?: string; compact?: string }>;
 }) {
   const { id } = await params;
   const q = await searchParams;
@@ -40,6 +40,7 @@ export default async function LabEmbedPage({
       heightCm={meta?.heightCm ?? (sample.ownerId === user.id ? (user.heightCm ?? null) : null)}
       stopFrame={stop}
       dark={q.dark === '1'}
+      compact={q.compact === '1'}
     />
   );
 }

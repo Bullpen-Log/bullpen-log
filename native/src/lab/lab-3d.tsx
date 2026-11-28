@@ -29,7 +29,7 @@ export type LabTransport = {
   cam3?: number;
   cam4?: number;
 };
-export type Lab3DHandle = { seek: (frame: number) => void; view: (v: 'side' | 'back' | 'catcher' | 'top') => void; snapshot: () => Promise<string | null>; exportVideo: (onProgress?: (progress: number) => void) => Promise<File> };
+export type Lab3DHandle = { seek: (frame: number) => void; pause: () => void; view: (v: 'side' | 'back' | 'catcher' | 'top') => void; snapshot: () => Promise<string | null>; exportVideo: (onProgress?: (progress: number) => void) => Promise<File> };
 
 type FromWeb =
   | { t: 'lab'; kind: 'ready' }
@@ -64,9 +64,11 @@ export const Lab3D = forwardRef<
 >(function Lab3D({ id, width, bg, onTransport, stop = null, dark = false, onFailed }, ref) {
   const web = useRef<WebViewHandle>(null);
   const grab = useGrabProps();
-  const [height, setHeight] = useState(() => Math.round(width * 1.25) + 132);
+  const [height, setHeight] = useState(() => Math.round(width * 5 / 7) + 132);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
+  const pendingFrame = useRef<number | null>(null);
+  const pendingPause = useRef(false);
   const snapshot = useRef<{ id: string; resolve: (data: string | null) => void; timer: ReturnType<typeof setTimeout> } | null>(null);
   const transfer = useRef<{
     id: string; file: File; handle: ReturnType<File['open']>; index: number; bytes: number;
@@ -101,13 +103,21 @@ export const Lab3D = forwardRef<
     const t = setTimeout(() => setFailed(true), 25_000);
     return () => clearTimeout(t);
   }, [ready, failed, attempt]);
-  const q = [stop != null ? `stop=${Math.max(0, Math.round(stop))}` : null, dark ? 'dark=1' : null].filter(Boolean).join('&');
+  const q = ['compact=1', stop != null ? `stop=${Math.max(0, Math.round(stop))}` : null, dark ? 'dark=1' : null].filter(Boolean).join('&');
   const url = q ? `${base}?${q}` : base;
 
   useImperativeHandle(
     ref,
     () => ({
-      seek: (k) => web.current?.injectJavaScript(`window.__labSeek&&window.__labSeek(${Math.max(0, Math.round(k))});true;`),
+      seek: (k) => {
+        if (!Number.isInteger(k) || k < 0) return;
+        if (ready) web.current?.injectJavaScript(`window.__labSeek&&window.__labSeek(${k});true;`);
+        else pendingFrame.current = k;
+      },
+      pause: () => {
+        if (ready) web.current?.injectJavaScript('window.__labPause&&window.__labPause();true;');
+        else pendingPause.current = true;
+      },
       view: (v) => web.current?.injectJavaScript(`window.__labView&&window.__labView(${JSON.stringify(v)});true;`),
       snapshot: () => {
         if (!ready || failed || !web.current || snapshot.current) return Promise.resolve(null);
@@ -184,7 +194,17 @@ export const Lab3D = forwardRef<
       } else if (m.kind === 'export-error') failTransfer(typeof m.message === 'string' ? m.message.slice(0, 160) : '영상을 만들지 못했어요.');
       return;
     }
-    if (m.kind === 'ready') setReady(true);
+    if (m.kind === 'ready') {
+      setReady(true);
+      if (pendingFrame.current != null) {
+        web.current?.injectJavaScript(`window.__labSeek&&window.__labSeek(${pendingFrame.current});true;`);
+        pendingFrame.current = null;
+      }
+      if (pendingPause.current) {
+        web.current?.injectJavaScript('window.__labPause&&window.__labPause();true;');
+        pendingPause.current = false;
+      }
+    }
     else if (m.kind === 'size') {
       if (m.h > 80) setHeight(m.h);
     } else if (m.kind === 'transport') onTransport(m);

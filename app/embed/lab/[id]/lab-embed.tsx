@@ -33,6 +33,7 @@ type ToApp =
 type Bridge = {
   ReactNativeWebView?: { postMessage(s: string): void };
   __labSeek?: (frame: number) => void;
+  __labPause?: () => void;
   /** 시점 바꾸기 — 앱이 원본 옆 · 뒤를 바꿀 때 3D 도 같은 쪽에서 보게(2026-10-29) */
   __labView?: (view: string) => void;
   __labExport?: (id: string) => void;
@@ -49,6 +50,7 @@ export function LabEmbed({
   heightCm,
   stopFrame = null,
   dark = false,
+  compact = false,
 }: {
   id: string;
   result: Pitch3dV2Ok;
@@ -56,8 +58,19 @@ export function LabEmbed({
   heightCm: number | null;
   stopFrame?: number | null;
   dark?: boolean;
+  compact?: boolean;
 }) {
   const body = useRef<Body3DHandle>(null);
+  const pendingFrame = useRef<number | null>(null);
+  const pendingPause = useRef(false);
+  const setBody = useCallback((handle: Body3DHandle | null) => {
+    body.current = handle;
+    if (!handle) return;
+    if (pendingFrame.current != null) handle.seek(pendingFrame.current);
+    if (pendingPause.current) handle.pause();
+    pendingFrame.current = null;
+    pendingPause.current = false;
+  }, []);
   const box = useRef<HTMLDivElement>(null);
   /* 영상마다 편집 목록 앞머리 — 받기 전엔 0, 받으면 마지막 알림을 다시 보낸다 */
   const shifts = useRef<LabShifts>({ side: 0, back: 0 });
@@ -104,7 +117,15 @@ export function LabEmbed({
     let alive = true;
     let running = false;
     let ack: { id: string; index: number; finish: (ok: boolean) => void } | null = null;
-    w.__labSeek = (k) => body.current?.seek(k);
+    w.__labSeek = (k) => {
+      if (!Number.isInteger(k) || k < 0) return;
+      if (body.current) body.current.seek(k);
+      else pendingFrame.current = k;
+    };
+    w.__labPause = () => {
+      if (body.current) body.current.pause();
+      else pendingPause.current = true;
+    };
     w.__labView = (v) => {
       if (v === 'side' || v === 'back' || v === 'catcher' || v === 'top') body.current?.view(v);
     };
@@ -164,6 +185,7 @@ export function LabEmbed({
       if (ack) (ack as { finish: (ok: boolean) => void }).finish(false);
       ro?.disconnect();
       delete w.__labSeek;
+      delete w.__labPause;
       delete w.__labView;
       delete w.__labExport;
       delete w.__labExportAck;
@@ -174,12 +196,12 @@ export function LabEmbed({
   return (
     /*
      * 웹 결과 화면의 3D 칸은 화면 높이의 60% 까지(max-h-[60vh])인데, 여기서는 앱이 웹뷰 높이를 이 칸 높이로 맞춰 서로 줄어드는 고리가 생긴다 —
-     * 이 화면에서만 그 한도를 푼다(칸은 폭의 5:4). data-safe-area: 앱 안 웹 화면이 몸에 주는 시계 · 홈 막대 여백(globals.css)을 뺀다 —
+     * 이 화면에서만 그 한도를 푼다. data-safe-area: 앱 안 웹 화면이 몸에 주는 시계 · 홈 막대 여백(globals.css)을 뺀다 —
      * 이 웹뷰는 앱 화면 가운데의 작은 칸이다.
      */
     <div ref={box} data-lab-embed data-safe-area className={dark ? 'theme-dark bg-page' : 'bg-page'}>
       <style>{'[data-lab-embed] .max-h-\\[60vh\\]{max-height:none}'}</style>
-      <Body3D ref={body} result={result} onTransport={onTransport} ground={ground} heightCm={heightCm} stopFrame={stopFrame} />
+      <Body3D ref={setBody} result={result} onTransport={onTransport} ground={ground} heightCm={heightCm} stopFrame={stopFrame} compact={compact} />
     </div>
   );
 }

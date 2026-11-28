@@ -60,7 +60,7 @@ export type Transport = {
   reason: 'tick' | 'seek' | 'toggle' | 'speed';
 };
 /** seek: 장면으로 · view: 시점 바꾸기(앱 결과 화면의 원본 옆 · 뒤 전환이 3D 도 그 시점으로, 2026-10-29) */
-export type Body3DHandle = { seek: (frame: number) => void; view: (v: ViewName) => void; snapshot: () => string | null; exportVideo: (onProgress?: (progress: number) => void) => Promise<Blob> };
+export type Body3DHandle = { seek: (frame: number) => void; pause: () => void; view: (v: ViewName) => void; snapshot: () => string | null; exportVideo: (onProgress?: (progress: number) => void) => Promise<Blob> };
 
 /** 재생 중 자세를 다시 짓는 가장 짧은 간격(ms) — 초당 60번쯤. 120Hz 화면에서도 두 장면에 한 번 */
 const POSE_MIN_MS = 15;
@@ -116,9 +116,12 @@ export const Body3D = forwardRef<
     ai?: boolean;
     /** 리포트의 주 문제 장면 — 움직임 줄이기면 이 장면에 서 있는다(자동 재생 때는 멈추지 않는다, 없으면 릴리스) */
     stopFrame?: number | null;
+    compact?: boolean;
   }
->(function Body3D({ result, onTransport, ground = 'mound', heightCm, ai = false, stopFrame = null }, ref) {
+>(function Body3D({ result, onTransport, ground = 'mound', heightCm, ai = false, stopFrame = null, compact = false }, ref) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const initialSeek = useRef<number | null>(null);
+  const initialPause = useRef(false);
   const [status, setStatus] = useState<Status>(() =>
     typeof window !== 'undefined' && !hasWebGL() ? 'unavailable' : 'loading'
   );
@@ -380,9 +383,13 @@ export const Body3D = forwardRef<
       /* 재생 중 자세는 고르게 편 장면 시각으로 고른다(playbackTimes) — 시계 · 영상 맞춤 · 멈춘 장면은 result.t 그대로 */
       const tp = playbackTimes(result.t);
       const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      let cur = reduced ? firstStop : 0;
+      const requestedFrame = initialSeek.current;
+      const requestedPause = initialPause.current;
+      initialSeek.current = null;
+      initialPause.current = false;
+      let cur = requestedFrame == null ? (reduced ? firstStop : 0) : Math.max(0, Math.min(n - 1, requestedFrame));
       let clock = result.t[cur];
-      let isPlaying = !reduced;
+      let isPlaying = !reduced && requestedFrame == null && !requestedPause;
       let spd: Speed = 0.25;
       let lastTick = 0;
       let exporting = false;
@@ -775,7 +782,14 @@ export const Body3D = forwardRef<
   useImperativeHandle(
     ref,
     () => ({
-      seek: (k) => ctrl.current?.seek(k),
+      seek: (k) => {
+        if (ctrl.current) ctrl.current.seek(k);
+        else initialSeek.current = k;
+      },
+      pause: () => {
+        if (ctrl.current) ctrl.current.play(false);
+        else initialPause.current = true;
+      },
       view: (v) => {
         ctrl.current?.view(v, true);
       },
@@ -816,7 +830,7 @@ export const Body3D = forwardRef<
         tabIndex={0}
         aria-label={label}
         onKeyDown={onKey}
-        className="relative aspect-[4/5] max-h-[60vh] w-full overflow-hidden rounded-2xl bg-[#151722] outline-none focus-visible:ring-2 focus-visible:ring-sky"
+        className={`relative ${compact ? 'aspect-[7/5]' : 'aspect-[4/5]'} max-h-[60vh] w-full overflow-hidden rounded-2xl bg-[#151722] outline-none focus-visible:ring-2 focus-visible:ring-sky`}
       >
         {status !== 'ready' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center text-sm text-[#c7cfdd]">
