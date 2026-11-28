@@ -5,7 +5,8 @@ import {
   REPORT_CRITERIA, REPORT_ELEMENT_LABEL, REPORT_STATUS_TEXT, prescriptionMessage, rxAction,
   type FocusProgress, type PitchReport, type ReportItem,
 } from '@/lib/pitch-3d/v2/report';
-import { itemObs, nextStepsOf, reportLead } from '@/lib/pitch-3d/v2/report-view';
+import { resultObservation, resultRating, resultValue } from '@/lib/pitch-3d/v2/report-readout';
+import { nextStepsOf, reportLead } from '@/lib/pitch-3d/v2/report-view';
 import { compareDeltaText, compareRangeText, prevDateText, PREV_CONFIRM, type PreviousComparison } from '@/lib/pitch-3d/v2/compare-view';
 import { TYPE, type Palette } from '~/lib/ui';
 import { type Href, router } from 'expo-router';
@@ -13,6 +14,7 @@ import { canOpen, noticeLocked, pushOpen } from '~/shell/release';
 import { leaveTo } from '~/shell/web-nav';
 import { Icon } from '~/shell/icon';
 import type { DrillSelection } from './drill-sheet';
+import { ReportRangeSheet } from './report-range-sheet';
 
 export const STAGE_BG = '#151722';
 
@@ -23,8 +25,13 @@ export function ResultCard({ c, report, onScene, canShowScene }: {
   canShowScene: (item: ReportItem) => boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [rangeItem, setRangeItem] = useState<ReportItem | null>(null);
   const lead = reportLead(report);
-  const headline = (lead.kind === 'finding' ? itemObs(lead.item) : lead.title).split(/\r?\n/, 1)[0];
+  const single = !report.primary && report.coverage?.evaluated === 1
+    ? report.items.find((item) => item.status === 'good' || item.status === 'fair')
+    : undefined;
+  const leadingItem = lead.kind === 'finding' ? lead.item : single;
+  const headline = (leadingItem ? resultObservation(leadingItem) : report.headline.title).split(/\r?\n/, 1)[0];
   return (
     <View style={[s.list, { backgroundColor: c.card, boxShadow: c.float }]}>
       <Pressable
@@ -46,35 +53,60 @@ export function ResultCard({ c, report, onScene, canShowScene }: {
           {report.items.map((item) => {
             const enabled = canShowScene(item);
             const title = REPORT_ELEMENT_LABEL[item.element] ?? item.element;
-            const statusColor = item.status === 'improve' || item.status === 'edge' ? c.warn : item.status === 'good' ? c.ok : c.muted;
+            const value = resultValue(item);
+            const rating = resultRating(item.status);
+            const statusColor = rating === 'improve' ? c.warn : rating === 'good' ? c.ok : c.muted;
             return (
-              <View key={item.key} style={[s.row, s.phase, { borderTopColor: c.line }]}>
-                <View style={{ flex: 1, gap: 4 }}>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 8 }}>
-                    <Text style={[TYPE.buttonCompact, { color: c.ink }]}>{title}</Text>
-                    <Text style={[TYPE.sub, { color: statusColor }]}>{REPORT_STATUS_TEXT[item.status]}</Text>
+              <View key={item.key} style={[s.phase, { borderTopColor: c.line }]}>
+                <View style={s.row}>
+                  <Text style={[TYPE.buttonCompact, s.phaseTitle, { color: c.ink }]}>{title}</Text>
+                  <View style={s.rating}>
+                    {value != null && (
+                      <Text testID={`lab-value-${item.key}`} style={[TYPE.buttonCompact, s.number, { color: c.ink }]}>{value}</Text>
+                    )}
+                    <Text testID={`lab-rating-${item.key}`} style={[TYPE.sub, { color: statusColor }]}>{REPORT_STATUS_TEXT[rating]}</Text>
+                    <Pressable
+                      testID={`lab-range-info-${item.key}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${title} 판정 기준 보기`}
+                      onPress={() => setRangeItem(item)}
+                      style={({ pressed }) => [s.info, pressed && s.pressed]}
+                    >
+                      <Icon name="info" size={16} color={c.link} />
+                    </Pressable>
                   </View>
-                  <Text style={[TYPE.sub, { color: c.muted }]}>{itemObs(item)}</Text>
                 </View>
-                <Pressable
-                  testID={`lab-scene-${item.key}`}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${title} 장면 보기`}
-                  accessibilityState={{ disabled: !enabled }}
-                  disabled={!enabled}
-                  onPress={() => {
-                    void Haptics.selectionAsync();
-                    onScene(item);
-                  }}
-                  style={({ pressed }) => [s.scene, { backgroundColor: c.chip }, (!enabled || pressed) && s.pressed]}
-                >
-                  <Text style={[TYPE.sub, { color: enabled ? c.link : c.muted }]}>장면 보기</Text>
-                </Pressable>
+                <View style={s.row}>
+                  <Text style={[TYPE.sub, s.phaseTitle, { color: c.muted }]}>{resultObservation(item)}</Text>
+                  <Pressable
+                    testID={`lab-scene-${item.key}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${title} 장면 보기`}
+                    accessibilityState={{ disabled: !enabled }}
+                    disabled={!enabled}
+                    onPress={() => {
+                      void Haptics.selectionAsync();
+                      onScene(item);
+                    }}
+                    style={({ pressed }) => [s.scene, { backgroundColor: c.chip }, (!enabled || pressed) && s.pressed]}
+                  >
+                    <Text style={[TYPE.sub, { color: enabled ? c.link : c.muted }]}>장면 보기</Text>
+                  </Pressable>
+                </View>
               </View>
             );
           })}
         </View>
       )}
+      {rangeItem ? (
+        <ReportRangeSheet
+          item={rangeItem}
+          title={REPORT_ELEMENT_LABEL[rangeItem.element] ?? rangeItem.element}
+          ground={report.ground}
+          c={c}
+          onClose={() => setRangeItem(null)}
+        />
+      ) : null}
     </View>
   );
 }
@@ -235,7 +267,11 @@ const s = StyleSheet.create({
   card: { borderRadius: 16, padding: 14 },
   list: { borderRadius: 16, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  phase: { borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: 8 },
+  phase: { borderTopWidth: StyleSheet.hairlineWidth, paddingBottom: 8 },
+  phaseTitle: { flex: 1 },
+  rating: { flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: -8 },
+  number: { fontVariant: ['tabular-nums'] },
+  info: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   scene: { minHeight: 44, borderRadius: 10, paddingHorizontal: 10, justifyContent: 'center' },
   step: { flexDirection: 'row', minHeight: 44, alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 10, borderRadius: 12 },
   drill: { minHeight: 44, borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: 6 },

@@ -194,6 +194,8 @@ export type ReportItem = {
   obs?: string | null;
   /** 장면 이름 '착지' · '착지 뒤' · '앞무릎이 가장 굽은'(초 없이 — momentName. buildReport 가 채운다, 옛 서버 응답에는 없다) */
   moment?: string | null;
+  /** 발을 내딛는 중 골반이 올라간 비율. 드롭의 별도 고칠 점 기준에 걸린 때만 보낸다. */
+  dropRise?: number;
 };
 
 /** 처방에 쓰는 드릴 한 동작 — MechanicsDrillView 에서 필요한 것만(화면으로 보내는 몫을 줄인다) */
@@ -755,6 +757,7 @@ export function judgeElements(
       /* 지표 정의는 수치를 보인 칸에만 — 확인하지 못한 칸에 '각도를 확인해요'가 붙으면 잰 것처럼 읽힌다 */
       metricNote: status === 'unsure' ? null : (METRIC_NOTES[name] ?? null),
       obs: status === 'unsure' ? null : obs,
+      ...(name === '드롭' && status !== 'unsure' && m.drop && m.drop.rise > DROP_RISE_MAX ? { dropRise: m.drop.rise } : {}),
       /* 브레이크 '더 굽음'의 장면은 착지 ~ 릴리스에서 앞무릎이 가장 굽은 때 — 그 이름으로(나머지는 buildReport 가 순간 이름을 붙인다) */
       moment: name === '브레이크' && d.gauge?.up === false && status !== 'unsure' ? '앞무릎이 가장 굽은' : null,
     };

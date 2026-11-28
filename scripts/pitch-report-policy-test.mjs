@@ -46,6 +46,7 @@ const result = {
   t: Array.from({ length: 30 }, (_, i) => i / 60),
 };
 const { prescribedTitles } = await import('../lib/mechanics/prescriptions.ts');
+const { resultCriteria, resultObservation, resultRating, resultValue } = await import('../lib/pitch-3d/v2/report-readout.ts');
 const drills = ['drift.stuck', 'block.collapse'].flatMap((fault) =>
   ['기초', '연결', '통합'].flatMap((stage) =>
     prescribedTitles(fault, stage, 2).map((title) => ({
@@ -258,6 +259,36 @@ const lefty = base();
 lefty.hand = 'L';
 assert.equal(item(report(lefty), '상하체 분리').value, '40° 닫힘', '좌투도 부호 그대로');
 
+/* 결과 행의 수치, 쉬운 설명, 안내 창은 같은 지표를 가리킨다. */
+const nearlySideOn = base();
+nearlySideOn.separation.trunkOpenAtPlantDeg = -3;
+const shoulders = item(report(nearlySideOn), '상하체 분리');
+assert.equal(shoulders.status, 'edge');
+assert.equal(resultRating(shoulders.status), 'fair');
+assert.equal(resultValue(shoulders), '−3°');
+assert.equal(resultObservation(shoulders), '앞발이 닿을 때 상체는 거의 옆을 향했어요.');
+assert.deepEqual(resultCriteria(shoulders, 'mound').rows.map((r) => r.range), [
+  '−12.8° 이하', '−12.8° 초과, 3.3° 이하', '3.3° 초과',
+]);
+nearlySideOn.separation.trunkOpenAtPlantDeg = 2;
+assert.equal(resultObservation(item(report(nearlySideOn), '상하체 분리')), '앞발이 닿을 때 어깨선이 조금 열려 있었어요.');
+nearlySideOn.separation.trunkOpenAtPlantDeg = 3.31;
+const roundedShoulders = item(report(nearlySideOn), '상하체 분리');
+assert.equal(roundedShoulders.status, 'improve');
+assert.equal(resultValue(roundedShoulders), '3.3°');
+assert.match(resultCriteria(roundedShoulders, 'mound').note, /반올림하기 전 수치/);
+assert.equal(resultCriteria(item(report(lefty), '상하체 분리'), 'mound').rows[0].range, '−11.8° 이하');
+assert.equal(resultCriteria(item(report(base(), { ground: 'flat' }), '몸통 회전'), 'flat').rows[0].range, '22.5° 이상');
+assert.equal(resultCriteria(blk, 'mound').rows[2].range, '16° 초과');
+assert.equal(resultCriteria(item(ro, '몸통 회전'), 'mound').rows.length, 0, '참고에는 적용하지 않은 범위를 보여 주지 않는다');
+const lifted = base();
+lifted.drop.rise = 0.09;
+const liftedDrop = item(report(lifted), '드롭');
+assert.equal(resultValue(liftedDrop), '36%');
+assert.equal(resultObservation(liftedDrop), '앞발을 내딛는 중 골반이 한 번 위로 올라갔어요.');
+assert.equal(resultCriteria(liftedDrop, 'mound').appliedRange, null, '내려간 양이 아닌 중간 상승으로 판정한 경우');
+assert.match(resultCriteria(liftedDrop, 'mound').note, /9%만큼 올라갔어요\. 2%를 넘으면 고칠 점/);
+
 /* 사건 미검출 · 계산 불가 — 니업을 못 찾았다고 일괄 단정하지 않는다 */
 const noDrop = base();
 noDrop.drop = null;
@@ -274,7 +305,10 @@ const noHand = base();
 noHand.arm.handRise = null;
 for (const kneeUp of [5, null]) {
   const r = report(noHand, {}, { ...result, events: { ...result.events, kneeUp } });
-  assert.equal(item(r, '스로잉').line, '착지 때 던지는 손 높이를 확인하지 못했어요.');
+  const hand = item(r, '스로잉');
+  assert.equal(resultObservation(hand), '착지 때 던지는 손 높이를 확인하지 못했어요.');
+  assert.equal(resultValue(hand), null);
+  assert.equal(resultCriteria(hand, 'mound').rows.length, 0);
 }
 
 /* 비정상 계산값 — 정상 수치 · 관찰처럼 보이지 않는다 */
