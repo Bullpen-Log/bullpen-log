@@ -2,7 +2,7 @@
  * 리포트 화면(웹 app/(app)/videos/lab/[id]/report-parts.tsx · 앱 native/src/lab/report.tsx)이 같이 쓰는 고르기(순수, 2026-10-27 리포트 개편).
  * 판정 · 수치 · 글의 원본은 report.ts — 여기서는 맨 위 한 가지 · 판독 줄 · 처방이 없을 때 이어 갈 길만 고른다.
  */
-import { HARD_REASON, type ElementName, type PitchReport, type ReportItem } from '@/lib/pitch-3d/v2/report';
+import { HARD_REASON, REPORT_ELEMENT_LABEL, type ElementName, type PitchReport, type ReportItem } from '@/lib/pitch-3d/v2/report';
 
 /** 맨 위 한 가지 — 처방할 주 문제가 있으면 그 수치 · 장면, 없으면 확인 범위(고칠 점을 만들어 내지 않는다) */
 export type ReportLead = { kind: 'finding'; item: ReportItem } | { kind: 'scope'; title: string; note: string | null };
@@ -37,13 +37,13 @@ export function nextStepsOf(r: PitchReport): ReportNextStep[] {
   if (r.rx.length) return [];
   const out: ReportNextStep[] = [];
   if (r.items.some((i) => i.status === 'unsure' && i.measurement?.quality === 'low'))
-    out.push({ kind: 'guide', label: '촬영 안내 보기', note: '확인하지 못한 구간이 두 영상에 잘 보이게 찍는 법이에요.', elementKey: null });
+    out.push({ kind: 'guide', label: '촬영 방법 보기', note: '투구하는 동안 몸 전체가 두 영상에 들어오게 찍어 보세요.', elementKey: null });
   const ref = r.items.find((i) => i.status === 'note' && i.key);
   if (ref)
     out.push({
       kind: 'elements',
-      label: `${ref.element} 요소 설명 보기`,
-      note: '이 요소가 무엇을 보는지와 드릴 목록이에요. 이번 투구에 맞춘 처방은 아니에요.',
+      label: `${REPORT_ELEMENT_LABEL[ref.element]} 설명 보기`,
+      note: '어떤 동작을 보는지와 관련 드릴을 확인할 수 있어요.',
       elementKey: ref.key,
     });
   return out;

@@ -28,7 +28,7 @@ import { BLOCK_IMPLAUSIBLE_SINK_DEG, MECH_CONF_MIN, TRUNK_PLANT_ERR, TRUNK_PLANT
 export type ElementName = (typeof FOCUS_POINTS)[number];
 type DrillStage = (typeof DRILL_STAGE_NAMES)[number];
 
-/** 기준 판 — 문턱 · 기준표 · 글을 바꾸면 올린다(리포트 요약이 옛 판이면 다시 셈) */
+/** 기준 판 — 판정 기준과 처방 정책을 바꾸면 올린다. 표시 문구는 상세 조회 때 다시 만든다. */
 export { REPORT_CRITERIA };
 /**
  * 이 확신(0~100, 그 지표가 쓴 관절 · 장면 평균) 밑이면 판정하지 않는다 — 지금 점검 카드와 같은 30(mech-judge MECH_CONF_MIN).
@@ -68,6 +68,16 @@ export const ELEMENT_GRADE: Record<ElementName, Grade> = {
 
 /** 흐름 차례(4절 2번) — 앞쪽 문제가 뒤쪽을 만든다 */
 export const CHAIN: ElementName[] = ['드리프트', '드롭', '상하체 분리', '브레이크', '몸통 회전', '스로잉'];
+
+/** 리포트에서 실제로 보는 동작. 요소 키와 드릴 분류 이름은 CHAIN을 사용한다. */
+export const REPORT_ELEMENT_LABEL: Record<ElementName, string> = {
+  드리프트: '다리 들 때 골반 위치',
+  드롭: '내딛을 때 골반 높이',
+  '상하체 분리': '착지 때 상체 열림',
+  브레이크: '착지 뒤 앞무릎',
+  '몸통 회전': '릴리스 때 몸통 기울기',
+  스로잉: '착지 때 던지는 손 높이',
+};
 
 /**
  * 띠 — 클수록 좋으면 up. 고칠 점 < cut ≤ 경계 < edgeEnd ≤ 보통 < fairEnd ≤ 좋아요(up 이 아니면 거꾸로).
@@ -281,24 +291,23 @@ const NOTE_LIMIT: Record<'validation' | 'gradeB' | 'flat' | 'youth', string> = {
   flat: '기준이 마운드 투구라 평지 영상은 평가하지 않고 수치만 보여 줘요.',
   youth: '성장기는 크기보다 순서를 먼저 봐서 이 수치로 교정 필요를 정하지 않아요.',
 };
-/** 확인하지 못한 까닭 — 그 지표가 쓴 관절 · 장면(mech-checks confOf)이 잘 안 보였다 */
-const HARD_TO_SEE: Record<ElementName, string> = {
-  드리프트: '첫 장면과 니업 때 골반 · 축발이',
-  드롭: '니업과 착지 때 골반 · 다리가',
-  '상하체 분리': '착지에서 릴리스까지 두 어깨가',
-  브레이크: '착지에서 릴리스까지 앞다리가',
-  '몸통 회전': '릴리스 때 어깨 · 골반이',
-  스로잉: '착지 때 던지는 팔 · 손이',
+const MEASUREMENT_SUBJECT: Record<ElementName, string> = {
+  드리프트: '다리를 가장 높이 들었을 때 골반과 뒷발 위치를',
+  드롭: '다리를 들 때와 착지할 때의 골반 높이를',
+  '상하체 분리': '착지 무렵 양쪽 어깨의 위치를',
+  브레이크: '착지 뒤 앞무릎 움직임을',
+  '몸통 회전': '공을 놓을 때 어깨와 골반 위치를',
+  스로잉: '착지 때 던지는 손 높이를',
 };
 function unsureLine(why: NonNullable<ReportItem['why']>, name: ElementName, kneeUpFound: boolean): string {
-  if (why === 'implausible') return '계산값이 정상 범위를 벗어나 수치를 보여 주지 않아요. 분석 확인이 필요해요.';
-  if (why === 'confidenceMissing') return '이 결과에는 측정 신뢰도 정보가 없어 평가하지 않았어요. 다시 분석하면 확인할 수 있어요.';
-  if (why === 'notMeasured')
-    /* 드롭은 니업이 있어도 두 발 사이 기준선을 못 잡으면 못 잰다(mech-checks drop) — 니업을 못 찾았다고 단정하지 않는다 */
-    return kneeUpFound
-      ? '니업과 착지 장면으로 높이 기준선을 잡지 못해 계산하지 못했어요.'
-      : '다리를 가장 높이 든 장면(니업)을 찾지 못해 이 지표는 계산하지 못했어요. 다리를 드는 동작부터 영상에 담기면 확인할 수 있어요.';
-  return `${HARD_TO_SEE[name]} 영상에서 잘 보이지 않아 판정하지 않았어요. 그 구간이 두 영상에 잘 보이게 다시 찍으면 확인할 수 있어요.`;
+  if (why === 'implausible') return '측정값이 정상 범위를 벗어나 이 동작을 평가하기 어려웠어요.';
+  if (why === 'confidenceMissing') return '이 결과에는 측정 신뢰도가 기록되지 않았어요. 다시 분석해 보세요.';
+  if (why === 'notMeasured') {
+    if (!kneeUpFound && (name === '드리프트' || name === '드롭')) return '다리를 가장 높이 든 장면을 찾지 못했어요.';
+    if (name === '드롭') return '다리를 들 때와 착지할 때의 골반 높이를 비교하지 못했어요.';
+    return `${MEASUREMENT_SUBJECT[name]} 확인하지 못했어요.`;
+  }
+  return `${MEASUREMENT_SUBJECT[name]} 영상에서 확인하기 어려웠어요.`;
 }
 
 /** 관찰 문장 — 숫자 · 부호 그대로(평가 말 '잘 · 충분히 · 덜 · 늦음 · 무너짐'은 쓰지 않는다). 값 칸과 같은 반올림 */
@@ -306,52 +315,49 @@ const r0 = (v: number) => Math.round(v);
 const OBS = {
   drift: (ratio: number, cm: number | null) => {
     const n = cm != null ? r0(cm) : r0(ratio * 100);
-    const amount = cm != null ? `${Math.abs(n)}cm` : `키의 ${Math.abs(n)}%`;
-    if (n === 0) return '다리를 가장 높이 들었을 때 골반이 축발 바로 위에 있어요.';
-    return n > 0
-      ? `다리를 가장 높이 들었을 때 골반이 축발보다 홈 쪽으로 ${amount} 앞에 있어요.`
-      : `다리를 가장 높이 들었을 때 골반이 축발보다 2루 쪽으로 ${amount} 뒤에 있어요.`;
+    const amount = cm != null ? `${Math.abs(n)}cm` : `키의 ${Math.abs(n)}%만큼`;
+    if (n === 0) return '다리를 가장 높이 들었을 때 골반이 뒷발 바로 위에 있었어요.';
+    return `다리를 가장 높이 들었을 때 골반은 뒷발보다 ${amount} ${n > 0 ? '앞' : '뒤'}에 있었어요.`;
   },
   drop: (drop: number, rise: number) => {
+    if (rise > DROP_RISE_MAX) {
+      return `앞발을 내딛는 중 골반이 한때 다리를 가장 높이 들었을 때보다 더 올라갔어요(다리 길이의 ${r0(rise * 100)}%).`;
+    }
     const n = r0(drop * 100);
-    const main =
-      n > 0
-        ? `니업에서 착지까지 골반 높이가 다리 길이의 ${n}%만큼 내려가요.`
-        : n < 0
-          ? `착지 때 골반이 니업 때보다 다리 길이의 ${-n}%만큼 높아요.`
-          : '니업에서 착지까지 골반 높이가 거의 그대로예요.';
-    return rise > DROP_RISE_MAX ? `${main} 그 사이 한때 니업보다 다리 길이의 ${r0(rise * 100)}%만큼 올라갔어요.` : main;
+    return n === 0
+      ? '다리를 들었을 때와 착지할 때 골반 높이가 거의 같았어요.'
+      : `착지 때 골반은 다리를 들었을 때보다 ${n > 0 ? '낮았어요' : '높았어요'}(다리 길이의 ${Math.abs(n)}%).`;
   },
   sep: (openDeg: number) => {
     const n = r0(Math.abs(openDeg));
     return n === 0
-      ? '앞발이 닿을 때 어깨선이 디딤 방향과 나란해요.'
-      : `앞발이 닿을 때 어깨선은 디딤 방향을 기준으로 ${n}° ${openDeg > 0 ? '열려' : '닫혀'} 있어요.`;
+      ? '앞발이 닿을 때 어깨선이 디딘 방향과 나란했어요.'
+      : `앞발이 닿을 때 어깨선이 ${n}° ${openDeg > 0 ? '열려' : '닫혀'} 있었어요.`;
   },
   collapse: (deg: number) =>
-    r0(deg) > 0 ? `착지 뒤 앞무릎이 착지 때보다 최대 ${r0(deg)}° 더 굽어져요.` : '착지 뒤 앞무릎이 착지 때보다 더 굽지 않아요.',
+    r0(deg) > 0 ? `착지 뒤 앞무릎이 최대 ${r0(deg)}° 더 굽었어요.` : '착지 뒤 앞무릎이 더 굽지 않았어요.',
   extension: (deg: number) => {
     const n = r0(Math.abs(deg));
     return n === 0
-      ? '착지에서 공을 놓을 때까지 앞무릎 각도가 거의 그대로예요.'
+      ? '착지부터 공을 놓기까지 앞무릎 각도가 거의 그대로였어요.'
       : deg > 0
-        ? `착지에서 공을 놓을 때까지 앞무릎이 ${n}° 펴져요.`
-        : `착지에서 공을 놓을 때까지 앞무릎이 ${n}° 더 굽어져요.`;
+        ? `착지부터 공을 놓기까지 앞무릎이 ${n}° 펴졌어요.`
+        : `착지부터 공을 놓기까지 앞무릎이 ${n}° 더 굽혀졌어요.`;
   },
   trunk: (deg: number) => {
     const n = r0(deg);
     return n > 0
-      ? `공을 놓을 때 몸통이 앞으로 ${n}° 기울어져 있어요.`
+      ? `공을 놓는 순간 몸통이 앞으로 ${n}° 기울었어요.`
       : n < 0
-        ? `공을 놓을 때 몸통이 뒤로 ${-n}° 젖혀져 있어요.`
-        : '공을 놓을 때 몸통이 앞뒤로 거의 기울지 않았어요.';
+        ? `공을 놓는 순간 몸통이 뒤로 ${-n}° 젖혀졌어요.`
+        : '공을 놓는 순간 몸통이 앞뒤로 거의 기울지 않았어요.';
   },
   hand: (ratio: number, cm: number | null | undefined) => {
     const n = cm != null ? r0(cm) : r0(ratio * 100);
-    const unit = cm != null ? 'cm' : '%(팔 길이)';
+    const amount = cm != null ? `${Math.abs(n)}cm` : `팔 길이의 ${Math.abs(n)}%만큼`;
     return n === 0
-      ? '앞발이 닿을 때 던지는 손이 어깨 높이에 있어요.'
-      : `앞발이 닿을 때 던지는 손이 어깨보다 ${Math.abs(n)}${unit} ${n > 0 ? '위' : '아래'}에 있어요.`;
+      ? '착지 때 던지는 손은 어깨와 같은 높이였어요.'
+      : `착지 때 던지는 손은 어깨보다 ${amount} ${n > 0 ? '높았어요' : '낮았어요'}.`;
   },
 };
 
@@ -377,16 +383,16 @@ export const WHY_SHORT: Record<ElementName, string> = {
   스로잉: '앞발이 닿을 때 손이 올라와 있어야 몸통이 돌 때 팔이 자연스럽게 뒤로 젖혀져요.',
 };
 
-/** 처방 카드의 느낌 신호(lib/mechanics/elements.ts cues 에서 문제에 맞는 한 줄) */
+/** 처방 카드에서 드릴을 할 때 시도할 한 가지 */
 const FAULT_CUE: Record<FaultKey, string> = {
-  'drift.stuck': '다리를 가장 높이 든 자리는 투구판보다 한 뼘 앞.',
-  'drop.float': '뒷엉덩이와 뒤꿈치에 앉으며 간다.',
-  'drop.shallow': '투구판을 2루 쪽으로 끌어당긴다.',
-  'sep.openAtPlant': '앞어깨를 닫은 채 앞발을 딛는다.',
-  'block.collapse': '앞다리는 벽, 밀려나지 않는다.',
-  'block.soft': '골반이 돌며 앞무릎이 펴진다.',
-  'trunk.upright': '뒷어깨를 목표 쪽으로 돌려 보낸다.',
-  'arm.late': '앞발이 닿기 전에 손이 어깨 위로 올라온다.',
+  'drift.stuck': '다리를 들면서 골반을 홈 쪽으로 가볍게 옮겨 보세요.',
+  'drop.float': '뒷엉덩이에 체중을 실은 채 앞발을 내디뎌 보세요.',
+  'drop.shallow': '앞발을 내딛을 때 뒷엉덩이가 살짝 낮아지는 느낌을 연습해 보세요.',
+  'sep.openAtPlant': '앞발이 먼저 닿고 가슴이 뒤따라 돌도록 연습해 보세요.',
+  'block.collapse': '착지한 뒤 앞다리로 몸을 받아 보세요.',
+  'block.soft': '앞발을 디딘 뒤 골반이 돌면서 앞무릎이 펴지는 느낌을 연습해 보세요.',
+  'trunk.upright': '공을 놓으면서 가슴을 포수 쪽으로 가볍게 보내 보세요.',
+  'arm.late': '던지는 손이 올라오는 때와 앞발이 닿는 때를 맞춰 보세요.',
 };
 
 const LINES: Record<FaultKey | ElementName, Partial<Record<ReportStatus, string>>> = {
@@ -800,16 +806,12 @@ export const coverageText = (c: ReportCoverage | undefined) =>
     : '이전 판정 기준의 리포트예요. 다시 불러와 확인해 주세요.';
 export function prescriptionMessage(report: PitchReport): string {
   if (report.criteria !== REPORT_CRITERIA || !report.coverage)
-    return '리포트 기준을 업데이트하고 있어요. 다시 불러온 뒤 드릴을 확인해 주세요.';
+    return '이전 기준으로 본 결과예요. 결과를 다시 불러와 주세요.';
   if (report.rx.length === 0 && report.items.some((i) => i.prescriptionEligible))
-    return '기초 단계 드릴을 찾지 못해 개선 드릴을 보여 드리지 못했어요. 요소별 드릴에서 찾아 주세요.';
+    return '이 동작에 맞는 드릴을 찾지 못했어요.';
   const c = report.coverage;
-  const lines = [
-    c.evaluated ? '고칠 점이 없어 따로 권할 드릴이 없어요.' : '평가한 동작이 없어 드릴을 권하지 않아요.',
-    c.reference ? '참고 수치로는 드릴을 권하지 않아요.' : null,
-    c.unavailable ? '확인하지 못한 동작은 눌러서 까닭을 볼 수 있어요.' : null,
-  ];
-  return lines.filter(Boolean).join(' ');
+  if (c.evaluated) return '이번 투구에 따로 추천할 드릴이 없어요.';
+  return c.reference ? '이번에 확인한 수치는 참고용이에요.' : '영상에서 동작을 확인하기 어려워 드릴을 추천하지 못했어요.';
 }
 
 /* ───────────────────────────── 처방 ───────────────────────────── */
@@ -902,9 +904,7 @@ export function buildReport(result: Pick<Pitch3dV2Ok, 'joints' | 't' | 'events' 
     headline = {
       tone: improve ? 'improve' : 'edge',
       tag: `${primary.element} · ${improve ? '고칠 점' : '경계'}`,
-      title: improve
-        ? `${FAULT_TEXT[primary.fault]}\n여기부터 고쳐요.`
-        : `확인한 ${primary.element} 지표가 경계에 있어요.\n기초 동작부터 확인해요.`,
+      title: primary.obs ?? FAULT_TEXT[primary.fault],
       why: WHY_SHORT[primary.element],
       frame: primary.frame,
       moment: momentName(result, primary.frame),
@@ -914,20 +914,20 @@ export function buildReport(result: Pick<Pitch3dV2Ok, 'joints' | 't' | 'events' 
     const { reference: refs, unavailable: hard } = coverage;
     const rest =
       refs && hard
-        ? `${refs}개 지표는 수치를 참고로 볼 수 있고, ${hard}개는 확인하지 못했어요.`
+        ? `${refs}개 항목은 수치만 참고할 수 있고, ${hard}개는 확인하지 못했어요.`
         : refs
-          ? `다른 ${refs}개 지표의 수치는 참고로 확인할 수 있어요.`
+          ? `나머지 ${refs}개 항목은 수치만 참고할 수 있어요.`
           : hard
-            ? `다른 ${hard}개 지표는 확인하지 못했어요.`
+            ? `나머지 ${hard}개 항목은 확인하지 못했어요.`
             : null;
     headline = {
       tone: coverage.evaluated === coverage.total ? 'good' : 'unsure',
       tag: null,
       title:
         (evaluated.length === 1
-          ? `${evaluated[0].element} 지표는 ${evaluated[0].status === 'good' ? '좋아요' : '보통이에요'}.`
-          : `평가한 ${coverage.evaluated}개 지표에 고칠 점이 없어요.`) + (rest ? `\n${rest}` : ''),
-      why: '이 결과는 확인한 지표의 평가예요. 투구 동작 전체에 대한 결론은 아니에요.',
+          ? evaluated[0].obs ?? '이번 투구에서 1개 항목을 확인했어요.'
+          : `평가한 ${coverage.evaluated}개 항목에 고칠 점이 없어요.`) + (rest ? `\n${rest}` : ''),
+      why: '이번 투구에서 확인한 항목의 결과예요.',
       frame: result.events.release,
       moment: momentName(result, result.events.release),
     };
@@ -937,14 +937,14 @@ export function buildReport(result: Pick<Pitch3dV2Ok, 'joints' | 't' | 'events' 
       tone: 'unsure',
       tag: null,
       title: coverage.reference
-        ? `${coverage.reference}개 지표의 수치를 참고로 확인할 수 있어요.` +
+        ? `${coverage.reference}개 항목은 수치를 참고할 수 있어요.` +
           (coverage.unavailable ? `\n${coverage.unavailable}개는 확인하지 못했어요.` : '')
-        : '이 영상으로는 지표를 확인하지 못했어요.',
+        : '이 영상에서 투구 동작을 확인하지 못했어요.',
       why: coverage.reference
-        ? '평가할 수 있는 지표는 없어요. 이 결과만으로 교정 운동을 정하지 않아요.'
+        ? '이번에 확인한 수치는 참고용이에요.'
         : lowConf
-          ? '몸 전체가 두 영상에 잘 보이게 다시 찍으면 확인할 수 있어요. 항목마다 까닭을 볼 수 있어요.'
-          : '항목마다 확인하지 못한 까닭을 볼 수 있어요.',
+          ? '두 영상에 투구하는 동안 몸 전체가 들어오게 찍어 보세요.'
+          : '항목별로 어떤 동작을 확인하지 못했는지 볼 수 있어요.',
       frame: null,
       moment: null,
     };

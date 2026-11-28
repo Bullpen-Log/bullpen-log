@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
-  REPORT_CRITERIA, REPORT_STATUS_TEXT, prescriptionMessage, rxAction,
+  REPORT_CRITERIA, REPORT_ELEMENT_LABEL, REPORT_STATUS_TEXT, prescriptionMessage, rxAction,
   type FocusProgress, type PitchReport, type ReportItem,
 } from '@/lib/pitch-3d/v2/report';
 import { itemObs, nextStepsOf, reportLead } from '@/lib/pitch-3d/v2/report-view';
@@ -45,12 +45,13 @@ export function ResultCard({ c, report, onScene, canShowScene }: {
         <View style={{ paddingHorizontal: 14, paddingBottom: 4 }}>
           {report.items.map((item) => {
             const enabled = canShowScene(item);
+            const title = REPORT_ELEMENT_LABEL[item.element] ?? item.element;
             const statusColor = item.status === 'improve' || item.status === 'edge' ? c.warn : item.status === 'good' ? c.ok : c.muted;
             return (
               <View key={item.key} style={[s.row, s.phase, { borderTopColor: c.line }]}>
                 <View style={{ flex: 1, gap: 4 }}>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 8 }}>
-                    <Text style={[TYPE.buttonCompact, { color: c.ink }]}>{item.element}</Text>
+                    <Text style={[TYPE.buttonCompact, { color: c.ink }]}>{title}</Text>
                     <Text style={[TYPE.sub, { color: statusColor }]}>{REPORT_STATUS_TEXT[item.status]}</Text>
                   </View>
                   <Text style={[TYPE.sub, { color: c.muted }]}>{itemObs(item)}</Text>
@@ -58,7 +59,7 @@ export function ResultCard({ c, report, onScene, canShowScene }: {
                 <Pressable
                   testID={`lab-scene-${item.key}`}
                   accessibilityRole="button"
-                  accessibilityLabel={`${item.element} 장면 보기`}
+                  accessibilityLabel={`${title} 장면 보기`}
                   accessibilityState={{ disabled: !enabled }}
                   disabled={!enabled}
                   onPress={() => {
@@ -112,13 +113,13 @@ export function RxCard({ c, report, onDrill }: {
   const current = report.criteria === REPORT_CRITERIA;
   if (!current || report.rx.length === 0) {
     const steps = current && report.coverage ? nextStepsOf(report) : [];
-    const measured = report.items.some((item) => item.status !== 'note' && item.status !== 'unsure');
+    const evaluated = report.items.some((item) => item.status !== 'note' && item.status !== 'unsure');
     const needsDrill = report.items.some((item) => item.prescriptionEligible);
-    if (current && measured && !steps.length && !needsDrill) return null;
+    if (current && evaluated && !steps.length && !needsDrill) return null;
     return (
       <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 8 }]}>
         <Text style={[TYPE.sub, { color: c.muted }]}>
-          {current && !measured ? '동작을 평가할 수 있는 영상이 필요해요.' : prescriptionMessage(report)}
+          {prescriptionMessage(report)}
         </Text>
         {steps.map((step) => (
           <Pressable
@@ -130,9 +131,9 @@ export function RxCard({ c, report, onDrill }: {
             <Text style={[TYPE.buttonCompact, { color: c.link }]}>{step.label}</Text>
           </Pressable>
         ))}
-        {current && !measured && (
+        {current && report.items.every((item) => item.status === 'unsure') && (
           <Pressable accessibilityRole="button" onPress={() => pushOpen('/lab/new' as Href)} style={s.step}>
-            <Text style={[TYPE.buttonCompact, { color: c.link }]}>영상 다시 골라 분석</Text>
+            <Text style={[TYPE.buttonCompact, { color: c.link }]}>다른 영상으로 분석하기</Text>
           </Pressable>
         )}
       </View>
@@ -143,6 +144,7 @@ export function RxCard({ c, report, onDrill }: {
     <View style={{ gap: 10 }}>
       <Text accessibilityRole="header" style={[TYPE.section, s.secLabel, { color: c.ink }]}>드릴 처방 및 피드백</Text>
       {report.rx.map((rx) => {
+        const title = REPORT_ELEMENT_LABEL[rx.element] ?? rx.element;
         const picks = rx.weeks.flatMap((week) =>
           week.drills.map((drill) => ({ title: drill.title, stage: week.stage, element: rx.element }))
         );
@@ -151,7 +153,7 @@ export function RxCard({ c, report, onDrill }: {
           .slice(0, report.rx.length > 1 ? 1 : 2);
         return (
           <View key={rx.key} style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 6 }]}>
-            <Text accessibilityRole="header" style={[TYPE.card, { color: c.ink }]}>{rx.element}</Text>
+            <Text accessibilityRole="header" style={[TYPE.card, { color: c.ink }]}>{title}</Text>
             <Text style={[TYPE.sub, { color: c.muted }]}>{rx.cue}</Text>
             {drills.map((drill) => (
               <Pressable
@@ -159,7 +161,7 @@ export function RxCard({ c, report, onDrill }: {
                 key={drill.title}
                 accessibilityRole="button"
                 accessibilityLabel={drill.title}
-                accessibilityHint={`${rx.element} 드릴 영상과 방법 열기`}
+                accessibilityHint="드릴 영상과 연습 방법 보기"
                 onPress={() => onDrill(drill)}
                 style={({ pressed }) => [s.row, s.drill, { borderTopColor: c.line }, pressed && s.pressed]}
               >

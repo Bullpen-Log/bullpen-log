@@ -78,7 +78,7 @@ assert.deepEqual(report(missingRx, { drills: missingLibrary }).rx, [], '같은 �
 /* 2026-11-10: 여섯 요소 모두 평가(A) — 스로잉은 착지 손 높이 */
 const normal = report();
 assert.deepEqual(normal.coverage, { evaluated: 6, reference: 0, unavailable: 0, total: 6 });
-assert.equal(normal.headline.title, '평가한 6개 지표에 고칠 점이 없어요.');
+assert.equal(normal.headline.title, '평가한 6개 항목에 고칠 점이 없어요.');
 assert.doesNotMatch(normal.headline.title, /처방할 항목|추가 확인|크게 고칠 곳이 없|지금 동작을 지켜/);
 assert.equal(summaryChip(reportSummary(normal)).text, '수치 6/6 · 평가 6/6');
 assert.equal(coverageText(normal.coverage), '수치 확인 6/6 · 평가 가능 6/6');
@@ -106,8 +106,7 @@ assert.match(lh.foot, /아래 10% 밑 · 좋아요는 어깨보다 8cm 넘게 �
 const edgeHand = base();
 edgeHand.arm = { ...edgeHand.arm, handRise: -0.05, handRiseCm: -3 };
 assert.equal(item(report(edgeHand), '스로잉').status, 'edge');
-assert.match(prescriptionMessage(normal), /고칠 점이 없어 따로 권할 드릴이 없어요/);
-assert.match(prescriptionMessage(report(base(), { youth: true })), /참고 수치로는 드릴을 권하지 않아요/);
+assert.equal(prescriptionMessage(normal), '이번 투구에 따로 추천할 드릴이 없어요.');
 assert.doesNotMatch(prescriptionMessage(normal), /자동 처방|다시 촬영|다시 찍/);
 
 /* 큰 브레이크 값은 이제 평가 · 개선 드릴(크게 굽는 실제 동작 — 실험실 c4d8 · f046 이 50~70°) */
@@ -121,7 +120,9 @@ assert.equal(blk.measurement.validation, 'supported');
 assert.equal(blk.prescriptionEligible, true);
 assert.equal(blk.fault, 'block.collapse');
 assert.equal(bigBlock.headline.tag, '브레이크 · 고칠 점');
+assert.equal(bigBlock.headline.title, '착지 뒤 앞무릎이 최대 30° 더 굽었어요.');
 assert.equal(bigBlock.rx[0].element, '브레이크');
+assert.equal(bigBlock.rx[0].cue, '착지한 뒤 앞다리로 몸을 받아 보세요.');
 assert.deepEqual(
   bigBlock.rx[0].weeks.map((w) => [w.stage, w.drills.length]),
   [
@@ -147,7 +148,7 @@ hiddenKnee.block.keyConf = 20;
 const hk = item(report(hiddenKnee), '브레이크');
 assert.equal(hk.status, 'unsure', '착지 · 가장 굽은 장면이 안 보였으면 값을 믿지 않는다');
 assert.equal(hk.measurement.quality, 'low');
-assert.match(hk.line, /앞다리가 영상에서 잘 보이지 않아/);
+assert.match(hk.line, /착지 뒤 앞무릎 움직임을 영상에서 확인하기 어려웠어요/);
 
 /* 개선 드릴 단추 — 새 3주 처방은 시작하지 않는다, 진행 중인 옛 처방은 그대로 */
 assert.deepEqual(rxAction(true, null), { kind: 'drills', label: '추천 훈련 보기', note: RX_PRACTICE_NOTE });
@@ -185,18 +186,17 @@ for (const key of ['drop', 'trunkTilt', 'arm', 'block']) partial[key].conf = 0;
 partial.separation.trunkConf = 0;
 const one = report(partial);
 assert.deepEqual(one.coverage, { evaluated: 1, reference: 0, unavailable: 5, total: 6 });
-assert.match(one.headline.title, /드리프트 지표는 좋아요\.\n다른 5개 지표는 확인하지 못했어요/);
+assert.equal(one.headline.title, '다리를 가장 높이 들었을 때 골반은 뒷발보다 18cm 앞에 있었어요.\n나머지 5개 항목은 확인하지 못했어요.');
 assert.equal(coverageText(one.coverage), '수치 확인 1/6 · 평가 가능 1/6');
 for (const i of one.items.filter((x) => x.status === 'unsure')) {
   assert.equal(i.value, null, `${i.element} 신뢰도 부족은 수치를 안 보인다`);
-  assert.match(i.line, /잘 보이지 않아 판정하지 않았어요/);
+  assert.match(i.line, /영상에서 확인하기 어려웠어요/);
   assert.doesNotMatch(i.line, /내려가요|기울어져|벌림은|펴져요|닫혀 있어요/, '신뢰도 부족에 관찰 문장 없음');
   assert.match(measurementText(i), /확인 어려움 · 영상 신뢰도 부족/);
   assert.equal(i.metricNote, null, '확인 못 한 칸에 지표 정의를 붙이지 않는다');
 }
-assert.match(item(one, '드롭').line, /니업과 착지 때 골반 · 다리가/);
-assert.match(item(one, '스로잉').line, /착지 때 던지는 팔 · 손이/);
-assert.match(prescriptionMessage(one), /확인하지 못한 동작은 눌러서 까닭을/);
+assert.match(item(one, '드롭').line, /다리를 들 때와 착지할 때의 골반 높이를/);
+assert.match(item(one, '스로잉').line, /착지 때 던지는 손 높이를/);
 assert.doesNotMatch(one.headline.title, /크게 고칠 곳이 없/);
 partial.drift.conf = 0;
 assert.equal(report(partial).coverage.unavailable, 6);
@@ -210,7 +210,7 @@ mixed.drift.conf = 10;
 mixed.arm.conf = 10;
 const mx = report(mixed);
 assert.deepEqual(mx.coverage, { evaluated: 4, reference: 0, unavailable: 2, total: 6 });
-assert.equal(mx.headline.title, '평가한 4개 지표에 고칠 점이 없어요.\n다른 2개 지표는 확인하지 못했어요.');
+assert.equal(mx.headline.title, '평가한 4개 항목에 고칠 점이 없어요.\n나머지 2개 항목은 확인하지 못했어요.');
 assert.equal(summaryChip(reportSummary(mx)).text, '수치 4/6 · 평가 4/6');
 /* 평가 0 · 참고만 남은 경우 */
 const refOnly = base();
@@ -218,7 +218,8 @@ for (const key of ['drift', 'drop', 'arm', 'block']) refOnly[key].conf = 10;
 refOnly.separation.trunkConf = 10;
 const ro = report(refOnly, { youth: true });
 assert.deepEqual(ro.coverage, { evaluated: 0, reference: 1, unavailable: 5, total: 6 });
-assert.match(ro.headline.title, /1개 지표의 수치를 참고로 확인할 수 있어요\.\n5개는 확인하지 못했어요/);
+assert.match(ro.headline.title, /1개 항목은 수치를 참고할 수 있어요\.\n5개는 확인하지 못했어요/);
+assert.equal(prescriptionMessage(ro), '이번에 확인한 수치는 참고용이에요.');
 
 /* 신뢰도 경계 29 / 30 — 이전과 같은 문턱 */
 for (const [conf, st] of [
@@ -246,12 +247,12 @@ const sepValue = (deg) => {
 };
 assert.equal(sepValue(12), '12° 열림');
 assert.equal(sepValue(-40), '40° 닫힘');
-sign((mm) => (mm.drop.pelvisDrop = -0.03), '드롭', /니업 때보다 다리 길이의 3%만큼 높아요/);
-sign((mm) => (mm.drop.pelvisDrop = 0.001), '드롭', /거의 그대로예요/);
-sign((mm) => (mm.drop.rise = 0.04), '드롭', /한때 니업보다 다리 길이의 4%만큼 올라갔어요/);
-sign((mm) => ((mm.block.kneeCollapseDeg = 0), (mm.block.kneeExtensionDeg = -5)), '브레이크', /앞무릎이 5° 더 굽어져요/);
-sign((mm) => (mm.block.kneeCollapseDeg = 0.3), '브레이크', /펴져요/);
-sign((mm) => (mm.trunkTilt.forwardDeg = -5), '몸통 회전', /뒤로 5° 젖혀져 있어요/);
+sign((mm) => (mm.drop.pelvisDrop = -0.03), '드롭', /높았어요\(다리 길이의 3%\)/);
+sign((mm) => (mm.drop.pelvisDrop = 0.001), '드롭', /골반 높이가 거의 같았어요/);
+sign((mm) => (mm.drop.rise = 0.04), '드롭', /^앞발을 내딛는 중 골반이 .* 더 올라갔어요\(다리 길이의 4%\)/);
+sign((mm) => ((mm.block.kneeCollapseDeg = 0), (mm.block.kneeExtensionDeg = -5)), '브레이크', /앞무릎이 5° 더 굽혀졌어요/);
+sign((mm) => (mm.block.kneeCollapseDeg = 0.3), '브레이크', /펴졌어요/);
+sign((mm) => (mm.trunkTilt.forwardDeg = -5), '몸통 회전', /뒤로 5° 젖혀졌어요/);
 sign((mm) => (mm.trunkTilt.forwardDeg = 0.3), '몸통 회전', /거의 기울지 않았어요/);
 const lefty = base();
 lefty.hand = 'L';
@@ -262,15 +263,19 @@ const noDrop = base();
 noDrop.drop = null;
 const nd = item(report(noDrop), '드롭');
 assert.equal(nd.status, 'unsure');
-assert.match(nd.line, /높이 기준선을 잡지 못해/);
-assert.doesNotMatch(nd.line, /니업\)을 찾지 못해/);
+assert.equal(nd.line, '다리를 들 때와 착지할 때의 골반 높이를 비교하지 못했어요.');
 assert.match(measurementText(nd), /계산하지 못함/);
 const noKnee = base();
 noKnee.drift = null;
 noKnee.drop = null;
 const nk = report(noKnee, {}, { ...result, events: { ...result.events, kneeUp: null } });
-assert.match(item(nk, '드리프트').line, /니업\)을 찾지 못해 이 지표는/);
-assert.doesNotMatch(item(nk, '드리프트').line, /영상 전체|분석 실패/);
+assert.equal(item(nk, '드리프트').line, '다리를 가장 높이 든 장면을 찾지 못했어요.');
+const noHand = base();
+noHand.arm.handRise = null;
+for (const kneeUp of [5, null]) {
+  const r = report(noHand, {}, { ...result, events: { ...result.events, kneeUp } });
+  assert.equal(item(r, '스로잉').line, '착지 때 던지는 손 높이를 확인하지 못했어요.');
+}
 
 /* 비정상 계산값 — 정상 수치 · 관찰처럼 보이지 않는다 */
 for (const bad of [NaN, Infinity, -Infinity]) {
@@ -280,7 +285,7 @@ for (const bad of [NaN, Infinity, -Infinity]) {
   assert.equal(sp.status, 'unsure');
   assert.equal(sp.measurement.quality, 'invalid');
   assert.equal(sp.value, null);
-  assert.match(sp.line, /분석 확인이 필요해요/);
+  assert.match(sp.line, /측정값이 정상 범위를 벗어나/);
   const t1 = base();
   t1.trunkTilt.forwardDeg = bad;
   const tt = item(report(t1), '몸통 회전');
@@ -309,7 +314,7 @@ for (const overrides of [{ youth: true }]) {
   const r = report(m, overrides);
   assert.equal(item(r, '드롭').status, 'note');
   assert.equal(item(r, '드롭').prescriptionEligible, false);
-  assert.match(item(r, '드롭').line, /다리 길이의 1%만큼 내려가요/, '평지 · 성장기도 측정 관찰은 보인다');
+  assert.match(item(r, '드롭').line, /낮았어요\(다리 길이의 1%\)/, '성장기도 측정 관찰은 보인다');
   assert.doesNotMatch(item(r, '드롭').line, /떠요|고칠/);
   assert.match(
     item(r, '드롭').foot,
