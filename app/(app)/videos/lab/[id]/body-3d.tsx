@@ -84,6 +84,11 @@ const SPEEDS: { value: Speed; label: string }[] = [
   { value: 0.25, label: '¼×' },
 ];
 const EVENT_LABELS = { kneeUp: '니업', footPlant: '착지', release: '릴리스' } as const;
+const MOMENTS = ['kneeUp', 'footPlant', 'release'] as const;
+// Keep the hit area at 44px. Only the painted chip is inset.
+const COMPACT_CONTROL =
+  'relative isolate grid min-h-11 min-w-11 place-items-center whitespace-nowrap rounded-full px-0.5 text-[13px] font-medium text-ink/80 outline-offset-[-2px] focus-visible:outline-2 focus-visible:outline-sky active:opacity-75 before:pointer-events-none before:absolute before:inset-x-0.5 before:inset-y-1.5 before:-z-10 before:rounded-full';
+const COMPACT_SELECTED = 'font-semibold text-sky before:bg-sky/15';
 
 /* ───────────────────────────── three(한 번만) ───────────────────────────── */
 
@@ -813,9 +818,8 @@ export const Body3D = forwardRef<
   };
 
   const lowSpan = result.lowConf.find(([a, b]) => frame >= a && frame <= b);
-  const eventAt = (Object.keys(EVENT_LABELS) as (keyof typeof EVENT_LABELS)[]).find(
-    (k) => shownEvents(result.events)[k] === frame
-  );
+  const events = shownEvents(result.events);
+  const eventAt = MOMENTS.find((k) => events[k] === frame);
   const analysisOn = status === 'ready';
   const label = `투구 3D 모션, ${playing ? '재생 중' : '멈춤'}${eventAt ? ` · ${EVENT_LABELS[eventAt]}` : ''}${
     analysisOn ? ' · 뼈와 각도 표시' : ''
@@ -823,7 +827,7 @@ export const Body3D = forwardRef<
   const sec = (result.t[frame] - result.t[0]).toFixed(3);
 
   return (
-    <div className="space-y-3">
+    <div className={compact ? '@container space-y-1.5 bg-[#151722]' : 'space-y-3'}>
       <div
         ref={hostRef}
         role="group"
@@ -881,7 +885,7 @@ export const Body3D = forwardRef<
         ))}
       </ul>
 
-      <div className="flex items-center gap-3">
+      <div className={compact ? 'flex items-center gap-2' : 'flex items-center gap-3'}>
         <button
           type="button"
           onClick={toggle}
@@ -896,13 +900,19 @@ export const Body3D = forwardRef<
           )}
         </button>
         <Scrubber frame={frame} n={n} result={result} onSeek={seek} />
-        <span className="text-numeric w-16 shrink-0 text-right text-xs text-muted">
+        <span className={`text-numeric ${compact ? 'w-12' : 'w-16'} shrink-0 text-right text-xs text-muted`}>
           {sec}s
         </span>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex gap-1.5" role="radiogroup" aria-label="재생 속도">
+      <div className={compact ? 'flex flex-wrap items-center gap-x-1 gap-y-1 @min-[300px]:gap-x-2' : 'flex flex-wrap items-center gap-2'}>
+        <div
+          className={compact
+            ? 'relative isolate grid min-w-fit max-w-44 flex-[3] auto-cols-fr grid-flow-col before:pointer-events-none before:absolute before:inset-x-0 before:inset-y-1.5 before:-z-10 before:rounded-full before:bg-ink/8'
+            : 'flex gap-1.5'}
+          role="radiogroup"
+          aria-label="재생 속도"
+        >
           {SPEEDS.map((s) => (
             <button
               key={s.value}
@@ -910,33 +920,42 @@ export const Body3D = forwardRef<
               role="radio"
               aria-checked={speed === s.value}
               onClick={() => ctrl.current?.speed(s.value)}
-              className={speed === s.value ? `${CHIP_BASE} ${CHIP_ON}` : CHIP_BASE}
+              className={compact
+                ? `${COMPACT_CONTROL} ${speed === s.value ? COMPACT_SELECTED : ''}`
+                : speed === s.value ? `${CHIP_BASE} ${CHIP_ON}` : CHIP_BASE}
             >
               {s.label}
             </button>
           ))}
         </div>
-        <div className="ml-auto flex gap-1.5">
-          {(['kneeUp', 'footPlant', 'release'] as const)
-            .filter((k) => shownEvents(result.events)[k] != null)
-            .map((k) => (
+        <div
+          className={compact ? 'grid min-w-fit flex-[4] auto-cols-fr grid-flow-col' : 'ml-auto flex gap-1.5'}
+          role="group"
+          aria-label="장면 이동"
+        >
+          {MOMENTS.map((k) => {
+            const at = events[k];
+            if (at == null) return null;
+            return (
               <button
                 key={k}
                 type="button"
-                onClick={() => seek(shownEvents(result.events)[k]!)}
-                className={
-                  frame === shownEvents(result.events)[k] ? `${CHIP_BASE} ${CHIP_ON}` : CHIP_BASE
-                }
+                onClick={() => seek(at)}
+                className={compact
+                  ? `${COMPACT_CONTROL} ${frame === at ? COMPACT_SELECTED : 'before:bg-ink/6'}`
+                  : frame === at ? `${CHIP_BASE} ${CHIP_ON}` : CHIP_BASE}
               >
                 {EVENT_LABELS[k]}
               </button>
-            ))}
+            );
+          })}
         </div>
       </div>
 
       <Segmented
         label="시점"
         value={view}
+        itemClassName={compact ? 'aria-checked:text-[#151722]' : undefined}
         onChange={(v) => {
           ctrl.current?.view(v, true);
         }}
@@ -1038,7 +1057,7 @@ function Scrubber({
           style={{ width: dragU != null ? `${dragU * 100}%` : `${pct(frame)}%` }}
         />
       </div>
-      {(['kneeUp', 'footPlant', 'release'] as const).map((k) => {
+      {MOMENTS.map((k) => {
         const at = shownEvents(result.events)[k];
         if (at == null) return null;
         return (
